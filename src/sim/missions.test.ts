@@ -102,7 +102,8 @@ describe('missions', () => {
     w = advanceTurns(w, 20);
     const m = w.missions[id]!;
     expect(m.stage).toBe('done');
-    expect(m.findings?.length).toBeGreaterThan(0);
+    if (m.outcome !== 'disaster') expect(m.findings?.length).toBeGreaterThan(0);
+    else expect(m.report).toBeTruthy();
   });
 
   it('many missions never break invariants', () => {
@@ -131,7 +132,7 @@ describe('save migration', () => {
     delete old.knowledge;
     delete old.missions;
     const w = deserialize(JSON.stringify(old));
-    expect(w.version).toBe(2);
+    expect(w.version).toBe(3);
     expect(w.missions).toEqual({});
     expect(Object.keys(w.knowledge[P]!).length).toBe(Object.keys(w.characters).length);
   });

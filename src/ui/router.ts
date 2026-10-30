@@ -13,7 +13,8 @@ export type Route =
   | { kind: 'save' }
   | { kind: 'missions' }
   | { kind: 'mission'; id: string }
-  | { kind: 'plan'; mission: 'investigate' | 'scout'; target?: string }
+  | { kind: 'plan'; mission: 'investigate' | 'scout' | 'envoy'; target?: string; leader?: string; petition?: string }
+  | { kind: 'council' }
   | { kind: 'character'; id: string }
   | { kind: 'house'; id: string }
   | { kind: 'family'; id: string }
@@ -25,12 +26,12 @@ export type Route =
   | { kind: 'band'; id: string }
   | { kind: 'search'; q: string };
 
-export type Section = 'throne' | 'people' | 'houses' | 'worlds' | 'missions' | 'save';
+export type Section = 'throne' | 'council' | 'people' | 'houses' | 'worlds' | 'missions' | 'save';
 
 /** Which sidebar section a page belongs to. */
 export function sectionOf(r: Route): Section | null {
   switch (r.kind) {
-    case 'throne': case 'people': case 'houses': case 'worlds': case 'save': case 'missions': return r.kind;
+    case 'throne': case 'people': case 'houses': case 'worlds': case 'save': case 'missions': case 'council': return r.kind;
     case 'mission': case 'plan': return 'missions';
     case 'character': case 'trait': case 'flag': case 'species': case 'band': return 'people';
     case 'house': case 'family': return 'houses';
@@ -53,14 +54,16 @@ export function routeLabel(world: World, r: Route): string {
     case 'worlds': return 'Worlds';
     case 'save': return 'Save & Load';
     case 'missions': return 'Missions';
+    case 'council': return 'Council';
     case 'mission': {
       const m = world.missions[r.id];
       if (!m) return 'Mission';
       if (m.kind === 'scout') return `Scouting ${world.planets[m.targetPlanetId]?.name ?? ''}`;
+      if (m.kind === 'envoy') return `Envoy to ${world.houses[m.targetHouseId ?? '']?.name ?? ''}`;
       const t = m.targetId ? world.characters[m.targetId] : undefined;
       return `Investigating ${t ? t.name.given : 'someone'}`;
     }
-    case 'plan': return r.mission === 'investigate' ? 'Plan an investigation' : 'Plan a scouting run';
+    case 'plan': return r.mission === 'investigate' ? 'Plan an investigation' : r.mission === 'envoy' ? 'Send an envoy' : 'Plan a scouting run';
     case 'character': { const c = world.characters[r.id]; return c ? displayName(c.name) : 'Unknown'; }
     case 'house': return `House ${world.houses[r.id]?.name ?? r.id}`;
     case 'family': return `Family ${world.families[r.id]?.name ?? r.id}`;

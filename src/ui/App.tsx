@@ -12,6 +12,7 @@ import type { World } from '../sim/types';
 import { GameContext, HoverContext, NavContext, WorldContext, type Game, type Hover, type Nav } from './context';
 import { seenBy } from './fog';
 import { MissionPage, MissionsPage, PlanPage } from './missions';
+import { CouncilPage } from './council';
 import { activeMissions } from '../sim/missions';
 import { routeLabel, sameRoute, sectionOf, type Route, type Section } from './router';
 import { AUTOSAVE, storage } from './storage';
@@ -30,6 +31,7 @@ function initialWorld(): World {
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'throne', label: 'Throne Room' },
+  { id: 'council', label: 'Council' },
   { id: 'people', label: 'People' },
   { id: 'houses', label: 'Houses' },
   { id: 'worlds', label: 'Worlds' },
@@ -127,6 +129,7 @@ export function App() {
                   <button key={s.id} type="button" aria-current={section === s.id ? 'page' : undefined} onClick={() => nav.to({ kind: s.id } as Route)}>
                     {s.label}
                     {s.id === 'missions' && activeMissions(world, world.playerHouseId).length ? <span className="count">{activeMissions(world, world.playerHouseId).length}</span> : null}
+                    {s.id === 'council' && world.courts[world.playerHouseId]?.petitions.length ? <span className="count gold-count">{world.courts[world.playerHouseId]!.petitions.length}</span> : null}
                   </button>
                 ))}
               </nav>
@@ -173,7 +176,8 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'search': return <SearchPage q={route.q} />;
     case 'missions': return <MissionsPage />;
     case 'mission': return <MissionPage id={route.id} />;
-    case 'plan': return <PlanPage key={`${route.mission}-${route.target ?? ''}`} kind={route.mission} target={route.target} />;
+    case 'plan': return <PlanPage key={`${route.mission}-${route.target ?? ''}-${route.petition ?? ''}`} kind={route.mission} target={route.target} leader={route.leader} petition={route.petition} />;
+    case 'council': return <CouncilPage />;
   }
 }
 

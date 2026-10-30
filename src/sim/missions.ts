@@ -8,6 +8,7 @@ import { findSector, seatHolder } from './query';
 import { believed, knowledgeOf, learn, viewOf, type CharacterView } from './knowledge';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, type GameDate } from './time';
 import { SPECIES } from '../data/species';
+import { attitude, relation, shiftRelation } from './relations';
 import { FLAGS_BY_ID } from '../data/flags';
 import { traitLabel } from '../data/traits';
 import type { Approach, Character, Mission, MissionKind, Outcome, SpeciesId, World } from './types';
@@ -33,11 +34,13 @@ export function travelCycles(a: string, b: string): number {
 export const TASK_CYCLES: Record<MissionKind, Record<Approach, number>> = {
   investigate: { careful: 10, quick: 6 },
   scout: { careful: 8, quick: 4 },
+  envoy: { careful: 8, quick: 4 },
 };
 
 export const MISSION_LABEL: Record<MissionKind, string> = {
   investigate: 'Investigate',
   scout: 'Scout',
+  envoy: 'Envoy',
 };
 
 export const OUTCOME_LABEL: Record<Outcome, string> = {
@@ -80,9 +83,9 @@ export function cannotLead(world: World, houseId: string, c: Character): string 
 
 export function skillFor(kind: MissionKind, c: Character): number {
   const s = c.stats;
-  return kind === 'investigate'
-    ? s.intrigue * 0.45 + s.insight * 0.3 + s.perception * 0.25
-    : s.perception * 0.4 + s.stealth * 0.3 + s.intellect * 0.3;
+  if (kind === 'investigate') return s.intrigue * 0.45 + s.insight * 0.3 + s.perception * 0.25;
+  if (kind === 'envoy') return s.diplomacy * 0.45 + s.eloquence * 0.3 + s.negotiation * 0.25;
+  return s.perception * 0.4 + s.stealth * 0.3 + s.intellect * 0.3;
 }
 
 /** How well the leader suits the job, as a word. */
@@ -99,6 +102,7 @@ export interface MissionSpec {
   leaderId: string;
   targetId?: string;
   targetPlanetId?: string;
+  targetHouseId?: string;
   approach: Approach;
 }
 
@@ -121,6 +125,11 @@ function resolveSpec(world: World, spec: MissionSpec): Resolved | string {
     if (target.id === leader.id) return 'They cannot investigate themselves.';
     return { leader, target, planetId: target.location.planetId, sectorId: target.location.sectorId, targetHouseId: target.houseId };
   }
+  if (spec.kind === 'envoy') {
+    const h = spec.targetHouseId ? world.houses[spec.targetHouseId] : undefined;
+    if (!h || h.id === spec.houseId) return 'Choose a house to visit.';
+    spec = { ...spec, targetPlanetId: h.capitalPlanetId };
+  }
   const planet = spec.targetPlanetId ? world.planets[spec.targetPlanetId] : undefined;
   if (!planet) return 'No world to scout.';
   const portRank = { none: 0, 'landing field': 1, spaceport: 2, starport: 3 } as const;
@@ -134,6 +143,11 @@ function resolveSpec(world: World, spec: MissionSpec): Resolved | string {
 function difficulty(world: World, kind: MissionKind, r: Resolved, observer: string | null): number {
   const houseIntrigue = world.houses[r.targetHouseId]?.personality.intrigue ?? 0.5;
   if (kind === 'scout') return houseIntrigue * 8 + 6;
+  if (kind === 'envoy') {
+    const h = world.houses[r.targetHouseId]!;
+    const regard = relation(world, h.id, r.leader.houseId);
+    return 6 + h.personality.isolation * 8 + Math.max(0, -regard) / 8 + (h.tier === 'great' ? 2 : 0);
+  }
   const t = r.target!;
   let discretion = t.hidden.discretion;
   let insight = t.stats.insight;
@@ -197,8 +211,8 @@ export function forecast(world: World, spec: MissionSpec): Forecast | { ok: fals
   const skill = skillFor(spec.kind, r.leader);
   const diff = difficulty(world, spec.kind, r, spec.houseId);
   // The house guesses the watchers from what it knows of the target's spymaster.
-  const p = detectionChance(world, r, spec.approach);
-  const rng = Rng.fromSeed(`forecast|${spec.kind}|${spec.leaderId}|${spec.targetId ?? spec.targetPlanetId}|${spec.approach}`);
+  const p = spec.kind === 'envoy' ? 0 : detectionChance(world, r, spec.approach);
+  const rng = Rng.fromSeed(`forecast|${spec.kind}|${spec.leaderId}|${spec.targetId ?? spec.targetPlanetId ?? spec.targetHouseId}|${spec.approach}`);
   let good = 0;
   const N = 300;
   for (let i = 0; i < N; i++) {
@@ -211,7 +225,7 @@ export function forecast(world: World, spec: MissionSpec): Forecast | { ok: fals
     const o = outcomeFor(prog, noticed);
     if (o === 'triumph' || o === 'success') good++;
   }
-  const depth = spec.kind === 'investigate' && r.target ? knowledgeOf(world, spec.houseId, r.target.id).depth : 50;
+  const depth = spec.kind === 'investigate' && r.target ? knowledgeOf(world, spec.houseId, r.target.id).depth : spec.kind === 'envoy' ? knowledgeOf(world, spec.houseId, world.houses[r.targetHouseId]?.rulerId ?? '').depth : 50;
   return {
     ok: true,
     travel,
@@ -242,6 +256,7 @@ export function launchMission(input: World, spec: MissionSpec): { world: World; 
     houseId: spec.houseId,
     leaderId: r.leader.id,
     targetId: r.target?.id,
+    targetHouseId: spec.kind === 'envoy' ? r.targetHouseId : undefined,
     targetPlanetId: r.planetId,
     targetSectorId: r.sectorId,
     approach: spec.approach,
@@ -274,6 +289,7 @@ export function describeJob(world: World, m: Mission): string {
     const t = m.targetId ? world.characters[m.targetId] : undefined;
     return `look into ${t ? displayName(t.name) : 'someone'}`;
   }
+  if (m.kind === 'envoy') return `visit the court of House ${world.houses[m.targetHouseId ?? '']?.name ?? '?'}`;
   return `scout ${world.planets[m.targetPlanetId]?.name ?? 'a world'}`;
 }
 
@@ -321,7 +337,7 @@ export function advanceMissions(world: World, rng: Rng): void {
 
 function taskTurn(world: World, m: Mission, leader: Character, rng: Rng) {
   const r = resolveSpec({ ...world, missions: {} }, {
-    kind: m.kind, houseId: m.houseId, leaderId: m.leaderId, targetId: m.targetId, targetPlanetId: m.targetPlanetId, approach: m.approach,
+    kind: m.kind, houseId: m.houseId, leaderId: m.leaderId, targetId: m.targetId, targetPlanetId: m.targetPlanetId, targetHouseId: m.targetHouseId, approach: m.approach,
   });
   if (typeof r === 'string') {
     end(world, m, 'failure', `The trail went cold: ${r.toLowerCase()}`);
@@ -330,10 +346,15 @@ function taskTurn(world: World, m: Mission, leader: Character, rng: Rng) {
   const gain = progressRoll(rng, skillFor(m.kind, leader), difficulty(world, m.kind, r, null), m.approach);
   m.progress += gain;
   m.rolls += 1;
-  if (gain >= 9) m.log.push({ date: world.date, text: m.kind === 'investigate' ? 'A good day: a servant talks, a record turns up.' : 'Covered a lot of ground today.' });
-  else if (gain < 2) m.log.push({ date: world.date, text: m.kind === 'investigate' ? 'Nothing. Doors stay shut.' : 'Slow going. Patrols everywhere.' });
+  const LINES = {
+    investigate: ['A good day: a servant talks, a record turns up.', 'Nothing. Doors stay shut.'],
+    scout: ['Covered a lot of ground today.', 'Slow going. Patrols everywhere.'],
+    envoy: ['Received warmly at court. A long dinner, good words.', 'Kept waiting in antechambers all day.'],
+  } as const;
+  if (gain >= 9) m.log.push({ date: world.date, text: LINES[m.kind][0] });
+  else if (gain < 2) m.log.push({ date: world.date, text: LINES[m.kind][1] });
 
-  if (m.noticed) return;
+  if (m.noticed || m.kind === 'envoy') return;
   const watcher = watcherSkill(world, r);
   if (!rng.chance(detectionChance(world, r, m.approach, watcher))) return;
 
@@ -374,7 +395,10 @@ const GAINS: Record<MissionKind, Record<Exclude<Outcome, 'disaster'>, [number, n
   // [full tier, minor tier]
   investigate: { triumph: [65, 65], success: [45, 45], partial: [25, 25], failure: [8, 8] },
   scout: { triumph: [35, 20], success: [25, 12], partial: [12, 6], failure: [3, 0] },
+  envoy: { triumph: [20, 0], success: [15, 0], partial: [8, 0], failure: [3, 0] },
 };
+
+const ENVOY_REGARD: Record<Exclude<Outcome, 'disaster'>, number> = { triumph: 20, success: 12, partial: 5, failure: -4 };
 
 function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
   const outcome = (m.outcome ?? 'failure') as Exclude<Outcome, 'disaster'>;
@@ -393,6 +417,27 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
     }
     const after = viewOf(world, m.houseId, t);
     findings.push(...diffViews(before, after));
+  } else if (m.kind === 'envoy' && m.targetHouseId) {
+    const h = world.houses[m.targetHouseId]!;
+    const before = relation(world, h.id, m.houseId);
+    shiftRelation(world, h.id, m.houseId, ENVOY_REGARD[outcome], 70);
+    // Courtesy runs both ways, a little.
+    if (outcome !== 'failure') shiftRelation(world, m.houseId, h.id, 3, 70);
+    const after = relation(world, h.id, m.houseId);
+    findings.push(after > before
+      ? `House ${h.name} now regards us as ${attitude(after)} (${before} → ${after}).`
+      : after < before ? `The visit went badly. House ${h.name} cools toward us (${before} → ${after}).` : `House ${h.name}'s regard is unchanged (${after}).`);
+    // Both sides learn faces.
+    learn(world, h.id, leader.id, 30);
+    const seen = Object.values(world.characters).filter((c) => c.alive && c.houseId === h.id && c.seat);
+    const gain = GAINS.envoy[outcome][0];
+    for (const c of seen) learn(world, m.houseId, c.id, gain);
+    if (seen.length && gain) findings.push(`Met their council face to face: ${seen.length} councillors better known.`);
+    if (outcome === 'triumph') {
+      const st = world.houses[m.houseId]!.standing;
+      st.respect = Math.min(100, st.respect + 2);
+      findings.push('Word of the visit spreads. Our respect grows.');
+    }
   } else {
     const planet = world.planets[m.targetPlanetId]!;
     const [full, minor] = GAINS.scout[outcome];
@@ -525,6 +570,8 @@ const VOICE: Record<SpeciesId, { open: Record<Exclude<Outcome, 'disaster'>, stri
 
 function report(world: World, m: Mission, leader: Character, outcome: Exclude<Outcome, 'disaster'>, rng: Rng): string {
   const v = VOICE[leader.species];
-  const subject = m.kind === 'investigate' && m.targetId ? shortName(world.characters[m.targetId]!.name) : world.planets[m.targetPlanetId]?.name ?? '';
+  const subject = m.kind === 'investigate' && m.targetId ? shortName(world.characters[m.targetId]!.name)
+    : m.kind === 'envoy' ? `House ${world.houses[m.targetHouseId ?? '']?.name ?? ''}`
+    : world.planets[m.targetPlanetId]?.name ?? '';
   return `${rng.pick(v.open[outcome])} On ${subject}, what I found is set out below. ${rng.pick(v.close)} — ${shortName(leader.name)}`;
 }

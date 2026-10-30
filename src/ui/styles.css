@@ -218,3 +218,14 @@ a.btn, button.btn { text-decoration: none; }
 .choice:hover { border-color: var(--muted); }
 .choice[aria-pressed='true'] { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
 @media (max-width: 860px) { .choices.two { grid-template-columns: 1fr; } }
+
+/* ---------------- milestone 3: council & oaths */
+.meter { display: grid; grid-template-columns: 70px 1fr 28px; gap: 10px; align-items: center; font-size: 12px; }
+.meter .mono { text-align: right; }
+.quote { font-style: italic; color: var(--fg-2); font-size: 13px; }
+select.select { height: 30px; padding: 0 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; font-size: 12px; max-width: 100%; }
+table.list.tasks td { vertical-align: middle; }
+.petition { align-items: flex-start; flex-wrap: wrap; }
+.choices.oaths { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.rail .count.gold-count { background: var(--gold); }
+.tag.council { color: var(--gold); }

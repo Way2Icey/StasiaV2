@@ -11,7 +11,7 @@ export interface FamilySeed {
   high?: boolean;
 }
 
-export interface HouseSeed extends Omit<House, 'rulerId'> {
+export interface HouseSeed extends Omit<House, 'rulerId' | 'standing'> {
   families: FamilySeed[];
 }
 

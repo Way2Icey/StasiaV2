@@ -18,6 +18,7 @@ import {
 import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
 import { MissionRow } from './missions';
+import { OathSummary, Petitions, StandingPanel } from './council';
 import { formatRange, KNOW, knowledgeOf, type CharacterView } from '../sim/knowledge';
 import { activeMissionOf, activeMissions, MISSION_LABEL } from '../sim/missions';
 import {
@@ -136,6 +137,8 @@ export function ThroneRoom() {
               right={<><SpeciesLink id={c.species} /> · {ageOf(c, world.date)}</>} />
           ))}
         </Panel>
+        <OathSummary className="span-6" />
+        <Petitions className="span-6" />
         <Panel title="Missions in the field" aside={<Go to={{ kind: 'missions' }}>Missions board ›</Go>} className="span-12">
           {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. Open anyone's sheet to look into them, or a world to scout it.</p> : null}
           {missions.map((m) => <MissionRow key={m.id} id={m.id} />)}
@@ -441,7 +444,14 @@ export function HousePage({ id }: { id: string }) {
   return (
     <>
       <Title eyebrow={`${h.tier === 'great' ? 'Great House' : 'Minor House'} of Archon`} title={`House ${h.name}`} sub={h.blurb} />
+      {h.id !== world.playerHouseId ? (
+        <div className="actions">
+          <Go to={{ kind: 'plan', mission: 'envoy', target: h.id }} className="btn primary">Send an envoy</Go>
+          <Go to={{ kind: 'plan', mission: 'scout', target: h.capitalPlanetId }} className="btn">Scout their capital</Go>
+        </div>
+      ) : null}
       <div className="grid">
+        <StandingPanel houseId={h.id} className="span-12" />
         <Panel title="Rule" className="span-5">
           <div className="body">
             <dl className="kv">

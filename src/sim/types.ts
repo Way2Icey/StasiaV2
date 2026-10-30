@@ -155,6 +155,17 @@ export interface House {
   /** Personality weights 0..1 used by rival-house behaviour later. */
   personality: Record<'aggression' | 'honour' | 'greed' | 'intrigue' | 'piety' | 'isolation', number>;
   blurb: string;
+  /** How the house stands among the Houses of Archon, each 0..100. */
+  standing: Standing;
+}
+
+export interface Standing {
+  /** Keeping your word: oaths kept, debts paid. */
+  honour: number;
+  /** Standing at court and in the Numerade. */
+  respect: number;
+  /** How much the others fear you. */
+  dread: number;
 }
 
 export interface Family {
@@ -208,7 +219,7 @@ export interface Planet {
 
 export interface FeedEntry {
   date: GameDate;
-  kind: 'time' | 'death' | 'birth' | 'flag' | 'world' | 'mission';
+  kind: 'time' | 'death' | 'birth' | 'flag' | 'world' | 'mission' | 'council';
   text: string;
   characterIds?: string[];
   missionId?: string;
@@ -227,7 +238,7 @@ export interface KnowledgeEntry {
 
 // ---------------------------------------------------------------- missions
 
-export type MissionKind = 'investigate' | 'scout';
+export type MissionKind = 'investigate' | 'scout' | 'envoy';
 export type Approach = 'careful' | 'quick';
 export type MissionStage = 'travel' | 'task' | 'return' | 'done';
 export type Outcome = 'triumph' | 'success' | 'partial' | 'failure' | 'disaster';
@@ -239,6 +250,8 @@ export interface Mission {
   leaderId: string;
   /** Investigate: the person being looked into. */
   targetId?: string;
+  /** Envoy: the house being courted. */
+  targetHouseId?: string;
   targetPlanetId: string;
   targetSectorId: string;
   approach: Approach;
@@ -260,8 +273,64 @@ export interface Mission {
   findings?: string[];
 }
 
+// ---------------------------------------------------------------- council
+
+export interface TaskAssignment {
+  task: string;
+  /** A house or sector id, for tasks that need one. */
+  target?: string;
+  since: GameDate;
+  /** Builds each turn; a result lands when it passes the task's threshold. */
+  progress: number;
+}
+
+export interface OathState {
+  id: string;
+  target?: string;
+  sworn: GameDate;
+  ends: GameDate;
+  /** Where the measure stood when the oath was sworn. */
+  baseline: number;
+}
+
+export interface OathRecord {
+  id: string;
+  target?: string;
+  sworn: GameDate;
+  ended: GameDate;
+  result: 'kept' | 'broken' | 'abandoned';
+}
+
+export interface Petition {
+  id: string;
+  date: GameDate;
+  expires: GameDate;
+  fromId: string;
+  kind: MissionKind;
+  leaderId: string;
+  targetId?: string;
+  targetPlanetId?: string;
+  targetHouseId?: string;
+  reason: string;
+}
+
+export interface CouncilReport {
+  date: GameDate;
+  seat: CouncilSeat;
+  characterId: string;
+  text: string;
+}
+
+export interface Court {
+  tasks: Partial<Record<CouncilSeat, TaskAssignment>>;
+  oath: OathState | null;
+  oaths: OathRecord[];
+  petitions: Petition[];
+  reports: CouncilReport[];
+}
+
 export interface World {
-  version: 2;
+  version: 3;
   seed: string;
   date: GameDate;
   rng: RngState;
@@ -275,4 +344,7 @@ export interface World {
   /** knowledge[observerHouseId][characterId] */
   knowledge: Record<string, Record<string, KnowledgeEntry>>;
   missions: Record<string, Mission>;
+  /** relations[a][b]: how house a regards house b, -100..100. */
+  relations: Record<string, Record<string, number>>;
+  courts: Record<string, Court>;
 }

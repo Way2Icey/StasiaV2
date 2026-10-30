@@ -6,6 +6,7 @@ import { createCharacter, focusForSeat, type CharacterSpec } from './characters'
 import { Rng } from './rng';
 import { makeDate } from './time';
 import { ensureKnowledge } from './knowledge';
+import { ensureCouncil, initialStanding } from './council';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
 export const DEFAULT_SEED = 'stasia';
@@ -17,7 +18,7 @@ const familyId = (houseId: string, key: string) => `${houseId}:${key}`;
 export function createWorld(seed: string = DEFAULT_SEED): World {
   const rng = Rng.fromSeed(seed);
   const world: World = {
-    version: 2,
+    version: 3,
     seed,
     date: START_DATE,
     rng: rng.state,
@@ -30,11 +31,14 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     feed: [],
     knowledge: {},
     missions: {},
+    relations: {},
+    courts: {},
   };
 
   for (const h of SLICE_HOUSES) {
     const { families, ...house } = h;
-    world.houses[h.id] = { ...house, rulerId: null };
+    world.houses[h.id] = { ...house, rulerId: null, standing: { honour: 50, respect: 30, dread: 10 } };
+    world.houses[h.id]!.standing = initialStanding(world, h.id);
     for (const f of families) {
       const fam: Family = {
         id: familyId(h.id, f.key),
@@ -89,6 +93,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     text: `The Chronicle opens. Aurel Vanthos rules House Alerion from the Vanthos Citadel.`,
   });
   ensureKnowledge(world);
+  ensureCouncil(world);
   world.rng = rng.state;
   return world;
 }

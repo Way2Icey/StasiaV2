@@ -6,6 +6,8 @@ import {
   activeMissions, cannotLead, describeJob, fitLabel, forecast, launchMission, MISSION_LABEL, OUTCOME_LABEL,
   pastMissions, skillFor, travelCycles, type MissionSpec,
 } from '../sim/missions';
+import { closePetition } from '../sim/council';
+import { attitude, attitudeColor, relation } from '../sim/relations';
 import type { Approach, Character, Mission, MissionKind, Outcome } from '../sim/types';
 import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
@@ -37,8 +39,18 @@ function OutcomeTag({ o }: { o: Outcome }) {
   return <span className="tag" style={{ color: OUTCOME_COLOR[o] }}>{OUTCOME_LABEL[o]}</span>;
 }
 
+const PLAN_TITLE: Record<MissionKind, string> = {
+  investigate: 'Plan an investigation', scout: 'Plan a scouting run', envoy: 'Send an envoy',
+};
+const PLAN_BLURB: Record<MissionKind, string> = {
+  investigate: 'Learn what someone is really like: their abilities, their character, their secrets.',
+  scout: 'Survey a world: who lives there, who holds it, where it is weak.',
+  envoy: 'Go to another house’s court in person. Warm their regard, and meet their council face to face.',
+};
+
 function Target({ m }: { m: Mission }) {
   if (m.kind === 'investigate') return <PersonById id={m.targetId} />;
+  if (m.kind === 'envoy') return m.targetHouseId ? <HouseLink id={m.targetHouseId} /> : <span className="muted">—</span>;
   return <PlanetLink id={m.targetPlanetId} />;
 }
 
@@ -91,6 +103,7 @@ export function MissionsPage() {
       <div className="actions">
         <Go to={{ kind: 'plan', mission: 'investigate' }} className="btn primary">Plan an investigation</Go>
         <Go to={{ kind: 'plan', mission: 'scout' }} className="btn">Plan a scouting run</Go>
+        <Go to={{ kind: 'plan', mission: 'envoy' }} className="btn">Send an envoy</Go>
       </div>
       <Panel title="In the field" aside={`${active.length} out`}>
         {active.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out right now.</p> : null}
@@ -131,7 +144,7 @@ export function MissionPage({ id }: { id: string }) {
   const leader = world.characters[m.leaderId];
   const stages: { key: Mission['stage']; label: string; until: string }[] = [
     { key: 'travel', label: 'Travel out', until: formatDate(s.arrive) },
-    { key: 'task', label: m.kind === 'investigate' ? 'Investigate' : 'Scout', until: formatDate(s.finish) },
+    { key: 'task', label: m.kind === 'investigate' ? 'Investigate' : m.kind === 'envoy' ? 'At court' : 'Scout', until: formatDate(s.finish) },
     { key: 'return', label: 'Return', until: formatDate(s.home) },
   ];
   const order: Mission['stage'][] = ['travel', 'task', 'return', 'done'];
@@ -140,7 +153,7 @@ export function MissionPage({ id }: { id: string }) {
     <>
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span className="eyebrow gold">{MISSION_LABEL[m.kind]} · {m.approach === 'quick' ? 'quick and loud' : 'careful'}</span>
+          <span className="eyebrow gold">{MISSION_LABEL[m.kind]} · {m.kind === 'envoy' ? (m.approach === 'quick' ? 'short visit' : 'long stay') : m.approach === 'quick' ? 'quick and loud' : 'careful'}</span>
           <h2>{leader ? displayName(leader.name) : 'Someone'} to {describeJob(world, m)}</h2>
           <p>Launched {formatDate(m.launched)} · {m.stage === 'done' ? `ended ${m.ended ? formatDate(m.ended) : ''}` : `${STAGE_LABEL[m.stage].toLowerCase()}`}</p>
         </div>
@@ -178,6 +191,7 @@ export function MissionPage({ id }: { id: string }) {
                 </ul>
               ) : null}
               {m.kind === 'investigate' && m.targetId ? <div><Go to={{ kind: 'character', id: m.targetId }} className="btn small">Open their sheet ›</Go></div> : null}
+              {m.kind === 'envoy' && m.targetHouseId ? <div><Go to={{ kind: 'house', id: m.targetHouseId }} className="btn small">Open the house ›</Go></div> : null}
               {m.kind === 'scout' ? <div><Go to={{ kind: 'planet', id: m.targetPlanetId }} className="btn small">Open the world ›</Go></div> : null}
             </div>
           )}
@@ -198,7 +212,7 @@ export function MissionPage({ id }: { id: string }) {
 
 // ---------------------------------------------------------------- planning
 
-export function PlanPage({ kind: initialKind, target: initialTarget }: { kind: MissionKind; target?: string }) {
+export function PlanPage({ kind: initialKind, target: initialTarget, leader: initialLeader, petition }: { kind: MissionKind; target?: string; leader?: string; petition?: string }) {
   const world = useWorld();
   const nav = useNav();
   const game = useGame();
@@ -206,7 +220,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget }: { kind: M
   const house = world.playerHouseId;
   const [kind, setKind] = useState<MissionKind>(initialKind);
   const [target, setTarget] = useState<string | undefined>(initialTarget);
-  const [leaderId, setLeaderId] = useState<string | undefined>();
+  const [leaderId, setLeaderId] = useState<string | undefined>(initialLeader);
   const [approach, setApproach] = useState<Approach>('careful');
   const [q, setQ] = useState('');
 
@@ -214,6 +228,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget }: { kind: M
 
   const targetPlanet = kind === 'investigate'
     ? (target ? world.characters[target]?.location.planetId : undefined)
+    : kind === 'envoy' ? (target ? world.houses[target]?.capitalPlanetId : undefined)
     : target;
 
   const candidates = useMemo(() => {
@@ -235,7 +250,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget }: { kind: M
   const leader = leaderId && candidates.some((x) => x.c.id === leaderId) ? leaderId : candidates[0]?.c.id;
   const spec: MissionSpec | null = leader && target ? {
     kind, houseId: house, leaderId: leader, approach,
-    ...(kind === 'investigate' ? { targetId: target } : { targetPlanetId: target }),
+    ...(kind === 'investigate' ? { targetId: target } : kind === 'envoy' ? { targetHouseId: target } : { targetPlanetId: target }),
   } : null;
   const f = spec ? forecast(world, spec) : null;
   const targetChar = kind === 'investigate' && target ? world.characters[target] : undefined;
@@ -243,7 +258,11 @@ export function PlanPage({ kind: initialKind, target: initialTarget }: { kind: M
   const launch = () => {
     if (!spec) return;
     const id = `m${world.nextId}`;
-    game.update((w) => launchMission(w, spec).world);
+    game.update((w) => {
+      const next = launchMission(w, spec).world;
+      if (petition) closePetition(next, house, petition);
+      return next;
+    });
     nav.to({ kind: 'mission', id });
   };
 
@@ -252,15 +271,15 @@ export function PlanPage({ kind: initialKind, target: initialTarget }: { kind: M
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="eyebrow gold">New mission</span>
-          <h2>{kind === 'investigate' ? 'Plan an investigation' : 'Plan a scouting run'}</h2>
-          <p>{kind === 'investigate'
-            ? 'Learn what someone is really like: their abilities, their character, their secrets.'
-            : 'Survey a world: who lives there, who holds it, where it is weak.'}</p>
+          <h2>{PLAN_TITLE[kind]}</h2>
+          <p>{PLAN_BLURB[kind]}</p>
+          {petition ? <p className="notice">Petitioned by the council. Sending it settles the petition.</p> : null}
         </div>
       </div>
       <div className="filters">
         <button type="button" className="pill" aria-pressed={kind === 'investigate'} onClick={() => switchKind('investigate')}>Investigate a person</button>
         <button type="button" className="pill" aria-pressed={kind === 'scout'} onClick={() => switchKind('scout')}>Scout a world</button>
+        <button type="button" className="pill" aria-pressed={kind === 'envoy'} onClick={() => switchKind('envoy')}>Send an envoy</button>
       </div>
 
       <div className="grid">
@@ -288,6 +307,18 @@ export function PlanPage({ kind: initialKind, target: initialTarget }: { kind: M
                     </div>
                   </>
                 )}
+              </div>
+            ) : kind === 'envoy' ? (
+              <div className="body choices">
+                {Object.values(world.houses).filter((h) => h.id !== house).map((h) => {
+                  const r = relation(world, h.id, house);
+                  return (
+                    <button key={h.id} type="button" className="choice" aria-pressed={target === h.id} onClick={() => setTarget(h.id)}>
+                      <span>House {h.name}</span>
+                      <span className="muted">Regards us: <span style={{ color: attitudeColor(r) }}>{attitude(r)}</span> ({r}) · court at {world.planets[h.capitalPlanetId]?.name}</span>
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <div className="body choices">
@@ -321,11 +352,11 @@ export function PlanPage({ kind: initialKind, target: initialTarget }: { kind: M
             <div className="body choices two">
               <button type="button" className="choice" aria-pressed={approach === 'careful'} onClick={() => setApproach('careful')}>
                 <span>Careful</span>
-                <span className="muted">Takes longer. Less likely to be noticed.</span>
+                <span className="muted">{kind === 'envoy' ? 'A long stay. More time to win them over.' : 'Takes longer. Less likely to be noticed.'}</span>
               </button>
               <button type="button" className="choice" aria-pressed={approach === 'quick'} onClick={() => setApproach('quick')}>
                 <span>Quick</span>
-                <span className="muted">Back sooner, works harder each cycle, but far more likely to be seen.</span>
+                <span className="muted">{kind === 'envoy' ? 'A short, pointed visit. Back sooner; harder to charm.' : 'Back sooner, works harder each cycle, but far more likely to be seen.'}</span>
               </button>
             </div>
           </Panel>
@@ -344,8 +375,14 @@ export function PlanPage({ kind: initialKind, target: initialTarget }: { kind: M
                   <dt>Our estimate is</dt><dd>{f.confidence}</dd>
                 </dl>
                 <Odds label="Chance of a good result" p={f.success} color="var(--green)" />
-                <Odds label="Chance of being noticed" p={f.noticed} color="var(--orange)" />
-                <p className="muted" style={{ fontSize: 11, margin: 0 }}>Being noticed caps the result, tells their house who you sent, and can end in capture.</p>
+                {kind === 'envoy' ? (
+                  <p className="muted" style={{ fontSize: 11, margin: 0 }}>An envoy goes openly. A poor visit can cool their regard a little.</p>
+                ) : (
+                  <>
+                    <Odds label="Chance of being noticed" p={f.noticed} color="var(--orange)" />
+                    <p className="muted" style={{ fontSize: 11, margin: 0 }}>Being noticed caps the result, tells their house who you sent, and can end in capture.</p>
+                  </>
+                )}
                 <button type="button" className="btn primary" onClick={launch}>Send them</button>
               </>
             ) : null}
