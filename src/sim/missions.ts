@@ -166,7 +166,10 @@ function watcherSkill(world: World, r: Resolved): number {
   const spy = seatHolder(world, r.targetHouseId, 'spymaster');
   const spyEye = spy ? (spy.stats.insight + spy.stats.perception) / 2 : 8;
   const own = r.target ? r.target.stats.perception * 0.8 : 0;
-  return Math.max(spyEye, own);
+  // Counter-intelligence: a spymaster watching their own house, and patrols.
+  const tasks = world.courts?.[r.targetHouseId]?.tasks;
+  const bonus = (tasks?.spymaster?.task === 'watchHouse' && spy ? 3 : 0) + (tasks?.grandMaster?.task === 'patrol' ? 1.5 : 0);
+  return Math.max(spyEye, own) + bonus;
 }
 
 function detectionChance(world: World, r: Resolved, approach: Approach, watcher = watcherSkill(world, r)): number {
@@ -244,6 +247,12 @@ export function forecast(world: World, spec: MissionSpec): Forecast | { ok: fals
 /** Send someone out. Returns a new world (input untouched) and the mission id. */
 export function launchMission(input: World, spec: MissionSpec): { world: World; id: string } {
   const world = structuredClone(input);
+  const id = launchInPlace(world, spec);
+  return { world, id };
+}
+
+/** Launch on a world already cloned for this turn (used by rival houses). */
+export function launchInPlace(world: World, spec: MissionSpec): string {
   const r = resolveSpec(world, spec);
   if (typeof r === 'string') throw new Error(r);
   const travel = travelCycles(r.leader.location.planetId, r.planetId);
@@ -274,14 +283,25 @@ export function launchMission(input: World, spec: MissionSpec): { world: World; 
   };
   m.log.push({ date: world.date, text: `${shortName(r.leader.name)} sets out for ${where}${spec.approach === 'quick' ? ', travelling light and fast' : ''}.` });
   world.missions[id] = m;
-  world.feed.push({
-    date: world.date,
-    kind: 'mission',
-    text: `${displayName(r.leader.name)} leaves to ${describeJob(world, m)}.`,
-    characterIds: [r.leader.id],
-    missionId: id,
-  });
-  return { world, id };
+  if (m.houseId === world.playerHouseId) {
+    world.feed.push({
+      date: world.date,
+      kind: 'mission',
+      text: `${displayName(r.leader.name)} leaves to ${describeJob(world, m)}.`,
+      characterIds: [r.leader.id],
+      missionId: id,
+    });
+  }
+  return id;
+}
+
+/** A line in the player's Chronicle, for things the player's house would see. */
+function tell(world: World, kind: 'intrigue' | 'world', text: string, characterIds?: string[]) {
+  world.feed.push({ date: world.date, kind, text, characterIds });
+}
+
+function houseName(world: World, id: string): string {
+  return `House ${world.houses[id]?.name ?? id}`;
 }
 
 export function describeJob(world: World, m: Mission): string {
@@ -322,6 +342,10 @@ export function advanceMissions(world: World, rng: Rng): void {
         m.stageEnds = addCycles(m.stageEnds, m.taskCycles);
         leader.location = { planetId: m.targetPlanetId, sectorId: m.targetSectorId };
         m.log.push({ date: world.date, text: `Arrived at ${placeName(world, m.targetSectorId)}. Work begins.` });
+        if (m.kind === 'envoy' && m.targetHouseId === world.playerHouseId && m.houseId !== world.playerHouseId) {
+          learn(world, world.playerHouseId, leader.id, 20);
+          tell(world, 'world', `An envoy of ${houseName(world, m.houseId)}, ${displayName(leader.name)}, arrives at our court.`, [leader.id]);
+        }
       } else if (m.stage === 'task') {
         m.outcome = outcomeFor(m.progress, m.noticed);
         m.stage = 'return';
@@ -368,12 +392,21 @@ function taskTurn(world: World, m: Mission, leader: Character, rng: Rng) {
     leader.flags.push({ id: 'captive', since: world.date, detail: `held by House ${world.houses[r.targetHouseId]?.name}`, knownBy: [r.targetHouseId] });
     leader.flags.push({ id: 'missing', since: world.date });
     learn(world, r.targetHouseId, leader.id, 40);
+    world.captives ??= {};
+    world.captives[leader.id] = { characterId: leader.id, heldBy: r.targetHouseId, since: world.date, missionId: m.id, interrogated: false };
+    leader.location = { planetId: m.targetPlanetId, sectorId: m.targetSectorId };
+    if (r.targetHouseId === world.playerHouseId) {
+      tell(world, 'intrigue', `Caught: ${displayName(leader.name)}, an agent of ${houseName(world, m.houseId)}, was seized in ${placeName(world, m.targetSectorId)}${r.target ? ` asking after ${shortName(r.target.name)}` : ''}. They are ours to deal with.`, [leader.id, ...(r.target ? [r.target.id] : [])]);
+    }
     m.log.push({ date: world.date, text: 'No word since this cycle.' });
     end(world, m, 'disaster', `${displayName(leader.name)} has not reported in. They were last heard from at ${placeName(world, m.targetSectorId)}.`);
     return;
   }
   // Seen, but got away: the other house now knows a face.
   learn(world, r.targetHouseId, leader.id, 25);
+  if (r.targetHouseId === world.playerHouseId && m.houseId !== world.playerHouseId) {
+    tell(world, 'intrigue', `Our people spotted an agent of ${houseName(world, m.houseId)} in ${placeName(world, m.targetSectorId)}${r.target ? `, asking after ${shortName(r.target.name)}` : ''}. ${shortName(leader.name)} slipped away.`, [leader.id, ...(r.target ? [r.target.id] : [])]);
+  }
   leader.flags.push({
     id: 'exposed', since: world.date, until: addCycles(world.date, CYCLES_PER_ORBIT * 3),
     detail: `to House ${world.houses[r.targetHouseId]?.name}`, knownBy: [r.targetHouseId, ...(m.leaderKnowsNoticed ? [m.houseId] : [])],
@@ -386,7 +419,9 @@ function end(world: World, m: Mission, outcome: Outcome, text: string) {
   m.ended = world.date;
   m.report = text;
   m.findings = [];
-  world.feed.push({ date: world.date, kind: 'mission', text: `${MISSION_LABEL[m.kind]} — ${OUTCOME_LABEL[outcome]}. ${text}`, characterIds: [m.leaderId], missionId: m.id });
+  if (m.houseId === world.playerHouseId) {
+    world.feed.push({ date: world.date, kind: 'mission', text: `${MISSION_LABEL[m.kind]} — ${OUTCOME_LABEL[outcome]}. ${text}`, characterIds: [m.leaderId], missionId: m.id });
+  }
 }
 
 // ---------------------------------------------------------------- the report
@@ -468,6 +503,14 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
   m.stage = 'done';
   m.ended = world.date;
   m.log.push({ date: world.date, text: `Home. Report delivered.` });
+  if (m.houseId !== world.playerHouseId) {
+    if (m.kind === 'envoy' && m.targetHouseId === world.playerHouseId) {
+      tell(world, 'world', `The envoy of ${houseName(world, m.houseId)} leaves our court. We now regard them as ${attitude(relation(world, world.playerHouseId, m.houseId))}.`, [leader.id]);
+    } else if (m.kind === 'envoy' && m.targetHouseId) {
+      tell(world, 'world', `Word reaches us: ${houseName(world, m.houseId)} sent an envoy to ${houseName(world, m.targetHouseId)}.`);
+    }
+    return;
+  }
   world.feed.push({
     date: world.date,
     kind: 'mission',

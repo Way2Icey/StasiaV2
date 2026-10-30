@@ -7,6 +7,7 @@ import {
 import { attitude, attitudeColor, relation } from '../sim/relations';
 import { activeMissionOf, MISSION_LABEL } from '../sim/missions';
 import { formatDate } from '../sim/time';
+import { captivesHeldBy, executeCaptive, interrogateCaptive, releaseCaptive } from '../sim/captives';
 import { shortName } from '../sim/names';
 import type { Character, CouncilSeat, Petition, World } from '../sim/types';
 import { useGame, useWorld } from './context';
@@ -156,6 +157,7 @@ export function CouncilPage() {
 
         <Petitions className="span-6" />
         <RelationsPanel className="span-6" />
+        <CaptivesPanel className="span-12" />
 
         <Panel title="Council reports" aside="Newest first" className="span-12 feed">
           {court.reports.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet. Press Continue and the council gets to work.</p> : null}
@@ -329,6 +331,50 @@ function RelationsPanel({ className }: { className?: string }) {
           <Go to={{ kind: 'plan', mission: 'envoy', target: h.id }} className="btn small">Send envoy</Go>
         </div>
       ))}
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------- captives
+
+/** Agents we hold: interrogate, release or execute. */
+export function CaptivesPanel({ className, hideWhenEmpty }: { className?: string; hideWhenEmpty?: boolean }) {
+  const world = useWorld();
+  const game = useGame();
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const held = captivesHeldBy(world, world.playerHouseId);
+  if (hideWhenEmpty && !held.length) return null;
+  return (
+    <Panel title="Captives" aside={held.length ? `${held.length} held` : 'Cells empty'} className={className}>
+      {held.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is held. Agents caught spying on us end up here; a spymaster watching our own house catches more of them.</p> : null}
+      {held.map((cap) => {
+        const c = world.characters[cap.characterId]!;
+        return (
+          <div key={c.id} className="row petition">
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span><PersonLink c={c} /> <span className="muted" style={{ fontSize: 12 }}>· agent of House <HouseLink id={c.houseId} /> · held since {formatDate(cap.since)}</span></span>
+              <span className="muted" style={{ fontSize: 11 }}>
+                {cap.interrogated ? 'Already questioned. ' : ''}Release: their regard +15, our honour +2. Execute: dread +5, honour −3, their regard −40, others −5.
+                {' '}Holding them costs a little of their regard every Phase.
+              </span>
+            </span>
+            <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+              {confirm === c.id ? (
+                <>
+                  <button type="button" className="btn small" onClick={() => { setConfirm(null); game.update((w) => executeCaptive(w, c.id)); }}>Yes, execute</button>
+                  <button type="button" className="btn small" onClick={() => setConfirm(null)}>No</button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="btn small primary" disabled={cap.interrogated} onClick={() => game.update((w) => interrogateCaptive(w, c.id))}>Interrogate</button>
+                  <button type="button" className="btn small" onClick={() => game.update((w) => releaseCaptive(w, c.id))}>Release</button>
+                  <button type="button" className="btn small" onClick={() => setConfirm(c.id)}>Execute…</button>
+                </>
+              )}
+            </span>
+          </div>
+        );
+      })}
     </Panel>
   );
 }

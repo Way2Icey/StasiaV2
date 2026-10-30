@@ -18,7 +18,7 @@ const familyId = (houseId: string, key: string) => `${houseId}:${key}`;
 export function createWorld(seed: string = DEFAULT_SEED): World {
   const rng = Rng.fromSeed(seed);
   const world: World = {
-    version: 3,
+    version: 4,
     seed,
     date: START_DATE,
     rng: rng.state,
@@ -33,6 +33,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     missions: {},
     relations: {},
     courts: {},
+    captives: {},
   };
 
   for (const h of SLICE_HOUSES) {

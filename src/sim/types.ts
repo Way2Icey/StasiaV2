@@ -219,7 +219,7 @@ export interface Planet {
 
 export interface FeedEntry {
   date: GameDate;
-  kind: 'time' | 'death' | 'birth' | 'flag' | 'world' | 'mission' | 'council';
+  kind: 'time' | 'death' | 'birth' | 'flag' | 'world' | 'mission' | 'council' | 'intrigue';
   text: string;
   characterIds?: string[];
   missionId?: string;
@@ -329,8 +329,17 @@ export interface Court {
   reports: CouncilReport[];
 }
 
+export interface Captive {
+  characterId: string;
+  heldBy: string;
+  since: GameDate;
+  /** The mission they were caught on. */
+  missionId?: string;
+  interrogated: boolean;
+}
+
 export interface World {
-  version: 3;
+  version: 4;
   seed: string;
   date: GameDate;
   rng: RngState;
@@ -347,4 +356,6 @@ export interface World {
   /** relations[a][b]: how house a regards house b, -100..100. */
   relations: Record<string, Record<string, number>>;
   courts: Record<string, Court>;
+  /** Everyone held by a house, keyed by character id. */
+  captives: Record<string, Captive>;
 }

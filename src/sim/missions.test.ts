@@ -114,7 +114,7 @@ describe('missions', () => {
       w = launchMission(w, { kind: 'investigate', houseId: P, leaderId: l.id, targetId: targets[i]!.id, approach: i % 2 ? 'quick' : 'careful' }).world;
     });
     w = advanceTurns(w, 25);
-    for (const m of Object.values(w.missions)) expect(m.stage).toBe('done');
+    for (const m of Object.values(w.missions).filter((x) => x.houseId === P)) expect(m.stage).toBe('done');
     for (const c of Object.values(w.characters)) {
       const v = viewOf(w, P, c);
       for (const s of ALL_STATS) {
@@ -132,7 +132,7 @@ describe('save migration', () => {
     delete old.knowledge;
     delete old.missions;
     const w = deserialize(JSON.stringify(old));
-    expect(w.version).toBe(3);
+    expect(w.version).toBe(4);
     expect(w.missions).toEqual({});
     expect(Object.keys(w.knowledge[P]!).length).toBe(Object.keys(w.characters).length);
   });

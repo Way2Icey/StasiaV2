@@ -18,7 +18,7 @@ import {
 import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
 import { MissionRow } from './missions';
-import { OathSummary, Petitions, StandingPanel } from './council';
+import { CaptivesPanel, OathSummary, Petitions, StandingPanel } from './council';
 import { formatRange, KNOW, knowledgeOf, type CharacterView } from '../sim/knowledge';
 import { activeMissionOf, activeMissions, MISSION_LABEL } from '../sim/missions';
 import {
@@ -139,6 +139,7 @@ export function ThroneRoom() {
         </Panel>
         <OathSummary className="span-6" />
         <Petitions className="span-6" />
+        <CaptivesPanel className="span-12" hideWhenEmpty />
         <Panel title="Missions in the field" aside={<Go to={{ kind: 'missions' }}>Missions board ›</Go>} className="span-12">
           {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. Open anyone's sheet to look into them, or a world to scout it.</p> : null}
           {missions.map((m) => <MissionRow key={m.id} id={m.id} />)}
@@ -288,6 +289,15 @@ export function CharacterPage({ id }: { id: string }) {
         </div>
       </section>
 
+      {world.captives?.[c.id]?.heldBy === world.playerHouseId ? (
+        <section className="panel captive-banner">
+          <div className="body actions">
+            <strong>Held in our cells</strong>
+            <span className="muted" style={{ fontSize: 12 }}>Caught {formatDate(world.captives[c.id]!.since)} working for House <HouseLink id={c.houseId} />.</span>
+            <Go to={{ kind: 'council' }} className="btn small">Decide their fate ›</Go>
+          </div>
+        </section>
+      ) : null}
       <section className="panel knowledge">
         <div className="body" style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180, flex: 1 }}>

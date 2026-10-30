@@ -164,7 +164,7 @@ export const OATHS: OathDef[] = [
     goal: (b) => b + 12, unit: 'martial total',
   },
   {
-    id: 'raiseName', label: 'Raise our name', vow: 'Every house will know the name Alerion.',
+    id: 'raiseName', label: 'Raise our name', vow: 'Every house in Stasia will know our name.',
     description: 'Raise the house’s respect by 10.',
     target: null, tasks: ['attendNumerade', 'pits', 'keepRecords'],
     measure: (w, h) => w.houses[h]!.standing.respect,
@@ -247,6 +247,13 @@ export function swearOath(input: World, houseId: string, oathId: string, target?
   if (!def) throw new Error('No such oath.');
   if (def.target === 'house' && (!target || !input.houses[target] || target === houseId)) throw new Error('Choose a house.');
   const world = structuredClone(input);
+  swearInPlace(world, houseId, oathId, target);
+  return world;
+}
+
+/** Swear an oath on a world already cloned for this turn (used by rival houses). */
+export function swearInPlace(world: World, houseId: string, oathId: string, target?: string): void {
+  const def = OATHS_BY_ID[oathId]!;
   const court = world.courts[houseId]!;
   if (court.oath) throw new Error('An oath already stands.');
   court.oath = {
@@ -261,7 +268,6 @@ export function swearOath(input: World, houseId: string, oathId: string, target?
       characterIds: ruler ? [ruler.id] : undefined,
     });
   }
-  return world;
 }
 
 export function abandonOath(input: World, houseId: string): World {

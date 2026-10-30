@@ -229,3 +229,5 @@ table.list.tasks td { vertical-align: middle; }
 .choices.oaths { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .rail .count.gold-count { background: var(--gold); }
 .tag.council { color: var(--gold); }
+.tag.intrigue { color: var(--violet); }
+.captive-banner { border-left: 3px solid var(--violet); }

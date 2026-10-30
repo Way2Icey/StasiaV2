@@ -2,7 +2,7 @@ import type { World } from './types';
 import { ensureKnowledge } from './knowledge';
 import { ensureCouncil } from './council';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export function serialize(world: World): string {
   return JSON.stringify(world);
@@ -27,7 +27,12 @@ export function deserialize(text: string): World {
   }
   // v2 -> v3: council tasks, oaths, standing and relations arrived.
   if ((w.version as number) === 2) {
-    (w as World).version = 3;
+    (w as unknown as { version: number }).version = 3;
+  }
+  // v3 -> v4: captives, and rival houses that act.
+  if ((w.version as number) === 3) {
+    (w as World).version = 4;
+    (w as World).captives = {};
   }
   if (w.version !== SAVE_VERSION) throw new SaveError(`Unsupported save version: ${String(w.version)}`);
   const required: (keyof World)[] = ['seed', 'date', 'rng', 'houses', 'families', 'characters', 'planets', 'feed'];
@@ -36,6 +41,7 @@ export function deserialize(text: string): World {
   }
   const world = w as World;
   world.missions ??= {};
+  world.captives ??= {};
   ensureKnowledge(world);
   ensureCouncil(world);
   return world;
