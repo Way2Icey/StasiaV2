@@ -126,7 +126,7 @@ table.list tr.clickable:hover td { background: #1b212b; }
 .stat { display: flex; justify-content: space-between; font-size: 12px; height: 20px; align-items: center; }
 .stat .v { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .v.t1 { color: var(--orange); } .v.t2 { color: var(--fg); } .v.t3 { color: var(--blue); } .v.t4 { color: var(--gold); font-weight: 500; }
-.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 12px; }
+.kv { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 12px; }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; }
 .debug { border-style: dashed; }
 
@@ -156,3 +156,39 @@ input.text { height: 34px; box-sizing: border-box; padding: 0 10px; background: 
 }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---------------- navigation pass */
+.crest { background: none; border: 0; padding: 0; color: inherit; text-align: left; }
+.crest-name { display: block; font: 700 16px/1.1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; }
+.crest:hover .crest-name { color: var(--gold); }
+.navbtns { display: flex; gap: 4px; }
+.navbtns .btn { width: 34px; padding: 0; font-size: 16px; }
+.btn:disabled { opacity: 0.35; cursor: default; }
+.search { flex: 1; min-width: 160px; max-width: 360px; }
+.search input { width: 100%; }
+.date { margin-left: auto; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.trail { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.trail .linklike { color: var(--muted); font-weight: 400; }
+.trail .linklike:hover { color: var(--gold); }
+.trail .sep { margin-left: 6px; }
+.trail .here { color: var(--fg); }
+
+.linklike.dead { color: var(--muted); }
+.chip.link { background: transparent; cursor: pointer; }
+.chip.link:hover { border-color: var(--gold); }
+.stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+.hovercard {
+  position: fixed; z-index: 60; width: 280px; box-sizing: border-box;
+  display: grid; gap: 4px; padding: 10px 12px;
+  background: #1b212b; border: 1px solid var(--gold); border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); pointer-events: auto;
+}
+.hc-name { font: 500 15px var(--display); }
+
+@media (max-width: 860px) {
+  .search { order: 5; max-width: none; flex-basis: 100%; }
+  .date { margin-left: auto; }
+}
