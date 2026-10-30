@@ -25,6 +25,7 @@ export const FLAGS: FlagDef[] = [
   { id: 'oathbreaker', label: 'Oathbreaker', kind: 'legal', visibility: 'all', endsBy: 'Fades only after years of kept promises' },
   { id: 'usurper', label: 'Usurper', kind: 'legal', visibility: 'all', endsBy: 'Recognised by the Numarade, or overthrown' },
   { id: 'wanted', label: 'Wanted', kind: 'legal', visibility: 'secret', endsBy: 'Captured, pardoned or bought off' },
+  { id: 'exposed', label: 'Exposed', kind: 'secret', visibility: 'secret', endsBy: 'Fades after a few Orbits' },
   { id: 'underWatch', label: 'Under watch', kind: 'legal', visibility: 'secret', endsBy: 'Cleared or charged' },
   { id: 'ward', label: 'Ward', kind: 'political', visibility: 'all', endsBy: 'Returned home, or adopted' },
   { id: 'betrothed', label: 'Betrothed', kind: 'political', visibility: 'all', endsBy: 'Married, or the betrothal is broken' },

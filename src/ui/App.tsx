@@ -9,7 +9,10 @@ import { superiorOf } from '../sim/query';
 import { SPECIES } from '../data/species';
 import { traitLabel } from '../data/traits';
 import type { World } from '../sim/types';
-import { HoverContext, NavContext, WorldContext, type Hover, type Nav } from './context';
+import { GameContext, HoverContext, NavContext, WorldContext, type Game, type Hover, type Nav } from './context';
+import { seenBy } from './fog';
+import { MissionPage, MissionsPage, PlanPage } from './missions';
+import { activeMissions } from '../sim/missions';
 import { routeLabel, sameRoute, sectionOf, type Route, type Section } from './router';
 import { AUTOSAVE, storage } from './storage';
 import {
@@ -30,6 +33,7 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: 'people', label: 'People' },
   { id: 'houses', label: 'Houses' },
   { id: 'worlds', label: 'Worlds' },
+  { id: 'missions', label: 'Missions' },
   { id: 'save', label: 'Save & Load' },
 ];
 
@@ -39,6 +43,7 @@ export function App() {
   const [world, setWorld] = useState<World>(initialWorld);
   const [history, setHistory] = useState<History>({ stack: [{ kind: 'throne' }], index: 0 });
   const [query, setQuery] = useState('');
+  const [reveal, setReveal] = useState(false);
   const [hovered, setHovered] = useState<{ id: string; x: number; y: number; above: boolean } | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const hideTimer = useRef<number | undefined>(undefined);
@@ -76,6 +81,8 @@ export function App() {
     },
   }), []);
 
+  const game: Game = useMemo(() => ({ update: (fn) => setWorld((w) => fn(w)), reveal, setReveal }), [reveal]);
+
   const onContinue = useCallback(() => setWorld((w) => advanceTurn(w)), []);
   const parts = dateParts(world.date);
   const house = world.houses[world.playerHouseId]!;
@@ -86,6 +93,7 @@ export function App() {
     <WorldContext.Provider value={world}>
       <NavContext.Provider value={nav}>
         <HoverContext.Provider value={hover}>
+          <GameContext.Provider value={game}>
           <div className="app">
             <header className="topbar">
               <button type="button" className="crest" onClick={() => nav.to({ kind: 'house', id: house.id })} aria-label={`Open House ${house.name}`}>
@@ -118,6 +126,7 @@ export function App() {
                 {SECTIONS.map((s) => (
                   <button key={s.id} type="button" aria-current={section === s.id ? 'page' : undefined} onClick={() => nav.to({ kind: s.id } as Route)}>
                     {s.label}
+                    {s.id === 'missions' && activeMissions(world, world.playerHouseId).length ? <span className="count">{activeMissions(world, world.playerHouseId).length}</span> : null}
                   </button>
                 ))}
               </nav>
@@ -136,8 +145,9 @@ export function App() {
                 <Page route={current} setWorld={setWorld} />
               </main>
             </div>
-            {hovered ? <HoverCard id={hovered.id} x={hovered.x} y={hovered.y} above={hovered.above} keep={() => window.clearTimeout(hideTimer.current)} leave={hover.hide} /> : null}
+            {hovered ? <HoverCard id={hovered.id} x={hovered.x} y={hovered.y} above={hovered.above} reveal={reveal} keep={() => window.clearTimeout(hideTimer.current)} leave={hover.hide} /> : null}
           </div>
+          </GameContext.Provider>
         </HoverContext.Provider>
       </NavContext.Provider>
     </WorldContext.Provider>
@@ -161,10 +171,13 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'species': return <SpeciesPage id={route.id} />;
     case 'band': return <BandPage id={route.id} />;
     case 'search': return <SearchPage q={route.q} />;
+    case 'missions': return <MissionsPage />;
+    case 'mission': return <MissionPage id={route.id} />;
+    case 'plan': return <PlanPage key={`${route.mission}-${route.target ?? ''}`} kind={route.mission} target={route.target} />;
   }
 }
 
-function HoverCard({ id, x, y, above, keep, leave }: { id: string; x: number; y: number; above: boolean; keep: () => void; leave: () => void }) {
+function HoverCard({ id, x, y, above, reveal, keep, leave }: { id: string; x: number; y: number; above: boolean; reveal: boolean; keep: () => void; leave: () => void }) {
   return (
     <WorldContext.Consumer>
       {(world) => {
@@ -172,6 +185,7 @@ function HoverCard({ id, x, y, above, keep, leave }: { id: string; x: number; y:
         if (!world || !c) return null;
         const boss = superiorOf(world, c);
         const fam = world.families[c.familyId];
+        const v = seenBy(world, reveal)(c);
         return (
           <div className="hovercard" role="tooltip" style={{ left: x, top: y, transform: above ? 'translateY(-100%)' : undefined }} onMouseEnter={keep} onMouseLeave={leave}>
             <div className="eyebrow gold">{c.role}</div>
@@ -180,7 +194,8 @@ function HoverCard({ id, x, y, above, keep, leave }: { id: string; x: number; y:
               House {world.houses[c.houseId]?.name} · {SPECIES[c.species].name} · {c.alive ? `age ${ageOf(c, world.date)}` : 'deceased'}
               {fam ? ` · ${fam.name}` : ''}
             </div>
-            {c.traits.length ? <div style={{ fontSize: 12 }}>{c.traits.slice(0, 4).map((t) => traitLabel(t.id, t.detail)).join(' · ')}</div> : null}
+            {v.traits.length ? <div style={{ fontSize: 12 }}>{v.traits.slice(0, 4).map((t) => traitLabel(t.id, t.detail)).join(' · ')}{v.hiddenTraits ? ' · ?' : ''}</div> : null}
+            <div className="muted" style={{ fontSize: 11 }}>Known: {v.label.toLowerCase()}</div>
             {boss ? <div className="muted" style={{ fontSize: 11 }}>Answers to {displayName(boss.name)}</div> : null}
           </div>
         );

@@ -208,13 +208,60 @@ export interface Planet {
 
 export interface FeedEntry {
   date: GameDate;
-  kind: 'time' | 'death' | 'birth' | 'flag' | 'world';
+  kind: 'time' | 'death' | 'birth' | 'flag' | 'world' | 'mission';
   text: string;
   characterIds?: string[];
+  missionId?: string;
+}
+
+// ---------------------------------------------------------------- knowledge
+
+/** What one house knows about one person. */
+export interface KnowledgeEntry {
+  /** 0..100: how deeply the house knows this person. */
+  depth: number;
+  updated: GameDate;
+  /** Changes whenever new intelligence arrives, reshuffling estimates. */
+  salt: number;
+}
+
+// ---------------------------------------------------------------- missions
+
+export type MissionKind = 'investigate' | 'scout';
+export type Approach = 'careful' | 'quick';
+export type MissionStage = 'travel' | 'task' | 'return' | 'done';
+export type Outcome = 'triumph' | 'success' | 'partial' | 'failure' | 'disaster';
+
+export interface Mission {
+  id: string;
+  kind: MissionKind;
+  houseId: string;
+  leaderId: string;
+  /** Investigate: the person being looked into. */
+  targetId?: string;
+  targetPlanetId: string;
+  targetSectorId: string;
+  approach: Approach;
+  stage: MissionStage;
+  launched: GameDate;
+  stageEnds: GameDate;
+  travelCycles: number;
+  taskCycles: number;
+  origin: { planetId: string; sectorId: string };
+  progress: number;
+  rolls: number;
+  noticed: boolean;
+  /** Whether the leader realised they were noticed. */
+  leaderKnowsNoticed: boolean;
+  outcome?: Outcome;
+  ended?: GameDate;
+  log: { date: GameDate; text: string }[];
+  report?: string;
+  findings?: string[];
 }
 
 export interface World {
-  version: 1;
+  version: 2;
   seed: string;
   date: GameDate;
   rng: RngState;
@@ -225,4 +272,7 @@ export interface World {
   characters: Record<string, Character>;
   planets: Record<string, Planet>;
   feed: FeedEntry[];
+  /** knowledge[observerHouseId][characterId] */
+  knowledge: Record<string, Record<string, KnowledgeEntry>>;
+  missions: Record<string, Mission>;
 }

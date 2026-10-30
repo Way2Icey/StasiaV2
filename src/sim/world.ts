@@ -5,6 +5,7 @@ import { SPECIES } from '../data/species';
 import { createCharacter, focusForSeat, type CharacterSpec } from './characters';
 import { Rng } from './rng';
 import { makeDate } from './time';
+import { ensureKnowledge } from './knowledge';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
 export const DEFAULT_SEED = 'stasia';
@@ -16,7 +17,7 @@ const familyId = (houseId: string, key: string) => `${houseId}:${key}`;
 export function createWorld(seed: string = DEFAULT_SEED): World {
   const rng = Rng.fromSeed(seed);
   const world: World = {
-    version: 1,
+    version: 2,
     seed,
     date: START_DATE,
     rng: rng.state,
@@ -27,6 +28,8 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     characters: {},
     planets: {},
     feed: [],
+    knowledge: {},
+    missions: {},
   };
 
   for (const h of SLICE_HOUSES) {
@@ -85,6 +88,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     kind: 'world',
     text: `The Chronicle opens. Aurel Vanthos rules House Alerion from the Vanthos Citadel.`,
   });
+  ensureKnowledge(world);
   world.rng = rng.state;
   return world;
 }

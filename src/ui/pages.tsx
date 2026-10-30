@@ -15,10 +15,14 @@ import {
   BODY_STATS, HIDDEN_STATS, MIND_STATS, SPIRIT_STATS,
   type Character, type SpeciesId, type StatId, type World,
 } from '../sim/types';
-import { useNav, useWorld } from './context';
+import { useGame, useNav, useWorld } from './context';
+import { useSee } from './fog';
+import { MissionRow } from './missions';
+import { formatRange, KNOW, knowledgeOf, type CharacterView } from '../sim/knowledge';
+import { activeMissionOf, activeMissions, MISSION_LABEL } from '../sim/missions';
 import {
   BAND_COLOR, BandLink, cap, FamilyLink, FlagChip, Go, HouseLink, Panel, PeopleTable, PersonById,
-  PersonLink, PlanetLink, SectorLink, SpeciesLink, TraitChip, TraitText,
+  PersonLink, PlanetLink, SectorLink, SpeciesLink, TraitChip, TraitList, TraitText,
 } from './links';
 import { storage, SLOT } from './storage';
 
@@ -70,17 +74,18 @@ function Row({ left, right }: { left: React.ReactNode; right?: React.ReactNode }
 
 // ---------------------------------------------------------------- Throne Room
 
-function explore(world: World): { key: string; node: React.ReactNode }[] {
+function explore(world: World, see: (c: Character) => CharacterView): { key: string; node: React.ReactNode }[] {
   const people = alive(world).filter((c) => c.tier === 'full');
   const threads: { key: string; node: React.ReactNode }[] = [];
-  const strongest = [...alive(world)].filter((c) => c.resonance).sort((a, b) => b.resonance!.degrees - a.resonance!.degrees)[0];
+  const measured = (c: Character) => { const r = see(c).resonance; return r && r !== 'unknown' && r.degrees !== undefined ? r.degrees : -1; };
+  const strongest = [...alive(world)].filter((c) => measured(c) >= 0).sort((a, b) => measured(b) - measured(a))[0];
   if (strongest) threads.push({ key: 'res', node: <>The strongest resonance on record belongs to <PersonLink c={strongest} />: <BandLink c={strongest} />.</> });
   const oldest = [...alive(world)].sort((a, b) => ageOf(b, world.date) - ageOf(a, world.date))[0];
   if (oldest) threads.push({ key: 'old', node: <>The oldest living person is <PersonLink c={oldest} />, a <SpeciesLink id={oldest.species} /> of {ageOf(oldest, world.date)}.</> });
   const scarred = people.find((c) => c.name.epithet);
   if (scarred) threads.push({ key: 'scar', node: <><PersonLink c={scarred} /> earned the scar-name <TraitText t={scarred.traits.find((t) => t.id === 'scarName')!} />.</> });
-  const decorated = [...people].sort((a, b) => b.traits.length - a.traits.length)[0];
-  if (decorated) threads.push({ key: 'dec', node: <><PersonLink c={decorated} /> carries more traits than anyone: {decorated.traits.map((t, i) => <span key={t.id}>{i ? ', ' : ''}<TraitText t={t} /></span>)}.</> });
+  const decorated = [...people].sort((a, b) => see(b).traits.length - see(a).traits.length)[0];
+  if (decorated) threads.push({ key: 'dec', node: <><PersonLink c={decorated} /> carries more known traits than anyone: {see(decorated).traits.map((t, i) => <span key={t.id}>{i ? ', ' : ''}<TraitText t={t} /></span>)}.</> });
   const families = Object.values(world.families).filter((f) => !isCommoner(f));
   const holder = [...families].sort((a, b) => sectorsControlledBy(world, b.id).length - sectorsControlledBy(world, a.id).length)[0];
   if (holder) threads.push({ key: 'hold', node: <><FamilyLink id={holder.id} prefix /> holds {sectorsControlledBy(world, holder.id).length} sectors, more than any other family.</> });
@@ -98,7 +103,9 @@ export function ThroneRoom() {
   const parts = dateParts(world.date);
   const people = alive(world).filter((c) => c.houseId === house.id);
   const feed = [...world.feed].reverse().slice(0, 30);
-  const threads = explore(world);
+  const see = useSee();
+  const threads = explore(world, see);
+  const missions = activeMissions(world, house.id);
 
   return (
     <>
@@ -129,6 +136,10 @@ export function ThroneRoom() {
               right={<><SpeciesLink id={c.species} /> · {ageOf(c, world.date)}</>} />
           ))}
         </Panel>
+        <Panel title="Missions in the field" aside={<Go to={{ kind: 'missions' }}>Missions board ›</Go>} className="span-12">
+          {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. Open anyone's sheet to look into them, or a world to scout it.</p> : null}
+          {missions.map((m) => <MissionRow key={m.id} id={m.id} />)}
+        </Panel>
         <Panel title="Threads to follow" aside="Drawn from the world as it stands" className="span-5">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
             {threads.map((t) => <p key={t.key} style={{ margin: 0 }}>{t.node}</p>)}
@@ -142,6 +153,7 @@ export function ThroneRoom() {
               <span style={{ fontSize: 13 }}>
                 {e.text}
                 {e.characterIds?.length ? <> {e.characterIds.map((id) => <span key={id}> · <PersonById id={id} /></span>)}</> : null}
+                {e.missionId && world.missions[e.missionId] ? <> · <Go to={{ kind: 'mission', id: e.missionId }}>{world.missions[e.missionId]!.stage === 'done' ? 'Read report' : 'View mission'}</Go></> : null}
               </span>
             </div>
           ))}
@@ -158,6 +170,7 @@ export function PeoplePage() {
   const [house, setHouse] = useState<string>('all');
   const [tier, setTier] = useState<'full' | 'minor' | 'all'>('full');
   const [q, setQ] = useState('');
+  const see = useSee();
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return alive(world)
@@ -196,8 +209,8 @@ export function PeoplePage() {
                   <td><SpeciesLink id={c.species} /></td>
                   <td className="mono">{ageOf(c, world.date)}</td>
                   <td>{c.role}</td>
-                  <td>{c.traits.map((t, i) => <span key={t.id + i}>{i ? ', ' : ''}<TraitText t={t} /></span>)}</td>
-                  <td>{c.resonance && c.resonance.band !== 'frostpoint' ? <BandLink c={c} /> : <span className="muted">—</span>}</td>
+                  <td><TraitList c={c} /></td>
+                  <td>{(() => { const r = see(c).resonance; return r && (r === 'unknown' || r.band !== 'frostpoint') ? <BandLink c={c} /> : <span className="muted">—</span>; })()}</td>
                 </tr>
               ))}
             </tbody>
@@ -218,9 +231,12 @@ function initials(c: Character) {
 
 export function CharacterPage({ id }: { id: string }) {
   const world = useWorld();
-  const [showHidden, setShowHidden] = useState(false);
+  const { reveal } = useGame();
+  const see = useSee();
   const c = world.characters[id];
   if (!c) return <p className="error">That person is not in this world.</p>;
+  const v = see(c);
+  const own = c.houseId === world.playerHouseId;
   const family = world.families[c.familyId]!;
   const where = findSector(world, c.location.sectorId);
   const kin = familyMembers(world, c.familyId, true).filter((k) => k.id !== c.id);
@@ -228,11 +244,21 @@ export function CharacterPage({ id }: { id: string }) {
   const reports = subordinatesOf(world, c);
   const oversees = quartersOverseenBy(world, c.id);
   const neighbours = where ? peopleAt(world, where.sector.id).filter((k) => k.id !== c.id && k.houseId === c.houseId) : [];
+  const onMission = activeMissionOf(world, c.id);
+  const beingInvestigated = activeMissions(world, world.playerHouseId).find((m) => m.targetId === c.id);
+  const entry = knowledgeOf(world, world.playerHouseId, c.id);
+  const trueNameKnown = reveal || c.flags.some((f) => f.id === 'trueNameKnown' && f.knownBy?.includes(world.playerHouseId));
+  const res = v.resonance;
+
+  const statCell = (r: [number, number]) => {
+    const mid = (r[0] + r[1]) / 2;
+    return <span className={`v ${tierClass(mid)}${r[0] === r[1] ? '' : ' fuzzy'}`}>{formatRange(r)}</span>;
+  };
   const statCol = (title: string, ids: readonly StatId[]) => (
     <div>
       <h4>{title}</h4>
       {ids.map((s) => (
-        <div className="stat" key={s}><span className="muted">{STAT_LABEL[s]}</span><span className={`v ${tierClass(c.stats[s])}`}>{c.stats[s]}</span></div>
+        <div className="stat" key={s}><span className="muted">{STAT_LABEL[s]}</span>{statCell(v.stats[s])}</div>
       ))}
     </div>
   );
@@ -250,10 +276,41 @@ export function CharacterPage({ id }: { id: string }) {
               {c.tier === 'minor' ? ' · minor named' : ''}
             </span>
             <div className="chips">
-              {c.traits.length === 0 ? <span className="muted" style={{ fontSize: 12 }}>No notable traits</span> : null}
-              {c.traits.map((t, i) => <TraitChip key={t.id + i} t={t} />)}
+              {v.traits.length === 0 && v.hiddenTraits === 0 ? <span className="muted" style={{ fontSize: 12 }}>No notable traits</span> : null}
+              {v.traits.map((t, i) => <TraitChip key={t.id + i} t={t} />)}
+              {v.hiddenTraits > 0 ? <span className="chip unknown" title="Your people have not learned this yet">{v.hiddenTraits} unknown</span> : null}
+              {onMission ? <Go to={{ kind: 'mission', id: onMission.id }} className="chip link mission">On mission · {MISSION_LABEL[onMission.kind]}</Go> : null}
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="panel knowledge">
+        <div className="body" style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180, flex: 1 }}>
+            <span className="eyebrow">What your house knows</span>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <strong style={{ fontFamily: 'var(--display)', fontWeight: 500 }}>{v.label}</strong>
+              <div className="bar" style={{ maxWidth: 220 }} role="img" aria-label={`Knowledge ${v.depth} of 100`}>
+                <span style={{ width: `${v.depth}%`, background: v.depth >= KNOW.exact ? 'var(--gold)' : 'var(--blue)' }} />
+              </div>
+              <span className="mono muted" style={{ fontSize: 11 }}>{v.depth}</span>
+            </div>
+            <span className="muted" style={{ fontSize: 11 }}>
+              {v.depth >= KNOW.exact ? 'Numbers are exact.' : 'Numbers are ranges: the truth lies somewhere inside.'}
+              {entry.salt > 0 ? ` Last report ${formatDate(entry.updated)}.` : ''}
+            </span>
+          </div>
+          {c.alive && !own ? (
+            beingInvestigated ? (
+              <Go to={{ kind: 'mission', id: beingInvestigated.id }} className="btn">Investigation under way ›</Go>
+            ) : (
+              <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn primary">Investigate</Go>
+            )
+          ) : null}
+          {c.alive && own && v.depth < KNOW.exact && c.seat !== 'highroy' ? (
+            beingInvestigated ? null : <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn">Look into them</Go>
+          ) : null}
         </div>
       </section>
 
@@ -276,17 +333,27 @@ export function CharacterPage({ id }: { id: string }) {
                 {c.name.epithet ? <><dt>Scar-name</dt><dd>{c.name.epithet}</dd></> : null}
                 {c.name.callsign ? <><dt>Callsign</dt><dd>{c.name.callsign}</dd></> : null}
                 {c.name.courtName ? <><dt>Court name</dt><dd>{c.name.courtName}</dd></> : null}
+                {c.name.trueName ? <><dt>True name</dt><dd>{trueNameKnown ? c.name.trueName : <span className="muted">Unknown</span>}</dd></> : null}
                 <dt>Where</dt><dd>{where ? <SectorLink id={where.sector.id} withPlanet /> : '—'}</dd>
-                <dt>Resonance</dt><dd><BandLink c={c} />{c.resonance ? <span className="muted"> · {c.resonance.type}</span> : null}</dd>
+                <dt>Resonance</dt><dd><BandLink c={c} />{res && res !== 'unknown' && res.type ? <span className="muted"> · {res.type}</span> : null}</dd>
               </dl>
             </div>
           </Panel>
           <Panel title="Status">
             <div className="body chips">
-              {c.flags.length === 0 ? <span className="muted" style={{ fontSize: 12 }}>Nothing of note</span> : null}
-              {c.flags.map((f, i) => <FlagChip key={f.id + i} f={f} />)}
+              {v.flags.length === 0 ? <span className="muted" style={{ fontSize: 12 }}>Nothing of note</span> : null}
+              {v.flags.map((f, i) => <FlagChip key={f.id + i} f={f} />)}
             </div>
           </Panel>
+          {v.hidden ? (
+            <Panel title="Read of them" aside={reveal ? 'exact' : 'from your people'}>
+              <div className="body">
+                {HIDDEN_STATS.filter((s) => s !== 'potential' || reveal).map((s) => (
+                  <div className="stat" key={s}><span className="muted">{STAT_LABEL[s]}</span>{statCell(v.hidden![s])}</div>
+                ))}
+              </div>
+            </Panel>
+          ) : null}
         </div>
 
         <Panel title="Place in the house" className="span-6">
@@ -315,24 +382,18 @@ export function CharacterPage({ id }: { id: string }) {
           </Panel>
         ) : null}
 
-        <section className="panel debug span-6">
-          <header>
-            <h3>Hidden (developer view)</h3>
-            <button type="button" className="btn small" style={{ marginLeft: 'auto' }} onClick={() => setShowHidden((v) => !v)} aria-expanded={showHidden}>
-              {showHidden ? 'Hide' : 'Show'}
-            </button>
-          </header>
-          {showHidden ? (
+        {reveal ? (
+          <section className="panel debug span-6">
+            <header><h3>Developer view</h3></header>
             <div className="body">
-              <p className="muted" style={{ fontSize: 11, marginTop: 0 }}>Players will never see this directly; it is here to check the generator.</p>
-              {HIDDEN_STATS.map((s) => (
-                <div className="stat" key={s}><span className="muted">{STAT_LABEL[s]}</span><span className={`v ${tierClass(c.hidden[s])}`}>{c.hidden[s]}</span></div>
-              ))}
               <div className="stat"><span className="muted">Lifespan</span><span className="v">{c.lifespan}</span></div>
-              {c.name.trueName ? <div className="stat"><span className="muted">True name</span><span className="v">{c.name.trueName}</span></div> : null}
+              <div className="stat"><span className="muted">True knowledge depth</span><span className="v">{entry.depth}</span></div>
+              {Object.keys(world.houses).filter((h) => h !== world.playerHouseId).map((h) => (
+                <div className="stat" key={h}><span className="muted">{world.houses[h]!.name} knows</span><span className="v">{knowledgeOf(world, h, c.id).depth}</span></div>
+              ))}
             </div>
-          ) : null}
-        </section>
+          </section>
+        ) : null}
       </div>
     </>
   );
@@ -426,7 +487,7 @@ export function HousePage({ id }: { id: string }) {
           {capital.sectors.map((s) => <Row key={s.id} left={<SectorLink id={s.id} />} right={s.controllerFamilyId ? <FamilyLink id={s.controllerFamilyId} /> : 'unclaimed'} />)}
         </Panel>
         <Panel title="Knights" aside={`${knights.length}`} className="span-12">
-          <PeopleTable people={knights} empty="No knights." extra={{ label: 'Traits', cell: (k) => k.traits.map((t, i) => <span key={t.id + i}>{i ? ', ' : ''}<TraitText t={t} /></span>) }} />
+          <PeopleTable people={knights} empty="No knights." extra={{ label: 'Traits', cell: (k) => <TraitList c={k} /> }} />
         </Panel>
       </div>
     </>
@@ -450,7 +511,7 @@ export function FamilyPage({ id }: { id: string }) {
         title={`Family ${f.name}`} sub={<><SpeciesLink id={f.species} /> · {members.filter((m) => m.alive).length} living named members</>} />
       <div className="grid">
         <Panel title="Members" className="span-8">
-          <PeopleTable people={members} extra={{ label: 'Traits', cell: (k) => k.traits.map((t, i) => <span key={t.id + i}>{i ? ', ' : ''}<TraitText t={t} /></span>) }} />
+          <PeopleTable people={members} extra={{ label: 'Traits', cell: (k) => <TraitList c={k} /> }} />
         </Panel>
         <div className="span-4 stack">
           <Panel title="Head of the family">
@@ -497,6 +558,12 @@ export function PlanetPage({ id }: { id: string }) {
   return (
     <>
       <Title eyebrow={<>Capital of House <HouseLink id={p.houseId} /></>} title={p.name} sub={`${p.description} ${pop.toLocaleString('en-US')} people · ${p.sectors.length} of ${p.sectorLimit} sectors settled.`} />
+      {p.houseId !== world.playerHouseId ? (
+        <div className="actions">
+          <Go to={{ kind: 'plan', mission: 'scout', target: p.id }} className="btn primary">Scout this world</Go>
+          <span className="muted" style={{ fontSize: 12 }}>Send someone to learn who lives here and how it is held.</span>
+        </div>
+      ) : null}
       <section className="panel">
         <div className="table-wrap">
           <table className="list">
@@ -579,7 +646,8 @@ export function TraitPage({ id }: { id: string }) {
   const world = useWorld();
   const def = TRAITS_BY_ID[id];
   if (!def) return <p className="error">No such trait.</p>;
-  const who = withTrait(world, id);
+  const see = useSee();
+  const who = withTrait(world, id).filter((c) => see(c).traits.some((t) => t.id === id));
   const mods = Object.entries(def.statMods ?? {});
   const opposite = def.opposes ?? [];
   return (
@@ -611,7 +679,8 @@ export function FlagPage({ id }: { id: string }) {
   const world = useWorld();
   const def = FLAGS_BY_ID[id];
   if (!def) return <p className="error">No such status.</p>;
-  const who = withFlag(world, id);
+  const see = useSee();
+  const who = withFlag(world, id).filter((c) => see(c).flags.some((f) => f.id === id));
   return (
     <>
       <Title eyebrow={`Status flag · ${def.kind}`} title={def.label} sub={`Ends: ${def.endsBy}. ${def.visibility === 'secret' ? 'Secret: only those who discover it will see it.' : 'Visible to everyone.'}`} />
@@ -654,7 +723,9 @@ export function BandPage({ id }: { id: string }) {
   const world = useWorld();
   const band = BANDS[id];
   if (!band) return <p className="error">No such band.</p>;
-  const who = alive(world).filter((c) => c.resonance?.band === id).sort((a, b) => b.resonance!.degrees - a.resonance!.degrees);
+  const see = useSee();
+  const known = (c: Character) => { const r = see(c).resonance; return r && r !== 'unknown' && r.band === id ? r : null; };
+  const who = alive(world).filter((c) => known(c)).sort((a, b) => (known(b)!.degrees ?? 0) - (known(a)!.degrees ?? 0));
   return (
     <>
       <Title eyebrow={`Resonance band · ${band.range}`} title={<span style={{ color: BAND_COLOR[id] }}>{cap(id)}</span>} sub={band.meaning} />
@@ -662,7 +733,7 @@ export function BandPage({ id }: { id: string }) {
         {Object.keys(BANDS).map((b) => <Go key={b} to={{ kind: 'band', id: b }} className="pill">{cap(b)}</Go>)}
       </div>
       <Panel title="Who resonates here" aside={`${who.length} living`}>
-        <PeopleTable people={who} empty="No one known." extra={{ label: '°S', cell: (c) => <span className="mono">{c.resonance!.degrees} · {c.resonance!.type}</span> }} />
+        <PeopleTable people={who} empty="No one your people know of." extra={{ label: '°S', cell: (c) => { const r = known(c)!; return <span className="mono">{r.degrees !== undefined ? `${r.degrees} · ${r.type}` : 'not measured'}</span>; } }} />
       </Panel>
     </>
   );
@@ -727,6 +798,7 @@ export function SavePage({ setWorld }: { setWorld: (w: World) => void }) {
             <span className="muted" style={{ fontSize: 11, flexBasis: '100%' }}>The same seed always builds the same world. Current seed: <span className="mono">{world.seed}</span></span>
           </div>
         </Panel>
+        <DevPanel />
         <Panel title="Save code" aside="Move a game between browsers" className="span-12">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -751,5 +823,21 @@ export function SavePage({ setWorld }: { setWorld: (w: World) => void }) {
         </Panel>
       </div>
     </>
+  );
+}
+
+function DevPanel() {
+  const game = useGame();
+  return (
+    <section className="panel debug span-12">
+      <header><h3>Developer</h3></header>
+      <div className="body" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+          <input type="checkbox" checked={game.reveal} onChange={(e) => game.setReveal(e.target.checked)} />
+          Reveal everything (ignore the knowledge fog)
+        </label>
+        <span className="muted" style={{ fontSize: 11 }}>For checking the generator. Players will not have this.</span>
+      </div>
+    </section>
   );
 }

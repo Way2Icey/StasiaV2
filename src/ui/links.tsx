@@ -8,6 +8,7 @@ import { SPECIES } from '../data/species';
 import type { Character, FlagInstance, TraitInstance } from '../sim/types';
 import { useHover, useNav, useWorld } from './context';
 import type { Route } from './router';
+import { useSee } from './fog';
 
 export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -83,13 +84,27 @@ export function SpeciesLink({ id }: { id: string }) {
   return <Go to={{ kind: 'species', id }}>{SPECIES[id as keyof typeof SPECIES]?.name ?? id}</Go>;
 }
 
+/** Resonance as the player's house knows it. */
 export function BandLink({ c }: { c: Character }) {
-  if (!c.resonance) return <span className="muted">—</span>;
-  const r = c.resonance;
+  const see = useSee();
+  const r = see(c).resonance;
+  if (r === null) return <span className="muted">—</span>;
+  if (r === 'unknown') return <span className="muted" title="Not yet measured by your people">Unknown</span>;
   return (
     <Go to={{ kind: 'band', id: r.band }}>
-      <span style={{ color: BAND_COLOR[r.band] }}>{cap(r.band)} <span className="mono">{r.degrees}°S</span></span>
+      <span style={{ color: BAND_COLOR[r.band] }}>{cap(r.band)}{r.degrees !== undefined ? <> <span className="mono">{r.degrees}°S</span></> : null}</span>
     </Go>
+  );
+}
+
+/** Traits the player's house knows of, comma separated, with a hint if some are unknown. */
+export function TraitList({ c }: { c: Character }) {
+  const v = useSee()(c);
+  return (
+    <>
+      {v.traits.map((t, i) => <span key={t.id + i}>{i ? ', ' : ''}<TraitText t={t} /></span>)}
+      {v.hiddenTraits > 0 ? <span className="muted">{v.traits.length ? ' ' : ''}+?</span> : null}
+    </>
   );
 }
 

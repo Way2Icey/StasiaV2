@@ -2,6 +2,7 @@ import { displayName } from './names';
 import { Rng } from './rng';
 import { ageOf } from './characters';
 import { FLAGS_BY_ID } from '../data/flags';
+import { advanceMissions } from './missions';
 import {
   absoluteCycle,
   addCycles,
@@ -38,6 +39,7 @@ export function advanceTurn(input: World): World {
   }
 
   expireFlags(world, to);
+  advanceMissions(world, rng);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 
   world.rng = rng.state;

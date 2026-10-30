@@ -11,6 +11,9 @@ export type Route =
   | { kind: 'houses' }
   | { kind: 'worlds' }
   | { kind: 'save' }
+  | { kind: 'missions' }
+  | { kind: 'mission'; id: string }
+  | { kind: 'plan'; mission: 'investigate' | 'scout'; target?: string }
   | { kind: 'character'; id: string }
   | { kind: 'house'; id: string }
   | { kind: 'family'; id: string }
@@ -22,12 +25,13 @@ export type Route =
   | { kind: 'band'; id: string }
   | { kind: 'search'; q: string };
 
-export type Section = 'throne' | 'people' | 'houses' | 'worlds' | 'save';
+export type Section = 'throne' | 'people' | 'houses' | 'worlds' | 'missions' | 'save';
 
 /** Which sidebar section a page belongs to. */
 export function sectionOf(r: Route): Section | null {
   switch (r.kind) {
-    case 'throne': case 'people': case 'houses': case 'worlds': case 'save': return r.kind;
+    case 'throne': case 'people': case 'houses': case 'worlds': case 'save': case 'missions': return r.kind;
+    case 'mission': case 'plan': return 'missions';
     case 'character': case 'trait': case 'flag': case 'species': case 'band': return 'people';
     case 'house': case 'family': return 'houses';
     case 'planet': case 'sector': return 'worlds';
@@ -48,6 +52,15 @@ export function routeLabel(world: World, r: Route): string {
     case 'houses': return 'Houses';
     case 'worlds': return 'Worlds';
     case 'save': return 'Save & Load';
+    case 'missions': return 'Missions';
+    case 'mission': {
+      const m = world.missions[r.id];
+      if (!m) return 'Mission';
+      if (m.kind === 'scout') return `Scouting ${world.planets[m.targetPlanetId]?.name ?? ''}`;
+      const t = m.targetId ? world.characters[m.targetId] : undefined;
+      return `Investigating ${t ? t.name.given : 'someone'}`;
+    }
+    case 'plan': return r.mission === 'investigate' ? 'Plan an investigation' : 'Plan a scouting run';
     case 'character': { const c = world.characters[r.id]; return c ? displayName(c.name) : 'Unknown'; }
     case 'house': return `House ${world.houses[r.id]?.name ?? r.id}`;
     case 'family': return `Family ${world.families[r.id]?.name ?? r.id}`;

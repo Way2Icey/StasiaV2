@@ -35,3 +35,16 @@ export function useNav(): Nav {
 export function useHover(): Hover {
   return useContext(HoverContext);
 }
+
+/** Game-wide controls: change the world, and the developer reveal switch. */
+export interface Game {
+  update: (fn: (w: World) => World) => void;
+  reveal: boolean;
+  setReveal: (v: boolean) => void;
+}
+
+export const GameContext = createContext<Game>({ update: () => {}, reveal: false, setReveal: () => {} });
+
+export function useGame(): Game {
+  return useContext(GameContext);
+}

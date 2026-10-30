@@ -192,3 +192,29 @@ input.text { height: 34px; box-sizing: border-box; padding: 0 10px; background: 
   .search { order: 5; max-width: none; flex-basis: 100%; }
   .date { margin-left: auto; }
 }
+
+/* ---------------- milestone 2: knowledge & missions */
+.v.fuzzy { opacity: 0.85; font-size: 11px; }
+.chip.unknown { border-style: dashed; color: var(--muted); }
+.chip.mission { border-color: var(--blue); color: var(--blue); }
+.tag.mission { color: var(--blue); }
+.knowledge { border-left: 3px solid var(--blue); }
+.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.actions .btn { display: inline-flex; align-items: center; }
+a.btn, button.btn { text-decoration: none; }
+.rail .count { margin-left: 8px; font: 500 10px var(--mono); padding: 1px 6px; border-radius: 8px; background: var(--blue); color: var(--gold-ink); }
+.mission-row { align-items: center; }
+.stages { display: flex; flex-direction: column; gap: 8px; }
+.stage { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.stage .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--line); flex-shrink: 0; }
+.stage.past { color: var(--fg-2); } .stage.past .dot { background: var(--gold); border-color: var(--gold); }
+.stage.now { color: var(--fg); font-weight: 500; } .stage.now .dot { border: 2px solid var(--gold); }
+.report { margin: 0; padding: 10px 14px; border-left: 3px solid var(--gold); background: var(--panel-2); font-style: italic; color: var(--fg-2); }
+.findings { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+.choices { display: grid; gap: 6px; }
+.choices.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.choice { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 8px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel-2); font-size: 13px; }
+.choice .muted { font-size: 11px; }
+.choice:hover { border-color: var(--muted); }
+.choice[aria-pressed='true'] { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+@media (max-width: 860px) { .choices.two { grid-template-columns: 1fr; } }
