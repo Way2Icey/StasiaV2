@@ -13,6 +13,7 @@ import { GameContext, HoverContext, NavContext, WorldContext, type Game, type Ho
 import { seenBy } from './fog';
 import { MissionPage, MissionsPage, PlanPage } from './missions';
 import { CouncilPage } from './council';
+import { Coffers, EconomyPage } from './economy';
 import { activeMissions } from '../sim/missions';
 import { routeLabel, sameRoute, sectionOf, type Route, type Section } from './router';
 import { AUTOSAVE, storage } from './storage';
@@ -32,6 +33,7 @@ function initialWorld(): World {
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'throne', label: 'Throne Room' },
   { id: 'council', label: 'Council' },
+  { id: 'economy', label: 'Economy' },
   { id: 'people', label: 'People' },
   { id: 'houses', label: 'Houses' },
   { id: 'worlds', label: 'Worlds' },
@@ -119,7 +121,7 @@ export function App() {
               </form>
               <div className="date">
                 <strong>{formatDate(world.date)}</strong>
-                <span>Phase {parts.phase} of 5 · Cycle {parts.cycleOfPhase} of 16</span>
+                <span>Phase {parts.phase} of 5 · Cycle {parts.cycleOfPhase} of 16 · <button type="button" className="linklike coffers-link" onClick={() => nav.to({ kind: 'economy' })}><Coffers /></button></span>
               </div>
               <button type="button" className="btn primary" onClick={onContinue}>Continue ›</button>
             </header>
@@ -178,6 +180,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'mission': return <MissionPage id={route.id} />;
     case 'plan': return <PlanPage key={`${route.mission}-${route.target ?? ''}-${route.petition ?? ''}`} kind={route.mission} target={route.target} leader={route.leader} petition={route.petition} />;
     case 'council': return <CouncilPage />;
+    case 'economy': return <EconomyPage />;
   }
 }
 

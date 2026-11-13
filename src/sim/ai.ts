@@ -83,7 +83,7 @@ function chooseTasks(world: World, rng: Rng, h: House) {
   setTask(world, h.id, 'grandMaster', prefer('patrol', 'drillHost', restless ? 0.7 : 0.3));
   // Steward.
   const room = sectors.filter((s) => s.controllerFamilyId && s.roomUsed < s.room);
-  const steward = prefer('keepOrder', 'develop', restless || !room.length ? 0.8 : 0.4);
+  const steward = rng.chance(0.15) ? 'audit' : prefer('keepOrder', 'develop', restless || !room.length ? 0.8 : 0.4);
   setTask(world, h.id, 'steward', steward, steward === 'develop' ? room[0]?.id : undefined);
   void TASKS_BY_ID;
 }

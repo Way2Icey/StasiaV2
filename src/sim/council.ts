@@ -7,6 +7,8 @@ import { alive, seatHolder } from './query';
 import { knowledgeOf, learn } from './knowledge';
 import { activeMissions, cannotLead, skillFor } from './missions';
 import { attitude, attitudeColor, relation, shiftRelation } from './relations';
+import { canAfford, DEVELOP_COST, pay, skimRate } from './economy';
+import { QUARTER_ECONOMY } from '../data/economy';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from './time';
 import { FLAGS_BY_ID } from '../data/flags';
 import { SPECIES } from '../data/species';
@@ -62,10 +64,11 @@ export interface TaskDef {
 export const TASKS: TaskDef[] = [
   { id: 'keepOrder', seat: 'steward', label: 'Keep order', description: 'Settle disputes and grievances across our sectors. Lowers unrest.', target: null, stats: [['stewardship', 0.5], ['law', 0.3], ['diplomacy', 0.2]], threshold: 50 },
   { id: 'develop', seat: 'steward', label: 'Develop a sector', description: 'Pour effort into one sector: new quarters, more people.', target: 'ownSector', stats: [['stewardship', 0.5], ['logistics', 0.3], ['intellect', 0.2]], threshold: 90 },
+  { id: 'audit', seat: 'steward', label: 'Audit the books', description: 'Go through every ledger. Finds overseers skimming the takings and claws some back.', target: null, stats: [['stewardship', 0.4], ['law', 0.3], ['insight', 0.3]], threshold: 70 },
   { id: 'drillHost', seat: 'grandMaster', label: 'Drill the host', description: 'Train the knights. They slowly grow sharper.', target: null, stats: [['tactics', 0.4], ['discipline', 0.3], ['leadership', 0.3]], threshold: 70 },
   { id: 'patrol', seat: 'grandMaster', label: 'Patrol the sectors', description: 'Show the house’s steel where trouble brews. Lowers unrest, raises dread.', target: null, stats: [['leadership', 0.4], ['tactics', 0.3], ['perception', 0.3]], threshold: 55 },
   { id: 'courtHouse', seat: 'envoy', label: 'Court a house', description: 'Letters, gifts and visits to one house. Warms their view of us.', target: 'house', stats: [['diplomacy', 0.45], ['eloquence', 0.3], ['negotiation', 0.25]], threshold: 50 },
-  { id: 'attendNumerade', seat: 'envoy', label: 'Attend the Numerade', description: 'Be seen and heard among the Houses of Archon. Raises respect.', target: null, stats: [['eloquence', 0.4], ['diplomacy', 0.3], ['law', 0.3]], threshold: 60 },
+  { id: 'attendNumerade', seat: 'envoy', label: 'Attend the Numarade', description: 'Be seen and heard among the Houses of Archon. Raises respect.', target: null, stats: [['eloquence', 0.4], ['diplomacy', 0.3], ['law', 0.3]], threshold: 60 },
   { id: 'whispers', seat: 'spymaster', label: 'Gather whispers', description: 'Agents listen at one house’s doors. Slowly learn about its people.', target: 'house', stats: [['intrigue', 0.5], ['insight', 0.3], ['deception', 0.2]], threshold: 45 },
   { id: 'watchHouse', seat: 'spymaster', label: 'Watch our own', description: 'Keep eyes on our own people. Learn them better; secrets surface.', target: null, stats: [['insight', 0.5], ['perception', 0.3], ['intrigue', 0.2]], threshold: 50 },
   { id: 'tendHousehold', seat: 'physician', label: 'Tend the household', description: 'Wounds and sickness in the family heal faster; grief passes sooner.', target: null, stats: [['intellect', 0.5], ['insight', 0.3], ['composure', 0.2]], threshold: 30 },
@@ -390,6 +393,8 @@ function runTask(world: World, rng: Rng, houseId: string, c: Character, def: Tas
       const s = ownSectors(world, houseId).find((x) => x.id === a.target);
       if (!s) return null;
       if (s.roomUsed < s.room) {
+        if (world.economy && !canAfford(world, houseId, DEVELOP_COST)) return `Works in ${s.name} stalled: not enough othes or metals (each step costs ${DEVELOP_COST.othes} othes and ${DEVELOP_COST.metals} metals).`;
+        if (world.economy) pay(world, houseId, DEVELOP_COST, `Construction in ${s.name}`, 'develop');
         s.roomUsed += 1;
         s.population = Math.round(s.population * 1.03);
         feed(world, houseId, `${s.name} grows: new ground is built on.`, [c.id]);
@@ -397,6 +402,20 @@ function runTask(world: World, rng: Rng, houseId: string, c: Character, def: Tas
       }
       s.unrest = Math.max(0, s.unrest - 1);
       return `${s.name} is built out. Effort goes to upkeep instead.`;
+    }
+    case 'audit': {
+      const skimmers = ownSectors(world, houseId).flatMap((s) => s.quarters.filter((q) => QUARTER_ECONOMY[q.name]?.takings && q.overseerId)
+        .map((q) => ({ q, s, o: world.characters[q.overseerId!]! })))
+        .filter(({ o }) => skimRate(o) > 0 && !o.flags.some((f) => f.id === 'embezzler' && f.knownBy?.includes(houseId)));
+      if (!skimmers.length) return 'The books are clean.';
+      const { q, o } = rng.pick(skimmers);
+      const found = rng.chance(clamp(0.35 + (taskScore(def, c) - o.stats.deception) * 0.05, 0.1, 0.9));
+      if (!found) return 'The numbers do not quite add up somewhere. No proof yet.';
+      o.flags.push({ id: 'embezzler', since: world.date, detail: `skimming ${q.name}`, knownBy: [houseId] });
+      const back = 100 + Math.round(taskScore(def, c) * 10);
+      if (world.economy) pay(world, houseId, { othes: -back }, `Recovered by the audit (${q.name})`, 'audit');
+      feed(world, houseId, `${who} catches ${shortName(o.name)} skimming the takings of ${q.name}. ${back} othes recovered.`, [o.id, c.id]);
+      return `Caught ${shortName(o.name)} skimming ${q.name}; ${back} othes recovered.`;
     }
     case 'drillHost':
     case 'trainKnights': {
@@ -429,7 +448,7 @@ function runTask(world: World, rng: Rng, houseId: string, c: Character, def: Tas
     }
     case 'attendNumerade': {
       if (st.respect < 70 || rng.chance(0.3)) st.respect = clamp(st.respect + 1, 0, 100);
-      return `${who} speaks in the Numerade. Respect ${st.respect}.`;
+      return `${who} speaks in the Numarade. Respect ${st.respect}.`;
     }
     case 'whispers': {
       if (!a.target || !world.houses[a.target]) return null;

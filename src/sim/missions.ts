@@ -9,6 +9,7 @@ import { believed, knowledgeOf, learn, viewOf, type CharacterView } from './know
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, type GameDate } from './time';
 import { SPECIES } from '../data/species';
 import { attitude, relation, shiftRelation } from './relations';
+import { canAfford, missionCost, pay } from './economy';
 import { FLAGS_BY_ID } from '../data/flags';
 import { traitLabel } from '../data/traits';
 import type { Approach, Character, Mission, MissionKind, Outcome, SpeciesId, World } from './types';
@@ -203,6 +204,9 @@ export interface Forecast {
   noticed: number;
   /** How confident the estimate is, from what is known about the target. */
   confidence: string;
+  /** Othes it costs to send them. */
+  cost: number;
+  affordable: boolean;
 }
 
 export function forecast(world: World, spec: MissionSpec): Forecast | { ok: false; reason: string } {
@@ -239,6 +243,8 @@ export function forecast(world: World, spec: MissionSpec): Forecast | { ok: fals
     success: good / N,
     noticed: 1 - Math.pow(1 - p, rolls),
     confidence: depth >= 60 ? 'Firm' : depth >= 30 ? 'Rough' : 'A guess',
+    cost: missionCost(spec.kind, spec.approach),
+    affordable: canAfford(world, spec.houseId, { othes: missionCost(spec.kind, spec.approach) }),
   };
 }
 
@@ -255,9 +261,12 @@ export function launchMission(input: World, spec: MissionSpec): { world: World; 
 export function launchInPlace(world: World, spec: MissionSpec): string {
   const r = resolveSpec(world, spec);
   if (typeof r === 'string') throw new Error(r);
+  const cost = missionCost(spec.kind, spec.approach);
+  if (!canAfford(world, spec.houseId, { othes: cost })) throw new Error('Not enough othes.');
   const travel = travelCycles(r.leader.location.planetId, r.planetId);
   const task = TASK_CYCLES[spec.kind][spec.approach];
   const id = `m${world.nextId++}`;
+  if (world.economy) pay(world, spec.houseId, { othes: cost }, `${MISSION_LABEL[spec.kind]}: ${shortName(r.leader.name)}`, 'mission');
   const where = placeName(world, r.sectorId);
   const m: Mission = {
     id,

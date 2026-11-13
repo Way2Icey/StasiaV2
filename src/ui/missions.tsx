@@ -373,6 +373,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
                   <dt>Out and back</dt><dd>{f.total} cycles ({f.travel} each way, {f.task} at work)</dd>
                   <dt>Home by</dt><dd>{formatDate(f.returns)}</dd>
                   <dt>Our estimate is</dt><dd>{f.confidence}</dd>
+                  <dt>Cost</dt><dd className={f.affordable ? '' : 'error'}>{f.cost.toLocaleString('en-US')} othes{f.affordable ? '' : ' — more than we have'}</dd>
                 </dl>
                 <Odds label="Chance of a good result" p={f.success} color="var(--green)" />
                 {kind === 'envoy' ? (
@@ -383,7 +384,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
                     <p className="muted" style={{ fontSize: 11, margin: 0 }}>Being noticed caps the result, tells their house who you sent, and can end in capture.</p>
                   </>
                 )}
-                <button type="button" className="btn primary" onClick={launch}>Send them</button>
+                <button type="button" className="btn primary" onClick={launch} disabled={!f.affordable}>Send them</button>
               </>
             ) : null}
           </div>

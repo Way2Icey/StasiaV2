@@ -6,6 +6,7 @@ import { learn } from './knowledge';
 import { relation, shiftRelation } from './relations';
 import { kill } from './death';
 import { absoluteCycle } from './time';
+import { rivalDemandsRansom } from './economy';
 import type { Captive, World } from './types';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -129,6 +130,8 @@ export function advanceCaptives(world: World, rng: Rng, phaseTurned: boolean): v
     // A rival holder decides.
     const p = world.houses[cap.heldBy]!.personality;
     if (!cap.interrogated) { interrogateInPlace(world, c.id, rng); continue; }
+    if (cap.ransom?.status === 'open') continue;
+    if (!cap.ransom && rng.chance(0.3 + p.greed * 0.6)) { rivalDemandsRansom(world, c.id); continue; }
     const heldPhases = (absoluteCycle(world.date) - absoluteCycle(cap.since)) / 16;
     if (!rng.chance(0.2 + heldPhases * 0.05)) continue;
     const execute = p.aggression * (1 - p.honour) * 1.5 + Math.max(0, -relation(world, cap.heldBy, c.houseId)) / 200;

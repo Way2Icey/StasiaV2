@@ -162,7 +162,7 @@ export interface House {
 export interface Standing {
   /** Keeping your word: oaths kept, debts paid. */
   honour: number;
-  /** Standing at court and in the Numerade. */
+  /** Standing at court and in the Numarade. */
   respect: number;
   /** How much the others fear you. */
   dread: number;
@@ -336,10 +336,52 @@ export interface Captive {
   /** The mission they were caught on. */
   missionId?: string;
   interrogated: boolean;
+  /** A ransom offer or demand, if one has been made. */
+  ransom?: { amount: number; expires: GameDate; status: 'open' | 'refused' | 'paid' };
+}
+
+// ---------------------------------------------------------------- economy
+
+export type ResourceId = 'othes' | 'navisium' | 'metals' | 'provisions' | 'fuel' | 'components';
+export type GoodId = Exclude<ResourceId, 'othes'>;
+
+export interface LedgerLine {
+  resource: ResourceId;
+  /** Per Phase for standing flows; the amount for one-off entries. */
+  amount: number;
+  label: string;
+  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit';
+  sectorId?: string;
+  quarterId?: string;
+  characterId?: string;
+}
+
+export interface HouseEconomy {
+  stock: Record<ResourceId, number>;
+  tax: 'low' | 'normal' | 'high';
+  /** Navisium granted by the Numarade last Orbit. */
+  quota: number;
+  /** One-off entries since the Phase began (trades, missions, ransoms). */
+  recent: (LedgerLine & { date: GameDate })[];
+  /** The standing flows as applied at the last Phase. */
+  lastPhase: LedgerLine[];
+}
+
+export interface MarketGood {
+  price: number;
+  /** Price at the end of each recent Phase, oldest first. */
+  history: number[];
+  /** Net units bought (positive) or sold this Phase. */
+  pressure: number;
+}
+
+export interface Economy {
+  houses: Record<string, HouseEconomy>;
+  market: Record<GoodId, MarketGood>;
 }
 
 export interface World {
-  version: 4;
+  version: 5;
   seed: string;
   date: GameDate;
   rng: RngState;
@@ -358,4 +400,5 @@ export interface World {
   courts: Record<string, Court>;
   /** Everyone held by a house, keyed by character id. */
   captives: Record<string, Captive>;
+  economy: Economy;
 }

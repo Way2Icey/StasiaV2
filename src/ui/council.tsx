@@ -8,6 +8,7 @@ import { attitude, attitudeColor, relation } from '../sim/relations';
 import { activeMissionOf, MISSION_LABEL } from '../sim/missions';
 import { formatDate } from '../sim/time';
 import { captivesHeldBy, executeCaptive, interrogateCaptive, releaseCaptive } from '../sim/captives';
+import { answerRansom, demandRansom, econ, ransomValue } from '../sim/economy';
 import { shortName } from '../sim/names';
 import type { Character, CouncilSeat, Petition, World } from '../sim/types';
 import { useGame, useWorld } from './context';
@@ -33,7 +34,7 @@ export function StandingPanel({ houseId, className }: { houseId: string; classNa
     <Panel title="Standing" aside="0–100" className={className}>
       <div className="body" style={{ display: 'grid', gap: 8 }}>
         <Meter label="Honour" value={h.standing.honour} color="var(--gold)" hint="Keeping your word: oaths kept, debts paid." />
-        <Meter label="Respect" value={h.standing.respect} color="var(--blue)" hint="Standing at court and in the Numerade." />
+        <Meter label="Respect" value={h.standing.respect} color="var(--blue)" hint="Standing at court and in the Numarade." />
         <Meter label="Dread" value={h.standing.dread} color="var(--orange)" hint="How much the others fear you." />
         {houseId !== me ? (
           <dl className="kv" style={{ marginTop: 6 }}>
@@ -354,7 +355,7 @@ export function CaptivesPanel({ className, hideWhenEmpty }: { className?: string
             <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <span><PersonLink c={c} /> <span className="muted" style={{ fontSize: 12 }}>· agent of House <HouseLink id={c.houseId} /> · held since {formatDate(cap.since)}</span></span>
               <span className="muted" style={{ fontSize: 11 }}>
-                {cap.interrogated ? 'Already questioned. ' : ''}Release: their regard +15, our honour +2. Execute: dread +5, honour −3, their regard −40, others −5.
+                {cap.interrogated ? 'Already questioned. ' : ''}{cap.ransom?.status === 'refused' ? 'Their house refused to pay. ' : ''}Ransom: about {ransomValue(world, c).toLocaleString('en-US')} othes if they pay. Release: their regard +15, our honour +2. Execute: dread +5, honour −3, their regard −40, others −5.
                 {' '}Holding them costs a little of their regard every Phase.
               </span>
             </span>
@@ -367,10 +368,41 @@ export function CaptivesPanel({ className, hideWhenEmpty }: { className?: string
               ) : (
                 <>
                   <button type="button" className="btn small primary" disabled={cap.interrogated} onClick={() => game.update((w) => interrogateCaptive(w, c.id))}>Interrogate</button>
+                  <button type="button" className="btn small" disabled={!!cap.ransom} onClick={() => game.update((w) => demandRansom(w, c.id))}>Demand ransom</button>
                   <button type="button" className="btn small" onClick={() => game.update((w) => releaseCaptive(w, c.id))}>Release</button>
                   <button type="button" className="btn small" onClick={() => setConfirm(c.id)}>Execute…</button>
                 </>
               )}
+            </span>
+          </div>
+        );
+      })}
+    </Panel>
+  );
+}
+
+/** Other houses asking us to pay for our own people. */
+export function RansomDemands({ className }: { className?: string }) {
+  const world = useWorld();
+  const game = useGame();
+  const house = world.playerHouseId;
+  const open = Object.values(world.captives).filter((cap) => cap.ransom?.status === 'open' && world.characters[cap.characterId]?.houseId === house);
+  if (!open.length) return null;
+  const othes = econ(world, house).stock.othes;
+  return (
+    <Panel title="Ransom demands" aside={`${open.length} waiting`} className={className}>
+      {open.map((cap) => {
+        const c = world.characters[cap.characterId]!;
+        const amount = cap.ransom!.amount;
+        return (
+          <div key={c.id} className="row petition">
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span>House <HouseLink id={cap.heldBy} /> holds <PersonLink c={c} /></span>
+              <span className="muted" style={{ fontSize: 11 }}>They ask {amount.toLocaleString('en-US')} othes. Refuse, or let it lapse on {formatDate(cap.ransom!.expires)}, and they decide what to do with {c.name.given}.</span>
+            </span>
+            <span style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button type="button" className="btn small primary" disabled={othes < amount} onClick={() => game.update((w) => answerRansom(w, c.id, true))}>Pay {amount.toLocaleString('en-US')}</button>
+              <button type="button" className="btn small" onClick={() => game.update((w) => answerRansom(w, c.id, false))}>Refuse</button>
             </span>
           </div>
         );

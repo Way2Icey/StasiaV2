@@ -7,6 +7,7 @@ import { advanceCouncil } from './council';
 import { advanceRivals } from './ai';
 import { advanceCaptives } from './captives';
 import { kill } from './death';
+import { advanceEconomy, lapseRansoms } from './economy';
 import {
   absoluteCycle,
   addCycles,
@@ -44,6 +45,8 @@ export function advanceTurn(input: World): World {
 
   expireFlags(world, to);
   advanceMissions(world, rng);
+  advanceEconomy(world, rng, crossed.phases > 0, crossed.orbits > 0);
+  lapseRansoms(world);
   advanceCouncil(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceRivals(world, rng, crossed.phases > 0);
   advanceCaptives(world, rng, crossed.phases > 0);
