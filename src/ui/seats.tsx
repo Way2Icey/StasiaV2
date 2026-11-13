@@ -13,6 +13,10 @@ import { formatDate } from '../sim/time';
 import { econ, netPerPhase, phaseLedger } from '../sim/economy';
 import { isAway } from '../sim/court';
 import {
+  agentsOf, cannotCounsel, counselled, COUNSEL_BONUS, isAgent, isHouseholdNoble, knightReady, maxAgents, OCCUPATION_LABEL, OCCUPATION_NOTE,
+  occupationOf, recruitAgent, releaseAgent, seekWisdom, setOccupation, type Occupation,
+} from '../sim/household';
+import {
   answerNews, appointEnvoy, dismissEnvoy, envoyCandidates, envoysOf, houseNews, MAX_ENVOYS, setStance, STANCE_LABEL, stanceOf,
 } from '../sim/politics';
 import { QUARTER_ECONOMY, TAX } from '../data/economy';
@@ -320,6 +324,7 @@ function Spymaster() {
         {spotted.length === 0 ? <p className="body muted" style={{ margin: 0 }}>We have not spotted any foreign agents. Watch our own catches more of them.</p> : null}
         {spotted.map((c) => <div key={c.id} className="row"><PersonLink c={c} /><span className="muted" style={{ fontSize: 12 }}>· House <HouseLink id={c.houseId} /></span></div>)}
       </Panel>
+      <AgentsPanel />
       <RansomDemands className="span-12" />
       <CaptivesPanel className="span-12" />
       <Panel title="From the shadows" aside="Latest" className="span-12 feed">
@@ -389,12 +394,32 @@ function Physician() {
 
 function Elder() {
   const world = useWorld();
+  const game = useGame();
   const house = world.playerHouseId;
   const court = world.courts[house]!;
+  const elder = councilOf(world, house).find((c) => c.seat === 'elder');
+  const seekers = alive(world).filter((c) => c.houseId === house && c.tier === 'full' && c.id !== elder?.id && !isAway(world, c.id) && ageOf(c, world.date) >= 12);
+  const [who, setWho] = useState('');
+  const chosen = who || world.houses[house]!.rulerId || seekers[0]?.id || '';
+  const why = cannotCounsel(world, house);
+  const counselledNow = alive(world).filter((c) => c.houseId === house && counselled(c));
   const annals = world.annals?.[house] ?? [];
   const young = alive(world).filter((c) => c.houseId === house && c.tier === 'full' && ageOf(c, world.date) < 30 && (c.role === 'Child' || c.role.includes('of the Highroy') || c.role === 'Heir' || c.role === 'Ward'));
   return (
     <>
+      <Panel title={<Term k="counsel">Seek wisdom</Term>} aside="Once a Phase" className="span-12">
+        <div className="body" style={{ display: 'grid', gap: 10 }}>
+          <span style={{ fontSize: 13 }}>Anyone of the house may sit with the Elder. For an Orbit they work {Math.round(COUNSEL_BONUS * 100)}% better at their task or on a mission, and leave in better spirits. A counselled Highroy steers the whole council 5% better. While the Elder is home, the council works 3% better regardless.</span>
+          <div className="actions">
+            <select aria-label="Who seeks wisdom" className="select" value={chosen} onChange={(e) => setWho(e.target.value)}>
+              {seekers.map((c) => <option key={c.id} value={c.id}>{c.name.given} {c.name.family ?? ''} · {c.role}{counselled(c) ? ' (counselled)' : ''}</option>)}
+            </select>
+            <button type="button" className="btn small primary" disabled={!!why || !chosen} onClick={() => game.update((w) => seekWisdom(w, house, chosen))}>Seek wisdom</button>
+            {why ? <span className="muted" style={{ fontSize: 12 }}>{why}</span> : null}
+          </div>
+          {counselledNow.length ? <span className="muted" style={{ fontSize: 12 }}>Counselled now: {counselledNow.map((c, i) => <span key={c.id}>{i ? ', ' : ''}<PersonLink c={c} /></span>)}</span> : null}
+        </div>
+      </Panel>
       <Panel title={<Term k="oath">Oaths sworn</Term>} className="span-6">
         {court.oaths.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No oath has run its course yet.</p> : null}
         {court.oaths.map((o, i) => (
@@ -410,5 +435,82 @@ function Elder() {
         {annals.slice(0, 20).map((e, i) => <div key={i} className="row"><span className="mono muted" style={{ fontSize: 11, width: 150, flexShrink: 0 }}>{formatDate(e.date)}</span><span style={{ fontSize: 13 }}>{e.text}</span></div>)}
       </Panel>
     </>
+  );
+}
+
+function AgentsPanel() {
+  const world = useWorld();
+  const game = useGame();
+  const house = world.playerHouseId;
+  const agents = agentsOf(world, house);
+  const cap = maxAgents(world, house);
+  const envoys = envoysOf(world, house).filter((c) => !isAgent(c));
+  const [pick, setPick] = useState('');
+  const chosen = pick || envoys[0]?.id || '';
+  return (
+    <Panel title={<Term k="agentNet">Agents among the envoys</Term>} aside={`${agents.length} of ${cap}`} className="span-12">
+      <p className="body muted" style={{ margin: 0, fontSize: 12 }}>The Spymaster can quietly recruit envoys. An agent on an envoy mission learns much about the host house, but may be caught spying under diplomatic cover. Agents at home feed the Spymaster's whispers (+10% each) and are sharper investigators.</p>
+      {agents.map((c) => (
+        <div key={c.id} className="row">
+          <span style={{ flex: 1 }}><PersonLink c={c} /> <span className="muted" style={{ fontSize: 12 }}>· Intrigue {c.stats.intrigue} · Stealth {c.stats.stealth} · <MoodText c={c} /></span></span>
+          <span className={whereabouts(world, c).tone} style={{ fontSize: 12 }}>{whereabouts(world, c).text}</span>
+          {c.flags.some((f) => f.id === 'agent' && (f.knownBy?.length ?? 0) > 1) ? <span className="error" style={{ fontSize: 12 }}>Blown</span> : null}
+          <button type="button" className="btn small" onClick={() => game.update((w) => releaseAgent(w, c.id))}>Release</button>
+        </div>
+      ))}
+      {agents.length < cap && envoys.length ? (
+        <div className="body actions">
+          <select aria-label="Envoy to recruit" className="select" value={chosen} onChange={(e) => setPick(e.target.value)}>
+            {envoys.map((c) => <option key={c.id} value={c.id}>{c.name.given} {c.name.family ?? ''} · Intrigue {c.stats.intrigue}</option>)}
+          </select>
+          <button type="button" className="btn small primary" onClick={() => { game.update((w) => recruitAgent(w, house, chosen)); setPick(''); }}>Recruit as agent</button>
+        </div>
+      ) : agents.length < cap ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>No envoys free to recruit. Name more envoys on the Speaker's page.</p> : null}
+    </Panel>
+  );
+}
+
+/** Every noble without a seat: what they do for the house. */
+export function HouseholdPanel({ className }: { className?: string }) {
+  const world = useWorld();
+  const game = useGame();
+  const house = world.playerHouseId;
+  const [err, setErr] = useState<string | null>(null);
+  const nobles = alive(world).filter((c) => c.houseId === house && isHouseholdNoble(c) && ageOf(c, world.date) >= 16)
+    .sort((a, b) => occupationOf(a).localeCompare(occupationOf(b)) || a.name.given.localeCompare(b.name.given));
+  const counts = nobles.reduce((m, c) => ({ ...m, [occupationOf(c)]: (m[occupationOf(c)] ?? 0) + 1 }), {} as Record<string, number>);
+  return (
+    <Panel title={<Term k="occupation">Nobles of the house</Term>} aside={`${counts.courtier ?? 0} at court · ${counts.envoy ?? 0} envoys · ${counts.idle ?? 0} idle`} className={className}>
+      {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
+      <div className="table-wrap">
+        <table className="list">
+          <thead><tr><th>Name</th><th>Family</th><th>Occupation</th><th><Term k="mood">Mood</Term></th><th>Where</th></tr></thead>
+          <tbody>
+            {nobles.map((c) => {
+              const occ = occupationOf(c);
+              const ready = knightReady(c);
+              return (
+                <tr key={c.id}>
+                  <td><PersonLink c={c} />{isAgent(c) ? <span className="chip secret" style={{ marginLeft: 6 }}>agent</span> : null}</td>
+                  <td><FamilyLink id={c.familyId} /></td>
+                  <td>
+                    <select aria-label={`What ${c.name.given} does`} className="select" value={occ} onChange={(e) => {
+                      try { game.update((w) => setOccupation(w, house, c.id, e.target.value as Occupation)); setErr(null); } catch (x) { setErr((x as Error).message); }
+                    }}>
+                      {(['idle', 'courtier', 'envoy', 'knight'] as Occupation[]).map((o) => (
+                        <option key={o} value={o} disabled={o === 'knight' && !!ready}>{OCCUPATION_LABEL[o]}{o === 'knight' && ready ? ' (not ready)' : ''}</option>
+                      ))}
+                    </select>
+                    <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{OCCUPATION_NOTE[occ]}</div>
+                  </td>
+                  <td><MoodText c={c} /></td>
+                  <td className={whereabouts(world, c).tone} style={{ fontSize: 12 }}>{whereabouts(world, c).text}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
   );
 }

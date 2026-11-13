@@ -35,10 +35,11 @@ function placeOf(world: World, c: Character): Omit<CourtPlace, 'character' | 'ho
   if (c.role === 'Spouse of the Highroy') return { place: 'Consort', effect: 'tasks', value: 0.05, text: 'Hosts the court: council tasks +5%, and a chance of +1 respect each Phase' };
   if (c.role === 'Heir') return { place: 'Heir', effect: 'mood', value: 1, text: 'The heir at court steadies the house: council and knights +1 mood each Phase' };
   if (c.role === 'Son of the Highroy' || c.role === 'Daughter of the Highroy') return { place: c.role.startsWith('Son') ? 'Son of the Highroy' : 'Daughter of the Highroy', effect: 'tasks', value: 0.02, text: 'Sits in on the council: tasks +2%' };
+  if (c.role === 'Noble') return { place: 'Idle', effect: 'income', value: 0, text: 'Idle: resting, brings nothing to the house' };
   if (c.role.startsWith('Head of')) return { place: 'Head of a family', effect: 'unrest', value: 1, text: "Present in the family's sectors: their unrest −1 each Phase" };
-  if (fam?.ruling) return { place: 'Of the ruling family', effect: 'income', value: 0.015, text: 'Court business: othes income +1.5%' };
+  if (fam?.ruling && c.role === 'Courtier') return { place: 'Court helper (ruling family)', effect: 'income', value: 0.015, text: 'Court business: othes income +1.5%' };
   if (c.role.startsWith('Retainer')) return { place: 'Retainer', effect: 'income', value: 0.01, text: 'Useful hands: othes income +1%' };
-  if (c.role === 'Noble') return { place: fam?.high ? 'High noble' : 'Noble', effect: 'income', value: fam?.high ? 0.015 : 0.01, text: `Court business: othes income +${fam?.high ? '1.5' : '1'}%` };
+  if (c.role === 'Courtier') return { place: fam?.high ? 'Court helper (high family)' : 'Court helper', effect: 'income', value: fam?.high ? 0.015 : 0.01, text: `Court business: othes income +${fam?.high ? '1.5' : '1'}%` };
   return null;
 }
 

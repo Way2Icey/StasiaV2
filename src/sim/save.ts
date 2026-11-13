@@ -6,8 +6,9 @@ import { ensureMood } from './mood';
 import { ensureDiscovery } from './discovery';
 import { ensureGrowth } from './growth';
 import { ensurePolitics } from './politics';
+import { ensureHousehold } from './household';
 
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 export function serialize(world: World): string {
   return JSON.stringify(world);
@@ -53,7 +54,11 @@ export function deserialize(text: string): World {
   }
   // v7 -> v8: the Speaker of the Council, envoy corps, stances.
   if ((w.version as number) === 7) {
-    (w as World).version = 8;
+    (w as unknown as { version: number }).version = 8;
+  }
+  // v8 -> v9: noble occupations, the Elder's counsel, agents.
+  if ((w.version as number) === 8) {
+    (w as World).version = 9;
   }
   if (w.version !== SAVE_VERSION) throw new SaveError(`Unsupported save version: ${String(w.version)}`);
   const required: (keyof World)[] = ['seed', 'date', 'rng', 'houses', 'families', 'characters', 'planets', 'feed'];
@@ -70,5 +75,6 @@ export function deserialize(text: string): World {
   ensureDiscovery(world);
   ensureGrowth(world);
   ensurePolitics(world);
+  ensureHousehold(world);
   return world;
 }

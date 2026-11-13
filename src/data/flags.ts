@@ -36,6 +36,8 @@ export const FLAGS: FlagDef[] = [
   { id: 'knighted', label: 'Knighted', kind: 'credential', visibility: 'all', endsBy: 'Stripped for disgrace' },
   { id: 'caigeBonded', label: 'Caige-bonded', kind: 'credential', visibility: 'all', endsBy: 'Caige stripped or lost' },
   { id: 'cameOfAge', label: 'Of age', kind: 'credential', visibility: 'all', endsBy: 'Permanent' },
+  { id: 'counselled', label: 'Counselled', kind: 'condition', visibility: 'all', endsBy: 'Wears off after an Orbit' },
+  { id: 'agent', label: 'Agent', kind: 'secret', visibility: 'secret', endsBy: 'Released by the Spymaster' },
   { id: 'embezzler', label: 'Embezzler', kind: 'secret', visibility: 'secret', endsBy: 'Dismissal or a clean record' },
   { id: 'debtor', label: 'Debtor', kind: 'credential', visibility: 'secret', endsBy: 'Debt repaid' },
   { id: 'twin', label: 'Twin', kind: 'relation', visibility: 'all', endsBy: 'Permanent' },

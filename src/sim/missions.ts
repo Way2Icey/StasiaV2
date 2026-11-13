@@ -13,6 +13,7 @@ import { canAfford, missionCost, pay } from './economy';
 import { fieldSlots, MOOD_ON_RETURN, shiftMood, tiredOnLaunch, unwilling } from './mood';
 import { discover, FIND_CHANCE } from './discovery';
 import { mayLeadEnvoy } from './politics';
+import { counselled, COUNSEL_BONUS, isAgent } from './household';
 import { newsSinceLastLook, rivalFind } from './growth';
 import { FLAGS_BY_ID } from '../data/flags';
 import { traitLabel } from '../data/traits';
@@ -125,7 +126,9 @@ export function slotsFor(world: World, houseId: string): { used: number; total: 
 /** The whole party's skill: the leader's, plus a quarter of each companion's. Those forced along give less. */
 export function partySkill(kind: MissionKind, leader: Character, companions: Character[], forced: string[] = []): number {
   const f = (c: Character, full: number, grudging: number) => (forced.includes(c.id) ? grudging : full);
-  return skillFor(kind, leader) * f(leader, 1, 0.85) + companions.reduce((s, c) => s + skillFor(kind, c) * 0.25 * f(c, 1, 0.8), 0);
+  // Counsel from the Elder sharpens the leader; an agent of the Spymaster knows the trade.
+  const sharp = (counselled(leader) ? 1 + COUNSEL_BONUS : 1) * (kind === 'investigate' && isAgent(leader) ? 1.1 : 1);
+  return skillFor(kind, leader) * f(leader, 1, 0.85) * sharp + companions.reduce((s, c) => s + skillFor(kind, c) * 0.25 * f(c, 1, 0.8), 0);
 }
 
 export function skillFor(kind: MissionKind, c: Character): number {
@@ -476,7 +479,11 @@ function taskTurn(world: World, m: Mission, leader: Character, rng: Rng) {
   if (gain >= 9) m.log.push({ date: world.date, text: LINES[m.kind][0] });
   else if (gain < 2) m.log.push({ date: world.date, text: LINES[m.kind][1] });
 
-  if (m.noticed || m.kind === 'envoy') return;
+  if (m.kind === 'envoy') {
+    if (!m.noticed && isAgent(leader) && rng.chance(detectionChance(world, r, m.approach) / 2)) caughtUnderCover(world, m, leader, r.targetHouseId);
+    return;
+  }
+  if (m.noticed) return;
   const watcher = watcherSkill(world, r);
   if (!rng.chance(detectionChance(world, r, m.approach, watcher))) return;
 
@@ -509,6 +516,19 @@ function taskTurn(world: World, m: Mission, leader: Character, rng: Rng) {
     id: 'exposed', since: world.date, until: addCycles(world.date, CYCLES_PER_ORBIT * 3),
     detail: `to House ${world.houses[r.targetHouseId]?.name}`, knownBy: [r.targetHouseId, ...(m.leaderKnowsNoticed ? [m.houseId] : [])],
   });
+}
+
+/** An envoy who is also an agent, caught spying at a foreign court. */
+function caughtUnderCover(world: World, m: Mission, leader: Character, hostHouseId: string) {
+  m.noticed = true;
+  m.leaderKnowsNoticed = true;
+  shiftRelation(world, hostHouseId, m.houseId, -10);
+  learn(world, hostHouseId, leader.id, 30);
+  for (const f of leader.flags) if (f.id === 'agent' && !f.knownBy?.includes(hostHouseId)) f.knownBy = [...(f.knownBy ?? []), hostHouseId];
+  leader.flags.push({ id: 'exposed', since: world.date, until: addCycles(world.date, CYCLES_PER_ORBIT * 3), detail: `to House ${world.houses[hostHouseId]?.name}`, knownBy: [hostHouseId, m.houseId] });
+  m.log.push({ date: world.date, text: `${shortName(leader.name)} was seen where an envoy has no business being.` });
+  if (m.houseId === world.playerHouseId) tell(world, 'intrigue', `${displayName(leader.name)} was caught spying under diplomatic cover at the court of ${houseName(world, hostHouseId)}. They are furious.`, [leader.id]);
+  else if (hostHouseId === world.playerHouseId) tell(world, 'intrigue', `The envoy of ${houseName(world, m.houseId)}, ${displayName(leader.name)}, was caught spying at our court.`, [leader.id]);
 }
 
 function end(world: World, m: Mission, outcome: Outcome, text: string) {
@@ -571,6 +591,10 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
       : after < before ? `The visit went badly. House ${h.name} cools toward us (${before} → ${after}).` : `House ${h.name}'s regard is unchanged (${after}).`);
     // Both sides learn faces.
     learn(world, h.id, leader.id, 30);
+    if (isAgent(leader) && !m.noticed && (outcome === 'success' || outcome === 'triumph')) {
+      for (const c of Object.values(world.characters)) if (c.alive && c.houseId === h.id && c.tier === 'full') learn(world, m.houseId, c.id, 12);
+      findings.push('Under cover of the visit, our agent learned much about their household.');
+    }
     const seen = Object.values(world.characters).filter((c) => c.alive && c.houseId === h.id && c.seat);
     const gain = GAINS.envoy[outcome][0];
     for (const c of seen) learn(world, m.houseId, c.id, gain);

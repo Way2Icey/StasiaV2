@@ -18,7 +18,7 @@ import { BAND_COLOR, SectorLink } from './links';
 import { shortName } from '../sim/names';
 import type { Character, CouncilSeat, Petition, World } from '../sim/types';
 import { useGame, useWorld } from './context';
-import { CouncilGrid } from './seats';
+import { CouncilGrid, HouseholdPanel } from './seats';
 import { Go, HouseLink, Panel, PersonById, PersonLink, PlanetLink } from './links';
 
 // ---------------------------------------------------------------- shared bits
@@ -151,6 +151,7 @@ export function CouncilPage() {
         <CouncilGrid className="span-12" />
         <Petitions className="span-6" />
         <CourtPanel className="span-6" />
+        <HouseholdPanel className="span-12" />
         <Panel title="Council reports" aside="Newest first" className="span-12 feed">
           {court.reports.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet. Press Continue and the council gets to work.</p> : null}
           {court.reports.slice(0, 25).map((r, i) => (

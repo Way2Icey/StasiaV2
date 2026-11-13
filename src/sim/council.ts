@@ -11,6 +11,7 @@ import { canAfford, DEVELOP_COST, pay, skimRate } from './economy';
 import { retinue, shiftMood } from './mood';
 import { courtTotals, highroyAway, isAway } from './court';
 import { mayLeadEnvoy } from './politics';
+import { agentFactor, counselled, COUNSEL_BONUS, elderFactor } from './household';
 import { QUARTER_ECONOMY } from '../data/economy';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from './time';
 import { FLAGS_BY_ID } from '../data/flags';
@@ -335,14 +336,14 @@ export function advanceCouncil(world: World, rng: Rng, phaseTurned: boolean, orb
     if (!court) continue;
     const oathTasks = new Set(court.oath ? OATHS_BY_ID[court.oath.id]?.tasks ?? [] : []);
     // Nobles at court help the council along; with the Highroy away it drifts a little.
-    const courtFactor = (1 + courtTotals(world, houseId).tasks) * (highroyAway(world, houseId) ? 0.9 : 1);
+    const courtFactor = (1 + courtTotals(world, houseId).tasks) * (highroyAway(world, houseId) ? 0.9 : 1) * elderFactor(world, houseId);
     for (const [seat, a] of Object.entries(court.tasks) as [CouncilSeat, TaskAssignment][]) {
       const c = seatHolder(world, houseId, seat);
       const def = TASKS_BY_ID[a.task];
       if (!c || !def) continue;
       if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing')) continue;
       if (isAway(world, c.id)) continue; // away on a mission
-      const perf = Math.max(0, taskScore(def, c) + rng.gauss() * 2) * (oathTasks.has(def.id) ? 1.25 : 1) * courtFactor;
+      const perf = Math.max(0, taskScore(def, c) + rng.gauss() * 2) * (oathTasks.has(def.id) ? 1.25 : 1) * courtFactor * (counselled(c) ? 1 + COUNSEL_BONUS : 1) * (def.id === 'whispers' ? agentFactor(world, houseId) : 1);
       a.progress += perf;
       while (a.progress >= def.threshold) {
         a.progress -= def.threshold;

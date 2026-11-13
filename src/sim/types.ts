@@ -337,6 +337,8 @@ export interface Court {
   oaths: OathRecord[];
   petitions: Petition[];
   reports: CouncilReport[];
+  /** When the Elder last gave counsel. */
+  lastCounsel?: GameDate;
 }
 
 export interface Captive {
@@ -434,7 +436,7 @@ export interface Boon {
 export type Stance = 'friendly' | 'neutral' | 'opposed';
 
 export interface World {
-  version: 8;
+  version: 9;
   seed: string;
   date: GameDate;
   rng: RngState;
@@ -466,4 +468,6 @@ export interface World {
   stances: Record<string, Record<string, Stance>>;
   /** Keys of news items the player has already answered publicly. */
   answered: string[];
+  /** Nobles have been given occupations (idle, court helper, envoy, knight). */
+  householdReady?: boolean;
 }

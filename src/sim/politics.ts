@@ -23,7 +23,7 @@ export function mayLeadEnvoy(c: Character): boolean {
 /** Nobles who could be made envoys. */
 export function envoyCandidates(world: World, houseId: string): Character[] {
   return alive(world)
-    .filter((c) => c.houseId === houseId && c.tier === 'full' && (c.role === 'Noble' || c.role.startsWith('Retainer')))
+    .filter((c) => c.houseId === houseId && c.tier === 'full' && (c.role === 'Noble' || c.role === 'Courtier' || c.role.startsWith('Retainer')))
     .sort((a, b) => b.stats.diplomacy + b.stats.eloquence - (a.stats.diplomacy + a.stats.eloquence));
 }
 

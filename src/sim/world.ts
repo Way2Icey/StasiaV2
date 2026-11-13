@@ -12,6 +12,7 @@ import { ensureMood } from './mood';
 import { ensureDiscovery } from './discovery';
 import { ensureGrowth } from './growth';
 import { ensurePolitics } from './politics';
+import { ensureHousehold } from './household';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
 export const DEFAULT_SEED = 'stasia';
@@ -23,7 +24,7 @@ const familyId = (houseId: string, key: string) => `${houseId}:${key}`;
 export function createWorld(seed: string = DEFAULT_SEED): World {
   const rng = Rng.fromSeed(seed);
   const world: World = {
-    version: 8,
+    version: 9,
     seed,
     date: START_DATE,
     rng: rng.state,
@@ -112,6 +113,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
   ensureDiscovery(world);
   ensureGrowth(world);
   ensurePolitics(world);
+  ensureHousehold(world);
   world.rng = rng.state;
   return world;
 }
