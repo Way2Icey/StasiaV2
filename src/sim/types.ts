@@ -258,6 +258,10 @@ export interface Mission {
   targetHouseId?: string;
   /** The lead this mission is following up, if any. */
   leadId?: string;
+  /** Up to two people riding with the leader. */
+  companions?: string[];
+  /** Party members the Highroy ordered to go against their wishes. */
+  forced?: string[];
   targetPlanetId: string;
   targetSectorId: string;
   approach: Approach;
@@ -356,7 +360,7 @@ export interface LedgerLine {
   /** Per Phase for standing flows; the amount for one-off entries. */
   amount: number;
   label: string;
-  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit' | 'boon';
+  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit' | 'boon' | 'court';
   sectorId?: string;
   quarterId?: string;
   characterId?: string;

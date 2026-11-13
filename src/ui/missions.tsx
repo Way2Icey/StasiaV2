@@ -4,8 +4,8 @@ import { displayName } from '../sim/names';
 import { alive } from '../sim/query';
 import { absoluteCycle, addCycles, formatDate } from '../sim/time';
 import {
-  activeMissions, cannotLead, describeJob, fitLabel, forecast, launchMission, MISSION_LABEL, OUTCOME_LABEL,
-  pastMissions, skillFor, slotsFor, travelCycles, activeMissionOf, type MissionSpec,
+  activeMissions, describeJob, fitLabel, forecast, launchMission, MISSION_LABEL, OUTCOME_LABEL,
+  pastMissions, skillFor, slotsFor, travelCycles, activeMissionOf, availability, MAX_COMPANIONS, partyOf, type Availability, type MissionSpec,
 } from '../sim/missions';
 import { closePetition } from '../sim/council';
 import { averageMood, moodColor, moodLabel, moodOf } from '../sim/mood';
@@ -71,7 +71,7 @@ export function MissionRow({ id }: { id: string }) {
       <span className="tag mission">{MISSION_LABEL[m.kind]}</span>
       <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span style={{ fontSize: 13 }}>
-          {leader ? <PersonLink c={leader} /> : '—'} <span className="muted">→</span> <Target m={m} />
+          {leader ? <PersonLink c={leader} /> : '—'}{m.companions?.length ? <span className="muted"> +{m.companions.length}</span> : null} <span className="muted">→</span> <Target m={m} />
         </span>
         <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <span className="bar" style={{ maxWidth: 260 }} role="img" aria-label={`${pct}% of the way through`}>
@@ -177,6 +177,7 @@ export function MissionPage({ id }: { id: string }) {
             ))}
             <dl className="kv" style={{ marginTop: 10 }}>
               <dt>Led by</dt><dd><PersonById id={m.leaderId} /></dd>
+              {m.companions?.length ? <><dt><Term k="companions">With</Term></dt><dd>{partyOf(m).slice(1).map((id, i) => <span key={id}>{i ? ', ' : ''}<PersonById id={id} />{m.forced?.includes(id) ? <span className="muted"> (ordered)</span> : null}</span>)}</dd></> : null}
               <dt>Target</dt><dd><Target m={m} /></dd>
               <dt>Where</dt><dd><SectorLink id={m.targetSectorId} withPlanet /></dd>
               <dt>Journey</dt><dd>{m.travelCycles} cycles each way, {m.taskCycles} at work</dd>
@@ -238,15 +239,20 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
     : target;
 
   // Everyone who could in principle go; the unwilling are listed with their reason.
+  const [companions, setCompanions] = useState<string[]>([]);
+  const [force, setForce] = useState<string[]>([]);
   const pool = useMemo(() => {
     return alive(world)
-      .filter((c) => c.houseId === house && c.tier === 'full' && c.seat !== 'highroy' && !activeMissionOf(world, c.id))
+      .filter((c) => c.houseId === house && c.tier === 'full' && !activeMissionOf(world, c.id))
       .filter((c) => !c.flags.some((f) => f.id === 'captive' || f.id === 'missing'))
-      .map((c) => ({ c, skill: skillFor(kind, c), why: cannotLead(world, house, c) }))
-      .filter((x) => x.why !== 'Too young')
-      .sort((a, b) => Number(!!a.why) - Number(!!b.why) || b.skill - a.skill);
+      .map((c) => ({ c, skill: skillFor(kind, c), avail: availability(world, house, c) }))
+      .filter((x) => x.avail.reason !== 'Too young')
+      .sort((a, b) => Number(b.c.seat === 'highroy') - Number(a.c.seat === 'highroy') || Number(!a.avail.ok) - Number(!b.avail.ok) || b.skill - a.skill);
   }, [world, house, kind]);
-  const candidates = pool.filter((x) => !x.why);
+  const candidates = pool.filter((x) => x.avail.ok && x.c.seat !== 'highroy');
+  const canGo = (id: string) => { const x = pool.find((p) => p.c.id === id); return !!x && (x.avail.ok || (!!x.avail.forceable && force.includes(id))); };
+  const toggleForce = (id: string) => setForce((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));
+  const toggleCompanion = (id: string) => setCompanions((cs) => (cs.includes(id) ? cs.filter((x) => x !== id) : cs.length < MAX_COMPANIONS ? [...cs, id] : cs));
   const slots = slotsFor(world, house);
 
   const people = useMemo(() => {
@@ -258,9 +264,12 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
       .slice(0, 10);
   }, [world, house, q]);
 
-  const leader = leaderId && candidates.some((x) => x.c.id === leaderId) ? leaderId : candidates[0]?.c.id;
+  const leader = leaderId && pool.some((x) => x.c.id === leaderId) ? leaderId : candidates[0]?.c.id;
+  const party = [leader, ...companions.filter((id) => id !== leader)].filter((x): x is string => !!x);
   const spec: MissionSpec | null = leader && target ? {
     kind, houseId: house, leaderId: leader, approach,
+    companions: companions.filter((id) => id !== leader),
+    force: force.filter((id) => party.includes(id)),
     ...(kind === 'investigate' ? { targetId: target } : kind === 'envoy' ? { targetHouseId: target } : { targetPlanetId: target }),
     ...(lead ? { leadId: lead.id, targetSectorId: lead.sectorId } : {}),
   } : null;
@@ -354,10 +363,14 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
             {pool.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Everyone who could go is already out.</p> : (
               <div className="table-wrap">
                 <table className="list">
-                  <thead><tr><th /><th>Name</th><th>Role</th><th><Term k="fit">Fit</Term></th><th><Term k="mood">Mood</Term></th><th>Travel</th></tr></thead>
+                  <thead><tr><th>Leads</th><th><Term k="companions">With</Term></th><th>Name</th><th><Term k="fit">Fit</Term></th><th><Term k="mood">Mood</Term></th><th>Their answer</th><th>Travel</th></tr></thead>
                   <tbody>
-                    {pool.slice(0, 16).map(({ c, skill, why }) => (
-                      <LeaderRow key={c.id} c={c} skill={skill} checked={leader === c.id} onPick={() => setLeaderId(c.id)} why={why}
+                    {pool.map(({ c, skill, avail }) => (
+                      <LeaderRow key={c.id} c={c} skill={skill} avail={avail}
+                        isLeader={leader === c.id} isCompanion={companions.includes(c.id) && leader !== c.id}
+                        forced={force.includes(c.id)} canGo={canGo(c.id)} companionsFull={companions.filter((id) => id !== leader).length >= MAX_COMPANIONS}
+                        onLead={() => { setLeaderId(c.id); setCompanions((cs) => cs.filter((x) => x !== c.id)); }}
+                        onCompanion={() => toggleCompanion(c.id)} onForce={() => toggleForce(c.id)}
                         travel={targetPlanet ? travelCycles(c.location.planetId, targetPlanet) : undefined} />
                     ))}
                   </tbody>
@@ -380,7 +393,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
           </Panel>
         </div>
 
-        <Panel title="Forecast" aside="As your house judges it" className="span-5">
+        <Panel title="Forecast" aside="As your house judges it" className="span-5 sticky">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {!target ? <p className="muted" style={{ margin: 0 }}>Choose a target.</p> : null}
             {f && !f.ok ? <p className="error" style={{ margin: 0 }}>{f.reason}</p> : null}
@@ -394,6 +407,10 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
                   <dt>Cost</dt><dd className={f.affordable ? '' : 'error'}>{f.cost.toLocaleString('en-US')} othes{f.affordable ? '' : ' — more than we have'}</dd>
                 </dl>
                 {f.slots.used >= f.slots.total ? <p className="error" style={{ margin: 0, fontSize: 12 }}>Every field slot is taken ({f.slots.used} of {f.slots.total}). Wait for someone to come home, or lift the mood of your council and knights.</p> : null}
+                {force.filter((id) => party.includes(id)).map((id) => (
+                  <p key={id} className="notice" style={{ margin: 0, fontSize: 12 }}>{world.characters[id]!.name.given} goes under orders: mood −10, loyalty slips, and works grudgingly.</p>
+                ))}
+                {world.characters[leader ?? '']?.seat === 'highroy' ? <p className="notice" style={{ margin: 0, fontSize: 12 }}>The Highroy rides out himself. While he is away the council works 10% slower and no petitions come; those who ride with him by choice are honoured (+3 mood). If he is caught, it will cost dearly.</p> : null}
                 {f.tired ? <p className="notice" style={{ margin: 0, fontSize: 12 }}>Only just back from a mission: they will go, but grumble (mood −3).</p> : null}
                 <Odds label="Chance of a good result" p={f.success} color="var(--green)" />
                 {kind === 'envoy' ? (
@@ -425,15 +442,32 @@ function Odds({ label, p, color }: { label: React.ReactNode; p: number; color: s
   );
 }
 
-function LeaderRow({ c, skill, checked, onPick, travel, why }: { c: Character; skill: number; checked: boolean; onPick: () => void; travel?: number; why: string | null }) {
+interface RowProps {
+  c: Character; skill: number; avail: Availability; isLeader: boolean; isCompanion: boolean; forced: boolean; canGo: boolean; companionsFull: boolean;
+  onLead: () => void; onCompanion: () => void; onForce: () => void; travel?: number;
+}
+
+function LeaderRow({ c, skill, avail, isLeader, isCompanion, forced, companionsFull, onLead, onCompanion, onForce, travel }: RowProps) {
   const m = moodOf(c);
+  const hard = !avail.ok && !avail.forceable;
+  const name = displayName(c.name);
   return (
-    <tr className={why ? 'unwilling' : 'clickable'} onClick={why ? undefined : onPick}>
-      <td><input type="radio" name="leader" checked={checked && !why} disabled={!!why} onChange={onPick} aria-label={`Send ${displayName(c.name)}`} /></td>
-      <td><PersonLink c={c} />{why ? <div className="error" style={{ fontSize: 11 }}>{why}</div> : null}</td>
-      <td>{c.role}</td>
+    <tr className={hard ? 'unwilling' : isLeader || isCompanion ? 'chosen' : undefined}>
+      <td><input type="radio" name="leader" checked={isLeader} disabled={hard} onChange={onLead} aria-label={`${name} leads`} /></td>
+      <td><input type="checkbox" checked={isCompanion} disabled={hard || isLeader || (!isCompanion && companionsFull)} onChange={onCompanion} aria-label={`${name} goes along`} /></td>
+      <td><PersonLink c={c} /><div className="muted" style={{ fontSize: 11 }}>{c.role}</div></td>
       <td>{fitLabel(skill)}</td>
       <td style={{ color: moodColor(m) }}>{moodLabel(m)} <span className="mono muted">{m}</span></td>
+      <td style={{ fontSize: 12 }}>
+        {avail.ok ? <span className="up">{c.seat === 'highroy' ? 'His choice' : 'Willing'}</span>
+          : hard ? <span className="error">Can't go: {avail.reason}</span>
+            : (
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                <span className={forced ? 'down' : 'error'}>{forced ? <Term k="order">Ordered to go</Term> : `Refuses: ${avail.reason}`}</span>
+                {(isLeader || isCompanion) ? <button type="button" className="btn small" onClick={onForce}>{forced ? 'Withdraw the order' : 'Order them to go'}</button> : null}
+              </span>
+            )}
+      </td>
       <td className="mono muted">{travel !== undefined ? `${travel} cycles` : '—'}</td>
     </tr>
   );

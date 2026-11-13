@@ -9,6 +9,7 @@ import { advanceCaptives } from './captives';
 import { kill } from './death';
 import { advanceEconomy, lapseRansoms } from './economy';
 import { advanceMood } from './mood';
+import { advanceCourt } from './court';
 import { advanceDiscovery } from './discovery';
 import {
   absoluteCycle,
@@ -52,7 +53,8 @@ export function advanceTurn(input: World): World {
   advanceCouncil(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceRivals(world, rng, crossed.phases > 0);
   advanceCaptives(world, rng, crossed.phases > 0);
-  advanceMood(world, crossed.phases > 0, new Set(Object.values(world.missions).filter((m) => m.stage !== 'done').map((m) => m.leaderId)));
+  advanceMood(world, crossed.phases > 0, new Set(Object.values(world.missions).filter((m) => m.stage !== 'done').flatMap((m) => [m.leaderId, ...(m.companions ?? [])])));
+  advanceCourt(world, rng, crossed.phases > 0);
   advanceDiscovery(world);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 

@@ -9,6 +9,7 @@ import { activeMissions, cannotLead, skillFor } from './missions';
 import { attitude, attitudeColor, relation, shiftRelation } from './relations';
 import { canAfford, DEVELOP_COST, pay, skimRate } from './economy';
 import { retinue, shiftMood } from './mood';
+import { courtTotals, highroyAway, isAway } from './court';
 import { QUARTER_ECONOMY } from '../data/economy';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from './time';
 import { FLAGS_BY_ID } from '../data/flags';
@@ -332,13 +333,15 @@ export function advanceCouncil(world: World, rng: Rng, phaseTurned: boolean, orb
     const court = world.courts[houseId];
     if (!court) continue;
     const oathTasks = new Set(court.oath ? OATHS_BY_ID[court.oath.id]?.tasks ?? [] : []);
+    // Nobles at court help the council along; with the Highroy away it drifts a little.
+    const courtFactor = (1 + courtTotals(world, houseId).tasks) * (highroyAway(world, houseId) ? 0.9 : 1);
     for (const [seat, a] of Object.entries(court.tasks) as [CouncilSeat, TaskAssignment][]) {
       const c = seatHolder(world, houseId, seat);
       const def = TASKS_BY_ID[a.task];
       if (!c || !def) continue;
       if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing')) continue;
-      if (activeMissions(world).some((m) => m.leaderId === c.id)) continue; // away on a mission
-      const perf = Math.max(0, taskScore(def, c) + rng.gauss() * 2) * (oathTasks.has(def.id) ? 1.25 : 1);
+      if (isAway(world, c.id)) continue; // away on a mission
+      const perf = Math.max(0, taskScore(def, c) + rng.gauss() * 2) * (oathTasks.has(def.id) ? 1.25 : 1) * courtFactor;
       a.progress += perf;
       while (a.progress >= def.threshold) {
         a.progress -= def.threshold;
@@ -354,7 +357,8 @@ export function advanceCouncil(world: World, rng: Rng, phaseTurned: boolean, orb
     }
     // Petitions.
     court.petitions = court.petitions.filter((x) => absoluteCycle(x.expires) > absoluteCycle(world.date));
-    if (houseId === world.playerHouseId) maybePetition(world, rng, houseId);
+    // With the Highroy away there is no one to petition.
+    if (houseId === world.playerHouseId && !highroyAway(world, houseId)) maybePetition(world, rng, houseId);
   }
 
   if (orbitTurned) driftUnrest(world, rng);
@@ -554,7 +558,7 @@ function driftRelations(world: World) {
 function bestLeader(world: World, houseId: string, kind: MissionKind, prefer?: Character): Character | undefined {
   if (prefer && !cannotLead(world, houseId, prefer)) return prefer;
   return alive(world)
-    .filter((c) => !cannotLead(world, houseId, c))
+    .filter((c) => c.seat !== 'highroy' && !cannotLead(world, houseId, c))
     .sort((a, b) => skillFor(kind, b) - skillFor(kind, a))[0];
 }
 

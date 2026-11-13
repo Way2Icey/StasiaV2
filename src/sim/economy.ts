@@ -4,6 +4,7 @@
 import { Rng } from './rng';
 import { alive, findSector } from './query';
 import { shiftMood } from './mood';
+import { courtTotals } from './court';
 import { displayName, shortName } from './names';
 import { absoluteCycle, addCycles, CYCLES_PER_PHASE } from './time';
 import {
@@ -99,6 +100,13 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
     }
     const tax = round(s.population * TAX_PER_PERSON * TAX[e.tax].factor * calm);
     if (tax) lines.push({ resource: 'othes', amount: tax, label: `Taxes · ${s.name}`, kind: 'tax', sectorId: s.id });
+  }
+  // Nobles at home do the house's business at court.
+  const court = courtTotals(world, houseId);
+  if (court.income > 0) {
+    const gross = lines.filter((l) => l.resource === 'othes' && l.amount > 0 && (l.kind === 'quarter' || l.kind === 'tax')).reduce((s, l) => s + l.amount, 0);
+    const extra = round(gross * court.income);
+    if (extra) lines.push({ resource: 'othes', amount: extra, label: `Court business (+${Math.round(court.income * 1000) / 10}%)`, kind: 'court' });
   }
   for (const b of e.boons ?? []) {
     for (const [r, v] of Object.entries(b.flow) as [Resource, number][]) lines.push({ resource: r, amount: v, label: b.label, kind: 'boon' });

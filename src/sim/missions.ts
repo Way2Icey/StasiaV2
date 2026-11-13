@@ -56,9 +56,16 @@ export const OUTCOME_LABEL: Record<Outcome, string> = {
 
 // ---------------------------------------------------------------- who and what
 
-export function activeMissionOf(world: World, characterId: string): Mission | undefined {
-  return Object.values(world.missions).find((m) => m.leaderId === characterId && m.stage !== 'done');
+export function partyOf(m: Mission): string[] {
+  return [m.leaderId, ...(m.companions ?? [])];
 }
+
+export function activeMissionOf(world: World, characterId: string): Mission | undefined {
+  return Object.values(world.missions).find((m) => m.stage !== 'done' && partyOf(m).includes(characterId));
+}
+
+/** Most people a leader can take along. */
+export const MAX_COMPANIONS = 2;
 
 export function activeMissions(world: World, houseId?: string): Mission[] {
   return Object.values(world.missions)
@@ -72,21 +79,51 @@ export function pastMissions(world: World, houseId?: string): Mission[] {
     .sort((a, b) => absoluteCycle(b.ended ?? b.launched) - absoluteCycle(a.ended ?? a.launched));
 }
 
-/** Why this person can't lead a mission, or null if they can. */
+export interface Availability {
+  ok: boolean;
+  reason?: string;
+  /** The Highroy can order them to go anyway. */
+  forceable?: boolean;
+}
+
+/** Can this person go, and if they refuse, can the Highroy make them? */
+export function availability(world: World, houseId: string, c: Character): Availability {
+  const no = (reason: string, forceable = false): Availability => ({ ok: false, reason, forceable });
+  if (!c.alive) return no('Dead');
+  if (c.houseId !== houseId) return no('Not of your house');
+  if (c.tier !== 'full') return no('Not someone you can send');
+  if (ageOf(c, world.date) < SPECIES[c.species].adulthood) return no('Too young');
+  if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing')) return no('Unaccounted for');
+  if (activeMissionOf(world, c.id)) return no('Already on a mission');
+  if (c.flags.some((f) => f.id === 'wounded')) return no('Wounded');
+  if (c.flags.some((f) => f.id === 'ill')) return no('Ill');
+  if (c.seat === 'highroy') return { ok: true };
+  const why = unwilling(world, c);
+  return why ? no(why, true) : { ok: true };
+}
+
+/** Why this person won't go of their own accord, or null if they will. */
 export function cannotLead(world: World, houseId: string, c: Character): string | null {
-  if (!c.alive) return 'Dead';
-  if (c.houseId !== houseId) return 'Not of your house';
-  if (c.tier !== 'full') return 'Not someone you can send';
-  if (c.seat === 'highroy') return 'The Highroy does not go himself';
-  if (ageOf(c, world.date) < SPECIES[c.species].adulthood) return 'Too young';
-  if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing')) return 'Unaccounted for';
-  if (activeMissionOf(world, c.id)) return 'Already on a mission';
-  return unwilling(world, c);
+  const a = availability(world, houseId, c);
+  return a.ok ? null : a.reason!;
+}
+
+function checkGoer(world: World, spec: MissionSpec, c: Character): string | null {
+  const a = availability(world, spec.houseId, c);
+  if (a.ok) return null;
+  if (a.forceable && spec.force?.includes(c.id)) return null;
+  return a.reason!;
 }
 
 /** Missions out vs the field slots the retinue's mood allows. */
 export function slotsFor(world: World, houseId: string): { used: number; total: number } {
   return { used: activeMissions(world, houseId).length, total: fieldSlots(world, houseId) };
+}
+
+/** The whole party's skill: the leader's, plus a quarter of each companion's. Those forced along give less. */
+export function partySkill(kind: MissionKind, leader: Character, companions: Character[], forced: string[] = []): number {
+  const f = (c: Character, full: number, grudging: number) => (forced.includes(c.id) ? grudging : full);
+  return skillFor(kind, leader) * f(leader, 1, 0.85) + companions.reduce((s, c) => s + skillFor(kind, c) * 0.25 * f(c, 1, 0.8), 0);
 }
 
 export function skillFor(kind: MissionKind, c: Character): number {
@@ -115,11 +152,16 @@ export interface MissionSpec {
   targetSectorId?: string;
   /** The lead being followed up. */
   leadId?: string;
+  /** Up to two people going with the leader. */
+  companions?: string[];
+  /** People the Highroy orders to go against their wishes. */
+  force?: string[];
   approach: Approach;
 }
 
 interface Resolved {
   leader: Character;
+  companions: Character[];
   target?: Character;
   planetId: string;
   sectorId: string;
@@ -129,13 +171,24 @@ interface Resolved {
 function resolveSpec(world: World, spec: MissionSpec, checkLeader = true): Resolved | string {
   const leader = world.characters[spec.leaderId];
   if (!leader) return 'No such leader.';
-  const why = checkLeader ? cannotLead(world, spec.houseId, leader) : null;
-  if (why) return why;
+  if (checkLeader) {
+    const why = checkGoer(world, spec, leader);
+    if (why) return why;
+  }
+  const companions = (spec.companions ?? []).map((id) => world.characters[id]).filter((c): c is Character => !!c);
+  if (companions.length > MAX_COMPANIONS) return `At most ${MAX_COMPANIONS} can go with the leader.`;
+  if (new Set([leader.id, ...companions.map((c) => c.id)]).size !== companions.length + 1) return 'Someone is listed twice.';
+  if (checkLeader) {
+    for (const c of companions) {
+      const why = checkGoer(world, spec, c);
+      if (why) return `${shortName(c.name)}: ${why}`;
+    }
+  }
   if (spec.kind === 'investigate') {
     const target = spec.targetId ? world.characters[spec.targetId] : undefined;
     if (!target || !target.alive) return 'No one to investigate.';
     if (target.id === leader.id) return 'They cannot investigate themselves.';
-    return { leader, target, planetId: target.location.planetId, sectorId: target.location.sectorId, targetHouseId: target.houseId };
+    return { leader, companions, target, planetId: target.location.planetId, sectorId: target.location.sectorId, targetHouseId: target.houseId };
   }
   if (spec.kind === 'envoy') {
     const h = spec.targetHouseId ? world.houses[spec.targetHouseId] : undefined;
@@ -147,7 +200,7 @@ function resolveSpec(world: World, spec: MissionSpec, checkLeader = true): Resol
   const portRank = { none: 0, 'landing field': 1, spaceport: 2, starport: 3 } as const;
   const sector = planet.sectors.find((s) => s.id === spec.targetSectorId)
     ?? [...planet.sectors].sort((a, b) => portRank[b.port] - portRank[a.port])[0]!;
-  return { leader, planetId: planet.id, sectorId: sector.id, targetHouseId: planet.houseId };
+  return { leader, companions, planetId: planet.id, sectorId: sector.id, targetHouseId: planet.houseId };
 }
 
 // ---------------------------------------------------------------- odds
@@ -187,7 +240,8 @@ function watcherSkill(world: World, r: Resolved): number {
 
 function detectionChance(world: World, r: Resolved, approach: Approach, watcher = watcherSkill(world, r)): number {
   const sneak = (r.leader.stats.stealth + r.leader.stats.deception) / 2;
-  const p = 0.02 + Math.max(0, watcher - sneak) * 0.007;
+  // A bigger party is easier to spot.
+  const p = (0.02 + Math.max(0, watcher - sneak) * 0.007) * (1 + 0.25 * r.companions.length);
   return Math.min(0.5, approach === 'quick' ? p * 2 : p);
 }
 
@@ -231,7 +285,7 @@ export function forecast(world: World, spec: MissionSpec): Forecast | { ok: fals
   const travel = travelCycles(r.leader.location.planetId, r.planetId);
   const task = TASK_CYCLES[spec.kind][spec.approach];
   const rolls = task / 2;
-  const skill = skillFor(spec.kind, r.leader);
+  const skill = partySkill(spec.kind, r.leader, r.companions, spec.force);
   const diff = difficulty(world, spec.kind, r, spec.houseId);
   // The house guesses the watchers from what it knows of the target's spymaster.
   const p = spec.kind === 'envoy' ? 0 : detectionChance(world, r, spec.approach);
@@ -262,7 +316,7 @@ export function forecast(world: World, spec: MissionSpec): Forecast | { ok: fals
     cost: missionCost(spec.kind, spec.approach),
     affordable: canAfford(world, spec.houseId, { othes: missionCost(spec.kind, spec.approach) }),
     slots: slotsFor(world, spec.houseId),
-    tired: tiredOnLaunch(world, r.leader),
+    tired: [r.leader, ...r.companions].some((c) => tiredOnLaunch(world, c)),
   };
 }
 
@@ -283,7 +337,13 @@ export function launchInPlace(world: World, spec: MissionSpec): string {
   if (!canAfford(world, spec.houseId, { othes: cost })) throw new Error('Not enough othes.');
   const slots = slotsFor(world, spec.houseId);
   if (slots.used >= slots.total) throw new Error('Every field slot is taken.');
-  if (tiredOnLaunch(world, r.leader)) shiftMood(r.leader, -3);
+  const party = [r.leader, ...r.companions];
+  const forced = party.filter((c) => !availability(world, spec.houseId, c).ok).map((c) => c.id);
+  for (const c of party) if (tiredOnLaunch(world, c)) shiftMood(c, -3);
+  // Ordered out against their wishes: they go, and they remember.
+  for (const id of forced) { const c = world.characters[id]!; shiftMood(c, -10); c.hidden.loyalty = Math.max(1, c.hidden.loyalty - 0.5); }
+  // Riding out with the Highroy himself is an honour.
+  if (r.leader.seat === 'highroy') for (const c of r.companions) if (!forced.includes(c.id)) shiftMood(c, 3);
   const travel = travelCycles(r.leader.location.planetId, r.planetId);
   const task = TASK_CYCLES[spec.kind][spec.approach];
   const id = `m${world.nextId++}`;
@@ -300,6 +360,8 @@ export function launchInPlace(world: World, spec: MissionSpec): string {
     targetSectorId: r.sectorId,
     approach: spec.approach,
     leadId: spec.leadId,
+    companions: r.companions.map((c) => c.id),
+    forced,
     stage: 'travel',
     launched: world.date,
     stageEnds: addCycles(world.date, travel),
@@ -312,14 +374,16 @@ export function launchInPlace(world: World, spec: MissionSpec): string {
     leaderKnowsNoticed: false,
     log: [],
   };
-  m.log.push({ date: world.date, text: `${shortName(r.leader.name)} sets out for ${where}${spec.approach === 'quick' ? ', travelling light and fast' : ''}.` });
+  const withWhom = r.companions.length ? ` with ${r.companions.map((c) => shortName(c.name)).join(' and ')}` : '';
+  m.log.push({ date: world.date, text: `${shortName(r.leader.name)} sets out${withWhom} for ${where}${spec.approach === 'quick' ? ', travelling light and fast' : ''}.` });
+  for (const id of forced) m.log.push({ date: world.date, text: `${shortName(world.characters[id]!.name)} goes only because the Highroy ordered it.` });
   world.missions[id] = m;
   if (m.houseId === world.playerHouseId) {
     world.feed.push({
       date: world.date,
       kind: 'mission',
-      text: `${displayName(r.leader.name)} leaves to ${describeJob(world, m)}.`,
-      characterIds: [r.leader.id],
+      text: `${displayName(r.leader.name)}${withWhom} leaves to ${describeJob(world, m)}.`,
+      characterIds: party.map((c) => c.id),
       missionId: id,
     });
   }
@@ -371,7 +435,7 @@ export function advanceMissions(world: World, rng: Rng): void {
       if (m.stage === 'travel') {
         m.stage = 'task';
         m.stageEnds = addCycles(m.stageEnds, m.taskCycles);
-        leader.location = { planetId: m.targetPlanetId, sectorId: m.targetSectorId };
+        for (const id of partyOf(m)) { const p = world.characters[id]; if (p) p.location = { planetId: m.targetPlanetId, sectorId: m.targetSectorId }; }
         m.log.push({ date: world.date, text: `Arrived at ${placeName(world, m.targetSectorId)}. Work begins.` });
         if (m.kind === 'envoy' && m.targetHouseId === world.playerHouseId && m.houseId !== world.playerHouseId) {
           learn(world, world.playerHouseId, leader.id, 20);
@@ -383,7 +447,7 @@ export function advanceMissions(world: World, rng: Rng): void {
         m.stageEnds = addCycles(m.stageEnds, m.travelCycles);
         m.log.push({ date: world.date, text: `The work is done. ${shortName(leader.name)} heads home.` });
       } else if (m.stage === 'return') {
-        leader.location = { ...m.origin };
+        for (const id of partyOf(m)) { const p = world.characters[id]; if (p?.alive && !world.captives?.[id]) p.location = { ...m.origin }; }
         deliver(world, m, leader, rng);
       }
     }
@@ -392,13 +456,13 @@ export function advanceMissions(world: World, rng: Rng): void {
 
 function taskTurn(world: World, m: Mission, leader: Character, rng: Rng) {
   const r = resolveSpec({ ...world, missions: {} }, {
-    kind: m.kind, houseId: m.houseId, leaderId: m.leaderId, targetId: m.targetId, targetPlanetId: m.targetPlanetId, targetHouseId: m.targetHouseId, targetSectorId: m.targetSectorId, approach: m.approach,
+    kind: m.kind, houseId: m.houseId, leaderId: m.leaderId, targetId: m.targetId, targetPlanetId: m.targetPlanetId, targetHouseId: m.targetHouseId, targetSectorId: m.targetSectorId, companions: m.companions, approach: m.approach,
   }, false);
   if (typeof r === 'string') {
     end(world, m, 'failure', `The trail went cold: ${r.toLowerCase()}`);
     return;
   }
-  const gain = progressRoll(rng, skillFor(m.kind, leader), difficulty(world, m.kind, r, null), m.approach);
+  const gain = progressRoll(rng, partySkill(m.kind, leader, r.companions, m.forced), difficulty(world, m.kind, r, null), m.approach);
   m.progress += gain;
   m.rolls += 1;
   const LINES = {
@@ -446,7 +510,14 @@ function taskTurn(world: World, m: Mission, leader: Character, rng: Rng) {
 
 function end(world: World, m: Mission, outcome: Outcome, text: string) {
   const leader = world.characters[m.leaderId];
-  if (leader && outcome !== 'disaster') { leader.lastMission = world.date; shiftMood(leader, MOOD_ON_RETURN[outcome]); }
+  for (const id of partyOf(m)) {
+    const p = world.characters[id];
+    if (!p?.alive || world.captives?.[id]) continue;
+    p.lastMission = world.date;
+    if (outcome !== 'disaster') shiftMood(p, id === m.leaderId ? MOOD_ON_RETURN[outcome] : Math.round(MOOD_ON_RETURN[outcome] / 2));
+    if (outcome === 'disaster' && id !== m.leaderId) p.location = { ...m.origin };
+  }
+  void leader;
   m.stage = 'done';
   m.outcome = outcome;
   m.ended = world.date;
@@ -534,6 +605,12 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
   // Home again: how it went shows in their mood; what they found comes with them.
   leader.lastMission = world.date;
   shiftMood(leader, MOOD_ON_RETURN[outcome]);
+  for (const id of m.companions ?? []) {
+    const c = world.characters[id];
+    if (!c?.alive) continue;
+    c.lastMission = world.date;
+    shiftMood(c, Math.round(MOOD_ON_RETURN[outcome] / 2));
+  }
   if (m.houseId === world.playerHouseId) findings.push(...discover(world, rng, m, leader));
 
   m.report = report(world, m, leader, outcome, rng);

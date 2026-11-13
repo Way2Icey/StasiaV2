@@ -61,7 +61,7 @@ describe('missions', () => {
   const target = ruler(world, 'serath')!;
 
   it('refuses leaders who cannot go', () => {
-    expect(cannotLead(world, P, ruler(world, P)!)).toMatch(/Highroy/);
+    expect(cannotLead(world, P, ruler(world, P)!)).toBeNull(); // the Highroy may go if he chooses
     expect(cannotLead(world, P, target)).toMatch(/house/);
     expect(cannotLead(world, P, spymaster(world))).toBeNull();
   });

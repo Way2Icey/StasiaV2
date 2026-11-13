@@ -269,3 +269,6 @@ table.list tfoot td { border-top: 1px solid var(--line); border-bottom: 0; }
 .slots .free { border-color: var(--gold); }
 .slots .locked { opacity: 0.35; background: repeating-linear-gradient(45deg, transparent 0 3px, var(--line) 3px 4px); }
 tr.unwilling td { opacity: 0.6; }
+.panel.sticky { position: sticky; top: 0; }
+tr.chosen td { background: rgba(201, 164, 92, 0.07); }
+@media (max-width: 860px) { .panel.sticky { position: static; } }

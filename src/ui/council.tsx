@@ -12,6 +12,7 @@ import { formatDate } from '../sim/time';
 import { captivesHeldBy, executeCaptive, interrogateCaptive, releaseCaptive } from '../sim/captives';
 import { answerRansom, demandRansom, econ, ransomValue } from '../sim/economy';
 import { bondCaige, caigesOf, cannotBond } from '../sim/discovery';
+import { courtOf, courtTotals, highroyAway } from '../sim/court';
 import { alive } from '../sim/query';
 import { BAND_COLOR, SectorLink } from './links';
 import { shortName } from '../sim/names';
@@ -163,6 +164,7 @@ export function CouncilPage() {
 
         <Petitions className="span-6" />
         <RelationsPanel className="span-6" />
+        <CourtPanel className="span-12" />
         <CaptivesPanel className="span-12" />
         <ArmouryPanel className="span-12" />
 
@@ -190,7 +192,7 @@ function SeatRow({ c, aligned, onAssign }: { c: Character; aligned: Set<string>;
       <tr>
         <td className="eyebrow gold"><Term k={`seat:${seat}`}>{SEAT_TITLE[seat]}</Term></td>
         <td><PersonLink c={c} /></td>
-        <td colSpan={3} className="muted">Swears the oath. Rules; does not take tasks.</td>
+        <td colSpan={3} className="muted">{highroyAway(world, world.playerHouseId) ? <span className="down">Away on a mission. The council works 10% slower and no petitions come until he returns.</span> : 'Swears the oath. Rules; does not take tasks, but may ride out on a mission if he chooses.'}</td>
       </tr>
     );
   }
@@ -449,6 +451,38 @@ export function ArmouryPanel({ className }: { className?: string }) {
           </div>
         );
       })}
+    </Panel>
+  );
+}
+
+/** Who is at court, what each brings, and what is lost while they are away. */
+export function CourtPanel({ className }: { className?: string }) {
+  const world = useWorld();
+  const house = world.playerHouseId;
+  const places = courtOf(world, house);
+  const t = courtTotals(world, house);
+  const pct = (v: number) => `${Math.round(v * 1000) / 10}%`;
+  return (
+    <Panel title={<Term k="court">The court at home</Term>} aside={`${places.filter((p) => p.home).length} of ${places.length} at home`} className={className}>
+      <p className="body" style={{ margin: 0, fontSize: 12 }}>
+        Now: othes income +{pct(t.income)} · council tasks +{pct(t.tasks)}{t.mood ? ` · retinue mood +${t.mood} a Phase` : ''}{t.respectChance ? ` · ${Math.round(t.respectChance * 100)}% chance of +1 respect a Phase` : ''}{t.presentFamilies.length ? ` · ${t.presentFamilies.length} ${t.presentFamilies.length === 1 ? 'family calms its' : 'families calm their'} sectors` : ''}.
+        {highroyAway(world, house) ? <span className="down"> The Highroy is away: the council works 10% slower and no petitions come.</span> : null}
+      </p>
+      <div className="table-wrap">
+        <table className="list">
+          <thead><tr><th>Name</th><th>Place</th><th>Brings</th><th /></tr></thead>
+          <tbody>
+            {places.map((p) => (
+              <tr key={p.character.id} className={p.home ? undefined : 'unwilling'}>
+                <td><PersonLink c={p.character} /></td>
+                <td className="muted">{p.place}</td>
+                <td style={{ fontSize: 12 }}>{p.text}</td>
+                <td style={{ fontSize: 12 }}>{p.home ? <span className="up">At court</span> : <span className="down">Away: lost</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Panel>
   );
 }

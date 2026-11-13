@@ -99,7 +99,7 @@ function maybeSendMission(world: World, rng: Rng, h: House) {
     ['envoy', 0.05 + p.honour * (1 - p.isolation)],
   ]);
   const leader = alive(world)
-    .filter((c) => !cannotLead(world, h.id, c))
+    .filter((c) => c.seat !== 'highroy' && !cannotLead(world, h.id, c))
     .sort((a, b) => skillFor(kind, b) - skillFor(kind, a))[0];
   if (!leader) return;
   const approach: Approach = rng.chance(p.aggression * 0.6) ? 'quick' : 'careful';
