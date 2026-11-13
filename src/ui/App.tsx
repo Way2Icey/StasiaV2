@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Term } from './tip';
 import { GlossaryPage } from './glossary';
 import { createWorld } from '../sim/world';
-import { advanceTurn } from '../sim/tick';
+import { ContinueControl } from './continue';
 import { dateParts, formatDate } from '../sim/time';
 import { deserialize, serialize } from '../sim/save';
 import { ageOf } from '../sim/characters';
@@ -90,7 +90,6 @@ export function App() {
 
   const game: Game = useMemo(() => ({ update: (fn) => setWorld((w) => fn(w)), reveal, setReveal }), [reveal]);
 
-  const onContinue = useCallback(() => setWorld((w) => advanceTurn(w)), []);
   const parts = dateParts(world.date);
   const house = world.houses[world.playerHouseId]!;
   const section = sectionOf(current);
@@ -126,7 +125,7 @@ export function App() {
                 <strong>{formatDate(world.date)}</strong>
                 <span><Term k="phase">Phase</Term> {parts.phase} of 5 · <Term k="cycle">Cycle</Term> {parts.cycleOfPhase} of 16 · <button type="button" className="linklike coffers-link" onClick={() => nav.to({ kind: 'economy' })}><Coffers /></button></span>
               </div>
-              <button type="button" className="btn primary" onClick={onContinue}>Continue ›</button>
+              <ContinueControl world={world} setWorld={setWorld} />
             </header>
             <div className="shell">
               <nav className="rail" aria-label="Screens">

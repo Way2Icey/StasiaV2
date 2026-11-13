@@ -15,7 +15,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   phase: { term: 'Phase', group: 'Time', text: '16 cycles. The economy settles at the start of each Phase: output, taxes, food and stipends.' },
   orbit: { term: 'Orbit', group: 'Time', text: '80 cycles, five Phases. Oaths last an Orbit, and the Numarade grants Navisium once per Orbit.' },
   year: { term: 'Standard Year', group: 'Time', text: 'Ten Orbits (800 cycles). Ages and lifespans are counted in years.' },
-  continue: { term: 'Continue', group: 'Time', text: 'Advances the world two cycles. Missions move, tasks progress, rivals act, and events happen.' },
+  stopOnEvents: { term: 'Stop when something needs me', group: 'Time', text: 'Long stretches of time stop early when a mission comes home, a petition or ransom demand arrives, someone is caught, a lead turns up, the oath ends, or someone of the house dies.' },
+  continue: { term: 'Continue', group: 'Time', text: 'Advances the world two cycles. The arrow beside it skips further: to the next Phase or Orbit, a year, five years, or until something happens.' },
 
   // ---------------------------------------------------------------- houses
   house: { term: 'House', group: 'Houses', text: 'A dynasty of the Houses of Archon: a ruling family, the noble families sworn to it, its worlds and its people.' },

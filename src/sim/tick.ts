@@ -32,6 +32,12 @@ const FEED_LIMIT = 400;
  */
 export function advanceTurn(input: World): World {
   const world = structuredClone(input);
+  stepInPlace(world);
+  return world;
+}
+
+/** One turn on a world the caller already owns (no copy). */
+function stepInPlace(world: World): void {
   const rng = new Rng(world.rng);
   const from = world.date;
   const to = addCycles(from, CYCLES_PER_TURN);
@@ -62,14 +68,63 @@ export function advanceTurn(input: World): World {
 
   world.rng = rng.state;
   if (world.feed.length > FEED_LIMIT) world.feed = world.feed.slice(-FEED_LIMIT);
-  return world;
 }
 
 /** Advance several turns at once (for tests and fast-forward). */
 export function advanceTurns(world: World, turns: number): World {
-  let w = world;
-  for (let i = 0; i < turns; i++) w = advanceTurn(w);
+  const w = structuredClone(world);
+  for (let i = 0; i < turns; i++) stepInPlace(w);
   return w;
+}
+
+/** Why the clock stopped early: something the player should see. */
+export interface Interruption { reason: string }
+
+/**
+ * Advance up to `turns` turns, stopping early (after the turn it happened)
+ * when something needs the player, if `stopOnEvents`. The input is untouched.
+ */
+export function advanceUntil(input: World, turns: number, stopOnEvents: boolean): { world: World; ran: number; stop?: Interruption } {
+  const w = structuredClone(input);
+  for (let i = 0; i < turns; i++) {
+    const before = snapshotOfAttention(w);
+    stepInPlace(w);
+    if (stopOnEvents) {
+      const reason = needsAttention(w, before);
+      if (reason) return { world: w, ran: i + 1, stop: { reason } };
+    }
+  }
+  return { world: w, ran: turns };
+}
+
+interface Attention { petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null }
+
+function snapshotOfAttention(w: World): Attention {
+  const P = w.playerHouseId;
+  return {
+    petitions: w.courts[P]?.petitions.length ?? 0,
+    leads: w.leads.filter((l) => l.houseId === P).length,
+    demands: Object.values(w.captives).filter((c) => c.ransom?.status === 'open' && w.characters[c.characterId]?.houseId === P).length,
+    held: Object.values(w.captives).filter((c) => c.heldBy === P).length,
+    done: Object.values(w.missions).filter((m) => m.houseId === P && m.stage === 'done').length,
+    last: w.feed[w.feed.length - 1],
+    oath: w.courts[P]?.oath?.id ?? null,
+  };
+}
+
+function needsAttention(w: World, b: Attention): string | null {
+  const a = snapshotOfAttention(w);
+  if (a.done > b.done) return 'A mission has come home.';
+  if (a.demands > b.demands) return 'A ransom demand has arrived.';
+  if (a.held > b.held) return 'We have caught someone.';
+  if (a.petitions > b.petitions) return 'A councillor has a petition.';
+  if (a.leads > b.leads) return 'Something new to follow up.';
+  if (b.oath && !a.oath) return 'The oath has ended.';
+  const fresh = w.feed.slice(b.last ? w.feed.indexOf(b.last) + 1 : 0);
+  const P = w.playerHouseId;
+  if (fresh.some((f) => f.kind === 'death' && f.characterIds?.some((id) => w.characters[id]?.houseId === P))) return 'Someone of our house has died.';
+  if (fresh.some((f) => f.kind === 'intrigue')) return 'News from the shadows.';
+  return null;
 }
 
 function log(world: World, kind: World['feed'][number]['kind'], text: string, characterIds?: string[]) {

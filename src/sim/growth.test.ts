@@ -47,3 +47,23 @@ describe('houses grow on their own', () => {
     expect(w.annals[P]).toEqual([]);
   });
 });
+
+import { advanceUntil } from './tick';
+import { launchMission } from './missions';
+import { seatHolder } from './query';
+
+describe('long continues', () => {
+  it('runs a full stretch when told not to stop', () => {
+    const r = advanceUntil(base, 40, false);
+    expect(r.ran).toBe(40);
+    expect(r.stop).toBeUndefined();
+  });
+
+  it('stops when a mission comes home', () => {
+    const spy = seatHolder(base, P, 'spymaster')!;
+    const { world } = launchMission(base, { kind: 'scout', houseId: P, leaderId: spy.id, targetPlanetId: 'serath-reach', approach: 'careful' });
+    const r = advanceUntil(world, 400, true);
+    expect(r.stop).toBeDefined();
+    expect(r.ran).toBeLessThan(400);
+  });
+});

@@ -272,3 +272,16 @@ tr.unwilling td { opacity: 0.6; }
 .panel.sticky { position: sticky; top: 0; }
 tr.chosen td { background: rgba(201, 164, 92, 0.07); }
 @media (max-width: 860px) { .panel.sticky { position: static; } }
+
+/* ---------------- continue menu */
+.continue { position: relative; display: flex; flex-direction: column; align-items: flex-end; }
+.split { display: flex; }
+.split .btn.primary:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split .caret { width: 34px; padding: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid var(--gold-ink); }
+.continue-menu { position: absolute; top: 46px; right: 0; z-index: 65; width: 290px; display: grid; padding: 6px; background: #1b212b; border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+.continue-menu button { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 8px 10px; border: 0; border-radius: 4px; background: transparent; font-size: 13px; }
+.continue-menu button:hover, .continue-menu button:focus-visible { background: #242c38; }
+.continue-menu .muted { font-size: 11px; }
+.continue-opt { display: flex; gap: 8px; align-items: center; padding: 8px 10px 4px; border-top: 1px solid var(--line-soft); margin-top: 4px; font-size: 12px; }
+.continue-run { position: absolute; top: 46px; right: 0; z-index: 64; display: flex; gap: 10px; align-items: center; white-space: nowrap; padding: 6px 10px; background: #1b212b; border: 1px solid var(--gold); border-radius: 6px; font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+@media (max-width: 860px) { .continue-run { white-space: normal; width: min(320px, calc(100vw - 32px)); } }
