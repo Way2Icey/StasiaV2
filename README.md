@@ -2,25 +2,27 @@
 
 A house-management game set in the Houses of Archon: Football Manager's depth with Crusader Kings' politics. You head a house, manage its people, and climb toward becoming Exarchon.
 
-The design lives in the Stasia game design document; lore lives in the Obsidian vault.
+The design lives in the Stasia game design document: https://claude.ai/artifact/VbtZRnq1n6NbDtp1uwpYnx
+**Start with its last six sections** (Build status, How the built systems work, Code map, Working rules,
+Where the build differs from this design, Next up). They describe what is built, the numbers in code, the
+workflow, Isaiah's standing rules and the open naming questions. Lore lives in Isaiah's Obsidian vault.
 
 ## Status
 
-**Milestone 1: Foundation** (vertical slice)
+Milestones 1-4 are built and merged to `main` (52 tests passing):
 
-- LPS calendar: Cycles, Phases (16 Cycles), Orbits (80), years (800). Continue advances 2 Cycles.
-- Seeded world: the same seed always builds the same world, and saves continue identically.
-- Houses Alerion, Torvann, Serath and Shaaliin, each with a capital, sectors and quarters.
-- Generated people named from each house's culture (Fokari line names, Torvann holds and scar-names, Serathi callsigns, Shaaliin public/court/true names), with Mind/Body/Spirit stats, hidden stats, traits and status flags.
-- Old age, deaths, mourning and succession.
-- Save and load (browser slot, save code, file).
+1. Foundation: LPS calendar, seeded world and saves, four houses and worlds, culture-named people, deaths and succession.
+2. Knowledge fog and the Investigate and Scout missions.
+3. Council tasks, the Highroy's oath, petitions, house standing and regard, Envoy missions.
+4. Rival houses that act on their own, counter-intelligence, captives.
 
-Next: knowledge fog and detail levels, then missions and events.
+Next: Milestone 5, the economy. Work happens on `dev`; merge to `main` only after Isaiah approves.
 
 ## Layout
 
 ```
-src/sim/    simulation: rng, time, names, characters, world, tick, save (no UI code)
+src/sim/    simulation (no UI code): rng, time, names, characters, world, tick, knowledge,
+            missions, council, relations, ai, captives, death, save, query
 src/data/   game content: species, cultures, traits, flags, houses, planets
 src/ui/     React interface
 scripts/    build helpers
