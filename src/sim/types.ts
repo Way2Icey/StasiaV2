@@ -431,8 +431,10 @@ export interface Boon {
   until: GameDate;
 }
 
+export type Stance = 'friendly' | 'neutral' | 'opposed';
+
 export interface World {
-  version: 7;
+  version: 8;
   seed: string;
   date: GameDate;
   rng: RngState;
@@ -460,4 +462,8 @@ export interface World {
   annals: Record<string, { date: GameDate; text: string; public: boolean; characterIds?: string[] }[]>;
   /** lastLooked[observer][house]: when the observer last had a good look at that house. */
   lastLooked: Record<string, Record<string, GameDate>>;
+  /** stances[house][other]: the public line a house takes toward another. */
+  stances: Record<string, Record<string, Stance>>;
+  /** Keys of news items the player has already answered publicly. */
+  answered: string[];
 }

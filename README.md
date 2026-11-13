@@ -9,7 +9,7 @@ workflow, Isaiah's standing rules and the open naming questions. Lore lives in I
 
 ## Status
 
-Milestones 1-7 are built (79 tests passing); 1-4 are merged to `main`:
+Milestones 1-7 are built (86 tests passing); 1-4 are merged to `main`:
 
 1. Foundation: LPS calendar, seeded world and saves, four houses and worlds, culture-named people, deaths and succession.
 2. Knowledge fog and the Investigate and Scout missions.

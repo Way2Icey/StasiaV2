@@ -1,6 +1,7 @@
 import { displayName } from '../sim/names';
 import { findSector } from '../sim/query';
-import type { World } from '../sim/types';
+import type { CouncilSeat, World } from '../sim/types';
+import { SEAT_TITLE } from '../sim/world';
 import { TRAITS_BY_ID } from '../data/traits';
 import { FLAGS_BY_ID } from '../data/flags';
 import { SPECIES } from '../data/species';
@@ -15,6 +16,7 @@ export type Route =
   | { kind: 'mission'; id: string }
   | { kind: 'plan'; mission: 'investigate' | 'scout' | 'envoy'; target?: string; leader?: string; petition?: string; lead?: string }
   | { kind: 'council' }
+  | { kind: 'seat'; id: CouncilSeat }
   | { kind: 'economy' }
   | { kind: 'glossary' }
   | { kind: 'character'; id: string }
@@ -35,6 +37,7 @@ export function sectionOf(r: Route): Section | null {
   switch (r.kind) {
     case 'throne': case 'people': case 'houses': case 'worlds': case 'save': case 'missions': case 'council': case 'economy': case 'glossary': return r.kind;
     case 'mission': case 'plan': return 'missions';
+    case 'seat': return 'council';
     case 'character': case 'trait': case 'flag': case 'species': case 'band': return 'people';
     case 'house': case 'family': return 'houses';
     case 'planet': case 'sector': return 'worlds';
@@ -57,6 +60,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'save': return 'Save & Load';
     case 'missions': return 'Missions';
     case 'council': return 'Council';
+    case 'seat': return SEAT_TITLE[r.id];
     case 'economy': return 'Economy';
     case 'glossary': return 'Glossary';
     case 'mission': {

@@ -24,7 +24,7 @@ describe('the court at home', () => {
   it('sending a noble out loses their bonus', () => {
     const consort = courtOf(base, P).find((p) => p.place === 'Consort')!.character;
     const before = courtTotals(base, P).tasks;
-    const { world } = launchMission(base, { kind: 'envoy', houseId: P, leaderId: consort.id, targetHouseId: 'serath', approach: 'careful', force: [consort.id] });
+    const { world } = launchMission(base, { kind: 'scout', houseId: P, leaderId: consort.id, targetPlanetId: 'serath-reach', approach: 'careful', force: [consort.id] });
     expect(isAway(world, consort.id)).toBe(true);
     expect(courtTotals(world, P).tasks).toBeLessThan(before);
   });

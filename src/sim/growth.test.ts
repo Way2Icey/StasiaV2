@@ -43,7 +43,7 @@ describe('houses grow on their own', () => {
     delete old.annals;
     delete old.lastLooked;
     const w = deserialize(JSON.stringify(old));
-    expect(w.version).toBe(7);
+    expect(w.version).toBe(8);
     expect(w.annals[P]).toEqual([]);
   });
 });

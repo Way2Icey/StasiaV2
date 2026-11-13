@@ -15,6 +15,7 @@ import { GameContext, HoverContext, NavContext, WorldContext, type Game, type Ho
 import { seenBy } from './fog';
 import { MissionPage, MissionsPage, PlanPage } from './missions';
 import { CouncilPage } from './council';
+import { SeatPage } from './seats';
 import { Coffers, EconomyPage } from './economy';
 import { activeMissions } from '../sim/missions';
 import { routeLabel, sameRoute, sectionOf, type Route, type Section } from './router';
@@ -182,6 +183,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'mission': return <MissionPage id={route.id} />;
     case 'plan': return <PlanPage key={`${route.mission}-${route.target ?? ''}-${route.petition ?? ''}-${route.lead ?? ''}`} kind={route.mission} target={route.target} leader={route.leader} petition={route.petition} lead={route.lead} />;
     case 'council': return <CouncilPage />;
+    case 'seat': return <SeatPage key={route.id} seat={route.id} />;
     case 'economy': return <EconomyPage />;
     case 'glossary': return <GlossaryPage />;
   }

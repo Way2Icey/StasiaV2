@@ -11,6 +11,7 @@ import { ensureEconomy } from './economy';
 import { ensureMood } from './mood';
 import { ensureDiscovery } from './discovery';
 import { ensureGrowth } from './growth';
+import { ensurePolitics } from './politics';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
 export const DEFAULT_SEED = 'stasia';
@@ -22,7 +23,7 @@ const familyId = (houseId: string, key: string) => `${houseId}:${key}`;
 export function createWorld(seed: string = DEFAULT_SEED): World {
   const rng = Rng.fromSeed(seed);
   const world: World = {
-    version: 7,
+    version: 8,
     seed,
     date: START_DATE,
     rng: rng.state,
@@ -43,6 +44,8 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     leads: [],
     annals: {},
     lastLooked: {},
+    stances: {},
+    answered: [],
   };
 
   for (const h of SLICE_HOUSES) {
@@ -108,6 +111,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
   ensureMood(world);
   ensureDiscovery(world);
   ensureGrowth(world);
+  ensurePolitics(world);
   world.rng = rng.state;
   return world;
 }
@@ -148,7 +152,7 @@ function populateAlerion(world: World, rng: Rng) {
 
   make({ familyId: familyId(A, 'holm'), species: 'thessari', sex: 'm', age: 52, role: 'Grand Master', focus: 'grandMaster', seat: 'grandMaster',
     name: { given: 'Deyric' }, traits: [{ id: 'tactician' }, { id: 'brave' }] });
-  make({ familyId: familyId(A, 'seradine'), species: 'fokari', sex: 'f', age: 61, role: 'Envoy', focus: 'envoy', seat: 'envoy',
+  make({ familyId: familyId(A, 'seradine'), species: 'fokari', sex: 'f', age: 61, role: 'Speaker of the Council', focus: 'envoy', seat: 'envoy',
     name: { given: 'Lisset' }, traits: [{ id: 'charismatic' }, { id: 'courtier' }] });
   make({ familyId: familyId(A, 'orrow'), species: 'fokari', sex: 'm', age: 74, role: 'Spymaster', focus: 'spymaster', seat: 'spymaster',
     name: { given: 'Kaen' }, traits: [{ id: 'cunning' }, { id: 'paranoid' }] });
@@ -188,7 +192,7 @@ function populateAlerion(world: World, rng: Rng) {
 
 const RIVAL_SEATS: CouncilSeat[] = ['grandMaster', 'envoy', 'spymaster', 'steward'];
 const SEAT_TITLE: Record<CouncilSeat, string> = {
-  highroy: 'Highroy', grandMaster: 'Grand Master', envoy: 'Envoy', spymaster: 'Spymaster', steward: 'Steward',
+  highroy: 'Highroy', grandMaster: 'Grand Master', envoy: 'Speaker of the Council', spymaster: 'Spymaster', steward: 'Steward',
   physician: 'Physician', elder: 'Elder', champion: 'Champion', masterOfRites: 'Master of Rites',
 };
 

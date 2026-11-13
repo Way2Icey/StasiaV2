@@ -140,7 +140,7 @@ describe('save migration', () => {
     delete old.knowledge;
     delete old.missions;
     const w = deserialize(JSON.stringify(old));
-    expect(w.version).toBe(7);
+    expect(w.version).toBe(8);
     expect(w.missions).toEqual({});
     expect(Object.keys(w.knowledge[P]!).length).toBe(Object.keys(w.characters).length);
   });

@@ -12,6 +12,7 @@ import { advanceMood } from './mood';
 import { advanceCourt } from './court';
 import { advanceDiscovery } from './discovery';
 import { advanceGrowth } from './growth';
+import { advancePolitics } from './politics';
 import {
   absoluteCycle,
   addCycles,
@@ -64,6 +65,7 @@ function stepInPlace(world: World): void {
   advanceCourt(world, rng, crossed.phases > 0);
   advanceDiscovery(world);
   advanceGrowth(world, rng, crossed.phases > 0);
+  advancePolitics(world, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 
   world.rng = rng.state;

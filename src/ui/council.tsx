@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Term } from './tip';
-import { councilOf, SEAT_TITLE } from '../sim/world';
+import { SEAT_TITLE } from '../sim/world';
 import {
   abandonOath, assignTask, dismissPetition, OATHS, OATHS_BY_ID, oathProgress, swearOath, TASKS_BY_ID,
   taskFit, taskScore, tasksForSeat,
@@ -18,6 +18,7 @@ import { BAND_COLOR, SectorLink } from './links';
 import { shortName } from '../sim/names';
 import type { Character, CouncilSeat, Petition, World } from '../sim/types';
 import { useGame, useWorld } from './context';
+import { CouncilGrid } from './seats';
 import { Go, HouseLink, Panel, PersonById, PersonLink, PlanetLink } from './links';
 
 // ---------------------------------------------------------------- shared bits
@@ -132,42 +133,24 @@ export function OathSummary({ className }: { className?: string }) {
 
 export function CouncilPage() {
   const world = useWorld();
-  const game = useGame();
   const house = world.playerHouseId;
   const court = world.courts[house]!;
-  const council = councilOf(world, house);
-  const oathTasks = new Set(court.oath ? OATHS_BY_ID[court.oath.id]?.tasks ?? [] : []);
 
   return (
     <>
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <h2>The Council</h2>
-          <p>Give each seat a standing task; it runs every turn. The Highroy swears one oath at a time, and tasks that serve it work harder.</p>
+          <h2>The <Term k="council">Council of Designers</Term></h2>
+          <p>Each seat holds a standing task that runs every turn. Open a seat to run its part of the house. The Highroy swears one oath at a time; tasks that serve it work harder.</p>
         </div>
       </div>
       <div className="grid">
         <OathPanel className="span-8" />
         <StandingPanel houseId={house} className="span-4" />
 
-        <section className="panel span-12">
-          <header><h3><Term k="task">Standing tasks</Term></h3><span className="aside">★ serves the oath (+25%)</span></header>
-          <div className="table-wrap">
-            <table className="list tasks">
-              <thead><tr><th>Seat</th><th>Held by</th><th><Term k="task">Task</Term></th><th><Term k="fit">Fit</Term></th><th>Next result</th></tr></thead>
-              <tbody>
-                {council.map((c) => <SeatRow key={c.id} c={c} aligned={oathTasks} onAssign={(task, target) => game.update((w) => assignTask(w, house, c.seat!, task, target))} />)}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
+        <CouncilGrid className="span-12" />
         <Petitions className="span-6" />
-        <RelationsPanel className="span-6" />
-        <CourtPanel className="span-12" />
-        <CaptivesPanel className="span-12" />
-        <ArmouryPanel className="span-12" />
-
+        <CourtPanel className="span-6" />
         <Panel title="Council reports" aside="Newest first" className="span-12 feed">
           {court.reports.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet. Press Continue and the council gets to work.</p> : null}
           {court.reports.slice(0, 25).map((r, i) => (
@@ -183,26 +166,19 @@ export function CouncilPage() {
   );
 }
 
-function SeatRow({ c, aligned, onAssign }: { c: Character; aligned: Set<string>; onAssign: (task: string, target?: string) => void }) {
+/** The task picker for one seat: task, target, what it does, progress. */
+export function TaskControl({ c }: { c: Character }) {
   const world = useWorld();
+  const game = useGame();
   const seat = c.seat as CouncilSeat;
   const house = world.playerHouseId;
-  if (seat === 'highroy') {
-    return (
-      <tr>
-        <td className="eyebrow gold"><Term k={`seat:${seat}`}>{SEAT_TITLE[seat]}</Term></td>
-        <td><PersonLink c={c} /></td>
-        <td colSpan={3} className="muted">{highroyAway(world, world.playerHouseId) ? <span className="down">Away on a mission. The council works 10% slower and no petitions come until he returns.</span> : 'Swears the oath. Rules; does not take tasks, but may ride out on a mission if he chooses.'}</td>
-      </tr>
-    );
-  }
+  const court = world.courts[house]!;
+  const aligned = new Set(court.oath ? OATHS_BY_ID[court.oath.id]?.tasks ?? [] : []);
   const options = tasksForSeat(seat);
-  const a = world.courts[house]!.tasks[seat];
-  if (!options.length) {
-    return (
-      <tr><td className="eyebrow gold"><Term k={`seat:${seat}`}>{SEAT_TITLE[seat]}</Term></td><td><PersonLink c={c} /></td><td colSpan={3} className="muted">No tasks for this seat yet.</td></tr>
-    );
-  }
+  const a = court.tasks[seat];
+  if (seat === 'highroy') return <p className="muted" style={{ margin: 0, fontSize: 12 }}>The Highroy swears the oath and takes no task.</p>;
+  if (!options.length) return <p className="muted" style={{ margin: 0, fontSize: 12 }}>No tasks for this seat yet.</p>;
+  const onAssign = (task: string, target?: string) => game.update((w) => assignTask(w, house, seat, task, target));
   const def = a ? TASKS_BY_ID[a.task] : undefined;
   const away = activeMissionOf(world, c.id);
   const gone = c.flags.some((f) => f.id === 'missing' || f.id === 'captive');
@@ -211,40 +187,34 @@ function SeatRow({ c, aligned, onAssign }: { c: Character; aligned: Set<string>;
   const sectors = Object.values(world.planets).filter((p) => p.houseId === house).flatMap((p) => p.sectors).filter((s) => s.controllerFamilyId);
   const id = `task-${seat}`;
   return (
-    <tr>
-      <td className="eyebrow gold"><Term k={`seat:${seat}`}>{SEAT_TITLE[seat]}</Term></td>
-      <td><PersonLink c={c} /></td>
-      <td>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <label htmlFor={id} className="sr-only">Task for the {SEAT_TITLE[seat]}</label>
-          <select id={id} className="select" value={a?.task ?? ''} onChange={(e) => onAssign(e.target.value)}>
-            {options.map((t) => <option key={t.id} value={t.id}>{aligned.has(t.id) ? '★ ' : ''}{t.label}</option>)}
+    <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <label htmlFor={id} className="eyebrow"><Term k="task">Standing task</Term></label>
+        <select id={id} className="select" value={a?.task ?? ''} onChange={(e) => onAssign(e.target.value)}>
+          {options.map((t) => <option key={t.id} value={t.id}>{aligned.has(t.id) ? '★ ' : ''}{t.label}</option>)}
+        </select>
+        {def?.target === 'house' ? (
+          <select aria-label="Which house" className="select" value={a?.target ?? ''} onChange={(e) => onAssign(def.id, e.target.value)}>
+            {Object.values(world.houses).filter((h) => h.id !== house).map((h) => <option key={h.id} value={h.id}>House {h.name}</option>)}
           </select>
-          {def?.target === 'house' ? (
-            <select aria-label="Which house" className="select" value={a?.target ?? ''} onChange={(e) => onAssign(def.id, e.target.value)}>
-              {Object.values(world.houses).filter((h) => h.id !== house).map((h) => <option key={h.id} value={h.id}>House {h.name}</option>)}
-            </select>
-          ) : null}
-          {def?.target === 'ownSector' ? (
-            <select aria-label="Which sector" className="select" value={a?.target ?? ''} onChange={(e) => onAssign(def.id, e.target.value)}>
-              {sectors.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.roomUsed}/{s.room})</option>)}
-            </select>
-          ) : null}
-        </div>
-        {def ? <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{def.description}</div> : null}
-      </td>
-      <td>{def ? taskFit(score) : '—'}</td>
-      <td style={{ minWidth: 140 }}>
-        {gone ? <span className="error">Missing</span>
-          : away ? <Go to={{ kind: 'mission', id: away.id }}>Away on a mission</Go>
-          : (
-            <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span className="bar"><span style={{ width: `${pct}%`, background: def && aligned.has(def.id) ? 'var(--gold)' : 'var(--blue)' }} /></span>
-              {def && aligned.has(def.id) ? <span className="gold" aria-label="Serves the oath">★</span> : null}
-            </span>
-          )}
-      </td>
-    </tr>
+        ) : null}
+        {def?.target === 'ownSector' ? (
+          <select aria-label="Which sector" className="select" value={a?.target ?? ''} onChange={(e) => onAssign(def.id, e.target.value)}>
+            {sectors.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.roomUsed}/{s.room})</option>)}
+          </select>
+        ) : null}
+        {def ? <span className="muted" style={{ fontSize: 12 }}><Term k="fit">Fit</Term>: {taskFit(score)}</span> : null}
+      </div>
+      {def ? <span className="muted" style={{ fontSize: 12 }}>{def.description}</span> : null}
+      {gone ? <span className="error" style={{ fontSize: 12 }}>Missing: no task work.</span>
+        : away ? <span style={{ fontSize: 12 }}><Go to={{ kind: 'mission', id: away.id }}>Away on a mission</Go>: no task work until they return.</span>
+        : (
+          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span className="bar"><span style={{ width: `${pct}%`, background: def && aligned.has(def.id) ? 'var(--gold)' : 'var(--blue)' }} /></span>
+            <span className="muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>next result {pct}%{def && aligned.has(def.id) ? ' · ★ serves the oath' : ''}</span>
+          </span>
+        )}
+    </div>
   );
 }
 
@@ -328,7 +298,7 @@ function OathPanel({ className }: { className?: string }) {
   );
 }
 
-function RelationsPanel({ className }: { className?: string }) {
+export function RelationsPanel({ className }: { className?: string }) {
   const world = useWorld();
   const house = world.playerHouseId;
   return (

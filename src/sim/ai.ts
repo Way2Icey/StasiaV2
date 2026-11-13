@@ -6,6 +6,7 @@ import { knowledgeOf } from './knowledge';
 import { relation } from './relations';
 import { activeMissions, cannotLead, launchInPlace, skillFor, slotsFor } from './missions';
 import { OATHS_BY_ID, swearInPlace, TASKS_BY_ID } from './council';
+import { mayLeadEnvoy } from './politics';
 import type { Approach, CouncilSeat, House, MissionKind, World } from './types';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -101,7 +102,7 @@ function maybeSendMission(world: World, rng: Rng, h: House) {
     ['envoy', 0.05 + p.honour * (1 - p.isolation)],
   ]);
   const leader = alive(world)
-    .filter((c) => c.seat !== 'highroy' && !cannotLead(world, h.id, c))
+    .filter((c) => c.seat !== 'highroy' && !cannotLead(world, h.id, c) && (kind !== 'envoy' || mayLeadEnvoy(c)))
     .sort((a, b) => skillFor(kind, b) - skillFor(kind, a))[0];
   if (!leader) return;
   const approach: Approach = rng.chance(p.aggression * 0.6) ? 'quick' : 'careful';

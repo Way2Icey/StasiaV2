@@ -10,6 +10,7 @@ import { attitude, attitudeColor, relation, shiftRelation } from './relations';
 import { canAfford, DEVELOP_COST, pay, skimRate } from './economy';
 import { retinue, shiftMood } from './mood';
 import { courtTotals, highroyAway, isAway } from './court';
+import { mayLeadEnvoy } from './politics';
 import { QUARTER_ECONOMY } from '../data/economy';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from './time';
 import { FLAGS_BY_ID } from '../data/flags';
@@ -558,7 +559,7 @@ function driftRelations(world: World) {
 function bestLeader(world: World, houseId: string, kind: MissionKind, prefer?: Character): Character | undefined {
   if (prefer && !cannotLead(world, houseId, prefer)) return prefer;
   return alive(world)
-    .filter((c) => c.seat !== 'highroy' && !cannotLead(world, houseId, c))
+    .filter((c) => c.seat !== 'highroy' && !cannotLead(world, houseId, c) && (kind !== 'envoy' || mayLeadEnvoy(c)))
     .sort((a, b) => skillFor(kind, b) - skillFor(kind, a))[0];
 }
 

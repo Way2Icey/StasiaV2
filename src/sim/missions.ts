@@ -12,6 +12,7 @@ import { attitude, relation, shiftRelation } from './relations';
 import { canAfford, missionCost, pay } from './economy';
 import { fieldSlots, MOOD_ON_RETURN, shiftMood, tiredOnLaunch, unwilling } from './mood';
 import { discover, FIND_CHANCE } from './discovery';
+import { mayLeadEnvoy } from './politics';
 import { newsSinceLastLook, rivalFind } from './growth';
 import { FLAGS_BY_ID } from '../data/flags';
 import { traitLabel } from '../data/traits';
@@ -175,6 +176,7 @@ function resolveSpec(world: World, spec: MissionSpec, checkLeader = true): Resol
   if (checkLeader) {
     const why = checkGoer(world, spec, leader);
     if (why) return why;
+    if (spec.kind === 'envoy' && !mayLeadEnvoy(leader)) return 'Only the Speaker, an envoy of the house or the Highroy can lead an envoy mission.';
   }
   const companions = (spec.companions ?? []).map((id) => world.characters[id]).filter((c): c is Character => !!c);
   if (companions.length > MAX_COMPANIONS) return `At most ${MAX_COMPANIONS} can go with the leader.`;
