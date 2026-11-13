@@ -8,6 +8,8 @@ import { makeDate } from './time';
 import { ensureKnowledge } from './knowledge';
 import { ensureCouncil, initialStanding } from './council';
 import { ensureEconomy } from './economy';
+import { ensureMood } from './mood';
+import { ensureDiscovery } from './discovery';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
 export const DEFAULT_SEED = 'stasia';
@@ -19,7 +21,7 @@ const familyId = (houseId: string, key: string) => `${houseId}:${key}`;
 export function createWorld(seed: string = DEFAULT_SEED): World {
   const rng = Rng.fromSeed(seed);
   const world: World = {
-    version: 5,
+    version: 6,
     seed,
     date: START_DATE,
     rng: rng.state,
@@ -36,6 +38,8 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     courts: {},
     captives: {},
     economy: { houses: {}, market: {} as World['economy']['market'] },
+    armoury: {},
+    leads: [],
   };
 
   for (const h of SLICE_HOUSES) {
@@ -98,6 +102,8 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
   ensureKnowledge(world);
   ensureCouncil(world);
   ensureEconomy(world);
+  ensureMood(world);
+  ensureDiscovery(world);
   world.rng = rng.state;
   return world;
 }
@@ -219,7 +225,7 @@ function populateRivalHouse(world: World, rng: Rng, houseId: string) {
 
 // ---------------------------------------------------------------- commoners and overseers
 
-function commonerFamily(world: World, rng: Rng, houseId: string, species: SpeciesId): Family {
+export function commonerFamily(world: World, rng: Rng, houseId: string, species: SpeciesId): Family {
   // A commoner family of the right culture, created on demand.
   const existing = Object.values(world.families).filter((f) => f.houseId === houseId && f.species === species && !f.high && !f.ruling);
   if (existing.length > 0 && rng.chance(0.4)) return rng.pick(existing);

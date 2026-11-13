@@ -7,6 +7,7 @@ import { relation, shiftRelation } from './relations';
 import { kill } from './death';
 import { absoluteCycle } from './time';
 import { rivalDemandsRansom } from './economy';
+import { shiftMood } from './mood';
 import type { Captive, World } from './types';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -35,6 +36,8 @@ export function releaseInPlace(world: World, id: string): void {
   const c = world.characters[id];
   if (!cap || !c) return;
   const holder = cap.heldBy;
+  // Left to rot after we refused to pay: they remember.
+  if (cap.ransom?.status === 'refused') shiftMood(c, -15);
   free(world, cap);
   shiftRelation(world, c.houseId, holder, 15, 60);
   const st = world.houses[holder]!.standing;
@@ -89,6 +92,7 @@ export function executeInPlace(world: World, id: string): void {
   st.honour = clamp(st.honour - 3, 0, 100);
   shiftRelation(world, c.houseId, holder, -40);
   for (const other of Object.keys(world.houses)) if (other !== holder && other !== c.houseId) shiftRelation(world, other, holder, -5);
+  for (const k of alive(world)) if (k.houseId === c.houseId && (k.seat || k.role === 'Knight')) shiftMood(k, -5);
   if (c.houseId === world.playerHouseId) {
     tellPlayer(world, `${house(world, holder)} has executed ${displayName(c.name)}, taken while on our business.`, [c.id]);
   }

@@ -143,6 +143,13 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   confidence: { term: 'Our estimate', group: 'Missions', text: 'How much to trust the forecast. It uses what your house believes about the target, which may be wrong.' },
 
   // ---------------------------------------------------------------- intrigue
+  mood: { term: 'Mood', group: 'People', text: 'How someone feels about their house, 0–100: Resentful, Restless, Steady, Content, Eager. Good missions, rest, kept oaths and trust lift it; failures, being overworked, debt and broken oaths sour it. Below 25 they refuse to go out.' },
+  fieldSlots: { term: 'Field slots', group: 'Missions', text: 'How many missions the house can have out at once, 1–6, set by the average mood of the council and knights. Anyone out does no duties at home.' },
+  lead: { term: 'Leads and finds', group: 'Missions', text: 'What missions turn up: talented people to bring in, rumours of Caiges, secrets and sites worth working. Leads go cold after an Orbit.' },
+  materialize: { term: 'Materialized', group: 'People', text: 'A nobody who became a somebody: someone a mission found, now a full named person with a record of their own.' },
+  armoury: { term: 'Caige armoury', group: 'People', text: 'Caiges the house holds. Bonding one to someone raises their Caige Sync and their mood: a statement of trust.' },
+  boon: { term: 'Deal or find', group: 'Economy', text: 'Temporary income from a trade deal or a site found on a mission. It runs for a set number of Orbits.' },
+  homeDuty: { term: 'Duties at home', group: 'Missions', text: 'Council members away do no task work. With more than half the knights away, the capital grows restless each Phase.' },
   captive: { term: 'Captive', group: 'Intrigue', text: 'Someone held by another house. Interrogate them, ransom them, release them, or execute them.' },
   ransom: { term: 'Ransom', group: 'Intrigue', text: "Othes paid for a captive's return. Their house may refuse; yours may be asked to pay." },
   exposed: { term: 'Exposed', group: 'Intrigue', text: 'An agent whose face another house now knows.' },

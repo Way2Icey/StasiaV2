@@ -2,8 +2,10 @@ import type { World } from './types';
 import { ensureKnowledge } from './knowledge';
 import { ensureCouncil } from './council';
 import { ensureEconomy } from './economy';
+import { ensureMood } from './mood';
+import { ensureDiscovery } from './discovery';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export function serialize(world: World): string {
   return JSON.stringify(world);
@@ -37,7 +39,11 @@ export function deserialize(text: string): World {
   }
   // v4 -> v5: the economy.
   if ((w.version as number) === 4) {
-    (w as World).version = 5;
+    (w as unknown as { version: number }).version = 5;
+  }
+  // v5 -> v6: mood, field slots, discoveries.
+  if ((w.version as number) === 5) {
+    (w as World).version = 6;
   }
   if (w.version !== SAVE_VERSION) throw new SaveError(`Unsupported save version: ${String(w.version)}`);
   const required: (keyof World)[] = ['seed', 'date', 'rng', 'houses', 'families', 'characters', 'planets', 'feed'];
@@ -50,5 +56,7 @@ export function deserialize(text: string): World {
   ensureKnowledge(world);
   ensureCouncil(world);
   ensureEconomy(world);
+  ensureMood(world);
+  ensureDiscovery(world);
   return world;
 }

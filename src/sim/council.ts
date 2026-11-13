@@ -8,6 +8,7 @@ import { knowledgeOf, learn } from './knowledge';
 import { activeMissions, cannotLead, skillFor } from './missions';
 import { attitude, attitudeColor, relation, shiftRelation } from './relations';
 import { canAfford, DEVELOP_COST, pay, skimRate } from './economy';
+import { retinue, shiftMood } from './mood';
 import { QUARTER_ECONOMY } from '../data/economy';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from './time';
 import { FLAGS_BY_ID } from '../data/flags';
@@ -286,6 +287,7 @@ export function dismissPetition(input: World, houseId: string, petitionId: strin
   court.petitions = court.petitions.filter((x) => x.id !== petitionId);
   const from = p ? world.characters[p.fromId] : undefined;
   if (from) from.hidden.loyalty = clamp(from.hidden.loyalty - 0.25, 1, 20);
+  shiftMood(from, -4);
   return world;
 }
 
@@ -305,8 +307,10 @@ function closeOath(world: World, houseId: string, result: 'kept' | 'broken' | 'a
     st.honour = clamp(st.honour + 5, 0, 100);
     st.respect = clamp(st.respect + 3, 0, 100);
     for (const c of alive(world)) if (c.houseId === houseId && c.seat) c.hidden.loyalty = clamp(c.hidden.loyalty + 1, 1, 20);
+    for (const c of retinue(world, houseId)) shiftMood(c, 4);
   } else {
     st.honour = clamp(st.honour - (result === 'abandoned' ? 6 : 4), 0, 100);
+    for (const c of retinue(world, houseId)) shiftMood(c, result === 'abandoned' ? -6 : -4);
   }
   court.oaths.unshift({ id: oath.id, target: oath.target, sworn: oath.sworn, ended: world.date, result });
   court.oaths = court.oaths.slice(0, 20);

@@ -10,6 +10,8 @@ import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, type GameDate } from './tim
 import { SPECIES } from '../data/species';
 import { attitude, relation, shiftRelation } from './relations';
 import { canAfford, missionCost, pay } from './economy';
+import { fieldSlots, MOOD_ON_RETURN, shiftMood, tiredOnLaunch, unwilling } from './mood';
+import { discover } from './discovery';
 import { FLAGS_BY_ID } from '../data/flags';
 import { traitLabel } from '../data/traits';
 import type { Approach, Character, Mission, MissionKind, Outcome, SpeciesId, World } from './types';
@@ -79,7 +81,12 @@ export function cannotLead(world: World, houseId: string, c: Character): string 
   if (ageOf(c, world.date) < SPECIES[c.species].adulthood) return 'Too young';
   if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing')) return 'Unaccounted for';
   if (activeMissionOf(world, c.id)) return 'Already on a mission';
-  return null;
+  return unwilling(world, c);
+}
+
+/** Missions out vs the field slots the retinue's mood allows. */
+export function slotsFor(world: World, houseId: string): { used: number; total: number } {
+  return { used: activeMissions(world, houseId).length, total: fieldSlots(world, houseId) };
 }
 
 export function skillFor(kind: MissionKind, c: Character): number {
@@ -104,6 +111,10 @@ export interface MissionSpec {
   targetId?: string;
   targetPlanetId?: string;
   targetHouseId?: string;
+  /** Scout a particular sector (following a lead). */
+  targetSectorId?: string;
+  /** The lead being followed up. */
+  leadId?: string;
   approach: Approach;
 }
 
@@ -115,10 +126,10 @@ interface Resolved {
   targetHouseId: string;
 }
 
-function resolveSpec(world: World, spec: MissionSpec): Resolved | string {
+function resolveSpec(world: World, spec: MissionSpec, checkLeader = true): Resolved | string {
   const leader = world.characters[spec.leaderId];
   if (!leader) return 'No such leader.';
-  const why = cannotLead(world, spec.houseId, leader);
+  const why = checkLeader ? cannotLead(world, spec.houseId, leader) : null;
   if (why) return why;
   if (spec.kind === 'investigate') {
     const target = spec.targetId ? world.characters[spec.targetId] : undefined;
@@ -134,7 +145,8 @@ function resolveSpec(world: World, spec: MissionSpec): Resolved | string {
   const planet = spec.targetPlanetId ? world.planets[spec.targetPlanetId] : undefined;
   if (!planet) return 'No world to scout.';
   const portRank = { none: 0, 'landing field': 1, spaceport: 2, starport: 3 } as const;
-  const sector = [...planet.sectors].sort((a, b) => portRank[b.port] - portRank[a.port])[0]!;
+  const sector = planet.sectors.find((s) => s.id === spec.targetSectorId)
+    ?? [...planet.sectors].sort((a, b) => portRank[b.port] - portRank[a.port])[0]!;
   return { leader, planetId: planet.id, sectorId: sector.id, targetHouseId: planet.houseId };
 }
 
@@ -207,6 +219,10 @@ export interface Forecast {
   /** Othes it costs to send them. */
   cost: number;
   affordable: boolean;
+  /** Field slots in use and available. */
+  slots: { used: number; total: number };
+  /** Leader just back: they'll go, but grumble. */
+  tired: boolean;
 }
 
 export function forecast(world: World, spec: MissionSpec): Forecast | { ok: false; reason: string } {
@@ -245,6 +261,8 @@ export function forecast(world: World, spec: MissionSpec): Forecast | { ok: fals
     confidence: depth >= 60 ? 'Firm' : depth >= 30 ? 'Rough' : 'A guess',
     cost: missionCost(spec.kind, spec.approach),
     affordable: canAfford(world, spec.houseId, { othes: missionCost(spec.kind, spec.approach) }),
+    slots: slotsFor(world, spec.houseId),
+    tired: tiredOnLaunch(world, r.leader),
   };
 }
 
@@ -263,6 +281,9 @@ export function launchInPlace(world: World, spec: MissionSpec): string {
   if (typeof r === 'string') throw new Error(r);
   const cost = missionCost(spec.kind, spec.approach);
   if (!canAfford(world, spec.houseId, { othes: cost })) throw new Error('Not enough othes.');
+  const slots = slotsFor(world, spec.houseId);
+  if (slots.used >= slots.total) throw new Error('Every field slot is taken.');
+  if (tiredOnLaunch(world, r.leader)) shiftMood(r.leader, -3);
   const travel = travelCycles(r.leader.location.planetId, r.planetId);
   const task = TASK_CYCLES[spec.kind][spec.approach];
   const id = `m${world.nextId++}`;
@@ -278,6 +299,7 @@ export function launchInPlace(world: World, spec: MissionSpec): string {
     targetPlanetId: r.planetId,
     targetSectorId: r.sectorId,
     approach: spec.approach,
+    leadId: spec.leadId,
     stage: 'travel',
     launched: world.date,
     stageEnds: addCycles(world.date, travel),
@@ -370,8 +392,8 @@ export function advanceMissions(world: World, rng: Rng): void {
 
 function taskTurn(world: World, m: Mission, leader: Character, rng: Rng) {
   const r = resolveSpec({ ...world, missions: {} }, {
-    kind: m.kind, houseId: m.houseId, leaderId: m.leaderId, targetId: m.targetId, targetPlanetId: m.targetPlanetId, targetHouseId: m.targetHouseId, approach: m.approach,
-  });
+    kind: m.kind, houseId: m.houseId, leaderId: m.leaderId, targetId: m.targetId, targetPlanetId: m.targetPlanetId, targetHouseId: m.targetHouseId, targetSectorId: m.targetSectorId, approach: m.approach,
+  }, false);
   if (typeof r === 'string') {
     end(world, m, 'failure', `The trail went cold: ${r.toLowerCase()}`);
     return;
@@ -423,6 +445,8 @@ function taskTurn(world: World, m: Mission, leader: Character, rng: Rng) {
 }
 
 function end(world: World, m: Mission, outcome: Outcome, text: string) {
+  const leader = world.characters[m.leaderId];
+  if (leader && outcome !== 'disaster') { leader.lastMission = world.date; shiftMood(leader, MOOD_ON_RETURN[outcome]); }
   m.stage = 'done';
   m.outcome = outcome;
   m.ended = world.date;
@@ -506,6 +530,11 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
   }
 
   if (m.noticed && m.leaderKnowsNoticed) findings.push(`${shortName(leader.name)} believes they were seen.`);
+
+  // Home again: how it went shows in their mood; what they found comes with them.
+  leader.lastMission = world.date;
+  shiftMood(leader, MOOD_ON_RETURN[outcome]);
+  if (m.houseId === world.playerHouseId) findings.push(...discover(world, rng, m, leader));
 
   m.report = report(world, m, leader, outcome, rng);
   m.findings = findings;

@@ -18,7 +18,8 @@ import {
 } from '../sim/types';
 import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
-import { MissionRow } from './missions';
+import { LeadsPanel, MissionRow } from './missions';
+import { moodColor, moodLabel, moodOf } from '../sim/mood';
 import { CaptivesPanel, OathSummary, Petitions, RansomDemands, StandingPanel } from './council';
 import { formatRange, KNOW, knowledgeOf, type CharacterView } from '../sim/knowledge';
 import { activeMissionOf, activeMissions, MISSION_LABEL } from '../sim/missions';
@@ -141,6 +142,7 @@ export function ThroneRoom() {
         <OathSummary className="span-6" />
         <Petitions className="span-6" />
         <RansomDemands className="span-12" />
+        <LeadsPanel className="span-12" />
         <CaptivesPanel className="span-12" hideWhenEmpty />
         <Panel title={<Term k="mission">Missions in the field</Term>} aside={<Go to={{ kind: 'missions' }}>Missions board ›</Go>} className="span-12">
           {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. Open anyone's sheet to look into them, or a world to scout it.</p> : null}
@@ -350,6 +352,7 @@ export function CharacterPage({ id }: { id: string }) {
                 {c.name.courtName ? <><dt>Court name</dt><dd>{c.name.courtName}</dd></> : null}
                 {c.name.trueName ? <><dt>True name</dt><dd>{trueNameKnown ? c.name.trueName : <span className="muted">Unknown</span>}</dd></> : null}
                 <dt>Where</dt><dd>{where ? <SectorLink id={where.sector.id} withPlanet /> : '—'}</dd>
+                {own && c.tier === 'full' && c.alive ? <><dt><Term k="mood">Mood</Term></dt><dd style={{ color: moodColor(moodOf(c)) }}>{moodLabel(moodOf(c))} <span className="mono muted">{moodOf(c)}</span>{c.lastMission ? <span className="muted"> · last back {formatDate(c.lastMission)}</span> : null}</dd></> : null}
                 <dt><Term k="resonance">Resonance</Term></dt><dd><BandLink c={c} />{res && res !== 'unknown' && res.type ? <span className="muted"> · {res.type}</span> : null}</dd>
               </dl>
             </div>

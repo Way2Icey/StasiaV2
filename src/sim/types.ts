@@ -123,6 +123,10 @@ export interface Character {
   location: { planetId: string; sectorId: string };
   alive: boolean;
   death?: { date: GameDate; cause: string };
+  /** 0..100: how they feel about their house right now. Full-tier people only. */
+  mood?: number;
+  /** When they last came home from a mission. */
+  lastMission?: GameDate;
 }
 
 // ---------------------------------------------------------------- houses
@@ -252,6 +256,8 @@ export interface Mission {
   targetId?: string;
   /** Envoy: the house being courted. */
   targetHouseId?: string;
+  /** The lead this mission is following up, if any. */
+  leadId?: string;
   targetPlanetId: string;
   targetSectorId: string;
   approach: Approach;
@@ -350,7 +356,7 @@ export interface LedgerLine {
   /** Per Phase for standing flows; the amount for one-off entries. */
   amount: number;
   label: string;
-  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit';
+  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit' | 'boon';
   sectorId?: string;
   quarterId?: string;
   characterId?: string;
@@ -365,6 +371,8 @@ export interface HouseEconomy {
   recent: (LedgerLine & { date: GameDate })[];
   /** The standing flows as applied at the last Phase. */
   lastPhase: LedgerLine[];
+  /** Temporary income from deals and finds. */
+  boons: Boon[];
 }
 
 export interface MarketGood {
@@ -380,8 +388,47 @@ export interface Economy {
   market: Record<GoodId, MarketGood>;
 }
 
+// ---------------------------------------------------------------- discoveries
+
+export interface Caige {
+  id: string;
+  name: string;
+  type: ResonanceType;
+  band: ResonanceBand;
+  houseId: string;
+  found: GameDate;
+  foundAt: { planetId: string; sectorId: string };
+  bondedTo?: string;
+}
+
+export interface Lead {
+  id: string;
+  houseId: string;
+  kind: 'caige' | 'recruit' | 'site' | 'secret';
+  title: string;
+  text: string;
+  planetId: string;
+  sectorId: string;
+  /** Mission that follows it up (none for a recruit, who is approached directly). */
+  missionKind?: MissionKind;
+  /** The person concerned: the recruit, or the person with a secret. */
+  targetId?: string;
+  /** For a recruit: what it costs to bring them in. */
+  cost?: number;
+  found: GameDate;
+  expires: GameDate;
+  sourceMissionId?: string;
+}
+
+export interface Boon {
+  id: string;
+  label: string;
+  flow: Partial<Record<ResourceId, number>>;
+  until: GameDate;
+}
+
 export interface World {
-  version: 5;
+  version: 6;
   seed: string;
   date: GameDate;
   rng: RngState;
@@ -401,4 +448,8 @@ export interface World {
   /** Everyone held by a house, keyed by character id. */
   captives: Record<string, Captive>;
   economy: Economy;
+  /** Caiges held by houses, by id. */
+  armoury: Record<string, Caige>;
+  /** Opportunities turned up by missions, waiting for a decision. */
+  leads: Lead[];
 }

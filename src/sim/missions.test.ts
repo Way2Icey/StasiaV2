@@ -4,6 +4,7 @@ import { deserialize, serialize } from './save';
 import { KNOW, knowledgeOf, rangeWidth, viewOf } from './knowledge';
 import { activeMissionOf, cannotLead, forecast, launchMission } from './missions';
 import { seatHolder, ruler } from './query';
+import { fieldSlots } from './mood';
 import { ALL_STATS, HIDDEN_STATS, type World } from './types';
 
 const world = createWorld();
@@ -110,9 +111,16 @@ describe('missions', () => {
     let w = world;
     const targets = Object.values(world.characters).filter((c) => c.houseId !== P && c.tier === 'full').slice(0, 8);
     const leaders = Object.values(world.characters).filter((c) => !cannotLead(world, P, c)).slice(0, 8);
+    let launched = 0;
     leaders.forEach((l, i) => {
-      w = launchMission(w, { kind: 'investigate', houseId: P, leaderId: l.id, targetId: targets[i]!.id, approach: i % 2 ? 'quick' : 'careful' }).world;
+      try {
+        w = launchMission(w, { kind: 'investigate', houseId: P, leaderId: l.id, targetId: targets[i]!.id, approach: i % 2 ? 'quick' : 'careful' }).world;
+        launched++;
+      } catch (e) {
+        expect(String(e)).toMatch(/field slot/);
+      }
     });
+    expect(launched).toBe(fieldSlots(world, P));
     w = advanceTurns(w, 25);
     for (const m of Object.values(w.missions).filter((x) => x.houseId === P)) expect(m.stage).toBe('done');
     for (const c of Object.values(w.characters)) {
@@ -132,7 +140,7 @@ describe('save migration', () => {
     delete old.knowledge;
     delete old.missions;
     const w = deserialize(JSON.stringify(old));
-    expect(w.version).toBe(5);
+    expect(w.version).toBe(6);
     expect(w.missions).toEqual({});
     expect(Object.keys(w.knowledge[P]!).length).toBe(Object.keys(w.characters).length);
   });

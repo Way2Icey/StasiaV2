@@ -5,9 +5,11 @@ import { alive } from '../sim/query';
 import { absoluteCycle, addCycles, formatDate } from '../sim/time';
 import {
   activeMissions, cannotLead, describeJob, fitLabel, forecast, launchMission, MISSION_LABEL, OUTCOME_LABEL,
-  pastMissions, skillFor, travelCycles, type MissionSpec,
+  pastMissions, skillFor, slotsFor, travelCycles, activeMissionOf, type MissionSpec,
 } from '../sim/missions';
 import { closePetition } from '../sim/council';
+import { averageMood, moodColor, moodLabel, moodOf } from '../sim/mood';
+import { dismissLead, leadsOf, recruit } from '../sim/discovery';
 import { attitude, attitudeColor, relation } from '../sim/relations';
 import type { Approach, Character, Mission, MissionKind, Outcome } from '../sim/types';
 import { useGame, useNav, useWorld } from './context';
@@ -106,6 +108,8 @@ export function MissionsPage() {
         <Go to={{ kind: 'plan', mission: 'scout' }} className="btn">Plan a scouting run</Go>
         <Go to={{ kind: 'plan', mission: 'envoy' }} className="btn">Send an envoy</Go>
       </div>
+      <FieldSlots />
+      <LeadsPanel />
       <Panel title="In the field" aside={`${active.length} out`}>
         {active.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out right now.</p> : null}
         {active.map((m) => <MissionRow key={m.id} id={m.id} />)}
@@ -213,7 +217,7 @@ export function MissionPage({ id }: { id: string }) {
 
 // ---------------------------------------------------------------- planning
 
-export function PlanPage({ kind: initialKind, target: initialTarget, leader: initialLeader, petition }: { kind: MissionKind; target?: string; leader?: string; petition?: string }) {
+export function PlanPage({ kind: initialKind, target: initialTarget, leader: initialLeader, petition, lead: leadId }: { kind: MissionKind; target?: string; leader?: string; petition?: string; lead?: string }) {
   const world = useWorld();
   const nav = useNav();
   const game = useGame();
@@ -226,18 +230,24 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
   const [q, setQ] = useState('');
 
   const switchKind = (k: MissionKind) => { setKind(k); setTarget(undefined); };
+  const lead = leadId ? world.leads.find((l) => l.id === leadId) : undefined;
 
-  const targetPlanet = kind === 'investigate'
+  const targetPlanet = lead && kind === 'scout' ? lead.planetId : kind === 'investigate'
     ? (target ? world.characters[target]?.location.planetId : undefined)
     : kind === 'envoy' ? (target ? world.houses[target]?.capitalPlanetId : undefined)
     : target;
 
-  const candidates = useMemo(() => {
+  // Everyone who could in principle go; the unwilling are listed with their reason.
+  const pool = useMemo(() => {
     return alive(world)
-      .filter((c) => !cannotLead(world, house, c))
-      .map((c) => ({ c, skill: skillFor(kind, c) }))
-      .sort((a, b) => b.skill - a.skill);
+      .filter((c) => c.houseId === house && c.tier === 'full' && c.seat !== 'highroy' && !activeMissionOf(world, c.id))
+      .filter((c) => !c.flags.some((f) => f.id === 'captive' || f.id === 'missing'))
+      .map((c) => ({ c, skill: skillFor(kind, c), why: cannotLead(world, house, c) }))
+      .filter((x) => x.why !== 'Too young')
+      .sort((a, b) => Number(!!a.why) - Number(!!b.why) || b.skill - a.skill);
   }, [world, house, kind]);
+  const candidates = pool.filter((x) => !x.why);
+  const slots = slotsFor(world, house);
 
   const people = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -252,6 +262,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
   const spec: MissionSpec | null = leader && target ? {
     kind, houseId: house, leaderId: leader, approach,
     ...(kind === 'investigate' ? { targetId: target } : kind === 'envoy' ? { targetHouseId: target } : { targetPlanetId: target }),
+    ...(lead ? { leadId: lead.id, targetSectorId: lead.sectorId } : {}),
   } : null;
   const f = spec ? forecast(world, spec) : null;
   const targetChar = kind === 'investigate' && target ? world.characters[target] : undefined;
@@ -275,18 +286,24 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
           <h2>{PLAN_TITLE[kind]}</h2>
           <p>{PLAN_BLURB[kind]}</p>
           {petition ? <p className="notice">Petitioned by the council. Sending it settles the petition.</p> : null}
+          {lead ? <p className="notice">Following a lead: {lead.title}. {lead.text}</p> : null}
         </div>
       </div>
-      <div className="filters">
+      {lead ? null : <div className="filters">
         <button type="button" className="pill" aria-pressed={kind === 'investigate'} onClick={() => switchKind('investigate')}>Investigate a person</button>
         <button type="button" className="pill" aria-pressed={kind === 'scout'} onClick={() => switchKind('scout')}>Scout a world</button>
         <button type="button" className="pill" aria-pressed={kind === 'envoy'} onClick={() => switchKind('envoy')}>Send an envoy</button>
-      </div>
+      </div>}
 
       <div className="grid">
         <div className="span-7 stack">
           <Panel title="1 · Target">
-            {kind === 'investigate' ? (
+            {lead && kind === 'scout' ? (
+              <div className="body" style={{ display: 'grid', gap: 4 }}>
+                <span><SectorLink id={lead.sectorId} withPlanet /></span>
+                <span className="muted" style={{ fontSize: 12 }}>{lead.title}</span>
+              </div>
+            ) : kind === 'investigate' ? (
               <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {targetChar ? (
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -333,14 +350,14 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
             )}
           </Panel>
 
-          <Panel title="2 · Who goes" aside="Best suited first">
-            {candidates.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Everyone who could go is already out.</p> : (
+          <Panel title="2 · Who goes" aside={<><Term k="fieldSlots">Field slots</Term> {slots.used} of {slots.total} in use</>}>
+            {pool.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Everyone who could go is already out.</p> : (
               <div className="table-wrap">
                 <table className="list">
-                  <thead><tr><th /><th>Name</th><th>Role</th><th>Fit</th><th>Travel</th></tr></thead>
+                  <thead><tr><th /><th>Name</th><th>Role</th><th><Term k="fit">Fit</Term></th><th><Term k="mood">Mood</Term></th><th>Travel</th></tr></thead>
                   <tbody>
-                    {candidates.slice(0, 12).map(({ c, skill }) => (
-                      <LeaderRow key={c.id} c={c} skill={skill} checked={leader === c.id} onPick={() => setLeaderId(c.id)}
+                    {pool.slice(0, 16).map(({ c, skill, why }) => (
+                      <LeaderRow key={c.id} c={c} skill={skill} checked={leader === c.id} onPick={() => setLeaderId(c.id)} why={why}
                         travel={targetPlanet ? travelCycles(c.location.planetId, targetPlanet) : undefined} />
                     ))}
                   </tbody>
@@ -376,6 +393,8 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
                   <dt><Term k="confidence">Our estimate is</Term></dt><dd>{f.confidence}</dd>
                   <dt>Cost</dt><dd className={f.affordable ? '' : 'error'}>{f.cost.toLocaleString('en-US')} othes{f.affordable ? '' : ' — more than we have'}</dd>
                 </dl>
+                {f.slots.used >= f.slots.total ? <p className="error" style={{ margin: 0, fontSize: 12 }}>Every field slot is taken ({f.slots.used} of {f.slots.total}). Wait for someone to come home, or lift the mood of your council and knights.</p> : null}
+                {f.tired ? <p className="notice" style={{ margin: 0, fontSize: 12 }}>Only just back from a mission: they will go, but grumble (mood −3).</p> : null}
                 <Odds label="Chance of a good result" p={f.success} color="var(--green)" />
                 {kind === 'envoy' ? (
                   <p className="muted" style={{ fontSize: 11, margin: 0 }}>An envoy goes openly. A poor visit can cool their regard a little.</p>
@@ -385,7 +404,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
                     <p className="muted" style={{ fontSize: 11, margin: 0 }}>Being noticed caps the result, tells their house who you sent, and can end in capture.</p>
                   </>
                 )}
-                <button type="button" className="btn primary" onClick={launch} disabled={!f.affordable}>Send them</button>
+                <button type="button" className="btn primary" onClick={launch} disabled={!f.affordable || f.slots.used >= f.slots.total}>Send them</button>
               </>
             ) : null}
           </div>
@@ -406,14 +425,79 @@ function Odds({ label, p, color }: { label: React.ReactNode; p: number; color: s
   );
 }
 
-function LeaderRow({ c, skill, checked, onPick, travel }: { c: Character; skill: number; checked: boolean; onPick: () => void; travel?: number }) {
+function LeaderRow({ c, skill, checked, onPick, travel, why }: { c: Character; skill: number; checked: boolean; onPick: () => void; travel?: number; why: string | null }) {
+  const m = moodOf(c);
   return (
-    <tr className="clickable" onClick={onPick}>
-      <td><input type="radio" name="leader" checked={checked} onChange={onPick} aria-label={`Send ${displayName(c.name)}`} /></td>
-      <td><PersonLink c={c} /></td>
+    <tr className={why ? 'unwilling' : 'clickable'} onClick={why ? undefined : onPick}>
+      <td><input type="radio" name="leader" checked={checked && !why} disabled={!!why} onChange={onPick} aria-label={`Send ${displayName(c.name)}`} /></td>
+      <td><PersonLink c={c} />{why ? <div className="error" style={{ fontSize: 11 }}>{why}</div> : null}</td>
       <td>{c.role}</td>
       <td>{fitLabel(skill)}</td>
+      <td style={{ color: moodColor(m) }}>{moodLabel(m)} <span className="mono muted">{m}</span></td>
       <td className="mono muted">{travel !== undefined ? `${travel} cycles` : '—'}</td>
     </tr>
   );
 }
+
+/** How many can be out at once, and why. */
+export function FieldSlots() {
+  const world = useWorld();
+  const house = world.playerHouseId;
+  const s = slotsFor(world, house);
+  const avg = averageMood(world, house);
+  return (
+    <section className="panel">
+      <div className="body actions">
+        <span className="eyebrow"><Term k="fieldSlots">Field slots</Term></span>
+        <span className="slots" aria-label={`${s.used} of ${s.total} in use`}>
+          {Array.from({ length: 6 }, (_, i) => <span key={i} className={i < s.used ? 'used' : i < s.total ? 'free' : 'locked'} />)}
+        </span>
+        <span style={{ fontSize: 13 }}>{s.used} of {s.total} in use</span>
+        <span className="muted" style={{ fontSize: 12 }}>Set by the <Term k="mood">mood</Term> of your council and knights: <span style={{ color: moodColor(avg) }}>{moodLabel(avg)}</span> ({avg}). Anyone out does no duties at home.</span>
+      </div>
+    </section>
+  );
+}
+
+/** What missions have turned up and are waiting on a decision. */
+export function LeadsPanel({ className }: { className?: string }) {
+  const world = useWorld();
+  const game = useGame();
+  const house = world.playerHouseId;
+  const leads = leadsOf(world, house);
+  const othes = world.economy.houses[house]!.stock.othes;
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <Panel title={<Term k="lead">Leads and finds</Term>} aside={leads.length ? `${leads.length} waiting` : 'Nothing yet'} className={className}>
+      {leads.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Missions turn things up: talented people, rumours of Caiges, secrets, sites worth working. They wait here.</p> : null}
+      {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
+      {leads.map((l) => {
+        const pursued = Object.values(world.missions).find((m) => m.leadId === l.id && m.stage !== 'done');
+        const person = l.targetId ? world.characters[l.targetId] : undefined;
+        return (
+          <div key={l.id} className="row petition">
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: 13 }}><span className="tag mission">{LEAD_LABEL[l.kind]}</span> {person ? <PersonLink c={person} /> : null} {person ? null : l.title}</span>
+              <span className="muted" style={{ fontSize: 12 }}>{l.text}</span>
+              <span className="muted" style={{ fontSize: 11 }}>{pursued ? 'Being followed up now.' : `Goes cold ${formatDate(l.expires)}.`}</span>
+            </span>
+            {pursued ? <Go to={{ kind: 'mission', id: pursued.id }} className="btn small">View ›</Go> : (
+              <span style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                {l.kind === 'recruit' ? (
+                  <button type="button" className="btn small primary" disabled={othes < (l.cost ?? 0)} onClick={() => {
+                    try { game.update((w) => recruit(w, l.id)); setErr(null); } catch (e) { setErr(String((e as Error).message)); }
+                  }}>Bring in · {(l.cost ?? 0).toLocaleString('en-US')} othes</button>
+                ) : (
+                  <Go to={{ kind: 'plan', mission: l.missionKind ?? 'scout', target: l.missionKind === 'investigate' ? l.targetId : l.planetId, lead: l.id }} className="btn small primary">Pursue</Go>
+                )}
+                <button type="button" className="btn small" onClick={() => game.update((w) => dismissLead(w, l.id))}>Let it go</button>
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </Panel>
+  );
+}
+
+const LEAD_LABEL: Record<string, string> = { recruit: 'Someone', caige: 'Caige', site: 'Site', secret: 'Secret' };

@@ -11,6 +11,9 @@ import { activeMissionOf, MISSION_LABEL } from '../sim/missions';
 import { formatDate } from '../sim/time';
 import { captivesHeldBy, executeCaptive, interrogateCaptive, releaseCaptive } from '../sim/captives';
 import { answerRansom, demandRansom, econ, ransomValue } from '../sim/economy';
+import { bondCaige, caigesOf, cannotBond } from '../sim/discovery';
+import { alive } from '../sim/query';
+import { BAND_COLOR, SectorLink } from './links';
 import { shortName } from '../sim/names';
 import type { Character, CouncilSeat, Petition, World } from '../sim/types';
 import { useGame, useWorld } from './context';
@@ -161,6 +164,7 @@ export function CouncilPage() {
         <Petitions className="span-6" />
         <RelationsPanel className="span-6" />
         <CaptivesPanel className="span-12" />
+        <ArmouryPanel className="span-12" />
 
         <Panel title="Council reports" aside="Newest first" className="span-12 feed">
           {court.reports.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet. Press Continue and the council gets to work.</p> : null}
@@ -406,6 +410,42 @@ export function RansomDemands({ className }: { className?: string }) {
               <button type="button" className="btn small primary" disabled={othes < amount} onClick={() => game.update((w) => answerRansom(w, c.id, true))}>Pay {amount.toLocaleString('en-US')}</button>
               <button type="button" className="btn small" onClick={() => game.update((w) => answerRansom(w, c.id, false))}>Refuse</button>
             </span>
+          </div>
+        );
+      })}
+    </Panel>
+  );
+}
+
+/** Caiges the house holds, and who carries them. */
+export function ArmouryPanel({ className }: { className?: string }) {
+  const world = useWorld();
+  const game = useGame();
+  const house = world.playerHouseId;
+  const caiges = caigesOf(world, house);
+  const bonded = alive(world).filter((c) => c.houseId === house && c.flags.some((f) => f.id === 'caigeBonded'));
+  const candidates = alive(world).filter((c) => c.houseId === house && !cannotBond(c));
+  const [pick, setPick] = useState<Record<string, string>>({});
+  return (
+    <Panel title={<Term k="armoury">Caige armoury</Term>} aside={`${caiges.filter((x) => !x.bondedTo).length} unbonded · ${bonded.length} bonded in the house`} className={className}>
+      {caiges.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No unbonded Caiges. Scouting runs sometimes hear of one; follow the lead to bring it home.</p> : null}
+      {caiges.map((cg) => {
+        const holder = cg.bondedTo ? world.characters[cg.bondedTo] : undefined;
+        const chosen = pick[cg.id] ?? candidates[0]?.id ?? '';
+        return (
+          <div key={cg.id} className="row petition">
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontFamily: 'var(--display)', fontSize: 14 }}>{cg.name}</span>
+              <span className="muted" style={{ fontSize: 12 }}><span style={{ color: BAND_COLOR[cg.band] }}>{cg.band}</span> · {cg.type} · found {formatDate(cg.found)} in <SectorLink id={cg.foundAt.sectorId} withPlanet /></span>
+            </span>
+            {holder ? <span style={{ fontSize: 12 }}>Bonded to <PersonLink c={holder} /></span> : (
+              <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <select aria-label={`Who bonds ${cg.name}`} className="select" value={chosen} onChange={(e) => setPick({ ...pick, [cg.id]: e.target.value })}>
+                  {candidates.map((c) => <option key={c.id} value={c.id}>{c.name.given} {c.name.family ?? ''} · {c.role}</option>)}
+                </select>
+                <button type="button" className="btn small primary" disabled={!chosen} onClick={() => game.update((w) => bondCaige(w, cg.id, chosen))}>Bond</button>
+              </span>
+            )}
           </div>
         );
       })}

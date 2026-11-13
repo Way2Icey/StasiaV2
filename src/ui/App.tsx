@@ -181,7 +181,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'search': return <SearchPage q={route.q} />;
     case 'missions': return <MissionsPage />;
     case 'mission': return <MissionPage id={route.id} />;
-    case 'plan': return <PlanPage key={`${route.mission}-${route.target ?? ''}-${route.petition ?? ''}`} kind={route.mission} target={route.target} leader={route.leader} petition={route.petition} />;
+    case 'plan': return <PlanPage key={`${route.mission}-${route.target ?? ''}-${route.petition ?? ''}-${route.lead ?? ''}`} kind={route.mission} target={route.target} leader={route.leader} petition={route.petition} lead={route.lead} />;
     case 'council': return <CouncilPage />;
     case 'economy': return <EconomyPage />;
     case 'glossary': return <GlossaryPage />;

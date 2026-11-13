@@ -164,7 +164,7 @@ export function EconomyPage() {
 function LedgerRow({ l }: { l: LedgerLine }) {
   return (
     <tr className={l.kind === 'skim' ? 'skim' : undefined}>
-      <td>{l.kind === 'skim' ? <Term k="skim">{l.label}</Term> : l.kind === 'stipend' ? <Term k="stipend">{l.label}</Term> : l.kind === 'quarter' && l.quarterId ? <QuarterTerm name={l.label} /> : l.label}{l.kind === 'skim' && !l.characterId ? <span className="muted" style={{ fontSize: 11 }}> · cause unknown; an audit may find it</span> : null}</td>
+      <td>{l.kind === 'skim' ? <Term k="skim">{l.label}</Term> : l.kind === 'stipend' ? <Term k="stipend">{l.label}</Term> : l.kind === 'quarter' && l.quarterId ? <QuarterTerm name={l.label} /> : l.kind === 'boon' ? <Term k="boon">{l.label}</Term> : l.label}{l.kind === 'skim' && !l.characterId ? <span className="muted" style={{ fontSize: 11 }}> · cause unknown; an audit may find it</span> : null}</td>
       <td>{l.sectorId ? <SectorLink id={l.sectorId} /> : <span className="muted">—</span>}</td>
       <td>{l.characterId ? <PersonById id={l.characterId} /> : <span className="muted">—</span>}</td>
       <td className={`mono ${l.amount >= 0 ? 'up' : 'down'}`} style={{ textAlign: 'right' }}>{signed(l.amount)}</td>

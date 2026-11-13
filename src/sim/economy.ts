@@ -3,6 +3,7 @@
 // once. Prices on the Imperial Exchange move with what the houses buy and sell.
 import { Rng } from './rng';
 import { alive, findSector } from './query';
+import { shiftMood } from './mood';
 import { displayName, shortName } from './names';
 import { absoluteCycle, addCycles, CYCLES_PER_PHASE } from './time';
 import {
@@ -33,6 +34,7 @@ export function ensureEconomy(world: World): void {
       quota: quotaFor(world, h.id),
       recent: [],
       lastPhase: [],
+      boons: [],
     };
   }
   for (const g of GOODS) {
@@ -97,6 +99,9 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
     }
     const tax = round(s.population * TAX_PER_PERSON * TAX[e.tax].factor * calm);
     if (tax) lines.push({ resource: 'othes', amount: tax, label: `Taxes · ${s.name}`, kind: 'tax', sectorId: s.id });
+  }
+  for (const b of e.boons ?? []) {
+    for (const [r, v] of Object.entries(b.flow) as [Resource, number][]) lines.push({ resource: r, amount: v, label: b.label, kind: 'boon' });
   }
   for (const [r, v] of Object.entries(ESTATES[houseId] ?? {}) as [Resource, number][]) {
     lines.push({ resource: r, amount: v, label: 'Holdings beyond the capital', kind: 'quarter' });
@@ -372,6 +377,7 @@ export function answerRansom(input: World, captiveId: string, pay: boolean): Wor
     record(world, cap.heldBy, { resource: 'othes', amount, label: `Ransom for ${shortName(c.name)}`, kind: 'ransom' });
     cap.ransom.status = 'paid';
     releaseQuietly(world, captiveId);
+    shiftMood(c, 6);
     world.feed.push({ date: world.date, kind: 'intrigue', text: `We pay ${amount.toLocaleString('en-US')} othes and ${displayName(c.name)} comes home.`, characterIds: [c.id] });
   } else {
     cap.ransom.status = 'refused';

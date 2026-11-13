@@ -13,7 +13,7 @@ export type Route =
   | { kind: 'save' }
   | { kind: 'missions' }
   | { kind: 'mission'; id: string }
-  | { kind: 'plan'; mission: 'investigate' | 'scout' | 'envoy'; target?: string; leader?: string; petition?: string }
+  | { kind: 'plan'; mission: 'investigate' | 'scout' | 'envoy'; target?: string; leader?: string; petition?: string; lead?: string }
   | { kind: 'council' }
   | { kind: 'economy' }
   | { kind: 'glossary' }
