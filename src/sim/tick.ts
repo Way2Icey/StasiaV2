@@ -1,3 +1,5 @@
+import { advanceEvents } from './events';
+import './eventDefs';
 import { displayName } from './names';
 import { Rng } from './rng';
 import { ageOf } from './characters';
@@ -68,6 +70,7 @@ function stepInPlace(world: World): void {
   advanceGrowth(world, rng, crossed.phases > 0);
   advancePolitics(world, crossed.phases > 0);
   advanceHousehold(world, crossed.phases > 0);
+  advanceEvents(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 
   world.rng = rng.state;
@@ -101,7 +104,7 @@ export function advanceUntil(input: World, turns: number, stopOnEvents: boolean)
   return { world: w, ran: turns };
 }
 
-interface Attention { petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null }
+interface Attention { petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null; decisions: number }
 
 function snapshotOfAttention(w: World): Attention {
   const P = w.playerHouseId;
@@ -113,11 +116,13 @@ function snapshotOfAttention(w: World): Attention {
     done: Object.values(w.missions).filter((m) => m.houseId === P && m.stage === 'done').length,
     last: w.feed[w.feed.length - 1],
     oath: w.courts[P]?.oath?.id ?? null,
+    decisions: w.events?.pending.length ?? 0,
   };
 }
 
 function needsAttention(w: World, b: Attention): string | null {
   const a = snapshotOfAttention(w);
+  if (a.decisions > b.decisions) return 'A decision awaits your word.';
   if (a.done > b.done) return 'A mission has come home.';
   if (a.demands > b.demands) return 'A ransom demand has arrived.';
   if (a.held > b.held) return 'We have caught someone.';

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { DecisionsPanel } from './events';
 import { Term } from './tip';
 import { displayName } from '../sim/names';
 import { alive } from '../sim/query';
@@ -185,6 +186,7 @@ export function MissionPage({ id }: { id: string }) {
           </div>
         </Panel>
 
+        <DecisionsPanel className="span-12" missionId={m.id} hideWhenEmpty />
         <Panel title="Report" className="span-7">
           {m.stage !== 'done' ? (
             <p className="body muted" style={{ margin: 0 }}>Nothing yet. The report comes when {leader?.name.given ?? 'they'} get{leader ? 's' : ''} home, around {formatDate(s.home)}.</p>

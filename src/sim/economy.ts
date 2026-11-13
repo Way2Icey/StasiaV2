@@ -49,7 +49,7 @@ export function econ(world: World, houseId: string): HouseEconomy {
 
 // ---------------------------------------------------------------- standing flows
 
-function heldSectors(world: World, houseId: string): Sector[] {
+export function heldSectors(world: World, houseId: string): Sector[] {
   return Object.values(world.planets).filter((p) => p.houseId === houseId).flatMap((p) => p.sectors).filter((s) => s.controllerFamilyId);
 }
 

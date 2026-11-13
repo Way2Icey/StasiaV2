@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DecisionLog } from './events';
 import type { ReactNode } from 'react';
 import { Term } from './tip';
 import { SEAT_TITLE } from '../sim/world';
@@ -162,6 +163,7 @@ export function CouncilPage() {
             </div>
           ))}
         </Panel>
+        <DecisionLog className="span-12 feed" />
       </div>
     </>
   );

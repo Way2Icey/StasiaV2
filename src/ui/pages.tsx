@@ -21,6 +21,7 @@ import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
 import { LeadsPanel, MissionRow } from './missions';
 import { moodColor, moodLabel, moodOf } from '../sim/mood';
+import { DecisionsPanel } from './events';
 import { CaptivesPanel, OathSummary, Petitions, RansomDemands, StandingPanel } from './council';
 import { formatRange, KNOW, knowledgeOf, type CharacterView } from '../sim/knowledge';
 import { activeMissionOf, activeMissions, MISSION_LABEL } from '../sim/missions';
@@ -140,6 +141,7 @@ export function ThroneRoom() {
               right={<><SpeciesLink id={c.species} /> · {ageOf(c, world.date)}</>} />
           ))}
         </Panel>
+        <DecisionsPanel className="span-12" hideWhenEmpty />
         <OathSummary className="span-6" />
         <Petitions className="span-6" />
         <RansomDemands className="span-12" />

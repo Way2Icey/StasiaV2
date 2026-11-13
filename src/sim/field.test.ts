@@ -101,7 +101,7 @@ describe('discoveries', () => {
     delete old.leads;
     for (const c of Object.values(old.characters) as { mood?: number }[]) delete c.mood;
     const w = deserialize(JSON.stringify(old));
-    expect(w.version).toBe(9);
+    expect(w.version).toBe(10);
     expect(w.leads).toEqual([]);
     expect(moodOf(Object.values(w.characters).find((c) => c.tier === 'full')!)).toBeGreaterThan(0);
   });

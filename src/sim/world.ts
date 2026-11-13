@@ -13,6 +13,8 @@ import { ensureDiscovery } from './discovery';
 import { ensureGrowth } from './growth';
 import { ensurePolitics } from './politics';
 import { ensureHousehold } from './household';
+import { ensureEvents } from './events';
+import './eventDefs';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
 export const DEFAULT_SEED = 'stasia';
@@ -24,7 +26,7 @@ const familyId = (houseId: string, key: string) => `${houseId}:${key}`;
 export function createWorld(seed: string = DEFAULT_SEED): World {
   const rng = Rng.fromSeed(seed);
   const world: World = {
-    version: 9,
+    version: 10,
     seed,
     date: START_DATE,
     rng: rng.state,
@@ -47,6 +49,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     lastLooked: {},
     stances: {},
     answered: [],
+    events: { pending: [], log: [], recent: [] },
   };
 
   for (const h of SLICE_HOUSES) {
@@ -114,6 +117,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
   ensureGrowth(world);
   ensurePolitics(world);
   ensureHousehold(world);
+  ensureEvents(world);
   world.rng = rng.state;
   return world;
 }

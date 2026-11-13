@@ -47,7 +47,7 @@ describe('the Speaker and the envoy corps', () => {
     for (const c of Object.values(old.characters) as { seat?: string; role: string }[]) if (c.seat === 'envoy') c.role = 'Envoy';
     for (const c of Object.values(old.characters) as { seat?: string; role: string }[]) if (!c.seat && c.role === 'Envoy') c.role = 'Noble';
     const w = deserialize(JSON.stringify(old));
-    expect(w.version).toBe(9);
+    expect(w.version).toBe(10);
     expect(seatHolder(w, P, 'envoy')!.role).toBe('Speaker of the Council');
     expect(envoysOf(w, P).length).toBe(2);
   });

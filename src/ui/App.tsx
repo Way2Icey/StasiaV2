@@ -133,6 +133,7 @@ export function App() {
                 {SECTIONS.map((s) => (
                   <button key={s.id} type="button" aria-current={section === s.id ? 'page' : undefined} onClick={() => nav.to({ kind: s.id } as Route)}>
                     {s.label}
+                    {s.id === 'throne' && world.events?.pending.length ? <span className="count gold-count">{world.events.pending.length}</span> : null}
                     {s.id === 'missions' && activeMissions(world, world.playerHouseId).length ? <span className="count">{activeMissions(world, world.playerHouseId).length}</span> : null}
                     {s.id === 'council' && world.courts[world.playerHouseId]?.petitions.length ? <span className="count gold-count">{world.courts[world.playerHouseId]!.petitions.length}</span> : null}
                   </button>

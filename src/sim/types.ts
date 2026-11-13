@@ -436,7 +436,7 @@ export interface Boon {
 export type Stance = 'friendly' | 'neutral' | 'opposed';
 
 export interface World {
-  version: 9;
+  version: 10;
   seed: string;
   date: GameDate;
   rng: RngState;
@@ -470,4 +470,6 @@ export interface World {
   answered: string[];
   /** Nobles have been given occupations (idle, court helper, envoy, knight). */
   householdReady?: boolean;
+  /** Decisions waiting on the Highroy, and how past ones went. */
+  events: import('./events').EventState;
 }

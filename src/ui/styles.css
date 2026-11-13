@@ -296,3 +296,12 @@ tr.chosen td { background: rgba(201, 164, 92, 0.07); }
 .seat-who strong { font-weight: 500; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .portrait.small { width: 40px; height: 40px; font-size: 14px; }
 .seat-head { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+
+/* ---------------- events */
+.decisions { border-left: 3px solid var(--gold); }
+.decision { align-items: flex-start; }
+.choices-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.btn.option { height: auto; min-height: 30px; padding: 5px 10px; display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; }
+.btn.option .opt-sub { font: 10px var(--mono); color: var(--muted); }
+.btn.option.fallback { border-style: dashed; }
+.decided { font-size: 12px; background: var(--panel-2); }
