@@ -101,7 +101,7 @@ describe('council', () => {
     delete old.relations;
     for (const h of Object.values(old.houses) as { standing?: unknown }[]) delete h.standing;
     const w = deserialize(JSON.stringify(old));
-    expect(w.version).toBe(6);
+    expect(w.version).toBe(7);
     expect(w.courts[P]!.tasks.spymaster).toBeDefined();
     expect(w.houses[P]!.standing.honour).toBeGreaterThan(0);
   });

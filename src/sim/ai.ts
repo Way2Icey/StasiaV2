@@ -4,14 +4,14 @@ import type { Rng } from './rng';
 import { alive } from './query';
 import { knowledgeOf } from './knowledge';
 import { relation } from './relations';
-import { activeMissions, cannotLead, launchInPlace, skillFor } from './missions';
+import { activeMissions, cannotLead, launchInPlace, skillFor, slotsFor } from './missions';
 import { OATHS_BY_ID, swearInPlace, TASKS_BY_ID } from './council';
 import type { Approach, CouncilSeat, House, MissionKind, World } from './types';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-/** Max missions a rival keeps in the field at once. */
-const MAX_OUT = 2;
+/** Rivals never keep more than this many out, whatever their slots allow. */
+const MAX_OUT = 3;
 
 export function advanceRivals(world: World, rng: Rng, phaseTurned: boolean): void {
   for (const h of Object.values(world.houses)) {
@@ -90,7 +90,9 @@ function chooseTasks(world: World, rng: Rng, h: House) {
 
 function maybeSendMission(world: World, rng: Rng, h: House) {
   const p = h.personality;
-  if (activeMissions(world, h.id).length >= MAX_OUT) return;
+  // Their own retinue's mood sets how many they can keep out, as it does ours.
+  const slots = slotsFor(world, h.id);
+  if (slots.used >= Math.min(slots.total, MAX_OUT)) return;
   if (!rng.chance(0.03 * (0.5 + p.intrigue + p.aggression * 0.5))) return;
 
   const kind = rng.weighted<MissionKind>([

@@ -149,6 +149,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   materialize: { term: 'Materialized', group: 'People', text: 'A nobody who became a somebody: someone a mission found, now a full named person with a record of their own.' },
   armoury: { term: 'Caige armoury', group: 'People', text: 'Caiges the house holds. Bonding one to someone raises their Caige Sync and their mood: a statement of trust.' },
   boon: { term: 'Deal or find', group: 'Economy', text: 'Temporary income from a trade deal or a site found on a mission. It runs for a set number of Orbits.' },
+  annals: { term: 'Annals', group: 'Houses', text: "A house's record of its own doings: births, people taken in, Caiges found. Public things everyone hears; the rest we learn only by scouting, investigating or visiting them." },
   court: { term: 'The court at home', group: 'Houses', text: 'Nobles who stay home help the house, by who they are to the Highroy: the consort speeds the council and wins respect, the heir steadies moods, family heads calm their sectors, and other nobles add to income. Send them out and it is lost.' },
   companions: { term: 'Companions', group: 'Missions', text: 'Up to two people who go with the leader. Each adds a quarter of their skill, but a bigger party is easier to spot, and everyone in it is away from home.' },
   order: { term: 'Ordered to go', group: 'Missions', text: 'The Highroy can make someone go who refuses. They go, but their mood drops by 10, their loyalty slips, and they work grudgingly. The wounded and ill cannot be ordered.' },

@@ -101,7 +101,7 @@ describe('save', () => {
     old.version = 4;
     delete old.economy;
     const w = deserialize(JSON.stringify(old));
-    expect(w.version).toBe(6);
+    expect(w.version).toBe(7);
     expect(econ(w, P).stock.othes).toBeGreaterThan(0);
   });
 });

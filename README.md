@@ -9,7 +9,7 @@ workflow, Isaiah's standing rules and the open naming questions. Lore lives in I
 
 ## Status
 
-Milestones 1-6 are built (75 tests passing); 1-4 are merged to `main`:
+Milestones 1-7 are built (79 tests passing); 1-4 are merged to `main`:
 
 1. Foundation: LPS calendar, seeded world and saves, four houses and worlds, culture-named people, deaths and succession.
 2. Knowledge fog and the Investigate and Scout missions.
@@ -17,6 +17,7 @@ Milestones 1-6 are built (75 tests passing); 1-4 are merged to `main`:
 4. Rival houses that act on their own, counter-intelligence, captives.
 5. The economy: othes and five resources, quarters producing, taxes, the Navisium quota, the Imperial Exchange, mission costs, audits, ransom.
 6. The field: mood, field slots, who will go, the court at home, the Highroy and parties of up to three, ordering the unwilling; missions turn up talented people, Caiges, secrets, sites and trade deals; hover definitions and a glossary.
+7. Houses grow on their own: births, coming of age, rivals' talent and Caiges, their own mission finds, and annals learned by looking.
 
 Next: the Chronicle. Work happens on `dev`; merge to `main` only after Isaiah approves.
 

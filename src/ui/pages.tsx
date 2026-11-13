@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { QuarterTerm, StatTerm, Term } from './tip';
+import { absoluteCycle } from '../sim/time';
 import { ageOf } from '../sim/characters';
 import { displayName } from '../sim/names';
 import { councilOf, createWorld, SEAT_TITLE } from '../sim/world';
@@ -466,7 +467,8 @@ export function HousePage({ id }: { id: string }) {
         </div>
       ) : null}
       <div className="grid">
-        <StandingPanel houseId={h.id} className="span-12" />
+        <StandingPanel houseId={h.id} className="span-6" />
+        <AnnalsPanel houseId={h.id} className="span-6" />
         <Panel title="Rule" className="span-5">
           <div className="body">
             <dl className="kv">
@@ -864,5 +866,26 @@ function DevPanel() {
         <span className="muted" style={{ fontSize: 11 }}>For checking the generator. Players will not have this.</span>
       </div>
     </section>
+  );
+}
+
+/** What we know of a house's doings: everything public, and private things up to our last good look. */
+function AnnalsPanel({ houseId, className }: { houseId: string; className?: string }) {
+  const world = useWorld();
+  const own = houseId === world.playerHouseId;
+  const looked = world.lastLooked?.[world.playerHouseId]?.[houseId];
+  const entries = (world.annals?.[houseId] ?? []).filter((e) => own || e.public || (looked && absoluteCycle(e.date) <= absoluteCycle(looked)));
+  const hidden = (world.annals?.[houseId] ?? []).length - entries.length;
+  return (
+    <Panel title={<Term k="annals">Annals</Term>} aside={own ? 'Our own record' : looked ? `Last good look ${formatDate(looked)}` : 'Never looked closely'} className={className}>
+      {entries.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing recorded yet.</p> : null}
+      {entries.slice(0, 12).map((e, i) => (
+        <div className="row" key={i} style={{ alignItems: 'flex-start' }}>
+          <span className="mono muted" style={{ fontSize: 11, width: 150, flexShrink: 0 }}>{formatDate(e.date)}</span>
+          <span style={{ fontSize: 13 }}>{e.text}{!e.public && !own ? <span className="muted" style={{ fontSize: 11 }}> · learned by looking</span> : null}</span>
+        </div>
+      ))}
+      {!own && hidden > 0 ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>There is more we do not know. A successful scouting run, investigation or envoy to this house will tell us what they have been up to.</p> : null}
+    </Panel>
   );
 }

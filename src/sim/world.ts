@@ -10,6 +10,7 @@ import { ensureCouncil, initialStanding } from './council';
 import { ensureEconomy } from './economy';
 import { ensureMood } from './mood';
 import { ensureDiscovery } from './discovery';
+import { ensureGrowth } from './growth';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
 export const DEFAULT_SEED = 'stasia';
@@ -21,7 +22,7 @@ const familyId = (houseId: string, key: string) => `${houseId}:${key}`;
 export function createWorld(seed: string = DEFAULT_SEED): World {
   const rng = Rng.fromSeed(seed);
   const world: World = {
-    version: 6,
+    version: 7,
     seed,
     date: START_DATE,
     rng: rng.state,
@@ -40,6 +41,8 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     economy: { houses: {}, market: {} as World['economy']['market'] },
     armoury: {},
     leads: [],
+    annals: {},
+    lastLooked: {},
   };
 
   for (const h of SLICE_HOUSES) {
@@ -104,6 +107,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
   ensureEconomy(world);
   ensureMood(world);
   ensureDiscovery(world);
+  ensureGrowth(world);
   world.rng = rng.state;
   return world;
 }

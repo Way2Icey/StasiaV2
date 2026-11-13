@@ -11,6 +11,7 @@ import { advanceEconomy, lapseRansoms } from './economy';
 import { advanceMood } from './mood';
 import { advanceCourt } from './court';
 import { advanceDiscovery } from './discovery';
+import { advanceGrowth } from './growth';
 import {
   absoluteCycle,
   addCycles,
@@ -56,6 +57,7 @@ export function advanceTurn(input: World): World {
   advanceMood(world, crossed.phases > 0, new Set(Object.values(world.missions).filter((m) => m.stage !== 'done').flatMap((m) => [m.leaderId, ...(m.companions ?? [])])));
   advanceCourt(world, rng, crossed.phases > 0);
   advanceDiscovery(world);
+  advanceGrowth(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 
   world.rng = rng.state;

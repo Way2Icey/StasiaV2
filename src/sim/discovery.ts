@@ -100,7 +100,7 @@ export function materialize(world: World, rng: Rng, planetId: string, sectorId: 
 // ---------------------------------------------------------------- after a mission
 
 /** Chance a mission turns something up, by outcome. */
-const FIND_CHANCE: Record<Outcome, number> = { triumph: 0.6, success: 0.35, partial: 0.1, failure: 0, disaster: 0 };
+export const FIND_CHANCE: Record<Outcome, number> = { triumph: 0.6, success: 0.35, partial: 0.1, failure: 0, disaster: 0 };
 
 /**
  * Called when one of the player's missions comes home. Settles any lead it was

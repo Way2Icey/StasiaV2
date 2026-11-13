@@ -432,7 +432,7 @@ export interface Boon {
 }
 
 export interface World {
-  version: 6;
+  version: 7;
   seed: string;
   date: GameDate;
   rng: RngState;
@@ -456,4 +456,8 @@ export interface World {
   armoury: Record<string, Caige>;
   /** Opportunities turned up by missions, waiting for a decision. */
   leads: Lead[];
+  /** Each house's own record of its doings: births, recruits, Caiges. Private entries are learned by looking. */
+  annals: Record<string, { date: GameDate; text: string; public: boolean; characterIds?: string[] }[]>;
+  /** lastLooked[observer][house]: when the observer last had a good look at that house. */
+  lastLooked: Record<string, Record<string, GameDate>>;
 }

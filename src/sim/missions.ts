@@ -11,7 +11,8 @@ import { SPECIES } from '../data/species';
 import { attitude, relation, shiftRelation } from './relations';
 import { canAfford, missionCost, pay } from './economy';
 import { fieldSlots, MOOD_ON_RETURN, shiftMood, tiredOnLaunch, unwilling } from './mood';
-import { discover } from './discovery';
+import { discover, FIND_CHANCE } from './discovery';
+import { newsSinceLastLook, rivalFind } from './growth';
 import { FLAGS_BY_ID } from '../data/flags';
 import { traitLabel } from '../data/traits';
 import type { Approach, Character, Mission, MissionKind, Outcome, SpeciesId, World } from './types';
@@ -611,7 +612,14 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
     c.lastMission = world.date;
     shiftMood(c, Math.round(MOOD_ON_RETURN[outcome] / 2));
   }
-  if (m.houseId === world.playerHouseId) findings.push(...discover(world, rng, m, leader));
+  if (m.houseId === world.playerHouseId) {
+    findings.push(...discover(world, rng, m, leader));
+    // A good look at a rival tells us what they have been up to since the last one.
+    const looked = m.kind === 'investigate' ? world.characters[m.targetId ?? '']?.houseId : m.kind === 'envoy' ? m.targetHouseId : world.planets[m.targetPlanetId]?.houseId;
+    if (looked && looked !== m.houseId && (outcome === 'success' || outcome === 'triumph')) findings.push(...newsSinceLastLook(world, m.houseId, looked));
+  } else if (rng.chance(FIND_CHANCE[outcome])) {
+    rivalFind(world, rng, m.houseId, m.kind, { planetId: m.targetPlanetId, sectorId: m.targetSectorId }, m.targetHouseId);
+  }
 
   m.report = report(world, m, leader, outcome, rng);
   m.findings = findings;
