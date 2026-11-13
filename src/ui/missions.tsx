@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Term } from './tip';
 import { displayName } from '../sim/names';
 import { alive } from '../sim/query';
 import { absoluteCycle, addCycles, formatDate } from '../sim/time';
@@ -348,7 +349,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
             )}
           </Panel>
 
-          <Panel title="3 · How">
+          <Panel title={<>3 · <Term k="approach">How</Term></>}>
             <div className="body choices two">
               <button type="button" className="choice" aria-pressed={approach === 'careful'} onClick={() => setApproach('careful')}>
                 <span>Careful</span>
@@ -369,10 +370,10 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
             {f && f.ok ? (
               <>
                 <dl className="kv">
-                  <dt>Leader's fit</dt><dd>{f.fit}</dd>
+                  <dt><Term k="fit">Leader's fit</Term></dt><dd>{f.fit}</dd>
                   <dt>Out and back</dt><dd>{f.total} cycles ({f.travel} each way, {f.task} at work)</dd>
                   <dt>Home by</dt><dd>{formatDate(f.returns)}</dd>
-                  <dt>Our estimate is</dt><dd>{f.confidence}</dd>
+                  <dt><Term k="confidence">Our estimate is</Term></dt><dd>{f.confidence}</dd>
                   <dt>Cost</dt><dd className={f.affordable ? '' : 'error'}>{f.cost.toLocaleString('en-US')} othes{f.affordable ? '' : ' — more than we have'}</dd>
                 </dl>
                 <Odds label="Chance of a good result" p={f.success} color="var(--green)" />
@@ -380,7 +381,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
                   <p className="muted" style={{ fontSize: 11, margin: 0 }}>An envoy goes openly. A poor visit can cool their regard a little.</p>
                 ) : (
                   <>
-                    <Odds label="Chance of being noticed" p={f.noticed} color="var(--orange)" />
+                    <Odds label={<Term k="noticed">Chance of being noticed</Term>} p={f.noticed} color="var(--orange)" />
                     <p className="muted" style={{ fontSize: 11, margin: 0 }}>Being noticed caps the result, tells their house who you sent, and can end in capture.</p>
                   </>
                 )}
@@ -394,7 +395,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
   );
 }
 
-function Odds({ label, p, color }: { label: string; p: number; color: string }) {
+function Odds({ label, p, color }: { label: React.ReactNode; p: number; color: string }) {
   const pct = Math.round(p * 100);
   const word = pct >= 75 ? 'Very likely' : pct >= 50 ? 'Likely' : pct >= 25 ? 'Possible' : pct >= 10 ? 'Unlikely' : 'Remote';
   return (

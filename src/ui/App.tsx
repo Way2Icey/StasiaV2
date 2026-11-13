@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Term } from './tip';
+import { GlossaryPage } from './glossary';
 import { createWorld } from '../sim/world';
 import { advanceTurn } from '../sim/tick';
 import { dateParts, formatDate } from '../sim/time';
@@ -39,6 +41,7 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: 'worlds', label: 'Worlds' },
   { id: 'missions', label: 'Missions' },
   { id: 'save', label: 'Save & Load' },
+  { id: 'glossary', label: 'Glossary' },
 ];
 
 interface History { stack: Route[]; index: number }
@@ -121,7 +124,7 @@ export function App() {
               </form>
               <div className="date">
                 <strong>{formatDate(world.date)}</strong>
-                <span>Phase {parts.phase} of 5 · Cycle {parts.cycleOfPhase} of 16 · <button type="button" className="linklike coffers-link" onClick={() => nav.to({ kind: 'economy' })}><Coffers /></button></span>
+                <span><Term k="phase">Phase</Term> {parts.phase} of 5 · <Term k="cycle">Cycle</Term> {parts.cycleOfPhase} of 16 · <button type="button" className="linklike coffers-link" onClick={() => nav.to({ kind: 'economy' })}><Coffers /></button></span>
               </div>
               <button type="button" className="btn primary" onClick={onContinue}>Continue ›</button>
             </header>
@@ -181,6 +184,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'plan': return <PlanPage key={`${route.mission}-${route.target ?? ''}-${route.petition ?? ''}`} kind={route.mission} target={route.target} leader={route.leader} petition={route.petition} />;
     case 'council': return <CouncilPage />;
     case 'economy': return <EconomyPage />;
+    case 'glossary': return <GlossaryPage />;
   }
 }
 

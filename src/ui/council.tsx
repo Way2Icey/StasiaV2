@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
+import { Term } from './tip';
 import { councilOf, SEAT_TITLE } from '../sim/world';
 import {
   abandonOath, assignTask, dismissPetition, OATHS, OATHS_BY_ID, oathProgress, swearOath, TASKS_BY_ID,
@@ -16,7 +18,7 @@ import { Go, HouseLink, Panel, PersonById, PersonLink, PlanetLink } from './link
 
 // ---------------------------------------------------------------- shared bits
 
-function Meter({ label, value, color, hint }: { label: string; value: number; color: string; hint?: string }) {
+function Meter({ label, value, color, hint }: { label: ReactNode; value: number; color: string; hint?: string }) {
   return (
     <div className="meter" title={hint}>
       <span className="muted">{label}</span>
@@ -31,14 +33,14 @@ export function StandingPanel({ houseId, className }: { houseId: string; classNa
   const h = world.houses[houseId]!;
   const me = world.playerHouseId;
   return (
-    <Panel title="Standing" aside="0–100" className={className}>
+    <Panel title={<Term k="standing">Standing</Term>} aside="0–100" className={className}>
       <div className="body" style={{ display: 'grid', gap: 8 }}>
-        <Meter label="Honour" value={h.standing.honour} color="var(--gold)" hint="Keeping your word: oaths kept, debts paid." />
-        <Meter label="Respect" value={h.standing.respect} color="var(--blue)" hint="Standing at court and in the Numarade." />
-        <Meter label="Dread" value={h.standing.dread} color="var(--orange)" hint="How much the others fear you." />
+        <Meter label={<Term k="honour" />} value={h.standing.honour} color="var(--gold)" />
+        <Meter label={<Term k="respect" />} value={h.standing.respect} color="var(--blue)" />
+        <Meter label={<Term k="dread" />} value={h.standing.dread} color="var(--orange)" />
         {houseId !== me ? (
           <dl className="kv" style={{ marginTop: 6 }}>
-            <dt>Regards us</dt><dd><Regard v={relation(world, houseId, me)} /></dd>
+            <dt><Term k="regard">Regards us</Term></dt><dd><Regard v={relation(world, houseId, me)} /></dd>
             <dt>We regard them</dt><dd><Regard v={relation(world, me, houseId)} /></dd>
           </dl>
         ) : null}
@@ -66,7 +68,7 @@ export function Petitions({ className }: { className?: string }) {
   const house = world.playerHouseId;
   const list = world.courts[house]?.petitions ?? [];
   return (
-    <Panel title="Petitions" aside={list.length ? `${list.length} waiting` : 'None waiting'} className={className}>
+    <Panel title={<Term k="petition">Petitions</Term>} aside={list.length ? `${list.length} waiting` : 'None waiting'} className={className}>
       {list.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Your council has nothing to ask. Petitions come more often while an oath stands.</p> : null}
       {list.map((p) => {
         const from = world.characters[p.fromId];
@@ -99,7 +101,7 @@ export function OathSummary({ className }: { className?: string }) {
   const p = oathProgress(world, house);
   if (!oath || !p) {
     return (
-      <Panel title="The Oath" className={className}>
+      <Panel title={<Term k="oath">The Oath</Term>} className={className}>
         <div className="body" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <span className="muted" style={{ fontSize: 13, flex: 1 }}>No oath stands. The council waits for the Highroy’s word.</span>
           <Go to={{ kind: 'council' }} className="btn small primary">Swear an oath ›</Go>
@@ -109,7 +111,7 @@ export function OathSummary({ className }: { className?: string }) {
   }
   const def = OATHS_BY_ID[oath.id]!;
   return (
-    <Panel title="The Oath" aside={<>Ends {formatDate(oath.ends)}</>} className={className}>
+    <Panel title={<Term k="oath">The Oath</Term>} aside={<>Ends {formatDate(oath.ends)}</>} className={className}>
       <div className="body" style={{ display: 'grid', gap: 8 }}>
         <span style={{ fontFamily: 'var(--display)', fontSize: 15 }}>{def.label}{oath.target ? <> · House <HouseLink id={oath.target} /></> : null}</span>
         <span className="quote">“{def.vow}”</span>
@@ -145,10 +147,10 @@ export function CouncilPage() {
         <StandingPanel houseId={house} className="span-4" />
 
         <section className="panel span-12">
-          <header><h3>Standing tasks</h3><span className="aside">★ serves the oath (+25%)</span></header>
+          <header><h3><Term k="task">Standing tasks</Term></h3><span className="aside">★ serves the oath (+25%)</span></header>
           <div className="table-wrap">
             <table className="list tasks">
-              <thead><tr><th>Seat</th><th>Held by</th><th>Task</th><th>Fit</th><th>Next result</th></tr></thead>
+              <thead><tr><th>Seat</th><th>Held by</th><th><Term k="task">Task</Term></th><th><Term k="fit">Fit</Term></th><th>Next result</th></tr></thead>
               <tbody>
                 {council.map((c) => <SeatRow key={c.id} c={c} aligned={oathTasks} onAssign={(task, target) => game.update((w) => assignTask(w, house, c.seat!, task, target))} />)}
               </tbody>
@@ -182,7 +184,7 @@ function SeatRow({ c, aligned, onAssign }: { c: Character; aligned: Set<string>;
   if (seat === 'highroy') {
     return (
       <tr>
-        <td className="eyebrow gold">{SEAT_TITLE[seat]}</td>
+        <td className="eyebrow gold"><Term k={`seat:${seat}`}>{SEAT_TITLE[seat]}</Term></td>
         <td><PersonLink c={c} /></td>
         <td colSpan={3} className="muted">Swears the oath. Rules; does not take tasks.</td>
       </tr>
@@ -192,7 +194,7 @@ function SeatRow({ c, aligned, onAssign }: { c: Character; aligned: Set<string>;
   const a = world.courts[house]!.tasks[seat];
   if (!options.length) {
     return (
-      <tr><td className="eyebrow gold">{SEAT_TITLE[seat]}</td><td><PersonLink c={c} /></td><td colSpan={3} className="muted">No tasks for this seat yet.</td></tr>
+      <tr><td className="eyebrow gold"><Term k={`seat:${seat}`}>{SEAT_TITLE[seat]}</Term></td><td><PersonLink c={c} /></td><td colSpan={3} className="muted">No tasks for this seat yet.</td></tr>
     );
   }
   const def = a ? TASKS_BY_ID[a.task] : undefined;
@@ -204,7 +206,7 @@ function SeatRow({ c, aligned, onAssign }: { c: Character; aligned: Set<string>;
   const id = `task-${seat}`;
   return (
     <tr>
-      <td className="eyebrow gold">{SEAT_TITLE[seat]}</td>
+      <td className="eyebrow gold"><Term k={`seat:${seat}`}>{SEAT_TITLE[seat]}</Term></td>
       <td><PersonLink c={c} /></td>
       <td>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -255,7 +257,7 @@ function OathPanel({ className }: { className?: string }) {
     const def = OATHS_BY_ID[court.oath.id]!;
     const p = oathProgress(world, house)!;
     return (
-      <Panel title="The Oath" aside={`Sworn ${formatDate(court.oath.sworn)}`} className={className}>
+      <Panel title={<Term k="oath">The Oath</Term>} aside={`Sworn ${formatDate(court.oath.sworn)}`} className={className}>
         <div className="body" style={{ display: 'grid', gap: 10 }}>
           <span style={{ fontFamily: 'var(--display)', fontSize: 18 }}>{def.label}{court.oath.target ? <> · House <HouseLink id={court.oath.target} /></> : null}</span>
           <span className="quote">“{def.vow}” — {ruler ? shortName(ruler.name) : 'the Highroy'}</span>
@@ -284,7 +286,7 @@ function OathPanel({ className }: { className?: string }) {
 
   const def = OATHS_BY_ID[choice]!;
   return (
-    <Panel title="Swear an oath" aside="One at a time · lasts an Orbit" className={className}>
+    <Panel title={<Term k="oath">Swear an oath</Term>} aside="One at a time · lasts an Orbit" className={className}>
       <div className="body" style={{ display: 'grid', gap: 10 }}>
         <div className="choices oaths">
           {OATHS.map((o) => (
@@ -324,7 +326,7 @@ function RelationsPanel({ className }: { className?: string }) {
   const world = useWorld();
   const house = world.playerHouseId;
   return (
-    <Panel title="The other houses" aside="How they regard us" className={className}>
+    <Panel title="The other houses" aside={<Term k="regard">How they regard us</Term>} className={className}>
       {Object.values(world.houses).filter((h) => h.id !== house).map((h) => (
         <div key={h.id} className="row">
           <span style={{ flex: 1 }}><HouseLink id={h.id} /> <span className="muted" style={{ fontSize: 11 }}>· {h.tier === 'great' ? 'Great' : 'Minor'}</span></span>
@@ -346,7 +348,7 @@ export function CaptivesPanel({ className, hideWhenEmpty }: { className?: string
   const held = captivesHeldBy(world, world.playerHouseId);
   if (hideWhenEmpty && !held.length) return null;
   return (
-    <Panel title="Captives" aside={held.length ? `${held.length} held` : 'Cells empty'} className={className}>
+    <Panel title={<Term k="captive">Captives</Term>} aside={held.length ? `${held.length} held` : 'Cells empty'} className={className}>
       {held.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is held. Agents caught spying on us end up here; a spymaster watching our own house catches more of them.</p> : null}
       {held.map((cap) => {
         const c = world.characters[cap.characterId]!;
@@ -390,7 +392,7 @@ export function RansomDemands({ className }: { className?: string }) {
   if (!open.length) return null;
   const othes = econ(world, house).stock.othes;
   return (
-    <Panel title="Ransom demands" aside={`${open.length} waiting`} className={className}>
+    <Panel title={<Term k="ransom">Ransom demands</Term>} aside={`${open.length} waiting`} className={className}>
       {open.map((cap) => {
         const c = world.characters[cap.characterId]!;
         const amount = cap.ransom!.amount;

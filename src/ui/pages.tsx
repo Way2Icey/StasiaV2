@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { QuarterTerm, StatTerm, Term } from './tip';
 import { ageOf } from '../sim/characters';
 import { displayName } from '../sim/names';
 import { councilOf, createWorld, SEAT_TITLE } from '../sim/world';
@@ -141,7 +142,7 @@ export function ThroneRoom() {
         <Petitions className="span-6" />
         <RansomDemands className="span-12" />
         <CaptivesPanel className="span-12" hideWhenEmpty />
-        <Panel title="Missions in the field" aside={<Go to={{ kind: 'missions' }}>Missions board ›</Go>} className="span-12">
+        <Panel title={<Term k="mission">Missions in the field</Term>} aside={<Go to={{ kind: 'missions' }}>Missions board ›</Go>} className="span-12">
           {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. Open anyone's sheet to look into them, or a world to scout it.</p> : null}
           {missions.map((m) => <MissionRow key={m.id} id={m.id} />)}
         </Panel>
@@ -261,9 +262,9 @@ export function CharacterPage({ id }: { id: string }) {
   };
   const statCol = (title: string, ids: readonly StatId[]) => (
     <div>
-      <h4>{title}</h4>
+      <h4><Term k={title.toLowerCase()}>{title}</Term></h4>
       {ids.map((s) => (
-        <div className="stat" key={s}><span className="muted">{STAT_LABEL[s]}</span>{statCell(v.stats[s])}</div>
+        <div className="stat" key={s}><span className="muted"><StatTerm id={s} label={STAT_LABEL[s]!} /></span>{statCell(v.stats[s])}</div>
       ))}
     </div>
   );
@@ -302,7 +303,7 @@ export function CharacterPage({ id }: { id: string }) {
       <section className="panel knowledge">
         <div className="body" style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180, flex: 1 }}>
-            <span className="eyebrow">What your house knows</span>
+            <span className="eyebrow"><Term k="knowledge">What your house knows</Term></span>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <strong style={{ fontFamily: 'var(--display)', fontWeight: 500 }}>{v.label}</strong>
               <div className="bar" style={{ maxWidth: 220 }} role="img" aria-label={`Knowledge ${v.depth} of 100`}>
@@ -311,7 +312,7 @@ export function CharacterPage({ id }: { id: string }) {
               <span className="mono muted" style={{ fontSize: 11 }}>{v.depth}</span>
             </div>
             <span className="muted" style={{ fontSize: 11 }}>
-              {v.depth >= KNOW.exact ? 'Numbers are exact.' : 'Numbers are ranges: the truth lies somewhere inside.'}
+              {v.depth >= KNOW.exact ? 'Numbers are exact.' : <Term k="range">Numbers are ranges: the truth lies somewhere inside.</Term>}
               {entry.salt > 0 ? ` Last report ${formatDate(entry.updated)}.` : ''}
             </span>
           </div>
@@ -349,21 +350,21 @@ export function CharacterPage({ id }: { id: string }) {
                 {c.name.courtName ? <><dt>Court name</dt><dd>{c.name.courtName}</dd></> : null}
                 {c.name.trueName ? <><dt>True name</dt><dd>{trueNameKnown ? c.name.trueName : <span className="muted">Unknown</span>}</dd></> : null}
                 <dt>Where</dt><dd>{where ? <SectorLink id={where.sector.id} withPlanet /> : '—'}</dd>
-                <dt>Resonance</dt><dd><BandLink c={c} />{res && res !== 'unknown' && res.type ? <span className="muted"> · {res.type}</span> : null}</dd>
+                <dt><Term k="resonance">Resonance</Term></dt><dd><BandLink c={c} />{res && res !== 'unknown' && res.type ? <span className="muted"> · {res.type}</span> : null}</dd>
               </dl>
             </div>
           </Panel>
-          <Panel title="Status">
+          <Panel title={<Term k="status">Status</Term>}>
             <div className="body chips">
               {v.flags.length === 0 ? <span className="muted" style={{ fontSize: 12 }}>Nothing of note</span> : null}
               {v.flags.map((f, i) => <FlagChip key={f.id + i} f={f} />)}
             </div>
           </Panel>
           {v.hidden ? (
-            <Panel title="Read of them" aside={reveal ? 'exact' : 'from your people'}>
+            <Panel title={<Term k="hidden">Read of them</Term>} aside={reveal ? 'exact' : 'from your people'}>
               <div className="body">
                 {HIDDEN_STATS.filter((s) => s !== 'potential' || reveal).map((s) => (
-                  <div className="stat" key={s}><span className="muted">{STAT_LABEL[s]}</span>{statCell(v.hidden![s])}</div>
+                  <div className="stat" key={s}><span className="muted"><StatTerm id={s} label={STAT_LABEL[s]!} /></span>{statCell(v.hidden![s])}</div>
                 ))}
               </div>
             </Panel>
@@ -454,7 +455,7 @@ export function HousePage({ id }: { id: string }) {
 
   return (
     <>
-      <Title eyebrow={`${h.tier === 'great' ? 'Great House' : 'Minor House'} of Archon`} title={`House ${h.name}`} sub={h.blurb} />
+      <Title eyebrow={<><Term k={h.tier === 'great' ? 'greatHouse' : 'minorHouse'}>{h.tier === 'great' ? 'Great House' : 'Minor House'}</Term> of Archon</>} title={`House ${h.name}`} sub={h.blurb} />
       {h.id !== world.playerHouseId ? (
         <div className="actions">
           <Go to={{ kind: 'plan', mission: 'envoy', target: h.id }} className="btn primary">Send an envoy</Go>
@@ -558,7 +559,7 @@ export function WorldsPage() {
   const world = useWorld();
   return (
     <>
-      <Title title="Worlds" sub="The capitals of the four houses." />
+      <Title eyebrow={<Term k="holdings">Holdings</Term>} title="Worlds" sub="The capitals of the four houses. Each world is split into sectors, and each sector into quarters." />
       <div className="grid">
         {Object.values(world.planets).map((p) => (
           <Panel key={p.id} title={<PlanetLink id={p.id} />} aside={<HouseLink id={p.houseId} />} className="span-6">
@@ -588,7 +589,7 @@ export function PlanetPage({ id }: { id: string }) {
       <section className="panel">
         <div className="table-wrap">
           <table className="list">
-            <thead><tr><th>Sector</th><th>Designation</th><th>Port</th><th>Room</th><th>People</th><th>Held by</th><th>Unrest</th></tr></thead>
+            <thead><tr><th><Term k="sector">Sector</Term></th><th><Term k="designation">Designation</Term></th><th><Term k="port">Port</Term></th><th><Term k="room">Room</Term></th><th><Term k="population">People</Term></th><th><Term k="heldBy">Held by</Term></th><th><Term k="unrest">Unrest</Term></th></tr></thead>
             <tbody>
               {p.sectors.map((s) => (
                 <tr key={s.id}>
@@ -623,14 +624,14 @@ export function SectorPage({ id }: { id: string }) {
         <Panel title="The sector" className="span-4">
           <div className="body">
             <dl className="kv">
-              <dt>Held by</dt><dd>{sector.controllerFamilyId ? <FamilyLink id={sector.controllerFamilyId} /> : 'Unclaimed'}</dd>
-              <dt>Port</dt><dd>{cap(sector.port)}</dd>
-              <dt>Room</dt><dd className="mono">{sector.roomUsed} of {sector.room} used</dd>
-              <dt>Population</dt><dd className="mono">{sector.population.toLocaleString('en-US')}</dd>
-              <dt>Unrest</dt><dd className="mono">{sector.controllerFamilyId ? sector.unrest : '—'}</dd>
+              <dt><Term k="heldBy">Held by</Term></dt><dd>{sector.controllerFamilyId ? <FamilyLink id={sector.controllerFamilyId} /> : 'Unclaimed'}</dd>
+              <dt><Term k="port">Port</Term></dt><dd>{cap(sector.port)}</dd>
+              <dt><Term k="room">Room</Term></dt><dd className="mono">{sector.roomUsed} of {sector.room} used</dd>
+              <dt><Term k="population">Population</Term></dt><dd className="mono">{sector.population.toLocaleString('en-US')}</dd>
+              <dt><Term k="unrest">Unrest</Term></dt><dd className="mono">{sector.controllerFamilyId ? sector.unrest : '—'}</dd>
             </dl>
             <div style={{ marginTop: 10, display: 'grid', gap: 4 }}>
-              <span className="eyebrow">Peoples</span>
+              <span className="eyebrow"><Term k="peoples">Peoples</Term></span>
               {peoples.map(([sp, pct]) => (
                 <div key={sp} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
                   <span style={{ width: 70 }}><SpeciesLink id={sp} /></span>
@@ -641,13 +642,13 @@ export function SectorPage({ id }: { id: string }) {
             </div>
           </div>
         </Panel>
-        <Panel title="Quarters" className="span-8">
+        <Panel title={<Term k="quarter">Quarters</Term>} aside="Hover a quarter for what it makes and costs" className="span-8">
           <div className="table-wrap">
             <table className="list">
-              <thead><tr><th>Quarter</th><th>Kind</th><th>What it gives</th><th>Overseer</th></tr></thead>
+              <thead><tr><th><Term k="quarter">Quarter</Term></th><th>Kind</th><th>What it gives</th><th><Term k="overseer">Overseer</Term></th></tr></thead>
               <tbody>
                 {sector.quarters.map((q) => (
-                  <tr key={q.id}><td>{q.name}</td><td className="muted">{q.kind}</td><td>{q.gives}</td><td><PersonById id={q.overseerId} /></td></tr>
+                  <tr key={q.id}><td><QuarterTerm name={q.name} kind={q.kind} gives={q.gives} /></td><td className="muted">{q.kind}</td><td>{q.gives}</td><td><PersonById id={q.overseerId} /></td></tr>
                 ))}
               </tbody>
             </table>

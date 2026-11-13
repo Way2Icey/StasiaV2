@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { QuarterTerm, Term } from './tip';
 import {
   buyPrice, computingOf, credibilityMarkup, econ, netPerPhase, phaseLedger, quotaFor, sellPrice, setTax, tradeInPlace,
 } from '../sim/economy';
@@ -55,25 +56,25 @@ export function EconomyPage() {
 
       <div className="stocks">
         {RESOURCES.map((r) => (
-          <button key={r} type="button" className="stock" aria-pressed={sel === r} onClick={() => setSel(r)} title={RESOURCE_NOTE[r]}>
-            <span className="eyebrow">{RESOURCE_LABEL[r]}</span>
+          <button key={r} type="button" className="stock" aria-pressed={sel === r} onClick={() => setSel(r)}>
+            <span className="eyebrow"><Term k={r}>{RESOURCE_LABEL[r]}</Term></span>
             <strong className={`mono${e.stock[r] < 0 ? ' error' : ''}`}>{fmt(e.stock[r])}</strong>
             <span className={`mono small ${net[r] > 0 ? 'up' : net[r] < 0 ? 'down' : 'muted'}`}>{signed(net[r])} / Phase</span>
           </button>
         ))}
-        <div className="stock static" title="Capacity per Orbit. It will be assigned to research, intel and cyber operations once those arrive.">
-          <span className="eyebrow">Computing</span>
+        <div className="stock static">
+          <span className="eyebrow"><Term k="computing">Computing</Term></span>
           <strong className="mono">{fmt(computing.total)}</strong>
           <span className="mono small muted">per Orbit · unassigned</span>
         </div>
       </div>
 
       <div className="grid">
-        <Panel title={`${RESOURCE_LABEL[sel]} ledger`} aside="Per Phase, at today's rates" className="span-8">
+        <Panel title={<Term k="ledger">{`${RESOURCE_LABEL[sel]} ledger`}</Term>} aside="Per Phase, at today's rates" className="span-8">
           <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{RESOURCE_NOTE[sel]}</p>
           <div className="table-wrap">
             <table className="list">
-              <thead><tr><th>Source or use</th><th>Where</th><th>Run by</th><th style={{ textAlign: 'right' }}>Per Phase</th></tr></thead>
+              <thead><tr><th>Source or use</th><th>Where</th><th><Term k="overseer">Run by</Term></th><th style={{ textAlign: 'right' }}>Per Phase</th></tr></thead>
               <tbody>
                 {shown.length === 0 ? <tr><td colSpan={4} className="muted">Nothing comes in or goes out on a regular basis.</td></tr> : null}
                 {shown.map((l, i) => <LedgerRow key={i} l={l} />)}
@@ -100,7 +101,7 @@ export function EconomyPage() {
         </Panel>
 
         <div className="span-4 stack">
-          <Panel title="Taxes">
+          <Panel title={<Term k="taxes">Taxes</Term>}>
             <div className="body" style={{ display: 'grid', gap: 8 }}>
               <div className="filters">
                 {(Object.keys(TAX) as TaxRate[]).map((t) => (
@@ -110,7 +111,7 @@ export function EconomyPage() {
               <span className="muted" style={{ fontSize: 12 }}>{TAX[e.tax].note}</span>
             </div>
           </Panel>
-          <Panel title="Navisium quota" aside="From the Numarade">
+          <Panel title={<Term k="quota">Navisium quota</Term>} aside={<>From the <Term k="numarade">Numarade</Term></>}>
             <div className="body">
               <dl className="kv">
                 <dt>This Orbit</dt><dd className="mono">{fmt(e.quota)} units</dd>
@@ -119,7 +120,7 @@ export function EconomyPage() {
               <p className="muted" style={{ fontSize: 11, margin: '8px 0 0' }}>The Numarade sizes each house's share by its standing: more respect, more Navisium.</p>
             </div>
           </Panel>
-          <Panel title="Our credit">
+          <Panel title={<Term k="credit">Our credit</Term>}>
             <div className="body">
               <span style={{ fontSize: 13 }}>
                 Honour {world.houses[house]!.standing.honour}: we buy at{' '}
@@ -130,7 +131,7 @@ export function EconomyPage() {
           </Panel>
         </div>
 
-        <Panel title="Imperial Exchange" aside="Prices in othes · last 12 Phases" className="span-12">
+        <Panel title={<Term k="exchange">Imperial Exchange</Term>} aside="Prices in othes · last 12 Phases" className="span-12">
           {error ? <p className="body error" style={{ margin: 0 }}>{error}</p> : null}
           <div className="table-wrap">
             <table className="list market">
@@ -163,7 +164,7 @@ export function EconomyPage() {
 function LedgerRow({ l }: { l: LedgerLine }) {
   return (
     <tr className={l.kind === 'skim' ? 'skim' : undefined}>
-      <td>{l.label}{l.kind === 'skim' && !l.characterId ? <span className="muted" style={{ fontSize: 11 }}> · cause unknown; an audit may find it</span> : null}</td>
+      <td>{l.kind === 'skim' ? <Term k="skim">{l.label}</Term> : l.kind === 'stipend' ? <Term k="stipend">{l.label}</Term> : l.kind === 'quarter' && l.quarterId ? <QuarterTerm name={l.label} /> : l.label}{l.kind === 'skim' && !l.characterId ? <span className="muted" style={{ fontSize: 11 }}> · cause unknown; an audit may find it</span> : null}</td>
       <td>{l.sectorId ? <SectorLink id={l.sectorId} /> : <span className="muted">—</span>}</td>
       <td>{l.characterId ? <PersonById id={l.characterId} /> : <span className="muted">—</span>}</td>
       <td className={`mono ${l.amount >= 0 ? 'up' : 'down'}`} style={{ textAlign: 'right' }}>{signed(l.amount)}</td>
