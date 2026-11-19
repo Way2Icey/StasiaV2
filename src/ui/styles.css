@@ -435,3 +435,4 @@ pre.ascii a { color: inherit; text-decoration: none; }
 .threat { border: 1px dashed var(--fg); }
 pre.ascii .inv, span.inv { background: var(--fg); color: #000; }
 .btn { white-space: nowrap; }
+.ctable.board tr.sel .btn { color: #000; border-color: #000; background: transparent; }

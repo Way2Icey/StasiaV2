@@ -38,6 +38,8 @@ export const FLAGS: FlagDef[] = [
   { id: 'cameOfAge', label: 'Of age', kind: 'credential', visibility: 'all', endsBy: 'Permanent' },
   { id: 'counselled', label: 'Counselled', kind: 'condition', visibility: 'all', endsBy: 'Wears off after an Orbit' },
   { id: 'agent', label: 'Agent', kind: 'secret', visibility: 'secret', endsBy: 'Released by the Spymaster' },
+  { id: 'travelling', label: 'Travelling', kind: 'condition', visibility: 'all', endsBy: 'Comes home when the trip is done' },
+  { id: 'posted', label: 'Posted abroad', kind: 'secret', visibility: 'secret', endsBy: 'Recalled, exposed or caught' },
   { id: 'embezzler', label: 'Embezzler', kind: 'secret', visibility: 'secret', endsBy: 'Dismissal or a clean record' },
   { id: 'debtor', label: 'Debtor', kind: 'credential', visibility: 'secret', endsBy: 'Debt repaid' },
   { id: 'twin', label: 'Twin', kind: 'relation', visibility: 'all', endsBy: 'Permanent' },

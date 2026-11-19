@@ -17,13 +17,15 @@ import { relation, shiftRelation } from './relations';
 import { agentsOf } from './household';
 import { isAway } from './court';
 import { shiftMood } from './mood';
+import { ageOf } from './characters';
+import { SPECIES } from '../data/species';
 import { absoluteCycle, addCycles, CYCLES_PER_PHASE, formatDate, type GameDate } from './time';
 import type { Character, Sector, SpeciesId, World } from './types';
 
 // ---------------------------------------------------------------- shapes
 
 export type ShipStatus = 'inbound' | 'docked' | 'held' | 'departed';
-export type Purpose = 'trade' | 'passengers' | 'courier' | 'smuggling' | 'spy' | 'scout' | 'mission' | 'envoy';
+export type Purpose = 'trade' | 'passengers' | 'courier' | 'smuggling' | 'spy' | 'scout' | 'mission' | 'envoy' | 'warship' | 'travel';
 export type InspectPolicy = 'none' | 'unflagged' | 'rivals' | 'all';
 export type Papers = 'ok' | 'none' | 'forged';
 
@@ -90,7 +92,28 @@ export interface Ship {
   raidId?: string;
   /** Ours, leaving: shown on the board but never inspected. */
   ours?: boolean;
+  /** Its entry in the register, once it has one. */
+  regId?: string;
 }
+
+/** How suspicious a ship or captain is, from the register. */
+export type Grade = 0 | 1 | 2 | 3 | 4;
+export const GRADE_LABEL = ['clean', 'noted', 'suspect', 'wanted', 'banned'] as const;
+
+export interface Incident { date: GameDate; sectorId: string; shipName: string; text: string; grade: Grade }
+
+export interface RegEntry {
+  id: string;
+  registry: string;
+  captain: string;
+  ships: string[];
+  incidents: Incident[];
+  banned?: boolean;
+  lastSeen: GameDate;
+}
+
+/** One of our agents watching a rival port. */
+export interface Post { agentId: string; sectorId: string; since: GameDate }
 
 export interface PortTally { byFlag: Record<string, number>; ships: number; tariffs: number }
 
@@ -102,6 +125,8 @@ export interface PortState {
   closed: boolean;
   tally: PortTally;
   last: PortTally;
+  /** The house that holds the port. */
+  owner?: string;
 }
 
 export interface Raid {
@@ -126,7 +151,11 @@ export interface PortsState {
   /** Counts things worth stopping the clock for. */
   alerts: number;
   /** Newest first: what happened at our ports. */
-  log: { date: GameDate; text: string; shipId?: string }[];
+  log: { date: GameDate; text: string; shipId?: string; sectorId?: string }[];
+  /** Every ship and captain customs have had cause to note. */
+  register: Record<string, RegEntry>;
+  /** Our agents posted at rival ports. */
+  posts: Record<string, Post>;
 }
 
 export const PLACE_LABEL: Record<string, string> = { exchange: 'the Imperial Exchange', outer: 'the outer lanes' };
@@ -150,11 +179,62 @@ export function portSectors(world: World, houseId = world.playerHouseId): Sector
 }
 
 export function ensurePorts(world: World): void {
-  world.ports ??= { ships: {}, ports: {}, watch: [], raids: [], alerts: 0, log: [] };
+  world.ports ??= { ships: {}, ports: {}, watch: [], raids: [], alerts: 0, log: [], register: {}, posts: {} };
   world.ports.log ??= [];
+  world.ports.register ??= {};
+  world.ports.posts ??= {};
+  const P = world.playerHouseId;
   for (const s of portSectors(world)) {
     world.ports.ports[s.id] ??= { sectorId: s.id, tariff: 4, inspect: 'unflagged', closed: false, tally: emptyTally(), last: emptyTally() };
+    world.ports.ports[s.id]!.owner = P;
   }
+  for (const post of Object.values(world.ports.posts)) {
+    const f = findSector(world, post.sectorId);
+    if (!f) continue;
+    world.ports.ports[post.sectorId] ??= { sectorId: post.sectorId, tariff: 4, inspect: 'unflagged', closed: false, tally: emptyTally(), last: emptyTally() };
+    world.ports.ports[post.sectorId]!.owner = f.planet.houseId;
+  }
+}
+
+/** Is this one of our own ports (as against a rival's we watch)? */
+export function isOurs(world: World, sectorId: string): boolean {
+  const o = world.ports?.ports[sectorId]?.owner;
+  return !o || o === world.playerHouseId;
+}
+
+/** Who watches a rival port for us. */
+export function postAt(world: World, sectorId: string): Post | undefined {
+  return Object.values(world.ports?.posts ?? {}).find((p) => p.sectorId === sectorId);
+}
+
+// ---------------------------------------------------------------- the register
+
+export function gradeOf(e: RegEntry | undefined): Grade {
+  if (!e) return 0;
+  if (e.banned) return 4;
+  return e.incidents.reduce((g, i) => (i.grade > g ? i.grade : g), 0 as Grade);
+}
+
+export function entryFor(world: World, ship: Ship): RegEntry | undefined {
+  const reg = world.ports.register;
+  if (ship.regId && reg[ship.regId]) return reg[ship.regId];
+  return Object.values(reg).find((e) => e.registry === ship.registry || e.captain === ship.captain);
+}
+
+/** Write something customs did or found into the register and the port log. */
+export function logIncident(world: World, ship: Ship, text: string, grade: Grade): RegEntry {
+  let e = entryFor(world, ship);
+  if (!e) {
+    e = { id: `g${world.nextId++}`, registry: ship.registry, captain: ship.captain, ships: [], incidents: [], lastSeen: world.date };
+    world.ports.register[e.id] = e;
+  }
+  ship.regId = e.id;
+  if (!e.ships.includes(ship.name)) e.ships.push(ship.name);
+  e.registry = ship.registry;
+  e.lastSeen = world.date;
+  e.incidents.unshift({ date: world.date, sectorId: ship.sectorId, shipName: ship.name, text, grade });
+  e.incidents = e.incidents.slice(0, 20);
+  return e;
 }
 
 /** The house's busiest port: where missions leave from and envoys land. */
@@ -168,7 +248,7 @@ export function harbourmaster(world: World, sectorId: string): Character | undef
   const s = findSector(world, sectorId)?.sector;
   const q = s?.quarters.find((x) => x.overseerId && x.kind === 'Trade') ?? s?.quarters.find((x) => x.overseerId);
   const c = q?.overseerId ? world.characters[q.overseerId] : undefined;
-  return c?.alive ? c : seatHolder(world, world.playerHouseId, 'steward');
+  return c?.alive ? c : seatHolder(world, findSector(world, sectorId)?.planet.houseId ?? world.playerHouseId, 'steward');
 }
 
 /** How good customs are at this port, as a check value (about 6 to 16). */
@@ -214,7 +294,8 @@ function registry(rng: Rng, from: string): string {
 function newShip(world: World, rng: Rng, sector: Sector, purpose: Purpose, opts: Partial<Ship> = {}): Ship {
   const P = world.playerHouseId;
   const rivals = Object.keys(world.houses).filter((h) => h !== P);
-  const origins = [...rivals.map((h) => world.houses[h]!.capitalPlanetId), 'exchange', 'exchange', 'outer'];
+  const here = findSector(world, sector.id)?.planet.id;
+  const origins = [...Object.values(world.houses).map((h) => h.capitalPlanetId).filter((id) => id !== here), 'exchange', 'exchange', 'outer'];
   const from = opts.from ?? rng.pick(origins);
   const fromHouse = Object.values(world.houses).find((h) => h.capitalPlanetId === from)?.id;
   const cls: ShipClass = opts.cls ?? (
@@ -285,18 +366,39 @@ function declaredOf(ship: Ship): string {
   return shown.map((c) => `${c.label} ×${c.qty}`).join(', ');
 }
 
-/** A ship of some ordinary sort, arriving at one of our ports. */
+/** A real person of note, free to travel: not at war, not captive, not busy. */
+function freeNotable(world: World, rng: Rng, houseIds: string[]): Character | undefined {
+  const busy = new Set(Object.values(world.ports.ships).filter((s) => s.status !== 'departed').flatMap((s) => s.aboard.map((a) => a.characterId)));
+  const pool = Object.values(world.characters).filter((c) => c.alive && houseIds.includes(c.houseId) && c.tier === 'full' && !c.seat
+    && !isAway(world, c.id) && !world.captives?.[c.id] && !busy.has(c.id) && ageOf(c, world.date) >= SPECIES[c.species].adulthood);
+  return pool.length ? rng.pick(pool) : undefined;
+}
+
+const WARSHIP_PREFIX: Record<string, string> = { alerion: 'ASV', serath: 'SRV', torvann: 'TWS', shaaliin: 'LSV' };
+
+/** A ship of some ordinary sort, arriving at a port (ours, or a rival's we watch). */
 function arrival(world: World, rng: Rng, sector: Sector): Ship {
   const P = world.playerHouseId;
+  const owner = world.ports.ports[sector.id]?.owner ?? P;
+  const ours = owner === P;
   const brewing = world.ports.raids.find((r) => r.status === 'brewing');
   const rivals = Object.keys(world.houses).filter((h) => h !== P);
   const cold = rivals.filter((h) => relation(world, h, P) < 10);
   const weights: [Purpose, number][] = [
     ['trade', 55], ['passengers', sector.port === 'starport' ? 12 : 4], ['courier', 8],
-    ['smuggling', sector.port === 'starport' ? 12 : 8], ['spy', cold.length ? 4 : 1], ['scout', brewing ? 10 : 0],
+    ['smuggling', sector.port === 'starport' ? 12 : 8], ['spy', ours ? (cold.length ? 4 : 1) : 0], ['scout', ours && brewing ? 10 : 0],
+    ['warship', ours ? 4 : 8],
   ];
   const purpose = rng.weighted(weights);
-  const ship = newShip(world, rng, sector, purpose);
+  // Known offenders come back, sometimes under a new name.
+  const offenders = Object.values(world.ports.register).filter((e) => gradeOf(e) >= 1);
+  const repeat = ours && purpose === 'smuggling' && offenders.length && rng.chance(0.4) ? rng.pick(offenders) : undefined;
+  const ship = newShip(world, rng, sector, purpose, repeat ? {
+    captain: repeat.captain,
+    ...(rng.chance(0.4) ? { registry: repeat.registry } : {}),
+    ...(rng.chance(0.5) ? { name: repeat.ships.at(-1) ?? undefined } : {}),
+  } : {});
+  if (!ship.name) ship.name = shipName(rng, ship.captain);
   switch (purpose) {
     case 'trade':
       addGoods(rng, ship);
@@ -304,11 +406,15 @@ function arrival(world: World, rng: Rng, sector: Sector): Ship {
       addPassengers(world, rng, ship, Math.min(2, ship.passengers));
       break;
     case 'passengers':
-      addPassengers(world, rng, ship, 3);
+    case 'courier': {
+      addPassengers(world, rng, ship, purpose === 'courier' ? 1 : 3);
+      // People of note travel too, and some of them are worth watching for.
+      if (rng.chance(purpose === 'courier' ? 0.5 : 0.35)) {
+        const who = freeNotable(world, rng, Object.keys(world.houses).filter((h) => h !== owner));
+        if (who) ship.aboard.unshift({ name: displayName(who.name), species: who.species, role: rng.pick(['visitor', 'pilgrim', 'factor', 'guest of the court']), papers: 'ok', characterId: who.id, houseId: who.houseId });
+      }
       break;
-    case 'courier':
-      addPassengers(world, rng, ship, 1);
-      break;
+    }
     case 'smuggling': {
       ship.cargo.push({ label: 'hull plate', qty: between(rng, [20, 60]) });
       ship.cargo.push({ label: 'components', good: 'components', qty: between(rng, [8, 30]), hidden: true });
@@ -322,7 +428,7 @@ function arrival(world: World, rng: Rng, sector: Sector): Ship {
     }
     case 'spy': {
       const house = rng.pick(cold.length ? cold : rivals);
-      const agent = Object.values(world.characters).find((c) => c.alive && c.houseId === house && c.tier === 'full' && !c.seat && !isAway(world, c.id) && !world.captives?.[c.id] && c.role !== 'Highroy' && !Object.values(world.ports.ships).some((s) => s.status !== 'departed' && s.aboard.some((a) => a.characterId === c.id)));
+      const agent = freeNotable(world, rng, [house]);
       addGoods(rng, ship);
       if (agent) {
         ship.aboard.push({ name: displayName(agent.name), species: agent.species, role: rng.pick(['merchant', 'factor', 'pilgrim', 'deckhand']), papers: 'forged', characterId: agent.id, truth: 'spy', houseId: house });
@@ -338,6 +444,23 @@ function arrival(world: World, rng: Rng, sector: Sector): Ship {
       ship.from = 'outer';
       break;
     }
+    case 'warship': {
+      const house = rng.chance(ours ? 0.45 : 0.6) ? owner : rng.pick(Object.keys(world.houses));
+      ship.flag = house;
+      ship.cls = 'frigate';
+      ship.crew = between(rng, SHIP_CLASSES.frigate.crew);
+      ship.passengers = 0;
+      ship.name = `${WARSHIP_PREFIX[house] ?? 'HSV'} ${rng.pick(SHIP_ADJECTIVES)} ${rng.pick(SHIP_NOUNS)}`;
+      ship.from = world.houses[house]!.capitalPlanetId;
+      ship.to = rng.pick(Object.values(world.houses).map((h) => h.capitalPlanetId));
+      ship.registry = `${(WARSHIP_PREFIX[house] ?? 'HSV').slice(0, 2)}-WAR-${between(rng, [10, 99])}`;
+      ship.forgedRegistry = false; ship.transponderGap = false;
+      ship.ours = house === P;
+      const officer = freeNotable(world, rng, [house]);
+      if (officer && officer.role === 'Knight' && house !== P) ship.aboard.push({ name: displayName(officer.name), species: officer.species, role: 'officer', papers: 'ok', characterId: officer.id, houseId: house });
+      ship.declared = rng.pick(['patrol', 'escort duty', 'in transit', 'resupply']);
+      return ship;
+    }
     default: break;
   }
   ship.declared = declaredOf(ship);
@@ -346,9 +469,9 @@ function arrival(world: World, rng: Rng, sector: Sector): Ship {
 
 // ---------------------------------------------------------------- the turn
 
-function note(world: World, text: string, shipId?: string) {
-  world.ports.log.unshift({ date: world.date, text, shipId });
-  world.ports.log = world.ports.log.slice(0, 60);
+function note(world: World, text: string, shipId?: string, sectorId?: string) {
+  world.ports.log.unshift({ date: world.date, text, shipId, sectorId: sectorId ?? (shipId ? world.ports.ships[shipId]?.sectorId : undefined) });
+  world.ports.log = world.ports.log.slice(0, 150);
 }
 
 function tell(world: World, kind: 'intrigue' | 'world' | 'council', text: string, characterIds?: string[]) {
@@ -381,11 +504,37 @@ export function inspectInPlace(world: World, rng: Rng, ship: Ship): string[] {
   return found;
 }
 
+/** How serious what customs found is, as a register grade. */
+function severity(world: World, ship: Ship, prior: Grade): Grade {
+  let g: Grade = 0;
+  if (ship.transponderGap) g = 1;
+  if (ship.inspected && ship.forgedRegistry) g = 1;
+  if (ship.aboard.some((a) => a.suspect && a.papers === 'none')) g = Math.max(g, 1) as Grade;
+  const found = contraband(ship).filter((c) => c.found);
+  if (found.some((c) => !c.crate)) g = Math.max(g, 2) as Grade;
+  if (found.some((c) => c.crate) || ship.aboard.some((a) => a.suspect && a.papers === 'forged') || ship.aboard.some((a) => a.revealed && a.truth)) g = 3;
+  if (g >= 2 && prior >= 2) g = 3; // a repeat offence
+  void world;
+  return g;
+}
+
 function dock(world: World, rng: Rng, ship: Ship) {
   const port = world.ports.ports[ship.sectorId];
+  const P = world.playerHouseId;
+  const ours = isOurs(world, ship.sectorId);
+  const sector = findSector(world, ship.sectorId)?.sector;
+  const entry = ours && !ship.ours ? entryFor(world, ship) : undefined;
+  const prior = gradeOf(entry);
+  if (entry) ship.regId = entry.id;
+  if (prior === 4) {
+    ship.status = 'departed';
+    ship.departs = world.date;
+    ship.notes.push('Turned away: banned from our ports.');
+    note(world, `${ship.name} (captain ${ship.captain}) turned away: banned.`, ship.id, ship.sectorId);
+    return;
+  }
   ship.status = 'docked';
   const used = new Set(Object.values(world.ports.ships).filter((s) => s.sectorId === ship.sectorId && (s.status === 'docked' || s.status === 'held')).map((s) => s.berth));
-  const sector = findSector(world, ship.sectorId)?.sector;
   const max = sector ? BERTHS[sector.port] : 3;
   let berth = 1;
   while (used.has(berth) && berth < max + 6) berth++;
@@ -394,38 +543,65 @@ function dock(world: World, rng: Rng, ship: Ship) {
   if (port) {
     port.tally.ships++;
     port.tally.byFlag[ship.flag] = (port.tally.byFlag[ship.flag] ?? 0) + 1;
+  }
+  if (port && ours) {
     const value = ship.cargo.filter((c) => !c.hidden && c.good).reduce((s, c) => s + c.qty * BASE_PRICE[c.good!], 0);
     const fee = Math.round((value * port.tariff) / 100) + (ship.cls === 'liner' ? ship.passengers * 2 : 0);
-    if (fee > 0) {
+    if (fee > 0 && ship.purpose !== 'warship') {
       port.tally.tariffs += fee;
-      record(world, world.playerHouseId, { resource: 'othes', amount: fee, label: `Tariffs at ${sector?.name ?? 'port'}`, kind: 'port', sectorId: ship.sectorId });
+      record(world, P, { resource: 'othes', amount: fee, label: `Tariffs at ${sector?.name ?? 'port'}`, kind: 'port', sectorId: ship.sectorId });
     }
-    // Standing orders.
-    const P = world.playerHouseId;
+    // Standing orders, and anyone already on the register.
     const policy = port.inspect;
-    const check = policy === 'all' || (policy === 'unflagged' && (ship.flag === 'none' || ship.flag === 'neutral' && rng.chance(0.3)))
-      || (policy === 'rivals' && ship.flag !== P && (ship.flag === 'none' || relation(world, ship.flag, P) < 0 || ship.flag === 'neutral'));
-    if (check && !ship.ours) {
+    const foreignWarship = ship.purpose === 'warship' && !ship.ours;
+    const check = !ship.ours && !foreignWarship && (prior >= 2 || policy === 'all'
+      || (policy === 'unflagged' && (ship.flag === 'none' || (ship.flag === 'neutral' && rng.chance(0.3))))
+      || (policy === 'rivals' && ship.flag !== P && (ship.flag === 'none' || ship.flag === 'neutral' || relation(world, ship.flag, P) < 0)));
+    if (check) {
       const found = inspectInPlace(world, rng, ship);
-      if (contraband(ship).some((c) => c.found)) {
+      const g = severity(world, ship, prior);
+      const why = prior >= 2 ? ` (on the register as ${GRADE_LABEL[prior]})` : '';
+      if (g >= 3) {
         ship.status = 'held';
         world.ports.alerts++;
-        note(world, `${ship.name} held at berth ${ship.berth}: ${found.join('; ')}.`, ship.id);
-        tell(world, 'world', `Customs at ${sector?.name} held the ${ship.cls} ${ship.name}: ${found.join('; ')}.`);
+        logIncident(world, ship, `Held: ${found.join('; ')}${why}.`, g);
+        note(world, `${ship.name} held at berth ${ship.berth}: ${found.join('; ')}${why}.`, ship.id, ship.sectorId);
+        tell(world, 'world', `Customs at ${sector?.name} held the ${ship.cls} ${ship.name}: ${found.join('; ')}${why}.`);
+      } else if (g === 2) {
+        logIncident(world, ship, `Searched: ${found.join('; ')}. Fined on the spot.`, g);
+        fineInPlace(world, ship, true, true);
+      } else if (g === 1) {
+        logIncident(world, ship, `Searched: ${found.join('; ')}.`, 1);
+        note(world, `${ship.name} searched: ${found.join('; ')}.`, ship.id, ship.sectorId);
+      } else {
+        if (entry) logIncident(world, ship, 'Searched: clean.', 0);
+        note(world, `${ship.name} searched: clean.`, ship.id, ship.sectorId);
       }
+    } else if (ship.transponderGap && !ship.ours) {
+      logIncident(world, ship, 'Came in with its transponder dark.', 1);
+    }
+  } else if (port && !ours) {
+    // A rival's customs, seen through our agent.
+    if ((ship.flag === 'none' || ship.purpose === 'smuggling') && rng.chance(0.5)) {
+      const hits = contraband(ship).filter(() => rng.chance(0.5));
+      for (const c of hits) c.found = true;
+      ship.inspected = true;
+      const owner = world.houses[port.owner ?? '']?.name ?? 'their';
+      if (hits.length) { ship.status = 'held'; ship.notes.push(`${owner} customs found ${hits.map((c) => c.label).join(', ')}.`); note(world, `${owner} customs held ${ship.name}.`, ship.id, ship.sectorId); }
+      else ship.notes.push(`${owner} customs searched it and found nothing.`);
     }
   }
-  // A spy who walks off the ship unseen reports home.
-  for (const a of ship.aboard) {
+  // A spy who walks off the ship unseen at our port reports home.
+  if (ours) for (const a of ship.aboard) {
     if (a.truth === 'spy' && a.houseId && !a.revealed && a.characterId) {
-      for (const c of Object.values(world.characters)) if (c.alive && c.houseId === world.playerHouseId && c.seat) learn(world, a.houseId, c.id, 4);
+      for (const c of Object.values(world.characters)) if (c.alive && c.houseId === P && c.seat) learn(world, a.houseId, c.id, 4);
     }
   }
-  // The watchlist.
+  // The watchlist, at our ports and any port we watch.
   for (const a of ship.aboard) {
     if (a.characterId && world.ports.watch.includes(a.characterId)) {
       world.ports.alerts++;
-      note(world, `WATCH: ${a.name} came in on the ${ship.name} at ${sector?.name}.`, ship.id);
+      note(world, `WATCH: ${a.name} came in on the ${ship.name} at ${sector?.name}.`, ship.id, ship.sectorId);
       tell(world, 'intrigue', `Watchlist: ${a.name} has docked at ${sector?.name} aboard the ${ship.name}, travelling as a ${a.role}.`, [a.characterId]);
     }
   }
@@ -481,6 +657,122 @@ function missionShips(world: World, rng: Rng) {
       ship.declared = covert ? declaredOf(ship) : 'diplomatic';
       world.ports.ships[ship.id] = ship;
     }
+  }
+}
+
+// ---------------------------------------------------------------- our people on the move
+
+const TRIP_REASONS = [
+  'business at the Imperial Exchange', 'a visit to the court of House {house}', 'a pilgrimage', 'a tournament on {world}',
+  'family affairs on {world}', 'study at the archives of {world}', 'a wedding at the court of House {house}',
+];
+
+/** Now and then someone of the house takes a trip, on a real ship from our port. */
+function travel(world: World, rng: Rng) {
+  const P = world.playerHouseId;
+  const home = mainPort(world);
+  if (!home) return;
+  const capital = world.houses[P]!.capitalPlanetId;
+  if (rng.chance(0.05)) {
+    const who = freeNotable(world, rng, [P]);
+    if (who) {
+      const dest = rng.pick(Object.values(world.houses).filter((h) => h.id !== P));
+      const world2 = world.planets[dest.capitalPlanetId]?.name ?? 'abroad';
+      const reason = rng.pick(TRIP_REASONS).replace('{house}', dest.name).replace('{world}', world2);
+      const len = between(rng, [8, 20]);
+      who.flags.push({ id: 'travelling', since: world.date, until: addCycles(world.date, len), detail: reason });
+      const ship = newShip(world, rng, home, 'travel', {
+        flag: rng.chance(0.5) ? P : 'neutral', cls: rng.pick(['yacht', 'courier', 'liner'] as ShipClass[]), from: capital,
+        to: reason.includes('Exchange') ? 'exchange' : dest.capitalPlanetId, status: 'departed', arrives: world.date, departs: world.date, ours: true,
+      });
+      ship.aboard = [{ name: displayName(who.name), species: who.species, role: who.role.toLowerCase(), papers: 'ok', characterId: who.id, houseId: P }];
+      ship.declared = reason;
+      world.ports.ships[ship.id] = ship;
+      note(world, `${displayName(who.name)} left on the ${ship.name}: ${reason}.`, ship.id, home.id);
+    }
+  }
+  // Homecomings.
+  const now = absoluteCycle(world.date);
+  for (const c of Object.values(world.characters)) {
+    if (!c.alive || c.houseId !== P) continue;
+    const f = c.flags.find((x) => x.id === 'travelling');
+    if (!f?.until) continue;
+    const left = absoluteCycle(f.until) - now;
+    if (left > 3) continue;
+    const coming = Object.values(world.ports.ships).some((s) => s.status === 'inbound' && s.aboard.some((a) => a.characterId === c.id));
+    if (coming) continue;
+    const ship = newShip(world, rng, home, 'travel', {
+      flag: rng.chance(0.5) ? P : 'neutral', cls: rng.pick(['yacht', 'courier', 'liner'] as ShipClass[]), from: rng.pick(Object.values(world.houses).filter((h) => h.id !== P)).capitalPlanetId,
+      to: capital, arrives: addCycles(world.date, Math.max(1, left)), ours: true,
+    });
+    ship.aboard = [{ name: displayName(c.name), species: c.species, role: c.role.toLowerCase(), papers: 'ok', characterId: c.id, houseId: P }];
+    ship.declared = `homeward: ${f.detail ?? 'a trip'}`;
+    world.ports.ships[ship.id] = ship;
+  }
+}
+
+// ---------------------------------------------------------------- our eyes at their ports
+
+export function postAgent(input: World, agentId: string, sectorId: string): World {
+  const world = structuredClone(input);
+  ensurePorts(world);
+  const agent = world.characters[agentId];
+  const f = findSector(world, sectorId);
+  if (!agent || !f || f.sector.port === 'none' || f.planet.houseId === world.playerHouseId || isAway(world, agentId)) return input;
+  world.ports.posts[agentId] = { agentId, sectorId, since: world.date };
+  agent.flags.push({ id: 'posted', since: world.date, detail: `at ${f.sector.name}`, knownBy: [world.playerHouseId] });
+  ensurePorts(world);
+  note(world, `${displayName(agent.name)} took a post at ${f.sector.name}, watching House ${world.houses[f.planet.houseId]?.name}'s docks.`, undefined, sectorId);
+  return world;
+}
+
+function endPost(world: World, agentId: string, why: string) {
+  const post = world.ports.posts[agentId];
+  if (!post) return;
+  delete world.ports.posts[agentId];
+  const agent = world.characters[agentId];
+  if (agent) agent.flags = agent.flags.filter((x) => x.id !== 'posted');
+  if (!postAt(world, post.sectorId)) {
+    delete world.ports.ports[post.sectorId];
+    for (const [id, s] of Object.entries(world.ports.ships)) if (s.sectorId === post.sectorId) delete world.ports.ships[id];
+  }
+  note(world, why);
+}
+
+export function recallAgent(input: World, agentId: string): World {
+  const world = structuredClone(input);
+  const a = world.characters[agentId];
+  endPost(world, agentId, `${a ? displayName(a.name) : 'Our agent'} was recalled.`);
+  return world;
+}
+
+/** Each Phase: what posted agents learn, and whether they are caught. */
+function tendPosts(world: World, rng: Rng) {
+  const P = world.playerHouseId;
+  for (const post of Object.values(world.ports.posts)) {
+    const agent = world.characters[post.agentId];
+    const f = findSector(world, post.sectorId);
+    if (!agent?.alive || !f) { endPost(world, post.agentId, 'A post at a foreign port fell silent.'); continue; }
+    const house = f.planet.houseId;
+    for (const c of Object.values(world.characters)) if (c.alive && c.houseId === house && c.seat) learn(world, P, c.id, 3);
+    const their = seatHolder(world, house, 'spymaster');
+    const risk = Math.min(0.3, 0.05 + Math.max(0, (their?.stats.intrigue ?? 10) - agent.stats.intrigue) * 0.012);
+    if (!rng.chance(risk)) continue;
+    if (rng.chance(0.5)) {
+      agent.flags.push({ id: 'captive', since: world.date, detail: `held by House ${world.houses[house]?.name}`, knownBy: [house, P] }, { id: 'missing', since: world.date });
+      world.captives ??= {};
+      world.captives[agent.id] = { characterId: agent.id, heldBy: house, since: world.date, interrogated: false };
+      agent.location = { planetId: f.planet.id, sectorId: f.sector.id };
+      shiftRelation(world, house, P, -8);
+      endPost(world, post.agentId, `${displayName(agent.name)} was taken at the docks of ${f.sector.name}.`);
+      tell(world, 'intrigue', `Our agent ${displayName(agent.name)} was seized at the docks of ${f.sector.name} by House ${world.houses[house]?.name}.`, [agent.id]);
+    } else {
+      agent.flags.push({ id: 'exposed', since: world.date, until: addCycles(world.date, CYCLES_PER_PHASE * 5), detail: `to House ${world.houses[house]?.name}`, knownBy: [house, P] });
+      learn(world, house, agent.id, 25);
+      endPost(world, post.agentId, `${displayName(agent.name)} was spotted at ${f.sector.name} and slipped away home.`);
+      tell(world, 'intrigue', `${displayName(agent.name)} was spotted watching the docks of ${f.sector.name} and had to run.`, [agent.id]);
+    }
+    world.ports.alerts++;
   }
 }
 
@@ -561,10 +853,11 @@ export function advancePorts(world: World, rng: Rng, phaseTurned: boolean): void
   const ps = world.ports;
   const now = absoluteCycle(world.date);
   missionShips(world, rng);
-  // New arrivals.
-  for (const s of portSectors(world)) {
-    const port = ps.ports[s.id]!;
-    if (port.closed) continue;
+  travel(world, rng);
+  // New arrivals, at our ports and any we watch.
+  for (const port of Object.values(ps.ports)) {
+    const s = findSector(world, port.sectorId)?.sector;
+    if (!s || port.closed) continue;
     let n = ARRIVALS[s.port];
     while (n > 0) {
       if (rng.chance(Math.min(1, n))) { const sh = arrival(world, rng, s); ps.ships[sh.id] = sh; }
@@ -596,6 +889,7 @@ export function advancePorts(world: World, rng: Rng, phaseTurned: boolean): void
       if (rng.chance(patrol ? 0.06 : 0.12)) newRaid(world, rng);
     }
     for (const port of Object.values(ps.ports)) { port.last = port.tally; port.tally = emptyTally(); }
+    tendPosts(world, rng);
   }
   // Forget old traffic.
   for (const [id, s] of Object.entries(ps.ships)) {
@@ -617,7 +911,10 @@ function act(input: World, shipId: string, fn: (w: World, rng: Rng, ship: Ship) 
 
 export function inspectShip(input: World, shipId: string): World {
   return act(input, shipId, (w, rng, ship) => {
+    const prior = gradeOf(entryFor(w, ship));
     const found = inspectInPlace(w, rng, ship);
+    const g = severity(w, ship, prior);
+    if (g > 0 || entryFor(w, ship)) logIncident(w, ship, `Searched on the Highroy's order: ${found.join('; ')}.`, g);
     note(w, `${ship.name}: ${found.join('; ')}.`, ship.id);
   });
 }
@@ -630,6 +927,7 @@ export function openCrate(input: World, shipId: string): World {
     ship.notes.push(`Crate opened: ${CRATE_TEXT[crate.crate!]}`);
     note(w, `${ship.name}: crate opened. ${CRATE_TEXT[crate.crate!]}`, ship.id);
     if (crate.crate === 'nothing' && w.houses[ship.flag]) shiftRelation(w, ship.flag, w.playerHouseId, -2);
+    logIncident(w, ship, `Sealed crate opened: ${crate.crate}.`, crate.crate === 'nothing' ? 1 : crate.crate === 'luxuries' ? 2 : 3);
     if (crate.crate === 'weapons') {
       const raid = w.ports.raids.find((r) => r.status === 'brewing');
       if (raid) reveal(w, raid, `The guns found aboard the ${ship.name} were meant for them.`);
@@ -645,10 +943,11 @@ export function detainShip(input: World, shipId: string): World {
     const caught = contraband(ship).some((c) => c.found) || ship.aboard.some((a) => a.revealed && a.truth);
     if (!caught && w.houses[ship.flag]) { shiftRelation(w, ship.flag, w.playerHouseId, -3); w.houses[w.playerHouseId]!.standing.honour = Math.max(0, w.houses[w.playerHouseId]!.standing.honour - 1); }
     note(w, `${ship.name} held at berth ${ship.berth}.`, ship.id);
+    logIncident(w, ship, 'Detained on the Highroy\'s order.', caught ? 3 : 1);
   });
 }
 
-function fineInPlace(w: World, ship: Ship, byCouncil = false) {
+function fineInPlace(w: World, ship: Ship, byCouncil = false, onTheSpot = false) {
   if (ship.fined) return;
   const found = contraband(ship).filter((c) => c.found);
   const P = w.playerHouseId;
@@ -660,8 +959,9 @@ function fineInPlace(w: World, ship: Ship, byCouncil = false) {
   ship.fined = true;
   ship.status = 'docked';
   ship.departs = addCycles(w.date, 2);
-  ship.notes.push(`${byCouncil ? 'The harbourmaster, hearing nothing, fined' : 'Fined'} ${fine.toLocaleString('en-US')} othes and released.`);
-  note(w, `${ship.name} fined ${fine.toLocaleString('en-US')} othes${found.length ? ', cargo seized' : ''}${byCouncil ? ' by the harbourmaster' : ''}.`, ship.id);
+  ship.notes.push(`${onTheSpot ? 'Customs fined it on the spot:' : byCouncil ? 'The harbourmaster, hearing nothing, fined it' : 'Fined'} ${fine.toLocaleString('en-US')} othes${onTheSpot ? '.' : ' and released.'}`);
+  note(w, `${ship.name} fined ${fine.toLocaleString('en-US')} othes${found.length ? ', cargo seized' : ''}${onTheSpot ? ' on the spot' : byCouncil ? ' by the harbourmaster' : ''}.`, ship.id);
+  if (!onTheSpot) logIncident(w, ship, `Fined ${fine.toLocaleString('en-US')} othes${found.length ? ', cargo seized' : ''}.`, found.length ? 2 : 0);
 }
 
 export function fineShip(input: World, shipId: string): World {
@@ -740,7 +1040,18 @@ export function arrest(input: World, shipId: string, index: number): World {
       if (w.houses[ship.flag]) shiftRelation(w, ship.flag, P, -1);
     }
     note(w, `${a.name} taken off the ${ship.name}.`, ship.id);
+    logIncident(w, ship, `${a.name} taken off the ship${a.truth ? ` (${a.truth})` : ''}.`, a.truth ? 3 : 1);
   });
+}
+
+/** Ban a captain and their ships from every port we hold, or lift the ban. */
+export function setBan(input: World, entryId: string, banned: boolean): World {
+  const world = structuredClone(input);
+  const e = world.ports.register[entryId];
+  if (!e) return input;
+  e.banned = banned;
+  e.incidents.unshift({ date: world.date, sectorId: '', shipName: e.ships.at(-1) ?? '', text: banned ? 'Banned from our ports by order of the Highroy.' : 'Ban lifted.', grade: 0 });
+  return world;
 }
 
 export function setPortOrders(input: World, sectorId: string, patch: Partial<Pick<PortState, 'tariff' | 'inspect' | 'closed'>>): World {

@@ -51,7 +51,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     stances: {},
     answered: [],
     events: { pending: [], log: [], recent: [] },
-    ports: { ships: {}, ports: {}, watch: [], raids: [], alerts: 0, log: [] },
+    ports: { ships: {}, ports: {}, watch: [], raids: [], alerts: 0, log: [], register: {}, posts: {} },
   };
 
   for (const h of SLICE_HOUSES) {

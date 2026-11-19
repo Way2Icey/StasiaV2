@@ -2,9 +2,10 @@ import { createWorld } from './world';
 import { advanceTurn, advanceUntil } from './tick';
 import { deserialize, serialize } from './save';
 import {
-  answerRaid, arrest, boardOf, detainShip, fineShip, harbourmaster, inspectShip, mainPort, portSectors,
-  setAgentOn, setPortOrders, toggleWatch, type Ship,
+  answerRaid, arrest, boardOf, detainShip, fineShip, gradeOf, harbourmaster, inspectShip, isOurs, logIncident, mainPort, portSectors,
+  postAgent, recallAgent, setAgentOn, setBan, setPortOrders, toggleWatch, type Ship,
 } from './ports';
+import { isAway } from './court';
 import { addCycles } from './time';
 import type { World } from './types';
 
@@ -108,5 +109,53 @@ describe('ports', () => {
     const w = deserialize(JSON.stringify(old));
     expect(w.version).toBe(11);
     expect(Object.keys(w.ports.ports).length).toBe(portSectors(w).length);
+  });
+});
+
+describe('the register, travel and rival ports', () => {
+  it('fines most finds on the spot and holds only the serious ones', () => {
+    const w = advanceUntil(world, 200, false).world;
+    const reg = Object.values(w.ports.register);
+    expect(reg.length).toBeGreaterThan(0);
+    const held = Object.values(w.ports.ships).filter((s) => s.status === 'held').length;
+    expect(held).toBeLessThanOrEqual(3);
+    for (const e of reg) expect(e.incidents.length).toBeGreaterThan(0);
+  });
+
+  it('turns banned captains away at every port', () => {
+    let { w, id } = withShip(world, { status: 'inbound', arrives: world.date, captain: 'Banned Bob', registry: 'XX-BAN-1' });
+    const entry = logIncident(w, w.ports.ships[id]!, 'test', 3);
+    w = setBan(w, entry.id, true);
+    expect(gradeOf(w.ports.register[entry.id])).toBe(4);
+    w = advanceTurn(w);
+    expect(w.ports.ships[id]!.status).toBe('departed');
+    expect(w.ports.ships[id]!.notes.some((n) => n.includes('banned'))).toBe(true);
+    w = setBan(w, entry.id, false);
+    expect(gradeOf(w.ports.register[entry.id])).toBe(3);
+  });
+
+  it('sends our people travelling and brings them home', () => {
+    const w = advanceUntil(world, 300, false).world;
+    const ours = Object.values(w.ports.ships).filter((s) => s.purpose === 'travel');
+    expect(ours.length).toBeGreaterThan(0);
+    const traveller = Object.values(w.characters).find((c) => c.flags.some((f) => f.id === 'travelling'));
+    if (traveller) expect(isAway(w, traveller.id)).toBe(true);
+  });
+
+  it('a posted agent shows us a rival port, and a recall closes it', () => {
+    const w0 = structuredClone(world);
+    const agent = Object.values(w0.characters).find((c) => c.houseId === P && c.tier === 'full' && !c.seat)!;
+    agent.flags.push({ id: 'agent', since: w0.date, knownBy: [P] });
+    const port = Object.values(w0.planets).find((p) => p.houseId === 'serath')!.sectors.find((s) => s.port === 'starport')!;
+    let w = postAgent(w0, agent.id, port.id);
+    expect(isOurs(w, port.id)).toBe(false);
+    expect(isAway(w, agent.id)).toBe(true);
+    w = advanceUntil(w, 20, false).world;
+    if (w.ports.posts[agent.id]) {
+      expect(boardOf(w, port.id).length).toBeGreaterThan(0);
+      w = recallAgent(w, agent.id);
+    }
+    expect(w.ports.ports[port.id]).toBeUndefined();
+    expect(isAway(w, agent.id) && !w.captives[agent.id]).toBe(false);
   });
 });

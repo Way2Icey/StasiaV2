@@ -1,7 +1,8 @@
 // The star map, drawn in text. Worlds, the jump lanes between them, and our
 // missions in flight, all taken from the world as it stands.
 import { useState, type ReactNode } from 'react';
-import { useNav, useWorld } from './context';
+import { useGame, useNav, useWorld } from './context';
+import { agentAvailable, postAgent, postAt } from '../sim/ports';
 import { Go, HouseLink, Panel, PersonLink, PlanetLink, SectorLink } from './links';
 import { Term } from './tip';
 import { bar } from './hall';
@@ -112,6 +113,7 @@ function MapText({ world, selected, pick }: { world: World; selected: string; pi
 export function StarMapPage() {
   const world = useWorld();
   const nav = useNav();
+  const game = useGame();
   const P = world.playerHouseId;
   const home = world.houses[P]!.capitalPlanetId;
   const [selected, setSelected] = useState<string>(Object.keys(world.planets).find((id) => id !== home) ?? home);
@@ -144,7 +146,18 @@ export function StarMapPage() {
             </div>
             {ports.length ? (
               <div style={{ borderTop: '1px solid var(--line-soft)', padding: '6px 14px 8px' }}>
-                {ports.map((s) => <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><SectorLink id={s.id} />{world.ports?.ports[s.id] ? <Go to={{ kind: 'port', id: s.id }}>{s.port} · port ›</Go> : <span className="muted">{s.port}</span>}</div>)}
+                {ports.map((s) => {
+                  const post = postAt(world, s.id);
+                  const agent = agentAvailable(world);
+                  return (
+                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                      <SectorLink id={s.id} />
+                      {world.ports?.ports[s.id] ? <Go to={{ kind: 'port', id: s.id }}>{isHome ? `${s.port} · port ›` : `watching · ${world.characters[post?.agentId ?? '']?.name.given ?? ''} ›`}</Go>
+                        : !isHome && agent ? <button type="button" className="btn small" onClick={() => game.update((w) => postAgent(w, agent.id, s.id))}>POST {agent.name.given.toUpperCase()} HERE</button>
+                        : <span className="muted">{s.port}{isHome ? '' : ' · no agent free'}</span>}
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
             {ours.length ? (

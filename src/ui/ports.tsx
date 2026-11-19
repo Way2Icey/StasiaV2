@@ -1,6 +1,6 @@
 // The port authority: traffic, the file on each ship, standing orders and the
 // watchlist. Plus the raid warning that sits in the Hall.
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, PersonLink, PlanetLink } from './links';
 import { Term } from './tip';
@@ -12,6 +12,7 @@ import { CRATE_TEXT } from '../data/ships';
 import {
   agentAvailable, answerRaid, arrest, BERTHS, boardOf, customsSkill, defenceOf, detainShip, fineShip, flagLabel,
   harbourmaster, inspectShip, openCrate, placeLabel, releaseShip, setAgentOn, setPortOrders, toggleWatch, tributeFor,
+  entryFor, gradeOf, GRADE_LABEL, isOurs, postAt, recallAgent, setBan,
   type InspectPolicy, type Ship,
 } from '../sim/ports';
 import type { World } from '../sim/types';
@@ -23,8 +24,8 @@ const flagged = (s: Ship) => s.status === 'held' || s.cargo.some((c) => c.hidden
 function statusText(world: World, s: Ship): string {
   const now = absoluteCycle(world.date);
   if (s.status === 'inbound') return `INBOUND ${Math.max(0, absoluteCycle(s.arrives) - now)}cy`;
-  if (s.status === 'docked') return `DOCKED · BAY ${s.berth}`;
-  if (s.status === 'held') return `HELD · BAY ${s.berth}`;
+  if (s.status === 'docked') return `DOCKED B${s.berth}`;
+  if (s.status === 'held') return `HELD B${s.berth}`;
   return s.ours ? 'DEPARTED (ours)' : 'DEPARTED';
 }
 
@@ -42,8 +43,10 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
   const all = boardOf(world, id);
   const [filter, setFilter] = useState<Filter>('all');
   const [sel, setSel] = useState<string | undefined>(initial ?? all.find((s) => s.status === 'held')?.id ?? all.find((s) => s.status === 'docked')?.id ?? all[0]?.id);
-  if (!found || !port) return <p className="error">This sector has no port of ours.</p>;
+  if (!found || !port) return <p className="error">We have no eyes on this port.</p>;
   const { planet, sector } = found;
+  const ours = isOurs(world, id);
+  const post = postAt(world, id);
   const list = all.filter((s) => filter === 'all' || (filter === 'arriving' ? s.status === 'inbound' || s.status === 'docked' || s.status === 'held' : filter === 'leaving' ? s.status === 'departed' : filter === 'held' ? s.status === 'held' : flagged(s)));
   const ship = sel ? world.ports.ships[sel] : undefined;
   const hm = harbourmaster(world, id);
@@ -56,9 +59,15 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
   return (
     <>
       <div className="page-title">
-        <h2>{sector.name} · <Term k="port">port authority</Term></h2>
+        <h2>{sector.name} · {ours ? <Term k="port">port authority</Term> : 'their docks'}</h2>
         <p><PlanetLink id={planet.id} /> · {sector.port} · <Go to={{ kind: 'worlds' }}>star map</Go> · <Go to={{ kind: 'sector', id }}>the sector</Go></p>
       </div>
+      {!ours && post ? (
+        <div className="actions">
+          <span>House <HouseLink id={planet.houseId} />'s port, seen through our agent <PersonById id={post.agentId} />, posted since {formatDate(post.since)}. We see what docks; we can do nothing about it.</span>
+          <button type="button" className="btn small" onClick={() => game.update((w) => recallAgent(w, post.agentId))}>RECALL THE AGENT</button>
+        </div>
+      ) : null}
       <div className="grid">
         <Panel title="Traffic board" aside={`${inPort} in port · ${all.filter((s) => s.status === 'inbound').length} inbound`} className="major span-8">
           <div className="filters body" style={{ paddingBottom: 0 }}>
@@ -93,7 +102,7 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
           {ship ? <Dossier ship={ship} /> : <Panel title="Ship file"><p className="body muted" style={{ margin: 0 }}>Pick a ship from the board.</p></Panel>}
         </div>
 
-        <Panel title="Port status" aside={sector.port} className="span-4">
+        {ours ? <Panel title="Port status" aside={sector.port} className="span-4">
           <div className="body">
             <pre className="ascii" style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
               <span className="dim"><Term k="harbourmaster">harbourmaster</Term>  </span>{hm ? <PersonLink c={hm} /> : 'none'}{'\n'}
@@ -125,7 +134,15 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
               <span className="muted" style={{ fontSize: 12 }}>{port.closed ? 'Closed: no trade, no tariffs, angry docks.' : 'Closing it stops all traffic and raises unrest.'}</span>
             </div>
           </div>
-        </Panel>
+        </Panel> : (
+          <Panel title="Their port" aside={sector.port} className="span-4">
+            <div className="body"><pre className="ascii" style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+              <span className="dim">harbourmaster  </span>{hm ? <PersonLink c={hm} /> : 'unknown'}{'\n'}
+              <span className="dim">berths         </span>{bar(inPort / Math.max(1, berths), 12)} {inPort} / {berths}{'\n'}
+              <span className="dim">this phase     </span>{port.tally.ships} ships seen
+            </pre></div>
+          </Panel>
+        )}
 
         <Panel title="By flag" aside={tally === port.tally ? 'this phase' : 'last phase'} className="span-4">
           <div className="body">
@@ -140,7 +157,7 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
           <Watchlist />
           <Panel title="Port log" aside="newest first">
             <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-              {world.ports.log.filter((l) => !l.shipId || world.ports.ships[l.shipId]?.sectorId === id || !world.ports.ships[l.shipId]).slice(0, 20).map((l, i) => (
+              {world.ports.log.filter((l) => (l.sectorId ? l.sectorId === id : ours)).slice(0, 25).map((l, i) => (
                 <div key={i} className="row" style={{ fontSize: 12, alignItems: 'flex-start' }}>
                   <span className="muted" style={{ flexShrink: 0 }}>{formatDate(l.date).replace(/^SY-\d+ · /, '')}</span>
                   <span>{l.shipId && world.ports.ships[l.shipId] ? <button type="button" className="linklike" onClick={() => setSel(l.shipId)}>{l.text}</button> : l.text}</span>
@@ -150,6 +167,7 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
             </div>
           </Panel>
         </div>
+        {ours ? <Register className="span-12" onPick={(shipId) => setSel(shipId)} /> : null}
       </div>
     </>
   );
@@ -163,6 +181,10 @@ function Dossier({ ship }: { ship: Ship }) {
   const crate = ship.cargo.find((c) => c.crate && c.found && !c.opened);
   const foundAny = ship.cargo.some((c) => c.hidden && c.found);
   const knownFlag = world.houses[ship.flag];
+  const ours = isOurs(world, ship.sectorId);
+  const entry = ours ? entryFor(world, ship) : undefined;
+  const grade = gradeOf(entry);
+  const warship = ship.purpose === 'warship' && !ship.ours;
   return (
     <Panel title={ship.name} aside={statusText(world, ship)} className="major">
       <div className="body">
@@ -174,6 +196,8 @@ function Dossier({ ship }: { ship: Ship }) {
           <span className="dim">crew       </span>{ship.crew}{ship.passengers ? ` · ${ship.passengers} passengers` : ''}{'\n'}
           <span className="dim">route      </span>{placeLabel(world, ship.from)} ▸ {placeLabel(world, ship.to)}{'\n'}
           {ship.transponderGap ? <><span className="dim">transponder</span> dark for a stretch before arrival{'\n'}</> : null}
+          {entry ? <><span className="dim">register   </span><span className={grade >= 2 ? 'inv' : undefined}> {GRADE_LABEL[grade].toUpperCase()} </span> · {entry.incidents.length} on record{'\n'}</> : null}
+          {ship.purpose === 'warship' ? <><span className="dim">duty       </span>{ship.declared}{'\n'}</> : null}
           {ship.missionId && world.missions[ship.missionId] && ship.ours ? <><span className="dim">mission    </span><Go to={{ kind: 'mission', id: ship.missionId }}>view ›</Go>{'\n'}</> : null}
         </pre>
       </div>
@@ -219,7 +243,8 @@ function Dossier({ ship }: { ship: Ship }) {
           {ship.notes.map((n, i) => <span key={i}>› {n}</span>)}
         </div>
       ) : null}
-      {!ship.ours && live ? (
+      {warship && live ? <p className="body muted" style={{ margin: 0, borderTop: '1px solid var(--line-soft)', fontSize: 12 }}>A warship of House {flagLabel(world, ship.flag)}. Searching it would be taken as an act of war.</p> : null}
+      {!ship.ours && !warship && live && ours ? (
         <div className="actions body" style={{ borderTop: '1px solid var(--line-soft)' }}>
           {!ship.inspected ? <button type="button" className="btn small primary" onClick={() => game.update((w) => inspectShip(w, ship.id))}>INSPECT</button> : null}
           {crate ? <button type="button" className="btn small primary" onClick={() => game.update((w) => openCrate(w, ship.id))}>OPEN THE CRATE</button> : null}
@@ -294,6 +319,64 @@ export function RaidPanel({ className }: { className?: string }) {
           </div>
         );
       })}
+    </Panel>
+  );
+}
+
+/** Every ship and captain customs have noted, worst first. */
+export function Register({ className, onPick }: { className?: string; onPick: (shipId: string) => void }) {
+  const world = useWorld();
+  const game = useGame();
+  const [open, setOpen] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
+  const entries = Object.values(world.ports?.register ?? {})
+    .filter((e) => all || gradeOf(e) >= 1)
+    .sort((a, b) => gradeOf(b) - gradeOf(a) || absoluteCycle(b.lastSeen) - absoluteCycle(a.lastSeen));
+  const inPort = (e: { id: string }) => Object.values(world.ports.ships).find((s) => s.regId === e.id && s.status !== 'departed');
+  return (
+    <Panel title="The register" aside={`${entries.length} on record`} className={className}>
+      <div className="filters body" style={{ paddingBottom: 0 }}>
+        <button type="button" className="pill" aria-pressed={!all} onClick={() => setAll(false)}>NOTED AND WORSE</button>
+        <button type="button" className="pill" aria-pressed={all} onClick={() => setAll(true)}>EVERYONE SEARCHED</button>
+        <span className="muted" style={{ fontSize: 12 }}>Customs search anyone graded suspect or worse every time they come in. Banned ships are turned away at every port we hold.</span>
+      </div>
+      <div className="table-wrap">
+        <table className="ctable board">
+          <thead><tr><th>GRADE</th><th>CAPTAIN</th><th>SHIPS</th><th>REGISTRY</th><th>ON RECORD</th><th>LAST SEEN</th><th></th></tr></thead>
+          <tbody>
+            {entries.length === 0 ? <tr><td colSpan={7} className="muted">Nobody yet.</td></tr> : null}
+            {entries.map((e) => {
+              const g = gradeOf(e);
+              const here = inPort(e);
+              return (
+                <Fragment key={e.id}>
+                  <tr className={`clickable${open === e.id ? ' sel' : ''}`} onClick={() => setOpen((o) => (o === e.id ? null : e.id))}>
+                    <td>{g >= 2 ? <span className="inv"> {GRADE_LABEL[g].toUpperCase()} </span> : GRADE_LABEL[g].toUpperCase()}</td>
+                    <td>{e.captain}</td>
+                    <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.ships.join(', ')}</td>
+                    <td>{e.registry}</td>
+                    <td>{e.incidents.length}</td>
+                    <td>{formatDate(e.lastSeen).replace(/^SY-\d+ · /, '')}{here ? ' · IN PORT' : ''}</td>
+                    <td onClick={(ev) => ev.stopPropagation()}>
+                      {here ? <button type="button" className="btn small" onClick={() => onPick(here.id)}>SHIP</button> : null}{' '}
+                      <button type="button" className="btn small" onClick={() => game.update((w) => setBan(w, e.id, !e.banned))}>{e.banned ? 'LIFT BAN' : 'BAN'}</button>
+                    </td>
+                  </tr>
+                  {open === e.id ? (
+                    <tr><td colSpan={7} style={{ whiteSpace: 'normal' }}>
+                      {e.incidents.map((i, k) => (
+                        <div key={k} style={{ fontSize: 12, padding: '2px 0' }}>
+                          <span className="muted">{formatDate(i.date).replace(/^SY-\d+ · /, '')} · {GRADE_LABEL[i.grade]} · {i.shipName}{i.sectorId ? ` at ${findSector(world, i.sectorId)?.sector.name ?? ''}` : ''}</span> — {i.text}
+                        </div>
+                      ))}
+                    </td></tr>
+                  ) : null}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </Panel>
   );
 }
