@@ -136,7 +136,7 @@ export function computingOf(world: World, houseId: string): { total: number; sou
 
 // ---------------------------------------------------------------- one-off entries
 
-function record(world: World, houseId: string, line: LedgerLine) {
+export function record(world: World, houseId: string, line: LedgerLine) {
   const e = econ(world, houseId);
   e.stock[line.resource] += line.amount;
   e.recent.unshift({ ...line, date: world.date });

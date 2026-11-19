@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { RaidPanel, WatchButton } from './ports';
 import { Portrait } from './portrait';
 import { QuarterTerm, StatTerm, Term } from './tip';
 import { absoluteCycle } from '../sim/time';
@@ -118,6 +119,7 @@ export function ThroneRoom() {
       <div className="grid">
         <HallPanel className="span-7" />
         <div className="span-5 stack">
+          <RaidPanel />
           <Desk />
           <OathSummary />
         </div>
@@ -312,6 +314,7 @@ export function CharacterPage({ id }: { id: string }) {
               <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn primary">Investigate</Go>
             )
           ) : null}
+          {c.alive && !own ? <WatchButton id={c.id} /> : null}
           {c.alive && own && v.depth < KNOW.exact && c.seat !== 'highroy' ? (
             beingInvestigated ? null : <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn">Look into them</Go>
           ) : null}
@@ -616,7 +619,7 @@ export function SectorPage({ id }: { id: string }) {
           <div className="body">
             <dl className="kv">
               <dt><Term k="heldBy">Held by</Term></dt><dd>{sector.controllerFamilyId ? <FamilyLink id={sector.controllerFamilyId} /> : 'Unclaimed'}</dd>
-              <dt><Term k="port">Port</Term></dt><dd>{cap(sector.port)}</dd>
+              <dt><Term k="port">Port</Term></dt><dd>{cap(sector.port)}{world.ports?.ports[sector.id] ? <> · <Go to={{ kind: 'port', id: sector.id }}>Port authority ›</Go></> : null}</dd>
               <dt><Term k="room">Room</Term></dt><dd className="mono">{sector.roomUsed} of {sector.room} used</dd>
               <dt><Term k="population">Population</Term></dt><dd className="mono">{sector.population.toLocaleString('en-US')}</dd>
               <dt><Term k="unrest">Unrest</Term></dt><dd className="mono">{sector.controllerFamilyId ? sector.unrest : '—'}</dd>

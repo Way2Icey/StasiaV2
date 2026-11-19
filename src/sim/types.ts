@@ -362,7 +362,7 @@ export interface LedgerLine {
   /** Per Phase for standing flows; the amount for one-off entries. */
   amount: number;
   label: string;
-  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit' | 'boon' | 'court';
+  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit' | 'boon' | 'court' | 'port' | 'raid';
   sectorId?: string;
   quarterId?: string;
   characterId?: string;
@@ -436,7 +436,7 @@ export interface Boon {
 export type Stance = 'friendly' | 'neutral' | 'opposed';
 
 export interface World {
-  version: 10;
+  version: 11;
   seed: string;
   date: GameDate;
   rng: RngState;
@@ -472,4 +472,6 @@ export interface World {
   householdReady?: boolean;
   /** Decisions waiting on the Highroy, and how past ones went. */
   events: import('./events').EventState;
+  /** Ships through our ports, raids, the watchlist. */
+  ports: import('./ports').PortsState;
 }

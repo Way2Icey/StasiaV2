@@ -7,7 +7,7 @@ import { Panel, PersonLink } from './links';
 import { Term } from './tip';
 import { Decision } from './events';
 import { councilOf, SEAT_TITLE } from '../sim/world';
-import { ruler } from '../sim/query';
+import { findSector, ruler } from '../sim/query';
 import { isAway } from '../sim/court';
 import { activeMissionOf } from '../sim/missions';
 import { moodLabel, moodOf } from '../sim/mood';
@@ -195,6 +195,18 @@ export function Desk({ className }: { className?: string }) {
       open: () => setOpen((o) => (o === p.id ? null : p.id)),
     });
   }
+  for (const r of world.ports?.raids ?? []) {
+    if (r.status !== 'revealed' || r.answer) continue;
+    const s = findSector(world, r.sectorId)?.sector;
+    items.push({ id: r.id, mark: '[⚠]', kind: 'RAID', text: <>Corsairs bound for {s?.name}</>, when: inCycles(world, r.arrives), open: () => nav.to({ kind: 'port', id: r.sectorId }) });
+  }
+  for (const s of Object.values(world.ports?.ships ?? {})) {
+    if (s.status === 'held') items.push({ id: s.id, mark: '[⚓]', kind: 'HELD', text: <>{s.name} at {findSector(world, s.sectorId)?.sector.name}</>, open: () => nav.to({ kind: 'port', id: s.sectorId, ship: s.id }) });
+    else if (s.status === 'docked' && s.aboard.some((a) => a.characterId && world.ports.watch.includes(a.characterId))) {
+      const a = s.aboard.find((x) => x.characterId && world.ports.watch.includes(x.characterId))!;
+      items.push({ id: `w-${s.id}`, mark: '[●]', kind: 'WATCH', text: <>{a.name} docked · {s.name}</>, open: () => nav.to({ kind: 'port', id: s.sectorId, ship: s.id }) });
+    }
+  }
   for (const pet of world.courts[P]?.petitions ?? []) {
     const from = world.characters[pet.fromId];
     items.push({ id: pet.id, mark: '[?]', kind: 'PETITION', text: <>{from ? displayName(from.name) : 'A councillor'} asks to act</>, when: inCycles(world, pet.expires), open: () => scrollTo('petitions') });
@@ -211,7 +223,7 @@ export function Desk({ className }: { className?: string }) {
   for (const e of recent) {
     items.push({ id: `m-${e.missionId}`, mark: '[r]', kind: 'REPORT', text: e.text, quiet: true, open: () => nav.to({ kind: 'mission', id: e.missionId! }) });
   }
-  const pending = (world.events?.pending.length ?? 0) + (world.courts[P]?.petitions.length ?? 0);
+  const pending = (world.events?.pending.length ?? 0) + (world.courts[P]?.petitions.length ?? 0) + items.filter((i) => i.kind === 'RAID' || i.kind === 'HELD').length;
   const opened = open ? world.events?.pending.find((p) => p.id === open) : undefined;
   return (
     <Panel title={<Term k="decision">The desk</Term>} aside={`${items.length} letters · ${pending} need you`} className={`major ${className ?? ''}`}>

@@ -428,3 +428,10 @@ pre.ascii.map { font-size: 14px; line-height: 1.15; }
 .maplabel:hover { background: #262626; }
 .maplabel.inv, pre.ascii .inv { background: var(--fg); color: #000; }
 pre.ascii a { color: inherit; text-decoration: none; }
+.ctable.board tr.sel td { background: var(--fg); color: #000; }
+.ctable.board tr.sel .linklike { color: #000; }
+.ctable.board tr.gone td { color: var(--muted); }
+.ctable.board tr.gone.sel td { color: #000; }
+.threat { border: 1px dashed var(--fg); }
+pre.ascii .inv, span.inv { background: var(--fg); color: #000; }
+.btn { white-space: nowrap; }

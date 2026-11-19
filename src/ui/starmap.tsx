@@ -144,7 +144,7 @@ export function StarMapPage() {
             </div>
             {ports.length ? (
               <div style={{ borderTop: '1px solid var(--line-soft)', padding: '6px 14px 8px' }}>
-                {ports.map((s) => <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><SectorLink id={s.id} /><span className="muted">{s.port}</span></div>)}
+                {ports.map((s) => <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><SectorLink id={s.id} />{world.ports?.ports[s.id] ? <Go to={{ kind: 'port', id: s.id }}>{s.port} · port ›</Go> : <span className="muted">{s.port}</span>}</div>)}
               </div>
             ) : null}
             {ours.length ? (

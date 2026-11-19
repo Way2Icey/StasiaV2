@@ -28,7 +28,8 @@ export type Route =
   | { kind: 'flag'; id: string }
   | { kind: 'species'; id: string }
   | { kind: 'band'; id: string }
-  | { kind: 'search'; q: string };
+  | { kind: 'search'; q: string }
+  | { kind: 'port'; id: string; ship?: string };
 
 export type Section = 'throne' | 'council' | 'economy' | 'glossary' | 'people' | 'houses' | 'worlds' | 'missions' | 'save';
 
@@ -40,7 +41,7 @@ export function sectionOf(r: Route): Section | null {
     case 'seat': return 'council';
     case 'character': case 'trait': case 'flag': case 'species': case 'band': return 'people';
     case 'house': case 'family': return 'houses';
-    case 'planet': case 'sector': return 'worlds';
+    case 'planet': case 'sector': case 'port': return 'worlds';
     default: return null;
   }
 }
@@ -82,5 +83,6 @@ export function routeLabel(world: World, r: Route): string {
     case 'species': return SPECIES[r.id as keyof typeof SPECIES]?.name ?? r.id;
     case 'band': return `${cap(r.id)} resonance`;
     case 'search': return `Search “${r.q}”`;
+    case 'port': return `Port: ${findSector(world, r.id)?.sector.name ?? r.id}`;
   }
 }

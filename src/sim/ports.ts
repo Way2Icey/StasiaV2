@@ -1,0 +1,793 @@
+// Ports: the ships that come and go through the player's worlds. Every ship
+// comes from something the world is doing (trade, a rival's mission, a
+// smuggler's run, raiders scouting a target) and the house sees only what its
+// harbourmaster, customs and agents find out.
+import { Rng } from './rng';
+import { buildWord, displayName, shortName } from './names';
+import { CULTURES } from '../data/cultures';
+import {
+  CRATE_TEXT, PASSENGER_ROLES, SHIP_ADJECTIVES, SHIP_CLASSES, SHIP_NOUNS,
+  type CrateContents, type ShipClass,
+} from '../data/ships';
+import { BASE_PRICE, type Good } from '../data/economy';
+import { econ, heldSectors, record } from './economy';
+import { findSector, seatHolder } from './query';
+import { learn } from './knowledge';
+import { relation, shiftRelation } from './relations';
+import { agentsOf } from './household';
+import { isAway } from './court';
+import { shiftMood } from './mood';
+import { absoluteCycle, addCycles, CYCLES_PER_PHASE, formatDate, type GameDate } from './time';
+import type { Character, Sector, SpeciesId, World } from './types';
+
+// ---------------------------------------------------------------- shapes
+
+export type ShipStatus = 'inbound' | 'docked' | 'held' | 'departed';
+export type Purpose = 'trade' | 'passengers' | 'courier' | 'smuggling' | 'spy' | 'scout' | 'mission' | 'envoy';
+export type InspectPolicy = 'none' | 'unflagged' | 'rivals' | 'all';
+export type Papers = 'ok' | 'none' | 'forged';
+
+export interface CargoLine {
+  label: string;
+  good?: Good;
+  qty: number;
+  /** Not on the manifest. */
+  hidden?: boolean;
+  /** Customs have found it. */
+  found?: boolean;
+  crate?: CrateContents;
+  opened?: boolean;
+}
+
+export interface Aboard {
+  name: string;
+  species: SpeciesId;
+  role: string;
+  papers: Papers;
+  /** A real person of the world, when it is one. */
+  characterId?: string;
+  /** Who they really are, if not what they say. */
+  truth?: 'spy' | 'scout' | 'runaway';
+  houseId?: string;
+  revealed?: boolean;
+  /** Customs found something wrong with their papers. */
+  suspect?: boolean;
+  arrested?: boolean;
+}
+
+export interface Ship {
+  id: string;
+  name: string;
+  cls: ShipClass;
+  /** A house id, 'neutral' or 'none'. */
+  flag: string;
+  registry: string;
+  age: number;
+  captain: string;
+  crew: number;
+  passengers: number;
+  from: string;
+  to: string;
+  sectorId: string;
+  status: ShipStatus;
+  berth?: number;
+  arrives: GameDate;
+  departs?: GameDate;
+  /** What the ship is really doing. */
+  purpose: Purpose;
+  /** What it says it is doing. */
+  declared: string;
+  cargo: CargoLine[];
+  aboard: Aboard[];
+  transponderGap?: boolean;
+  forgedRegistry?: boolean;
+  inspected?: boolean;
+  agentChecked?: boolean;
+  fined?: boolean;
+  /** What our people have found, in order. */
+  notes: string[];
+  missionId?: string;
+  raidId?: string;
+  /** Ours, leaving: shown on the board but never inspected. */
+  ours?: boolean;
+}
+
+export interface PortTally { byFlag: Record<string, number>; ships: number; tariffs: number }
+
+export interface PortState {
+  sectorId: string;
+  /** Percent of declared cargo value. */
+  tariff: number;
+  inspect: InspectPolicy;
+  closed: boolean;
+  tally: PortTally;
+  last: PortTally;
+}
+
+export interface Raid {
+  id: string;
+  sectorId: string;
+  strength: number;
+  status: 'brewing' | 'revealed' | 'over';
+  revealAt: GameDate;
+  arrives: GameDate;
+  /** Strength known exactly (a scout talked). */
+  known: boolean;
+  answer?: 'muster' | 'tribute';
+  result?: string;
+}
+
+export interface PortsState {
+  ships: Record<string, Ship>;
+  ports: Record<string, PortState>;
+  /** People the house wants to hear about the moment they dock. */
+  watch: string[];
+  raids: Raid[];
+  /** Counts things worth stopping the clock for. */
+  alerts: number;
+  /** Newest first: what happened at our ports. */
+  log: { date: GameDate; text: string; shipId?: string }[];
+}
+
+export const PLACE_LABEL: Record<string, string> = { exchange: 'the Imperial Exchange', outer: 'the outer lanes' };
+
+export function placeLabel(world: World, id: string): string {
+  return world.planets[id]?.name ?? PLACE_LABEL[id] ?? id;
+}
+
+export function flagLabel(world: World, flag: string): string {
+  if (flag === 'neutral') return 'neutral';
+  if (flag === 'none') return 'none';
+  return world.houses[flag]?.name ?? flag;
+}
+
+const emptyTally = (): PortTally => ({ byFlag: {}, ships: 0, tariffs: 0 });
+
+// ---------------------------------------------------------------- setup
+
+export function portSectors(world: World, houseId = world.playerHouseId): Sector[] {
+  return heldSectors(world, houseId).filter((s) => s.port !== 'none');
+}
+
+export function ensurePorts(world: World): void {
+  world.ports ??= { ships: {}, ports: {}, watch: [], raids: [], alerts: 0, log: [] };
+  world.ports.log ??= [];
+  for (const s of portSectors(world)) {
+    world.ports.ports[s.id] ??= { sectorId: s.id, tariff: 4, inspect: 'unflagged', closed: false, tally: emptyTally(), last: emptyTally() };
+  }
+}
+
+/** The house's busiest port: where missions leave from and envoys land. */
+export function mainPort(world: World): Sector | undefined {
+  const rank = { starport: 3, spaceport: 2, 'landing field': 1, none: 0 } as const;
+  return [...portSectors(world)].sort((a, b) => rank[b.port] - rank[a.port])[0];
+}
+
+/** Whoever runs the port: the overseer of its trade quarter, or the Steward. */
+export function harbourmaster(world: World, sectorId: string): Character | undefined {
+  const s = findSector(world, sectorId)?.sector;
+  const q = s?.quarters.find((x) => x.overseerId && x.kind === 'Trade') ?? s?.quarters.find((x) => x.overseerId);
+  const c = q?.overseerId ? world.characters[q.overseerId] : undefined;
+  return c?.alive ? c : seatHolder(world, world.playerHouseId, 'steward');
+}
+
+/** How good customs are at this port, as a check value (about 6 to 16). */
+export function customsSkill(world: World, sectorId: string): number {
+  const h = harbourmaster(world, sectorId);
+  const base = h ? (h.stats.perception + h.stats.stewardship + h.stats.law) / 3 : 6;
+  const s = findSector(world, sectorId)?.sector;
+  return base + (s?.port === 'starport' ? 2 : s?.port === 'spaceport' ? 1 : 0);
+}
+
+export const BERTHS: Record<Sector['port'], number> = { starport: 12, spaceport: 6, 'landing field': 3, none: 0 };
+const ARRIVALS: Record<Sector['port'], number> = { starport: 0.75, spaceport: 0.35, 'landing field': 0.15, none: 0 };
+
+// ---------------------------------------------------------------- making ships
+
+function personName(rng: Rng, species: SpeciesId): string {
+  const c = CULTURES[species];
+  return `${buildWord(rng, c.given)} ${rng.pick(c.familyNames)}`;
+}
+
+function shipName(rng: Rng, captain: string): string {
+  if (rng.chance(0.15)) return `${captain.split(' ')[0]}'s ${rng.pick(['Folly', 'Luck', 'Pride', 'Due', 'Errand', 'Wager'])}`;
+  return `${rng.pick(SHIP_ADJECTIVES)} ${rng.pick(SHIP_NOUNS)}`;
+}
+
+function between(rng: Rng, [a, b]: [number, number]): number {
+  return a + Math.floor(rng.next() * (b - a + 1));
+}
+
+const SPECIES_OF: Record<string, SpeciesId> = { alerion: 'fokari', serath: 'serathi', torvann: 'torvann', shaaliin: 'shaaliin' };
+
+function houseSpecies(world: World, houseId: string, rng: Rng): SpeciesId {
+  const cap = world.planets[world.houses[houseId]?.capitalPlanetId ?? '']?.sectors[0];
+  if (cap && rng.chance(0.6)) return rng.weighted(Object.entries(cap.peoples) as [SpeciesId, number][]);
+  return SPECIES_OF[houseId] ?? rng.pick(['fokari', 'thessari', 'torvann', 'serathi', 'shaaliin', 'doven', 'gholari'] as SpeciesId[]);
+}
+
+function registry(rng: Rng, from: string): string {
+  const pre = from === 'exchange' ? 'IX' : from === 'outer' ? 'OL' : from.slice(0, 2).toUpperCase();
+  return `${pre}-${String(between(rng, [100, 9999])).padStart(4, '0')}-${'ABCDEFGHJKLMNPQRSTUVWXYZ'[between(rng, [0, 23])]}`;
+}
+
+function newShip(world: World, rng: Rng, sector: Sector, purpose: Purpose, opts: Partial<Ship> = {}): Ship {
+  const P = world.playerHouseId;
+  const rivals = Object.keys(world.houses).filter((h) => h !== P);
+  const origins = [...rivals.map((h) => world.houses[h]!.capitalPlanetId), 'exchange', 'exchange', 'outer'];
+  const from = opts.from ?? rng.pick(origins);
+  const fromHouse = Object.values(world.houses).find((h) => h.capitalPlanetId === from)?.id;
+  const cls: ShipClass = opts.cls ?? (
+    purpose === 'trade' ? rng.pick(['bulk hauler', 'freighter', 'freighter', 'grain barge'] as ShipClass[])
+      : purpose === 'passengers' ? 'liner'
+        : purpose === 'courier' || purpose === 'envoy' ? rng.pick(['courier', 'yacht'] as ShipClass[])
+          : purpose === 'mission' ? 'frigate'
+            : rng.pick(['tramp freighter', 'small craft', 'tramp freighter'] as ShipClass[])
+  );
+  const def = SHIP_CLASSES[cls];
+  const sp = fromHouse ? houseSpecies(world, fromHouse, rng) : rng.pick(['doven', 'gholari', 'fokari', 'thessari', 'serathi'] as SpeciesId[]);
+  const captain = personName(rng, sp);
+  const crooked = purpose === 'smuggling' || purpose === 'spy' || purpose === 'scout';
+  const flag = opts.flag ?? (crooked
+    ? (rng.chance(0.5) ? 'none' : rng.chance(0.5) ? 'neutral' : rng.pick(rivals))
+    : fromHouse && rng.chance(0.65) ? fromHouse : 'neutral');
+  const now = world.date;
+  const ship: Ship = {
+    id: `s${world.nextId++}`,
+    name: shipName(rng, captain),
+    cls, flag,
+    registry: registry(rng, crooked && rng.chance(0.5) ? rng.pick(origins) : from),
+    age: between(rng, [2, crooked ? 45 : 30]),
+    captain,
+    crew: between(rng, def.crew),
+    passengers: between(rng, def.berths),
+    from,
+    to: rng.pick(origins),
+    sectorId: sector.id,
+    status: 'inbound',
+    arrives: addCycles(now, between(rng, [1, 4])),
+    purpose,
+    declared: 'trade',
+    cargo: [],
+    aboard: [],
+    notes: [],
+    ...opts,
+  };
+  if (crooked) {
+    ship.forgedRegistry = rng.chance(0.6);
+    ship.transponderGap = rng.chance(0.5);
+  }
+  return ship;
+}
+
+function addGoods(rng: Rng, ship: Ship, hidden = false) {
+  const def = SHIP_CLASSES[ship.cls];
+  const qty = between(rng, def.hold);
+  if (!qty) return;
+  const good: Good = ship.cls === 'grain barge' ? 'provisions' : rng.pick(['metals', 'metals', 'provisions', 'fuel', 'components', 'navisium'] as Good[]);
+  const scaled = good === 'navisium' || good === 'components' ? Math.max(5, Math.round(qty / 8)) : qty;
+  ship.cargo.push({ label: good, good, qty: scaled, hidden });
+}
+
+function addPassengers(world: World, rng: Rng, ship: Ship, n: number) {
+  for (let i = 0; i < n; i++) {
+    const sp = rng.pick(['fokari', 'thessari', 'torvann', 'serathi', 'shaaliin', 'doven', 'gholari'] as SpeciesId[]);
+    ship.aboard.push({ name: personName(rng, sp), species: sp, role: rng.pick(PASSENGER_ROLES), papers: rng.chance(0.93) ? 'ok' : 'none' });
+  }
+  void world;
+}
+
+function declaredOf(ship: Ship): string {
+  const shown = ship.cargo.filter((c) => !c.hidden);
+  if (ship.purpose === 'envoy' || ship.purpose === 'courier') return 'diplomatic';
+  if (ship.cls === 'liner') return `passengers ×${ship.passengers}`;
+  if (!shown.length) return ship.purpose === 'smuggling' ? 'salvage' : 'private';
+  return shown.map((c) => `${c.label} ×${c.qty}`).join(', ');
+}
+
+/** A ship of some ordinary sort, arriving at one of our ports. */
+function arrival(world: World, rng: Rng, sector: Sector): Ship {
+  const P = world.playerHouseId;
+  const brewing = world.ports.raids.find((r) => r.status === 'brewing');
+  const rivals = Object.keys(world.houses).filter((h) => h !== P);
+  const cold = rivals.filter((h) => relation(world, h, P) < 10);
+  const weights: [Purpose, number][] = [
+    ['trade', 55], ['passengers', sector.port === 'starport' ? 12 : 4], ['courier', 8],
+    ['smuggling', sector.port === 'starport' ? 12 : 8], ['spy', cold.length ? 4 : 1], ['scout', brewing ? 10 : 0],
+  ];
+  const purpose = rng.weighted(weights);
+  const ship = newShip(world, rng, sector, purpose);
+  switch (purpose) {
+    case 'trade':
+      addGoods(rng, ship);
+      if (rng.chance(0.12)) addGoods(rng, ship, true); // a little on the side
+      addPassengers(world, rng, ship, Math.min(2, ship.passengers));
+      break;
+    case 'passengers':
+      addPassengers(world, rng, ship, 3);
+      break;
+    case 'courier':
+      addPassengers(world, rng, ship, 1);
+      break;
+    case 'smuggling': {
+      ship.cargo.push({ label: 'hull plate', qty: between(rng, [20, 60]) });
+      ship.cargo.push({ label: 'components', good: 'components', qty: between(rng, [8, 30]), hidden: true });
+      if (rng.chance(0.6)) ship.cargo.push({ label: 'sealed crate', qty: 1, hidden: true, crate: rng.weighted<CrateContents>([['weapons', brewing ? 4 : 1], ['godglass', 3], ['luxuries', 4], ['nothing', 2], ['stolen relics', 1]]) });
+      addPassengers(world, rng, ship, 1);
+      if (rng.chance(0.25)) {
+        const sp = rng.pick(['serathi', 'fokari', 'doven'] as SpeciesId[]);
+        ship.aboard.push({ name: `"${buildWord(rng, CULTURES[sp].given)}"`, species: sp, role: 'deckhand', papers: 'none', truth: 'runaway', houseId: rng.pick(rivals) });
+      }
+      break;
+    }
+    case 'spy': {
+      const house = rng.pick(cold.length ? cold : rivals);
+      const agent = Object.values(world.characters).find((c) => c.alive && c.houseId === house && c.tier === 'full' && !c.seat && !isAway(world, c.id) && !world.captives?.[c.id] && c.role !== 'Highroy' && !Object.values(world.ports.ships).some((s) => s.status !== 'departed' && s.aboard.some((a) => a.characterId === c.id)));
+      addGoods(rng, ship);
+      if (agent) {
+        ship.aboard.push({ name: displayName(agent.name), species: agent.species, role: rng.pick(['merchant', 'factor', 'pilgrim', 'deckhand']), papers: 'forged', characterId: agent.id, truth: 'spy', houseId: house });
+      }
+      addPassengers(world, rng, ship, 1);
+      break;
+    }
+    case 'scout': {
+      ship.cargo.push({ label: 'salvage', qty: between(rng, [5, 20]) });
+      const sp = rng.pick(['thessari', 'torvann', 'doven'] as SpeciesId[]);
+      ship.aboard.push({ name: personName(rng, sp), species: sp, role: rng.pick(['mercenary', 'surveyor', 'deckhand']), papers: rng.chance(0.5) ? 'forged' : 'none', truth: 'scout' });
+      ship.raidId = brewing?.id;
+      ship.from = 'outer';
+      break;
+    }
+    default: break;
+  }
+  ship.declared = declaredOf(ship);
+  return ship;
+}
+
+// ---------------------------------------------------------------- the turn
+
+function note(world: World, text: string, shipId?: string) {
+  world.ports.log.unshift({ date: world.date, text, shipId });
+  world.ports.log = world.ports.log.slice(0, 60);
+}
+
+function tell(world: World, kind: 'intrigue' | 'world' | 'council', text: string, characterIds?: string[]) {
+  world.feed.push({ date: world.date, kind, text, characterIds });
+}
+
+function contraband(ship: Ship): CargoLine[] {
+  return ship.cargo.filter((c) => c.hidden);
+}
+
+/** Customs look a ship over. Returns what they found. */
+export function inspectInPlace(world: World, rng: Rng, ship: Ship): string[] {
+  const skill = customsSkill(world, ship.sectorId);
+  const found: string[] = [];
+  ship.inspected = true;
+  for (const c of ship.cargo) {
+    if (!c.hidden || c.found) continue;
+    if (rng.chance(Math.min(0.92, 0.35 + (skill - 9) * 0.07))) { c.found = true; found.push(c.crate ? 'a sealed crate not on the manifest' : `${c.label} ×${c.qty}, undeclared`); }
+  }
+  for (const a of ship.aboard) {
+    if (a.suspect) continue;
+    if (a.papers === 'none') { a.suspect = true; found.push(`${a.name} has no papers`); continue; }
+    if (a.papers === 'forged' && rng.chance(Math.min(0.8, 0.25 + (skill - 9) * 0.06))) { a.suspect = true; found.push(`${a.name}'s papers are forged`); }
+  }
+  if (ship.forgedRegistry && rng.chance(0.5)) found.push(`the registry ${ship.registry} does not check out`);
+  if (!found.length) found.push('nothing out of order');
+  ship.notes.push(`Inspected ${formatDate(world.date)}: ${found.join('; ')}.`);
+  // Searching an honest house ship gives offence.
+  if (!found.some((f) => f !== 'nothing out of order') && world.houses[ship.flag]) shiftRelation(world, ship.flag, world.playerHouseId, -1);
+  return found;
+}
+
+function dock(world: World, rng: Rng, ship: Ship) {
+  const port = world.ports.ports[ship.sectorId];
+  ship.status = 'docked';
+  const used = new Set(Object.values(world.ports.ships).filter((s) => s.sectorId === ship.sectorId && (s.status === 'docked' || s.status === 'held')).map((s) => s.berth));
+  const sector = findSector(world, ship.sectorId)?.sector;
+  const max = sector ? BERTHS[sector.port] : 3;
+  let berth = 1;
+  while (used.has(berth) && berth < max + 6) berth++;
+  ship.berth = berth;
+  ship.departs = addCycles(world.date, between(rng, [2, 6]));
+  if (port) {
+    port.tally.ships++;
+    port.tally.byFlag[ship.flag] = (port.tally.byFlag[ship.flag] ?? 0) + 1;
+    const value = ship.cargo.filter((c) => !c.hidden && c.good).reduce((s, c) => s + c.qty * BASE_PRICE[c.good!], 0);
+    const fee = Math.round((value * port.tariff) / 100) + (ship.cls === 'liner' ? ship.passengers * 2 : 0);
+    if (fee > 0) {
+      port.tally.tariffs += fee;
+      record(world, world.playerHouseId, { resource: 'othes', amount: fee, label: `Tariffs at ${sector?.name ?? 'port'}`, kind: 'port', sectorId: ship.sectorId });
+    }
+    // Standing orders.
+    const P = world.playerHouseId;
+    const policy = port.inspect;
+    const check = policy === 'all' || (policy === 'unflagged' && (ship.flag === 'none' || ship.flag === 'neutral' && rng.chance(0.3)))
+      || (policy === 'rivals' && ship.flag !== P && (ship.flag === 'none' || relation(world, ship.flag, P) < 0 || ship.flag === 'neutral'));
+    if (check && !ship.ours) {
+      const found = inspectInPlace(world, rng, ship);
+      if (contraband(ship).some((c) => c.found)) {
+        ship.status = 'held';
+        world.ports.alerts++;
+        note(world, `${ship.name} held at berth ${ship.berth}: ${found.join('; ')}.`, ship.id);
+        tell(world, 'world', `Customs at ${sector?.name} held the ${ship.cls} ${ship.name}: ${found.join('; ')}.`);
+      }
+    }
+  }
+  // A spy who walks off the ship unseen reports home.
+  for (const a of ship.aboard) {
+    if (a.truth === 'spy' && a.houseId && !a.revealed && a.characterId) {
+      for (const c of Object.values(world.characters)) if (c.alive && c.houseId === world.playerHouseId && c.seat) learn(world, a.houseId, c.id, 4);
+    }
+  }
+  // The watchlist.
+  for (const a of ship.aboard) {
+    if (a.characterId && world.ports.watch.includes(a.characterId)) {
+      world.ports.alerts++;
+      note(world, `WATCH: ${a.name} came in on the ${ship.name} at ${sector?.name}.`, ship.id);
+      tell(world, 'intrigue', `Watchlist: ${a.name} has docked at ${sector?.name} aboard the ${ship.name}, travelling as a ${a.role}.`, [a.characterId]);
+    }
+  }
+}
+
+function depart(world: World, ship: Ship) {
+  ship.status = 'departed';
+  ship.departs = world.date;
+  const sector = findSector(world, ship.sectorId)?.sector;
+  const missed = contraband(ship).filter((c) => !c.found);
+  if (missed.length && sector) sector.unrest = Math.min(100, sector.unrest + 1); // the black market grows
+  // A raider scout who got away takes our defences home.
+  if (ship.raidId) {
+    const raid = world.ports.raids.find((r) => r.id === ship.raidId);
+    if (raid && raid.status === 'brewing' && ship.aboard.some((a) => a.truth === 'scout' && !a.arrested)) raid.strength = Math.round(raid.strength * 1.08);
+  }
+}
+
+/** Ships for our own missions and for rivals' missions bound for our worlds. */
+function missionShips(world: World, rng: Rng) {
+  const P = world.playerHouseId;
+  const home = mainPort(world);
+  if (!home) return;
+  const capital = world.houses[P]!.capitalPlanetId;
+  const has = new Set(Object.values(world.ports.ships).map((s) => s.missionId).filter(Boolean));
+  for (const m of Object.values(world.missions)) {
+    if (m.stage === 'done' || has.has(m.id)) continue;
+    if (m.houseId === P && m.stage === 'travel') {
+      const lead = world.characters[m.leaderId];
+      const ship = newShip(world, rng, home, 'mission', {
+        flag: P, from: capital, to: m.targetPlanetId, cls: 'frigate', status: 'departed', arrives: world.date, departs: world.date, ours: true, missionId: m.id,
+        captain: lead ? displayName(lead.name) : 'our people',
+      });
+      ship.declared = `our ${m.kind}`;
+      ship.aboard = [m.leaderId, ...(m.companions ?? [])].map((id) => world.characters[id]).filter((c): c is Character => !!c).map((c) => ({ name: displayName(c.name), species: c.species, role: c.role.toLowerCase(), papers: 'ok' as Papers, characterId: c.id }));
+      world.ports.ships[ship.id] = ship;
+    } else if (m.houseId !== P && m.targetPlanetId === capital && m.stage === 'travel') {
+      const lead = world.characters[m.leaderId];
+      if (!lead) continue;
+      const covert = m.kind !== 'envoy';
+      const ship = newShip(world, rng, home, covert ? 'spy' : 'envoy', {
+        flag: covert ? rng.pick(['neutral', 'none', m.houseId]) : m.houseId,
+        from: world.houses[m.houseId]!.capitalPlanetId, missionId: m.id,
+        arrives: addCycles(world.date, Math.max(1, Math.min(4, absoluteCycle(m.stageEnds) - absoluteCycle(world.date)))),
+        cls: covert ? 'tramp freighter' : 'courier',
+      });
+      ship.aboard = [m.leaderId, ...(m.companions ?? [])].map((id) => world.characters[id]).filter((c): c is Character => !!c).map((c) => ({
+        name: displayName(c.name), species: c.species,
+        role: covert ? rng.pick(['merchant', 'factor', 'pilgrim', 'surveyor']) : c.role.toLowerCase(),
+        papers: (covert ? 'forged' : 'ok') as Papers, characterId: c.id, truth: covert ? 'spy' as const : undefined, houseId: m.houseId,
+      }));
+      if (covert) addGoods(rng, ship);
+      ship.declared = covert ? declaredOf(ship) : 'diplomatic';
+      world.ports.ships[ship.id] = ship;
+    }
+  }
+}
+
+// ---------------------------------------------------------------- raids
+
+function newRaid(world: World, rng: Rng) {
+  const targets = portSectors(world);
+  if (!targets.length) return;
+  const sector = rng.pick(targets);
+  const lead = between(rng, [3, 5]) * CYCLES_PER_PHASE / 2;
+  const raid: Raid = {
+    id: `r${world.nextId++}`, sectorId: sector.id, strength: between(rng, [25, 55]), status: 'brewing',
+    arrives: addCycles(world.date, lead), revealAt: addCycles(world.date, lead - 6), known: false,
+  };
+  world.ports.raids.push(raid);
+}
+
+export function defenceOf(world: World): number {
+  const P = world.playerHouseId;
+  const home = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && (c.role === 'Knight' || c.seat === 'champion' || c.seat === 'grandMaster') && !isAway(world, c.id) && !c.flags.some((f) => f.id === 'wounded'));
+  return Math.round(home.reduce((s, c) => s + (c.stats.duelling + c.stats.valor + c.stats.tactics) / 3, 0) * 0.55);
+}
+
+export function tributeFor(raid: Raid): number {
+  return raid.strength * 40;
+}
+
+function reveal(world: World, raid: Raid, how: string) {
+  if (raid.status !== 'brewing') return;
+  raid.status = 'revealed';
+  world.ports.alerts++;
+  const s = findSector(world, raid.sectorId)?.sector;
+  note(world, `RAID: corsairs bound for ${s?.name}. ${how}`);
+  tell(world, 'world', `Corsairs are coming for ${s?.name}, due ${formatDate(raid.arrives)}. ${how}`);
+}
+
+function strike(world: World, rng: Rng, raid: Raid) {
+  const P = world.playerHouseId;
+  const s = findSector(world, raid.sectorId)?.sector;
+  const house = world.houses[P]!;
+  raid.status = 'over';
+  if (raid.answer === 'tribute') {
+    raid.result = 'They took the tribute and left.';
+    tell(world, 'world', `The corsairs took their tribute and passed ${s?.name} by.`);
+    return;
+  }
+  const defence = raid.answer === 'muster' ? defenceOf(world) : Math.round(defenceOf(world) * 0.35);
+  const roll = defence + rng.gauss() * 8 - raid.strength;
+  const knights = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.role === 'Knight' && !isAway(world, c.id));
+  if (roll >= 0) {
+    house.standing.dread = Math.min(100, house.standing.dread + 3);
+    if (raid.answer === 'muster') house.standing.honour = Math.min(100, house.standing.honour + 1);
+    for (const k of knights) shiftMood(k, 3);
+    raid.result = `Driven off at ${s?.name}. Dread +3.`;
+    tell(world, 'world', `The corsairs struck ${s?.name} and were driven off${raid.answer === 'muster' ? ' by the mustered knights' : ' by the sector watch'}.`);
+  } else {
+    const loss = Math.min(econ(world, P).stock.othes, raid.strength * 60);
+    record(world, P, { resource: 'othes', amount: -loss, label: `Raid on ${s?.name ?? 'a sector'}`, kind: 'raid', sectorId: raid.sectorId });
+    const food = Math.min(econ(world, P).stock.provisions, raid.strength * 4);
+    record(world, P, { resource: 'provisions', amount: -food, label: `Raid on ${s?.name ?? 'a sector'}`, kind: 'raid', sectorId: raid.sectorId });
+    if (s) { s.unrest = Math.min(100, s.unrest + 10); s.population = Math.max(0, s.population - raid.strength * 30); }
+    house.standing.respect = Math.max(0, house.standing.respect - 2);
+    if (raid.answer === 'muster' && knights.length) {
+      const k = rng.pick(knights);
+      k.flags.push({ id: 'wounded', since: world.date, until: addCycles(world.date, CYCLES_PER_PHASE * 2) });
+    }
+    const taken = [loss ? `${loss.toLocaleString('en-US')} othes` : '', food ? `${food} provisions` : ''].filter(Boolean).join(' and ') || 'what little there was';
+    raid.result = `${s?.name} was sacked: ${taken} taken, unrest +10.`;
+    tell(world, 'world', `The corsairs sacked ${s?.name}. ${taken} gone, and the people are angry.`);
+  }
+  world.ports.alerts++;
+}
+
+// ---------------------------------------------------------------- once a turn
+
+export function advancePorts(world: World, rng: Rng, phaseTurned: boolean): void {
+  ensurePorts(world);
+  const ps = world.ports;
+  const now = absoluteCycle(world.date);
+  missionShips(world, rng);
+  // New arrivals.
+  for (const s of portSectors(world)) {
+    const port = ps.ports[s.id]!;
+    if (port.closed) continue;
+    let n = ARRIVALS[s.port];
+    while (n > 0) {
+      if (rng.chance(Math.min(1, n))) { const sh = arrival(world, rng, s); ps.ships[sh.id] = sh; }
+      n -= 1;
+    }
+  }
+  // Movement.
+  for (const ship of Object.values(ps.ships)) {
+    if (ship.status === 'inbound' && absoluteCycle(ship.arrives) <= now) {
+      if (ps.ports[ship.sectorId]?.closed) { ship.status = 'departed'; ship.notes.push('Turned away: the port is closed.'); continue; }
+      dock(world, rng, ship);
+    } else if (ship.status === 'docked' && ship.departs && absoluteCycle(ship.departs) <= now) {
+      depart(world, ship);
+    }
+    // Held too long without word: the harbourmaster settles it.
+    else if (ship.status === 'held' && ship.departs && absoluteCycle(ship.departs) + 8 <= now) fineInPlace(world, ship, true);
+    // Rival missions: their people leave when the mission ends.
+    if (ship.missionId && ship.status === 'docked' && world.missions[ship.missionId]?.stage === 'done') depart(world, ship);
+  }
+  // Raids.
+  for (const raid of ps.raids) {
+    if (raid.status === 'brewing' && absoluteCycle(raid.revealAt) <= now) reveal(world, raid, 'Patrols sighted them on the approach.');
+    if (raid.status === 'revealed' && absoluteCycle(raid.arrives) <= now) strike(world, rng, raid);
+  }
+  ps.raids = ps.raids.filter((r) => r.status !== 'over' || absoluteCycle(r.arrives) > now - CYCLES_PER_PHASE * 2);
+  if (phaseTurned) {
+    if (!ps.raids.some((r) => r.status !== 'over')) {
+      const patrol = world.courts[world.playerHouseId]?.tasks.grandMaster?.task === 'patrol';
+      if (rng.chance(patrol ? 0.06 : 0.12)) newRaid(world, rng);
+    }
+    for (const port of Object.values(ps.ports)) { port.last = port.tally; port.tally = emptyTally(); }
+  }
+  // Forget old traffic.
+  for (const [id, s] of Object.entries(ps.ships)) {
+    if (s.status === 'departed' && s.departs && absoluteCycle(s.departs) < now - CYCLES_PER_PHASE) delete ps.ships[id];
+  }
+}
+
+// ---------------------------------------------------------------- player actions
+
+function act(input: World, shipId: string, fn: (w: World, rng: Rng, ship: Ship) => void): World {
+  const world = structuredClone(input);
+  const ship = world.ports.ships[shipId];
+  if (!ship) return input;
+  const rng = new Rng(world.rng);
+  fn(world, rng, ship);
+  world.rng = rng.state;
+  return world;
+}
+
+export function inspectShip(input: World, shipId: string): World {
+  return act(input, shipId, (w, rng, ship) => {
+    const found = inspectInPlace(w, rng, ship);
+    note(w, `${ship.name}: ${found.join('; ')}.`, ship.id);
+  });
+}
+
+export function openCrate(input: World, shipId: string): World {
+  return act(input, shipId, (w, _rng, ship) => {
+    const crate = ship.cargo.find((c) => c.crate && c.found && !c.opened);
+    if (!crate) return;
+    crate.opened = true;
+    ship.notes.push(`Crate opened: ${CRATE_TEXT[crate.crate!]}`);
+    note(w, `${ship.name}: crate opened. ${CRATE_TEXT[crate.crate!]}`, ship.id);
+    if (crate.crate === 'nothing' && w.houses[ship.flag]) shiftRelation(w, ship.flag, w.playerHouseId, -2);
+    if (crate.crate === 'weapons') {
+      const raid = w.ports.raids.find((r) => r.status === 'brewing');
+      if (raid) reveal(w, raid, `The guns found aboard the ${ship.name} were meant for them.`);
+    }
+    if (crate.crate === 'stolen relics') { shiftRelation(w, 'torvann', w.playerHouseId, 3); ship.notes.push('House Torvann will want these back.'); }
+  });
+}
+
+export function detainShip(input: World, shipId: string): World {
+  return act(input, shipId, (w, _rng, ship) => {
+    if (ship.status !== 'docked') return;
+    ship.status = 'held';
+    const caught = contraband(ship).some((c) => c.found) || ship.aboard.some((a) => a.revealed && a.truth);
+    if (!caught && w.houses[ship.flag]) { shiftRelation(w, ship.flag, w.playerHouseId, -3); w.houses[w.playerHouseId]!.standing.honour = Math.max(0, w.houses[w.playerHouseId]!.standing.honour - 1); }
+    note(w, `${ship.name} held at berth ${ship.berth}.`, ship.id);
+  });
+}
+
+function fineInPlace(w: World, ship: Ship, byCouncil = false) {
+  if (ship.fined) return;
+  const found = contraband(ship).filter((c) => c.found);
+  const P = w.playerHouseId;
+  const value = found.reduce((s, c) => s + (c.good ? c.qty * BASE_PRICE[c.good] : 150), 0);
+  const fine = Math.max(100, Math.round(value * 1.5));
+  record(w, P, { resource: 'othes', amount: fine, label: `Fine: ${ship.name}`, kind: 'port', sectorId: ship.sectorId });
+  for (const c of found) if (c.good) { record(w, P, { resource: c.good, amount: c.qty, label: `Seized from ${ship.name}`, kind: 'port', sectorId: ship.sectorId }); c.qty = 0; }
+  if (!found.length && w.houses[ship.flag]) shiftRelation(w, ship.flag, P, -4);
+  ship.fined = true;
+  ship.status = 'docked';
+  ship.departs = addCycles(w.date, 2);
+  ship.notes.push(`${byCouncil ? 'The harbourmaster, hearing nothing, fined' : 'Fined'} ${fine.toLocaleString('en-US')} othes and released.`);
+  note(w, `${ship.name} fined ${fine.toLocaleString('en-US')} othes${found.length ? ', cargo seized' : ''}${byCouncil ? ' by the harbourmaster' : ''}.`, ship.id);
+}
+
+export function fineShip(input: World, shipId: string): World {
+  return act(input, shipId, (w, _rng, ship) => fineInPlace(w, ship));
+}
+
+export function releaseShip(input: World, shipId: string): World {
+  return act(input, shipId, (w, _rng, ship) => {
+    if (ship.status === 'held') { ship.status = 'docked'; ship.departs = addCycles(w.date, 2); }
+    else if (ship.status === 'docked') ship.departs = w.date;
+    ship.notes.push('Waved through.');
+  });
+}
+
+export function agentAvailable(world: World): Character | undefined {
+  return agentsOf(world, world.playerHouseId).find((c) => !isAway(world, c.id));
+}
+
+export function setAgentOn(input: World, shipId: string): World {
+  return act(input, shipId, (w, rng, ship) => {
+    const agent = agentAvailable(w);
+    if (!agent || ship.agentChecked) return;
+    ship.agentChecked = true;
+    const skill = (agent.stats.intrigue + agent.stats.insight + agent.stats.perception) / 3;
+    const lines: string[] = [];
+    for (const a of ship.aboard) {
+      if (!a.truth || a.revealed) continue;
+      if (rng.chance(Math.min(0.9, 0.3 + (skill - 8) * 0.06))) {
+        a.revealed = true;
+        lines.push(a.truth === 'spy' ? `${a.name} works for House ${w.houses[a.houseId ?? '']?.name ?? '?'}` : a.truth === 'scout' ? `${a.name} is a corsair scout` : `${a.name} is a runaway from House ${w.houses[a.houseId ?? '']?.name ?? '?'}`);
+        if (a.characterId) learn(w, w.playerHouseId, a.characterId, 20);
+      }
+    }
+    for (const c of ship.cargo) if (c.hidden && !c.found && rng.chance(0.5)) { c.found = true; lines.push(c.crate ? 'a sealed crate below decks' : `${c.label} ×${c.qty} off the manifest`); }
+    const text = `${shortName(agent.name)} went aboard: ${lines.length ? lines.join('; ') : 'nothing worth reporting'}.`;
+    ship.notes.push(text);
+    note(w, `${ship.name}: ${text}`, ship.id);
+  });
+}
+
+/** Take someone off a ship. Real people become captives; scouts talk. */
+export function arrest(input: World, shipId: string, index: number): World {
+  return act(input, shipId, (w, _rng, ship) => {
+    const a = ship.aboard[index];
+    if (!a || a.arrested || !(a.revealed || a.suspect)) return;
+    a.arrested = true;
+    if (a.truth && !a.revealed) { a.revealed = true; ship.notes.push(`Under questioning, ${a.name} broke.`); }
+    const P = w.playerHouseId;
+    const s = findSector(w, ship.sectorId)?.sector;
+    if (a.truth === 'spy' && a.characterId) {
+      const c = w.characters[a.characterId];
+      if (c) {
+        c.flags.push({ id: 'captive', since: w.date, detail: `held by House ${w.houses[P]!.name}`, knownBy: [P] }, { id: 'missing', since: w.date });
+        c.location = { planetId: w.houses[P]!.capitalPlanetId, sectorId: ship.sectorId };
+        w.captives ??= {};
+        w.captives[c.id] = { characterId: c.id, heldBy: P, since: w.date, missionId: ship.missionId, interrogated: false };
+        learn(w, P, c.id, 30);
+        if (a.houseId) shiftRelation(w, a.houseId, P, -6);
+        const m = ship.missionId ? w.missions[ship.missionId] : undefined;
+        if (m && m.stage !== 'done') { m.stage = 'done'; m.outcome = 'disaster'; m.ended = w.date; m.report = `Taken at the docks of ${s?.name}.`; }
+        tell(w, 'intrigue', `Seized at ${s?.name}: ${displayName(c.name)}, an agent of House ${w.houses[a.houseId ?? '']?.name}, taken off the ${ship.name}. They are ours to deal with.`, [c.id]);
+      }
+    } else if (a.truth === 'scout') {
+      const raid = w.ports.raids.find((r) => r.id === ship.raidId) ?? w.ports.raids.find((r) => r.status === 'brewing');
+      if (raid) {
+        raid.known = true;
+        raid.strength = Math.round(raid.strength * 0.85);
+        reveal(w, raid, `The scout taken off the ${ship.name} talked: strength ${raid.strength}, due ${formatDate(raid.arrives)}.`);
+      } else ship.notes.push(`${a.name} talks of corsairs, but no raid is coming yet.`);
+    } else if (a.truth === 'runaway' && a.houseId) {
+      shiftRelation(w, a.houseId, P, 5);
+      ship.notes.push(`${a.name} was sent home to House ${w.houses[a.houseId]?.name}, who are grateful.`);
+    } else if (!a.truth) {
+      // An honest traveller with bad papers: held a while, then let go.
+      ship.notes.push(`${a.name} was questioned and turned out to be exactly what they said.`);
+      if (w.houses[ship.flag]) shiftRelation(w, ship.flag, P, -1);
+    }
+    note(w, `${a.name} taken off the ${ship.name}.`, ship.id);
+  });
+}
+
+export function setPortOrders(input: World, sectorId: string, patch: Partial<Pick<PortState, 'tariff' | 'inspect' | 'closed'>>): World {
+  const world = structuredClone(input);
+  ensurePorts(world);
+  const port = world.ports.ports[sectorId];
+  if (!port) return input;
+  Object.assign(port, patch);
+  port.tariff = Math.max(0, Math.min(15, Math.round(port.tariff)));
+  if (patch.closed !== undefined) {
+    const s = findSector(world, sectorId)?.sector;
+    if (s && patch.closed) s.unrest = Math.min(100, s.unrest + 3);
+  }
+  return world;
+}
+
+export function toggleWatch(input: World, characterId: string): World {
+  const world = structuredClone(input);
+  ensurePorts(world);
+  const w = world.ports.watch;
+  world.ports.watch = w.includes(characterId) ? w.filter((x) => x !== characterId) : [...w, characterId];
+  return world;
+}
+
+export function answerRaid(input: World, raidId: string, answer: 'muster' | 'tribute'): World {
+  const world = structuredClone(input);
+  const raid = world.ports.raids.find((r) => r.id === raidId);
+  if (!raid || raid.status !== 'revealed' || raid.answer) return input;
+  const P = world.playerHouseId;
+  if (answer === 'tribute') {
+    const cost = tributeFor(raid);
+    if (econ(world, P).stock.othes < cost) return input;
+    record(world, P, { resource: 'othes', amount: -cost, label: 'Tribute to corsairs', kind: 'raid', sectorId: raid.sectorId });
+    world.houses[P]!.standing.respect = Math.max(0, world.houses[P]!.standing.respect - 2);
+  }
+  raid.answer = answer;
+  return world;
+}
+
+/** Ships at a port, newest first, as the board shows them. */
+export function boardOf(world: World, sectorId: string): Ship[] {
+  return Object.values(world.ports?.ships ?? {})
+    .filter((s) => s.sectorId === sectorId)
+    .sort((a, b) => absoluteCycle(b.status === 'departed' ? b.departs ?? b.arrives : b.arrives) - absoluteCycle(a.status === 'departed' ? a.departs ?? a.arrives : a.arrives));
+}
+
+export function activeRaids(world: World): Raid[] {
+  return (world.ports?.raids ?? []).filter((r) => r.status === 'revealed');
+}
+

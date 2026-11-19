@@ -18,6 +18,7 @@ import { CouncilPage } from './council';
 import { SeatPage } from './seats';
 import { Coffers, EconomyPage } from './economy';
 import { StarMapPage } from './starmap';
+import { PortPage } from './ports';
 import { activeMissions } from '../sim/missions';
 import { routeLabel, sameRoute, sectionOf, type Route, type Section } from './router';
 import { AUTOSAVE, storage } from './storage';
@@ -208,6 +209,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'seat': return <SeatPage key={route.id} seat={route.id} />;
     case 'economy': return <EconomyPage />;
     case 'glossary': return <GlossaryPage />;
+    case 'port': return <PortPage key={route.id} id={route.id} ship={route.ship} />;
   }
 }
 
