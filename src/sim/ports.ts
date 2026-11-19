@@ -20,7 +20,8 @@ import { shiftMood } from './mood';
 import { ageOf } from './characters';
 import { SPECIES } from '../data/species';
 import { absoluteCycle, addCycles, CYCLES_PER_PHASE, formatDate, type GameDate } from './time';
-import type { Character, Sector, SpeciesId, World } from './types';
+import type { Character, FeedEntry, Sector, SpeciesId, World } from './types';
+import { logRecord } from './records';
 
 // ---------------------------------------------------------------- shapes
 
@@ -474,8 +475,8 @@ function note(world: World, text: string, shipId?: string, sectorId?: string) {
   world.ports.log = world.ports.log.slice(0, 150);
 }
 
-function tell(world: World, kind: 'intrigue' | 'world' | 'council', text: string, characterIds?: string[]) {
-  world.feed.push({ date: world.date, kind, text, characterIds });
+function tell(world: World, kind: 'intrigue' | 'world' | 'council', text: string, characterIds?: string[], extra: Partial<FeedEntry> = {}) {
+  logRecord(world, { kind, text, characterIds, source: 'the port authority', ...extra });
 }
 
 function contraband(ship: Ship): CargoLine[] {
@@ -566,7 +567,11 @@ function dock(world: World, rng: Rng, ship: Ship) {
         world.ports.alerts++;
         logIncident(world, ship, `Held: ${found.join('; ')}${why}.`, g);
         note(world, `${ship.name} held at berth ${ship.berth}: ${found.join('; ')}${why}.`, ship.id, ship.sectorId);
-        tell(world, 'world', `Customs at ${sector?.name} held the ${ship.cls} ${ship.name}: ${found.join('; ')}${why}.`);
+        tell(world, 'world', `Customs at ${sector?.name} held the ${ship.cls} ${ship.name}.`, undefined, {
+          type: 'seizure', severity: 2, placeId: ship.sectorId, shipId: ship.id, detail: `${found.join('; ')}${why}.`,
+          source: harbourmaster(world, ship.sectorId) ? `${displayName(harbourmaster(world, ship.sectorId)!.name)}, harbourmaster` : 'customs',
+          who: harbourmaster(world, ship.sectorId) ? [{ id: harbourmaster(world, ship.sectorId)!.id, part: 'harbourmaster' }] : undefined,
+        });
       } else if (g === 2) {
         logIncident(world, ship, `Searched: ${found.join('; ')}. Fined on the spot.`, g);
         fineInPlace(world, ship, true, true);
@@ -602,7 +607,9 @@ function dock(world: World, rng: Rng, ship: Ship) {
     if (a.characterId && world.ports.watch.includes(a.characterId)) {
       world.ports.alerts++;
       note(world, `WATCH: ${a.name} came in on the ${ship.name} at ${sector?.name}.`, ship.id, ship.sectorId);
-      tell(world, 'intrigue', `Watchlist: ${a.name} has docked at ${sector?.name} aboard the ${ship.name}, travelling as a ${a.role}.`, [a.characterId]);
+      tell(world, 'intrigue', `Watchlist: ${a.name} has docked at ${sector?.name} aboard the ${ship.name}, travelling as a ${a.role}.`, [a.characterId], {
+        type: 'port', severity: 1, placeId: ship.sectorId, shipId: ship.id, who: [{ id: a.characterId, part: 'watched' }],
+      });
     }
   }
 }
@@ -791,12 +798,16 @@ function tendPosts(world: World, rng: Rng) {
       agent.location = { planetId: f.planet.id, sectorId: f.sector.id };
       shiftRelation(world, house, P, -8);
       endPost(world, post.agentId, `${displayName(agent.name)} was taken at the docks of ${f.sector.name}.`);
-      tell(world, 'intrigue', `Our agent ${displayName(agent.name)} was seized at the docks of ${f.sector.name} by House ${world.houses[house]?.name}.`, [agent.id]);
+      tell(world, 'intrigue', `Our agent ${displayName(agent.name)} was seized at the docks of ${f.sector.name} by House ${world.houses[house]?.name}.`, [agent.id], {
+        type: 'captive', severity: 2, placeId: f.sector.id, who: [{ id: agent.id, part: 'taken' }], effects: [`House ${world.houses[house]?.name}'s regard −8`], source: 'word from the docks',
+      });
     } else {
       agent.flags.push({ id: 'exposed', since: world.date, until: addCycles(world.date, CYCLES_PER_PHASE * 5), detail: `to House ${world.houses[house]?.name}`, knownBy: [house, P] });
       learn(world, house, agent.id, 25);
       endPost(world, post.agentId, `${displayName(agent.name)} was spotted at ${f.sector.name} and slipped away home.`);
-      tell(world, 'intrigue', `${displayName(agent.name)} was spotted watching the docks of ${f.sector.name} and had to run.`, [agent.id]);
+      tell(world, 'intrigue', `${displayName(agent.name)} was spotted watching the docks of ${f.sector.name} and had to run.`, [agent.id], {
+        type: 'intrigue', severity: 1, placeId: f.sector.id, who: [{ id: agent.id, part: 'exposed' }], source: `${displayName(agent.name)}, on return`,
+      });
     }
     world.ports.alerts++;
   }
@@ -832,7 +843,7 @@ function reveal(world: World, raid: Raid, how: string) {
   world.ports.alerts++;
   const s = findSector(world, raid.sectorId)?.sector;
   note(world, `RAID: corsairs bound for ${s?.name}. ${how}`);
-  tell(world, 'world', `Corsairs are coming for ${s?.name}, due ${formatDate(raid.arrives)}. ${how}`);
+  tell(world, 'world', `Corsairs are coming for ${s?.name}, due ${formatDate(raid.arrives)}.`, undefined, { type: 'raid', severity: 2, placeId: raid.sectorId, detail: how, source: 'patrols and the docks' });
 }
 
 function strike(world: World, rng: Rng, raid: Raid) {
@@ -842,7 +853,7 @@ function strike(world: World, rng: Rng, raid: Raid) {
   raid.status = 'over';
   if (raid.answer === 'tribute') {
     raid.result = 'They took the tribute and left.';
-    tell(world, 'world', `The corsairs took their tribute and passed ${s?.name} by.`);
+    tell(world, 'world', `The corsairs took their tribute and passed ${s?.name} by.`, undefined, { type: 'raid', severity: 1, placeId: raid.sectorId, effects: [`Tribute ${tributeFor(raid).toLocaleString('en-US')} othes`, 'Respect −2'] });
     return;
   }
   const defence = raid.answer === 'muster' ? defenceOf(world) : Math.round(defenceOf(world) * 0.35);
@@ -853,7 +864,10 @@ function strike(world: World, rng: Rng, raid: Raid) {
     if (raid.answer === 'muster') house.standing.honour = Math.min(100, house.standing.honour + 1);
     for (const k of knights) shiftMood(k, 3);
     raid.result = `Driven off at ${s?.name}. Dread +3.`;
-    tell(world, 'world', `The corsairs struck ${s?.name} and were driven off${raid.answer === 'muster' ? ' by the mustered knights' : ' by the sector watch'}.`);
+    tell(world, 'world', `The corsairs struck ${s?.name} and were driven off${raid.answer === 'muster' ? ' by the mustered knights' : ' by the sector watch'}.`, undefined, {
+      type: 'fight', severity: 2, placeId: raid.sectorId, who: knights.map((k) => ({ id: k.id, part: raid.answer === 'muster' ? 'fought' : 'at home' })),
+      effects: ['Dread +3', ...(raid.answer === 'muster' ? ['Honour +1', 'Knights mood +3'] : [])], detail: `Raid strength ${raid.strength} against our defence ${defence}.`,
+    });
   } else {
     const loss = Math.min(econ(world, P).stock.othes, raid.strength * 60);
     record(world, P, { resource: 'othes', amount: -loss, label: `Raid on ${s?.name ?? 'a sector'}`, kind: 'raid', sectorId: raid.sectorId });
@@ -867,7 +881,11 @@ function strike(world: World, rng: Rng, raid: Raid) {
     }
     const taken = [loss ? `${loss.toLocaleString('en-US')} othes` : '', food ? `${food} provisions` : ''].filter(Boolean).join(' and ') || 'what little there was';
     raid.result = `${s?.name} was sacked: ${taken} taken, unrest +10.`;
-    tell(world, 'world', `The corsairs sacked ${s?.name}. ${taken} gone, and the people are angry.`);
+    tell(world, 'world', `The corsairs sacked ${s?.name}.`, undefined, {
+      type: 'fight', severity: 3, placeId: raid.sectorId, detail: `Raid strength ${raid.strength} against our defence ${defence}. ${taken} gone, and the people are angry.`,
+      effects: [loss ? `−${loss.toLocaleString('en-US')} othes` : '', food ? `−${food} provisions` : '', 'Unrest +10', 'Respect −2', `Population −${raid.strength * 30}`].filter(Boolean),
+      who: knights.map((k) => ({ id: k.id, part: raid.answer === 'muster' ? 'fought' : 'at home' })),
+    });
   }
   world.ports.alerts++;
 }
@@ -1048,7 +1066,10 @@ export function arrest(input: World, shipId: string, index: number): World {
         if (a.houseId) shiftRelation(w, a.houseId, P, -6);
         const m = ship.missionId ? w.missions[ship.missionId] : undefined;
         if (m && m.stage !== 'done') { m.stage = 'done'; m.outcome = 'disaster'; m.ended = w.date; m.report = `Taken at the docks of ${s?.name}.`; }
-        tell(w, 'intrigue', `Seized at ${s?.name}: ${displayName(c.name)}, an agent of House ${w.houses[a.houseId ?? '']?.name}, taken off the ${ship.name}. They are ours to deal with.`, [c.id]);
+        tell(w, 'intrigue', `Seized at ${s?.name}: ${displayName(c.name)}, an agent of House ${w.houses[a.houseId ?? '']?.name}, taken off the ${ship.name}.`, [c.id], {
+          type: 'captive', severity: 2, placeId: ship.sectorId, shipId: ship.id, who: [{ id: c.id, part: 'taken captive' }],
+          effects: [`House ${w.houses[a.houseId ?? '']?.name}'s regard −6`], detail: 'They are ours to deal with.',
+        });
       }
     } else if (a.truth === 'scout') {
       const raid = w.ports.raids.find((r) => r.id === ship.raidId) ?? w.ports.raids.find((r) => r.status === 'brewing');

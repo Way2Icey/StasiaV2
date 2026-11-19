@@ -1,4 +1,5 @@
 import { displayName } from './names';
+import { logRecord } from './records';
 import { ageOf } from './characters';
 import { addCycles, CYCLES_PER_ORBIT, type GameDate } from './time';
 import type { Character, World } from './types';
@@ -13,7 +14,11 @@ export function kill(world: World, c: Character, now: GameDate, cause: string) {
   const seat = c.seat;
   c.seat = undefined;
   if (c.tier === 'full') {
-    log(world, 'death', `${displayName(c.name)} has died (${cause}), aged ${ageOf(c, now)}.`, [c.id]);
+    logRecord(world, {
+      kind: 'death', type: 'death', severity: c.houseId === world.playerHouseId ? 3 : c.seat || seat ? 2 : 1,
+      text: `${displayName(c.name)} has died, aged ${ageOf(c, now)}.`, detail: `Cause: ${cause}.`,
+      who: [{ id: c.id, part: 'died' }], placeId: c.location?.sectorId ?? c.location?.planetId, houseIds: [c.houseId],
+    });
   }
   // Family mourns.
   for (const k of Object.values(world.characters)) {

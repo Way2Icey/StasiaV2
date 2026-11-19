@@ -1,6 +1,7 @@
 // Missions: the house sends one of its people to do something somewhere.
 // Milestone 2 has two kinds: Investigate (look into a person) and Scout
 // (survey a world). Everything resolves turn by turn, deterministically.
+import { logRecord } from './records';
 import { Rng } from './rng';
 import { ageOf } from './characters';
 import { displayName, shortName } from './names';
@@ -547,7 +548,7 @@ function end(world: World, m: Mission, outcome: Outcome, text: string) {
   m.report = text;
   m.findings = [];
   if (m.houseId === world.playerHouseId) {
-    world.feed.push({ date: world.date, kind: 'mission', text: `${MISSION_LABEL[m.kind]} — ${OUTCOME_LABEL[outcome]}. ${text}`, characterIds: [m.leaderId], missionId: m.id });
+    logRecord(world, { kind: 'mission', type: 'mission', severity: 2, text: `${MISSION_LABEL[m.kind]} — ${OUTCOME_LABEL[outcome]}.`, detail: text, who: [{ id: m.leaderId, part: 'led the mission' }, ...(m.companions ?? []).map((id) => ({ id, part: 'went along' }))], missionId: m.id, placeId: m.targetSectorId ?? m.targetPlanetId, source: 'word from the field' });
   }
 }
 
@@ -660,12 +661,19 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
     }
     return;
   }
-  world.feed.push({
-    date: world.date,
-    kind: 'mission',
+  logRecord(world, {
+    kind: 'mission', type: 'mission',
+    severity: outcome === 'triumph' || outcome === 'failure' ? 2 : 1,
     text: `${displayName(leader.name)} returns: ${describeJob(world, m)} — ${OUTCOME_LABEL[outcome].toLowerCase()}.`,
-    characterIds: [leader.id, ...(m.targetId ? [m.targetId] : [])],
-    missionId: m.id,
+    who: [
+      { id: leader.id, part: 'led the mission' },
+      ...(m.companions ?? []).map((id) => ({ id, part: 'went along' })),
+      ...(m.targetId ? [{ id: m.targetId, part: 'the target' }] : []),
+    ],
+    missionId: m.id, placeId: m.targetSectorId ?? m.targetPlanetId,
+    detail: m.report, effects: findings.length ? findings : undefined,
+    source: `${leader.name.given}'s report`,
+    houseIds: m.targetHouseId ? [m.targetHouseId] : undefined,
   });
 }
 

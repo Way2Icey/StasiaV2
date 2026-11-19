@@ -29,14 +29,15 @@ export type Route =
   | { kind: 'species'; id: string }
   | { kind: 'band'; id: string }
   | { kind: 'search'; q: string }
-  | { kind: 'port'; id: string; ship?: string };
+  | { kind: 'port'; id: string; ship?: string }
+  | { kind: 'log'; person?: string; place?: string; house?: string; open?: string };
 
-export type Section = 'throne' | 'council' | 'economy' | 'glossary' | 'people' | 'houses' | 'worlds' | 'missions' | 'save';
+export type Section = 'throne' | 'council' | 'economy' | 'glossary' | 'people' | 'houses' | 'worlds' | 'missions' | 'save' | 'log';
 
 /** Which sidebar section a page belongs to. */
 export function sectionOf(r: Route): Section | null {
   switch (r.kind) {
-    case 'throne': case 'people': case 'houses': case 'worlds': case 'save': case 'missions': case 'council': case 'economy': case 'glossary': return r.kind;
+    case 'throne': case 'people': case 'houses': case 'worlds': case 'save': case 'missions': case 'council': case 'economy': case 'glossary': case 'log': return r.kind;
     case 'mission': case 'plan': return 'missions';
     case 'seat': return 'council';
     case 'character': case 'trait': case 'flag': case 'species': case 'band': return 'people';
@@ -64,6 +65,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'seat': return SEAT_TITLE[r.id];
     case 'economy': return 'Ledger';
     case 'glossary': return 'Glossary';
+    case 'log': return r.person ? `Record: ${world.characters[r.person]?.name.given ?? ''}` : r.place ? `Log: ${findSector(world, r.place)?.sector.name ?? world.planets[r.place]?.name ?? ''}` : r.house ? `Log: ${world.houses[r.house]?.name ?? ''}` : 'Log';
     case 'mission': {
       const m = world.missions[r.id];
       if (!m) return 'Mission';

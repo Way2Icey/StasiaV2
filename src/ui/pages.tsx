@@ -315,6 +315,7 @@ export function CharacterPage({ id }: { id: string }) {
             )
           ) : null}
           {c.alive && !own ? <WatchButton id={c.id} /> : null}
+          <Go to={{ kind: 'log', person: c.id }} className="btn">Full record</Go>
           {c.alive && own && v.depth < KNOW.exact && c.seat !== 'highroy' ? (
             beingInvestigated ? null : <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn">Look into them</Go>
           ) : null}
@@ -619,6 +620,7 @@ export function SectorPage({ id }: { id: string }) {
           <div className="body">
             <dl className="kv">
               <dt><Term k="heldBy">Held by</Term></dt><dd>{sector.controllerFamilyId ? <FamilyLink id={sector.controllerFamilyId} /> : 'Unclaimed'}</dd>
+              <dt>Log</dt><dd><Go to={{ kind: 'log', place: sector.id }}>what happened here ›</Go></dd>
               <dt><Term k="port">Port</Term></dt><dd>{cap(sector.port)}{world.ports?.ports[sector.id] ? <> · <Go to={{ kind: 'port', id: sector.id }}>Port authority ›</Go></> : null}</dd>
               <dt><Term k="room">Room</Term></dt><dd className="mono">{sector.roomUsed} of {sector.room} used</dd>
               <dt><Term k="population">Population</Term></dt><dd className="mono">{sector.population.toLocaleString('en-US')}</dd>
@@ -866,7 +868,7 @@ function AnnalsPanel({ houseId, className }: { houseId: string; className?: stri
   const entries = (world.annals?.[houseId] ?? []).filter((e) => own || e.public || (looked && absoluteCycle(e.date) <= absoluteCycle(looked)));
   const hidden = (world.annals?.[houseId] ?? []).length - entries.length;
   return (
-    <Panel title={<Term k="annals">Annals</Term>} aside={own ? 'Our own record' : looked ? `Last good look ${formatDate(looked)}` : 'Never looked closely'} className={className}>
+    <Panel title={<Term k="annals">Annals</Term>} aside={<>{own ? 'Our own record' : looked ? `Last good look ${formatDate(looked)}` : 'Never looked closely'} · <Go to={{ kind: 'log', house: houseId }}>log ›</Go></>} className={className}>
       {entries.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing recorded yet.</p> : null}
       {entries.slice(0, 12).map((e, i) => (
         <div className="row" key={i} style={{ alignItems: 'flex-start' }}>

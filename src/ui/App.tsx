@@ -19,6 +19,7 @@ import { SeatPage } from './seats';
 import { Coffers, EconomyPage } from './economy';
 import { StarMapPage } from './starmap';
 import { PortPage } from './ports';
+import { LogPage } from './log';
 import { activeMissions } from '../sim/missions';
 import { routeLabel, sameRoute, sectionOf, type Route, type Section } from './router';
 import { AUTOSAVE, storage } from './storage';
@@ -43,7 +44,8 @@ const SECTIONS: { id: Section; label: string; key: string }[] = [
   { id: 'economy', label: 'LEDGER', key: '5' },
   { id: 'people', label: 'PEOPLE', key: '6' },
   { id: 'houses', label: 'HOUSES', key: '7' },
-  { id: 'save', label: 'SAVE', key: '8' },
+  { id: 'log', label: 'LOG', key: '8' },
+  { id: 'save', label: 'SAVE', key: '9' },
   { id: 'glossary', label: 'GLOSSARY', key: '?' },
 ];
 
@@ -209,6 +211,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'seat': return <SeatPage key={route.id} seat={route.id} />;
     case 'economy': return <EconomyPage />;
     case 'glossary': return <GlossaryPage />;
+    case 'log': return <LogPage key={`${route.person}-${route.place}-${route.house}`} person={route.person} place={route.place} house={route.house} open={route.open} />;
     case 'port': return <PortPage key={route.id} id={route.id} ship={route.ship} />;
   }
 }

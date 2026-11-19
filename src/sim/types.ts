@@ -221,12 +221,43 @@ export interface Planet {
 
 // ---------------------------------------------------------------- world
 
+/** What sort of happening a record is, for the Log page's filters. */
+export type RecordType =
+  | 'decision' | 'mission' | 'port' | 'seizure' | 'raid' | 'fight' | 'death' | 'birth' | 'intrigue'
+  | 'captive' | 'council' | 'politics' | 'discovery' | 'economy' | 'world' | 'time' | 'condition';
+
+/** 0 routine, 1 notable, 2 serious, 3 grave. */
+export type Severity = 0 | 1 | 2 | 3;
+
+/**
+ * One happening, the same shape whatever it was: the Log page, a person's
+ * record, a port's log and the Chronicle are all filtered views of these.
+ */
 export interface FeedEntry {
+  /** Set on records written since the log was unified. */
+  id?: string;
   date: GameDate;
   kind: 'time' | 'death' | 'birth' | 'flag' | 'world' | 'mission' | 'council' | 'intrigue';
+  /** The headline. */
   text: string;
   characterIds?: string[];
   missionId?: string;
+  type?: RecordType;
+  severity?: Severity;
+  /** A sector or planet id. */
+  placeId?: string;
+  /** People and the part they played. */
+  who?: { id: string; part: string }[];
+  /** A short account beyond the headline. */
+  detail?: string;
+  /** What changed, as ledger-style lines. */
+  effects?: string[];
+  /** Who told us, and how sure. */
+  source?: string;
+  shipId?: string;
+  houseIds?: string[];
+  /** The record that led to this one. */
+  causeId?: string;
 }
 
 // ---------------------------------------------------------------- knowledge

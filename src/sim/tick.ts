@@ -1,5 +1,6 @@
 import { advanceEvents } from './events';
 import { advancePorts } from './ports';
+import { trimFeed } from './records';
 import './eventDefs';
 import { displayName } from './names';
 import { Rng } from './rng';
@@ -28,8 +29,6 @@ import {
 } from './time';
 import type { World } from './types';
 
-/** Keep the feed from growing without bound. */
-const FEED_LIMIT = 400;
 
 /**
  * One press of Continue: advance the clock and resolve what happens.
@@ -76,7 +75,7 @@ function stepInPlace(world: World): void {
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 
   world.rng = rng.state;
-  if (world.feed.length > FEED_LIMIT) world.feed = world.feed.slice(-FEED_LIMIT);
+  trimFeed(world);
 }
 
 /** Advance several turns at once (for tests and fast-forward). */
