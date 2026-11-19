@@ -2,7 +2,11 @@
 // missions in flight, all taken from the world as it stands.
 import { useState, type ReactNode } from 'react';
 import { useGame, useNav, useWorld } from './context';
-import { agentAvailable, postAgent, postAt } from '../sim/ports';
+import { agentAvailable, coverOf, postAgent, postAt, postRisk, watchOf } from '../sim/ports';
+
+export function riskWord(r: number): string {
+  return r < 0.03 ? 'SAFE' : r < 0.08 ? 'LOW RISK' : r < 0.16 ? 'RISKY' : 'DANGEROUS';
+}
 import { Go, HouseLink, Panel, PersonLink, PlanetLink, SectorLink } from './links';
 import { Term } from './tip';
 import { bar } from './hall';
@@ -153,7 +157,7 @@ export function StarMapPage() {
                     <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
                       <SectorLink id={s.id} />
                       {world.ports?.ports[s.id] ? <Go to={{ kind: 'port', id: s.id }}>{isHome ? `${s.port} · port ›` : `watching · ${world.characters[post?.agentId ?? '']?.name.given ?? ''} ›`}</Go>
-                        : !isHome && agent ? <button type="button" className="btn small" onClick={() => game.update((w) => postAgent(w, agent.id, s.id))}>POST {agent.name.given.toUpperCase()} HERE</button>
+                        : !isHome && agent ? <button type="button" className="btn small" title={`Cover ${coverOf(world, agent).toFixed(1)} against their watch ${watchOf(world, s.id).toFixed(1)}: about ${Math.round(postRisk(world, agent.id, s.id) * 100)}% a Phase of being found out.`} onClick={() => game.update((w) => postAgent(w, agent.id, s.id))}>POST {agent.name.given.toUpperCase()} · {riskWord(postRisk(world, agent.id, s.id))}</button>
                         : <span className="muted">{s.port}{isHome ? '' : ' · no agent free'}</span>}
                     </div>
                   );

@@ -12,7 +12,7 @@ import { CRATE_TEXT } from '../data/ships';
 import {
   agentAvailable, answerRaid, arrest, BERTHS, boardOf, customsSkill, defenceOf, detainShip, fineShip, flagLabel,
   harbourmaster, inspectShip, openCrate, placeLabel, releaseShip, setAgentOn, setPortOrders, toggleWatch, tributeFor,
-  entryFor, gradeOf, GRADE_LABEL, isOurs, postAt, recallAgent, setBan,
+  entryFor, gradeOf, GRADE_LABEL, isOurs, postAt, recallAgent, setBan, coverOf, postRisk, watchOf,
   type InspectPolicy, type Ship,
 } from '../sim/ports';
 import type { World } from '../sim/types';
@@ -64,7 +64,7 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
       </div>
       {!ours && post ? (
         <div className="actions">
-          <span>House <HouseLink id={planet.houseId} />'s port, seen through our agent <PersonById id={post.agentId} />, posted since {formatDate(post.since)}. We see what docks; we can do nothing about it.</span>
+          <span>House <HouseLink id={planet.houseId} />'s port, seen through our agent <PersonById id={post.agentId} />, posted since {formatDate(post.since)}. We see what docks; we can do nothing about it. Their cover {coverOf(world, world.characters[post.agentId]!, post.since).toFixed(1)} against the house's watch {watchOf(world, id).toFixed(1)}: about {Math.round(postRisk(world, post.agentId, id) * 100)}% a Phase of being found out.</span>
           <button type="button" className="btn small" onClick={() => game.update((w) => recallAgent(w, post.agentId))}>RECALL THE AGENT</button>
         </div>
       ) : null}

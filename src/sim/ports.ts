@@ -746,6 +746,32 @@ export function recallAgent(input: World, agentId: string): World {
   return world;
 }
 
+/** How well an agent keeps their cover: intrigue, deception, composure and stealth, plus time to settle in. */
+export function coverOf(world: World, agent: Character, since?: GameDate): number {
+  const s = agent.stats;
+  const settled = since ? Math.min(3, Math.floor((absoluteCycle(world.date) - absoluteCycle(since)) / 80)) : 0;
+  return (s.intrigue + s.deception + s.composure + s.stealth) / 4 + settled;
+}
+
+/** How hard a house watches a port: its Spymaster and the port's harbourmaster. */
+export function watchOf(world: World, sectorId: string): number {
+  const f = findSector(world, sectorId);
+  if (!f) return 10;
+  const spy = seatHolder(world, f.planet.houseId, 'spymaster');
+  const hm = harbourmaster(world, sectorId);
+  const a = spy ? (spy.stats.intrigue + spy.stats.insight) / 2 : 9;
+  const b = hm ? hm.stats.perception : 9;
+  return (a + b) / 2 + (f.sector.port === 'starport' ? 1 : 0);
+}
+
+/** Chance each Phase that a posted agent is found out. */
+export function postRisk(world: World, agentId: string, sectorId: string): number {
+  const agent = world.characters[agentId];
+  if (!agent) return 0;
+  const post = world.ports?.posts[agentId];
+  return Math.max(0.005, Math.min(0.35, 0.06 + (watchOf(world, sectorId) - coverOf(world, agent, post?.since)) * 0.03));
+}
+
 /** Each Phase: what posted agents learn, and whether they are caught. */
 function tendPosts(world: World, rng: Rng) {
   const P = world.playerHouseId;
@@ -755,10 +781,10 @@ function tendPosts(world: World, rng: Rng) {
     if (!agent?.alive || !f) { endPost(world, post.agentId, 'A post at a foreign port fell silent.'); continue; }
     const house = f.planet.houseId;
     for (const c of Object.values(world.characters)) if (c.alive && c.houseId === house && c.seat) learn(world, P, c.id, 3);
-    const their = seatHolder(world, house, 'spymaster');
-    const risk = Math.min(0.3, 0.05 + Math.max(0, (their?.stats.intrigue ?? 10) - agent.stats.intrigue) * 0.012);
-    if (!rng.chance(risk)) continue;
-    if (rng.chance(0.5)) {
+    if (!rng.chance(postRisk(world, agent.id, post.sectorId))) continue;
+    // Found out: whether they get away depends on their wits and speed.
+    const escape = (agent.stats.agility + agent.stats.reflexes + agent.stats.deception) / 3;
+    if (rng.chance(Math.max(0.15, Math.min(0.85, 0.5 + (watchOf(world, post.sectorId) - escape) * 0.05)))) {
       agent.flags.push({ id: 'captive', since: world.date, detail: `held by House ${world.houses[house]?.name}`, knownBy: [house, P] }, { id: 'missing', since: world.date });
       world.captives ??= {};
       world.captives[agent.id] = { characterId: agent.id, heldBy: house, since: world.date, interrogated: false };
