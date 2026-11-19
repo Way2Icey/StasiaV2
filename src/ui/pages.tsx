@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Portrait } from './portrait';
 import { QuarterTerm, StatTerm, Term } from './tip';
 import { absoluteCycle } from '../sim/time';
 import { ageOf } from '../sim/characters';
@@ -234,12 +235,6 @@ export function PeoplePage() {
 
 // ---------------------------------------------------------------- Character
 
-function initials(c: Character) {
-  const a = c.name.given.charAt(0);
-  const b = (c.name.family ?? c.name.hold ?? '').replace(/^the /, '').charAt(0);
-  return (a + b).toUpperCase();
-}
-
 export function CharacterPage({ id }: { id: string }) {
   const world = useWorld();
   const { reveal } = useGame();
@@ -278,7 +273,7 @@ export function CharacterPage({ id }: { id: string }) {
     <>
       <section className="panel">
         <div className="body sheet-head">
-          <div className="portrait" aria-hidden="true">{initials(c)}</div>
+          <Portrait c={c} date={world.date} high={!!c.seat || family.ruling || family.high} />
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span className="eyebrow gold">{c.role}{c.alive ? '' : ` · died ${formatDate(c.death!.date)} (${c.death!.cause})`}</span>
             <h2>{displayName(c.name)}</h2>

@@ -26,12 +26,7 @@ import { useGame, useNav, useWorld } from './context';
 import { FamilyLink, Go, HouseLink, Panel, PersonLink, SectorLink } from './links';
 import { ArmouryPanel, CaptivesPanel, RansomDemands, Regard, TaskControl } from './council';
 import { Term } from './tip';
-
-function initials(c: Character) {
-  const a = c.name.given.charAt(0);
-  const b = (c.name.family ?? c.name.hold ?? '').replace(/^the /, '').charAt(0);
-  return (a + b).toUpperCase();
-}
+import { Portrait } from './portrait';
 
 /** Where someone is right now, as a short word. */
 function whereabouts(world: ReturnType<typeof useWorld>, c: Character): { text: string; tone: string } {
@@ -71,7 +66,7 @@ export function CouncilGrid({ className }: { className?: string }) {
           <button key={c.id} type="button" className="seat-card" onClick={go}>
             <span className="eyebrow gold">{SEAT_TITLE[seat]}</span>
             <span className="seat-who">
-              <span className="portrait small" aria-hidden="true">{initials(c)}</span>
+              <Portrait c={c} date={world.date} high size="small" />
               <span style={{ display: 'grid', gap: 2, minWidth: 0 }}>
                 <strong>{c.name.given} {c.name.family ?? (c.name.hold ? `of ${c.name.hold}` : '')}</strong>
                 <span className={w.tone} style={{ fontSize: 11 }}>{w.text}</span>
@@ -123,7 +118,7 @@ export function SeatPage({ seat }: { seat: CouncilSeat }) {
           <div className="body seat-head">
             {holder ? (
               <>
-                <span className="portrait small" aria-hidden="true">{initials(holder)}</span>
+                <Portrait c={holder} date={world.date} high size="small" />
                 <span style={{ display: 'grid', gap: 2 }}>
                   <PersonLink c={holder} />
                   <span className="muted" style={{ fontSize: 12 }}>{holder.role} · age {ageOf(holder, world.date)} · <MoodText c={holder} /> · <span className={whereabouts(world, holder).tone}>{whereabouts(world, holder).text}</span></span>
@@ -161,7 +156,7 @@ function GrandMaster() {
       {champion ? (
         <Panel title={<Term k="seat:champion">House Champion</Term>} className="span-12">
           <div className="body seat-head">
-            <span className="portrait small" aria-hidden="true">{initials(champion)}</span>
+            <Portrait c={champion} date={world.date} high size="small" />
             <span style={{ display: 'grid', gap: 2 }}>
               <PersonLink c={champion} />
               <span className="muted" style={{ fontSize: 12 }}>Duelling {champion.stats.duelling} · Valor {champion.stats.valor}{caige(champion) ? ` · Caige ${caige(champion)}` : ''} · <MoodText c={champion} /> · <span className={whereabouts(world, champion).tone}>{whereabouts(world, champion).text}</span></span>
