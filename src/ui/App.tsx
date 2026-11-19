@@ -17,12 +17,13 @@ import { MissionPage, MissionsPage, PlanPage } from './missions';
 import { CouncilPage } from './council';
 import { SeatPage } from './seats';
 import { Coffers, EconomyPage } from './economy';
+import { StarMapPage } from './starmap';
 import { activeMissions } from '../sim/missions';
 import { routeLabel, sameRoute, sectionOf, type Route, type Section } from './router';
 import { AUTOSAVE, storage } from './storage';
 import {
   BandPage, CharacterPage, FamilyPage, FlagPage, HousePage, HousesPage, PeoplePage, PlanetPage,
-  SavePage, SearchPage, SectorPage, SpeciesPage, ThroneRoom, TraitPage, WorldsPage,
+  SavePage, SearchPage, SectorPage, SpeciesPage, ThroneRoom, TraitPage,
 } from './pages';
 
 function initialWorld(): World {
@@ -33,16 +34,16 @@ function initialWorld(): World {
   return createWorld();
 }
 
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: 'throne', label: 'Throne Room' },
-  { id: 'council', label: 'Council' },
-  { id: 'economy', label: 'Economy' },
-  { id: 'people', label: 'People' },
-  { id: 'houses', label: 'Houses' },
-  { id: 'worlds', label: 'Worlds' },
-  { id: 'missions', label: 'Missions' },
-  { id: 'save', label: 'Save & Load' },
-  { id: 'glossary', label: 'Glossary' },
+const SECTIONS: { id: Section; label: string; key: string }[] = [
+  { id: 'throne', label: 'HALL', key: '1' },
+  { id: 'council', label: 'COUNCIL', key: '2' },
+  { id: 'missions', label: 'MISSIONS', key: '3' },
+  { id: 'worlds', label: 'MAP', key: '4' },
+  { id: 'economy', label: 'LEDGER', key: '5' },
+  { id: 'people', label: 'PEOPLE', key: '6' },
+  { id: 'houses', label: 'HOUSES', key: '7' },
+  { id: 'save', label: 'SAVE', key: '8' },
+  { id: 'glossary', label: 'GLOSSARY', key: '?' },
 ];
 
 interface History { stack: Route[]; index: number }
@@ -59,6 +60,26 @@ export function App() {
   useEffect(() => { storage.set(AUTOSAVE, serialize(world)); }, [world]);
 
   const current = history.stack[history.index]!;
+
+  // Number keys jump between screens, as in the terminal; ignored while typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      const s = SECTIONS.find((x) => x.key === e.key);
+      if (!s) return;
+      e.preventDefault();
+      setHistory((h) => {
+        const r = { kind: s.id } as Route;
+        if (sameRoute(h.stack[h.index]!, r)) return h;
+        const stack = [...h.stack.slice(0, h.index + 1), r].slice(-60);
+        return { stack, index: stack.length - 1 };
+      });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   useEffect(() => { mainRef.current?.scrollTo({ top: 0 }); setHovered(null); }, [history]);
 
   const nav: Nav = useMemo(() => ({
@@ -132,7 +153,7 @@ export function App() {
               <nav className="rail" aria-label="Screens">
                 {SECTIONS.map((s) => (
                   <button key={s.id} type="button" aria-current={section === s.id ? 'page' : undefined} onClick={() => nav.to({ kind: s.id } as Route)}>
-                    {s.label}
+                    <span className="key" aria-hidden="true">[{s.key}]</span>{s.label}
                     {s.id === 'throne' && world.events?.pending.length ? <span className="count gold-count">{world.events.pending.length}</span> : null}
                     {s.id === 'missions' && activeMissions(world, world.playerHouseId).length ? <span className="count">{activeMissions(world, world.playerHouseId).length}</span> : null}
                     {s.id === 'council' && world.courts[world.playerHouseId]?.petitions.length ? <span className="count gold-count">{world.courts[world.playerHouseId]!.petitions.length}</span> : null}
@@ -168,7 +189,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'throne': return <ThroneRoom />;
     case 'people': return <PeoplePage />;
     case 'houses': return <HousesPage />;
-    case 'worlds': return <WorldsPage />;
+    case 'worlds': return <StarMapPage />;
     case 'save': return <SavePage setWorld={setWorld} />;
     case 'character': return <CharacterPage key={route.id} id={route.id} />;
     case 'house': return <HousePage id={route.id} />;

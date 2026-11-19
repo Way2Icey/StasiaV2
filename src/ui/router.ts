@@ -53,15 +53,15 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function routeLabel(world: World, r: Route): string {
   switch (r.kind) {
-    case 'throne': return 'Throne Room';
+    case 'throne': return 'Hall';
     case 'people': return 'People';
     case 'houses': return 'Houses';
-    case 'worlds': return 'Worlds';
+    case 'worlds': return 'Star map';
     case 'save': return 'Save & Load';
     case 'missions': return 'Missions';
     case 'council': return 'Council';
     case 'seat': return SEAT_TITLE[r.id];
-    case 'economy': return 'Economy';
+    case 'economy': return 'Ledger';
     case 'glossary': return 'Glossary';
     case 'mission': {
       const m = world.missions[r.id];

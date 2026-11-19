@@ -22,7 +22,7 @@ import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
 import { LeadsPanel, MissionRow } from './missions';
 import { moodColor, moodLabel, moodOf } from '../sim/mood';
-import { DecisionsPanel } from './events';
+import { CouncilTable, Desk, HallPanel } from './hall';
 import { CaptivesPanel, OathSummary, Petitions, RansomDemands, StandingPanel } from './council';
 import { formatRange, KNOW, knowledgeOf, type CharacterView } from '../sim/knowledge';
 import { activeMissionOf, activeMissions, MISSION_LABEL } from '../sim/missions';
@@ -105,7 +105,6 @@ function explore(world: World, see: (c: Character) => CharacterView): { key: str
 export function ThroneRoom() {
   const world = useWorld();
   const house = world.houses[world.playerHouseId]!;
-  const council = councilOf(world, house.id);
   const parts = dateParts(world.date);
   const people = alive(world).filter((c) => c.houseId === house.id);
   const feed = [...world.feed].reverse().slice(0, 30);
@@ -115,18 +114,17 @@ export function ThroneRoom() {
 
   return (
     <>
-      <Title title="The Throne Room" sub="Every name, place and label is a door. Hover a name for a preview; follow anything that catches your eye." />
+      <Title title="The Hall" sub="Your house at a glance. Every name, place and label is a door: hover for a preview, follow anything that catches your eye." />
       <div className="grid">
+        <HallPanel className="span-7" />
+        <div className="span-5 stack">
+          <Desk />
+          <OathSummary />
+        </div>
+        <CouncilTable className="span-7" />
         <Panel title="This Orbit" aside={`Orbit ${parts.orbit} of 10 · SY-${parts.year}`} className="span-5">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', gap: 4 }} role="img" aria-label={`Phase ${parts.phase} of 5`}>
-              {[1, 2, 3, 4, 5].map((p) => (
-                <div key={p} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ height: 6, borderRadius: 3, background: p < parts.phase ? 'var(--gold)' : p === parts.phase ? '#7a6538' : 'var(--line)' }} />
-                  <span className="eyebrow">Phase {p}</span>
-                </div>
-              ))}
-            </div>
+            <pre className="ascii" aria-label={`Phase ${parts.phase} of 5`}>{[1, 2, 3, 4, 5].map((p) => (p < parts.phase ? '█████' : p === parts.phase ? '▓▓▓▓▓' : '░░░░░')).join(' ')}{'\n'}{[1, 2, 3, 4, 5].map((p) => `PH ${p} `).join(' ')}</pre>
             <dl className="kv">
               <dt>House</dt><dd><HouseLink id={house.id} /></dd>
               <dt>People of the house</dt><dd className="mono">{people.length}</dd>
@@ -135,18 +133,9 @@ export function ThroneRoom() {
             </dl>
           </div>
         </Panel>
-        <Panel title="Council of Designers" className="span-7">
-          {council.map((c) => (
-            <Row key={c.id}
-              left={<span style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}><span className="eyebrow gold" style={{ width: 110, flexShrink: 0 }}>{SEAT_TITLE[c.seat!]}</span><PersonLink c={c} /></span>}
-              right={<><SpeciesLink id={c.species} /> · {ageOf(c, world.date)}</>} />
-          ))}
-        </Panel>
-        <DecisionsPanel className="span-12" hideWhenEmpty />
-        <OathSummary className="span-6" />
-        <Petitions className="span-6" />
-        <RansomDemands className="span-12" />
-        <LeadsPanel className="span-12" />
+        <div id="petitions" className="span-6"><Petitions /></div>
+        <div id="ransoms" className="span-6"><RansomDemands /></div>
+        <div id="leads" className="span-12"><LeadsPanel /></div>
         <CaptivesPanel className="span-12" hideWhenEmpty />
         <Panel title={<Term k="mission">Missions in the field</Term>} aside={<Go to={{ kind: 'missions' }}>Missions board ›</Go>} className="span-12">
           {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. Open anyone's sheet to look into them, or a world to scout it.</p> : null}
