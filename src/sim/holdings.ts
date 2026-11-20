@@ -41,7 +41,7 @@ export const BUILD_COST: Record<ModuleKind, [number, number, number]> = {
   hangar: [6000, 12000, 20000],
 };
 /** Othes a vault can hold at each level. */
-export const VAULT_CAPACITY = [0, 30000, 80000, 200000];
+export const VAULT_CAPACITY = [0, 25000, 60000, 120000];
 export const TREATMENT_LABEL: Record<Treatment, string> = { decent: 'Decent', harsh: 'Harsh', isolation: 'Isolation' };
 export const TREATMENT_NOTE: Record<Treatment, string> = {
   decent: 'Fed, lit and spoken to. Questioning is gentler, but some come to like their jailers, and a few change sides.',
@@ -104,6 +104,8 @@ export interface HoldingsState {
   ops: Operation[];
   /** When a house last tried a rescue or a heist, keyed 'rescue:house' / 'heist:house'. */
   cooldown?: Record<string, GameDate>;
+  /** Cities, ports and ships have had their cells added. */
+  seeded?: boolean;
 }
 
 // ---------------------------------------------------------------- set-up
@@ -128,6 +130,7 @@ export function ensureHoldings(world: World): void {
   if (world.holdings?.modules) {
     world.holdings.prisoners ??= {};
     world.holdings.ops ??= [];
+    seedCells(world);
     return;
   }
   world.holdings = { modules: {}, prisoners: {}, ops: [] };
@@ -153,15 +156,48 @@ export function ensureHoldings(world: World): void {
       .sort((a, b) => b.stats.resonanceControl - a.stats.resonanceControl)[0];
     if (keeper) vault.keepers = [keeper.id];
   }
+  seedCells(world);
   for (const c of Object.values(world.armoury ?? {})) storeInVault(world, c);
   for (const cap of Object.values(world.captives ?? {})) placeCaptive(world, cap, 'spy');
 }
 
+/** Cities, bases and ports keep cells as a matter of course; farmland and wilds do not. */
+export function sectorHasCells(sector: { designation: string; port: string }): boolean {
+  return /city|fortress|post|base|garrison|citadel/i.test(sector.designation) || sector.port === 'spaceport' || sector.port === 'starport';
+}
+
+/** Give every city, port and base its cells, and every great ship its brig. Runs once per save. */
+function seedCells(world: World): void {
+  if (world.holdings.seeded) return;
+  world.holdings.seeded = true;
+  for (const p of Object.values(world.planets)) {
+    for (const sec of p.sectors) {
+      if (!sectorHasCells(sec)) continue;
+      if (Object.values(world.holdings.modules).some((m) => m.sectorId === sec.id && m.kind === 'cells')) continue;
+      const m = newModule(world, p.houseId, 'cells', sec.id, 1);
+      m.overseerId = null;
+    }
+  }
+}
+
+/** A brig for a great ship that has none. */
+export function ensureBrig(world: World, shipId: string, houseId: string): void {
+  if (Object.values(world.holdings.modules).some((m) => m.shipId === shipId && m.kind === 'cells')) return;
+  const id = `mod${world.nextId++}`;
+  world.holdings.modules[id] = { id, kind: 'cells', houseId, shipId, level: 1, overseerId: null, built: world.date };
+}
+
+/** How many Caiges a vault can keep: four a level. */
+export function caigeRoom(m: Module): number { return m.level * 4; }
+
 /** Unbonded Caiges belong in a vault; a new find goes to the house's first vault. */
 export function storeInVault(world: World, c: Caige): void {
   if (c.bondedTo) { delete c.vaultId; return; }
-  if (c.vaultId && world.holdings.modules[c.vaultId]) return;
-  const v = modulesOf(world, c.houseId, 'vault')[0];
+  const cur = c.vaultId ? world.holdings.modules[c.vaultId] : undefined;
+  if (cur && cur.houseId === c.houseId) return;
+  delete c.vaultId;
+  // The first vault of the house with room; with none, it sits loose in the armoury and slips faster.
+  const v = modulesOf(world, c.houseId, 'vault').find((m) => caigesIn(world, m.id).length < caigeRoom(m));
   if (v) c.vaultId = v.id;
   c.stability ??= 85;
 }
@@ -821,6 +857,13 @@ function aiHeists(world: World, rng: Rng) {
 /** Caiges kept in vaults drift unless someone keeps watch. */
 function caigeStability(world: World, rng: Rng) {
   const P = world.playerHouseId;
+  // Loose Caiges, with no vault to hold them, slip quickly.
+  for (const c of Object.values(world.armoury ?? {})) {
+    if (c.bondedTo || c.vaultId) continue;
+    const before = c.stability ?? 85;
+    c.stability = Math.max(0, Math.round((before - 4 + rng.gauss()) * 10) / 10);
+    if (before >= 40 && c.stability < 40 && c.houseId === P) logRecord(world, { kind: 'world', type: 'condition', severity: 2, text: `${c.name} has no place in any vault and is growing restless in the armoury.`, detail: 'Build a vault, or improve one, to give it a home.' });
+  }
   for (const v of Object.values(world.holdings.modules)) {
     if (v.kind !== 'vault') continue;
     v.keepers = (v.keepers ?? []).filter((id) => world.characters[id]?.alive && world.characters[id]?.houseId === v.houseId);

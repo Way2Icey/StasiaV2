@@ -8,7 +8,7 @@ import { SPECIES } from '../data/species';
 
 export type Route =
   | { kind: 'throne' }
-  | { kind: 'people'; focus?: string; view?: 'web' | 'factions' | 'everyone' }
+  | { kind: 'people'; focus?: string; view?: 'web' | 'factions' | 'young' | 'everyone' }
   | { kind: 'houses' }
   | { kind: 'worlds' }
   | { kind: 'save' }

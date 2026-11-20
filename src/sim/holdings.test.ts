@@ -3,7 +3,7 @@ import { advanceTurn } from './tick';
 import { deserialize, serialize } from './save';
 import { econ } from './economy';
 import {
-  buildModule, caigesIn, cellCapacity, deposit, escapeChance, imprison, keeperCoverage, modulesOf, reservesOf, setKeeper, setTreatment, upgradeModule, withdraw,
+  buildModule, caigesIn, sectorHasCells, cellCapacity, deposit, escapeChance, imprison, keeperCoverage, modulesOf, reservesOf, setKeeper, setTreatment, upgradeModule, withdraw,
 } from './holdings';
 import type { World } from './types';
 
@@ -17,10 +17,15 @@ function run(w: World, turns: number): World {
 }
 
 describe('holdings', () => {
-  it('every house starts with cells and a vault at its capital', () => {
+  it('every house has a vault at its capital and cells in its cities, ports and ships, not its farmland', () => {
     for (const h of Object.keys(world.houses)) {
-      expect(modulesOf(world, h, 'cells').length).toBe(1);
+      expect(modulesOf(world, h, 'cells').length).toBeGreaterThan(1);
       expect(modulesOf(world, h, 'vault').length).toBe(1);
+      expect(modulesOf(world, h, 'cells').some((m) => m.shipId)).toBe(true);
+    }
+    for (const p of Object.values(world.planets)) for (const sec of p.sectors) {
+      const has = Object.values(world.holdings.modules).some((m) => m.sectorId === sec.id && m.kind === 'cells');
+      expect(has).toBe(sectorHasCells(sec) || sec.id === Object.values(world.holdings.modules).find((m) => m.kind === 'vault' && m.sectorId === sec.id)?.sectorId);
     }
   });
 

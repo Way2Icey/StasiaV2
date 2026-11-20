@@ -17,6 +17,7 @@ import { absoluteCycle } from '../sim/time';
 import type { World } from '../sim/types';
 import { findSector } from '../sim/query';
 import { FleetPanel, ShipsAt } from './fleet';
+import { HoldingsOverview } from './holdings';
 
 const W = 96;
 const H = 30;
@@ -208,6 +209,7 @@ export function StarMapPage() {
             </div>
           </Panel>
           <FleetPanel />
+          <HoldingsOverview />
           <Panel title={<Term k="holdings">All worlds</Term>}>
             {Object.values(world.planets).map((w) => (
               <div key={w.id} className="row">

@@ -8,6 +8,7 @@ import { findSector } from './query';
 import { shiftMood } from './mood';
 import { shiftOpinion } from './relationships';
 import { kill } from './death';
+import { ensureBrig } from './holdings';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, type GameDate } from './time';
 import type { Character, World } from './types';
 
@@ -91,7 +92,10 @@ function bestCaptain(world: World, houseId: string, except: Set<string>): Charac
 }
 
 export function ensureFleet(world: World): void {
-  if (world.fleet?.ships) return;
+  if (world.fleet?.ships) {
+    for (const s of Object.values(world.fleet.ships)) if (!s.lost && world.holdings) ensureBrig(world, s.id, s.houseId);
+    return;
+  }
   world.fleet = { ships: {} };
   const rng = new Rng(world.rng);
   for (const h of Object.values(world.houses)) {
@@ -110,6 +114,7 @@ export function ensureFleet(world: World): void {
     }
   }
   world.rng = rng.state;
+  if (world.holdings) for (const s of Object.values(world.fleet.ships)) ensureBrig(world, s.id, s.houseId);
 }
 
 // ---------------------------------------------------------------- queries
@@ -248,6 +253,7 @@ export function commission(input: World, cls: CapitalClass): World {
       id, houseId: P, name: shipName(w, rng, P), cls, captainId: null, crew: d.crew, crewMood: 60, condition: 100,
       sectorId: capitalSector(w, P), duty: 'harbour', built: w.date, ready: addCycles(w.date, CYCLES_PER_ORBIT * 2),
     };
+    ensureBrig(w, id, P);
     logRecord(w, { kind: 'world', type: 'economy', severity: 2, text: `The keel of a new ${d.label.toLowerCase()}, the ${w.fleet.ships[id]!.name}, is laid at ${findSector(w, w.fleet.ships[id]!.sectorId)?.sector.name}.`, effects: [`−${fmt(d.cost)} othes`, `−${d.components} components`, 'Ready in two Orbits'] });
   });
 }

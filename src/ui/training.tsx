@@ -5,13 +5,14 @@ import { Go, HouseLink, Panel, PersonById, PersonLink } from './links';
 import { Term } from './tip';
 import {
   ACADEMY_COST, answerWardOffer, askForWard, cannotEnrol, cannotSendWard, cannotTutor, enrolAcademy, kindFor, paceOf, PROGRAM_LABEL, rankOf,
-  recallWard, sendWard, setDrill, setGuardian, startTutoring, stopTraining, studentsAt, SUBJECTS, teacherSkill, TUTOR_COST, WARD_NOTE, youths,
+  recallWard, sendWard, setDrill, setGuardian, startTutoring, stopTraining, studentsAt, SUBJECTS, teacherSkill, TUTOR_COST, WARD_NOTE, youths, enrolmentOf,
   type Subject,
 } from '../sim/training';
 import { modulesOf, placeOf } from '../sim/holdings';
 import { isAway } from '../sim/court';
 import { seatHolder } from '../sim/query';
 import { ageOf } from '../sim/characters';
+import { SPECIES } from '../data/species';
 import { dateParts } from '../sim/time';
 import type { Character, World } from '../sim/types';
 
@@ -45,7 +46,7 @@ export function TrainingPage({ id }: { id?: string }) {
         <Tutor className="span-6" />
         <Drill className="span-6" />
         <Academies className="span-12" />
-        <Wards className="span-12" />
+        <Panel title="Wards" className="span-12"><p className="body" style={{ margin: 0 }}>Wards live with the house's young: <Go to={{ kind: 'people', view: 'young' }}>Relations › Younglings ›</Go></p></Panel>
       </div>
     </>
   );
@@ -177,7 +178,7 @@ function Academies({ className }: { className?: string }) {
   );
 }
 
-function Wards({ className }: { className?: string }) {
+export function Wards({ className }: { className?: string }) {
   const world = useWorld();
   const { run, err } = usePlay();
   const P = world.playerHouseId;
@@ -249,5 +250,60 @@ function Wards({ className }: { className?: string }) {
       </div>
       {err ? <p className="error body" style={{ margin: 0 }}>{err}</p> : null}
     </Panel>
+  );
+}
+
+/** The house's young: who they are, where they are being raised, and what they are learning. */
+export function Younglings() {
+  const world = useWorld();
+  const { run, err } = usePlay();
+  const P = world.playerHouseId;
+  const young = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full' && !c.seat && ageOf(c, world.date) < SPECIES[c.species].adulthood * 1.4)
+    .sort((a, b) => ageOf(b, world.date) - ageOf(a, world.date));
+  const eligible = new Set(youths(world, P).map((c) => c.id));
+  const others = Object.values(world.houses).filter((h) => h.id !== P);
+  const [host, setHost] = useState<Record<string, string>>({});
+  const stayOf = (id: string) => Object.values(world.training.wards).find((s) => s.wardId === id);
+  return (
+    <div className="grid">
+      <Panel title="Younglings" aside={`${young.length} of our house · ${eligible.size} old enough to be wards`} className="span-12">
+        <p className="body muted" style={{ margin: 0 }}>The children and youths of the house. From about half of adulthood they can be sent to another house as wards, or taught at home by a tutor or the academy.</p>
+        <div className="table-wrap">
+          <table className="ctable">
+            <thead><tr><th>NAME</th><th>AGE</th><th>WHERE</th><th>LEARNING</th><th>SEND AS WARD</th></tr></thead>
+            <tbody>
+              {young.map((c) => {
+                const st = stayOf(c.id);
+                const en = enrolmentOf(world, c.id);
+                const h = host[c.id] ?? '';
+                const why = h ? cannotSendWard(world, c.id, h) : null;
+                const wardAge = Math.ceil(SPECIES[c.species].adulthood * 0.5);
+                return (
+                  <tr key={c.id}>
+                    <td><PersonLink c={c} /></td>
+                    <td className="mono">{ageOf(c, world.date)}</td>
+                    <td>{st ? <>ward at <HouseLink id={st.host} /> · home {short(st.end)}</> : isAway(world, c.id) ? 'away' : 'at court'}</td>
+                    <td>{en ? `${PROGRAM_LABEL[en.program]} · ${SUBJECTS[en.subject].label.toLowerCase()}` : <span className="muted">—</span>}</td>
+                    <td>
+                      {st ? <span className="muted">—</span> : !eligible.has(c.id) ? <span className="muted">{ageOf(c, world.date) < wardAge ? `too young until ${wardAge}` : 'not now'}</span> : (
+                        <span style={{ display: 'flex', gap: 6 }}>
+                          <select className="select" aria-label="To which house" value={h} onChange={(e) => setHost({ ...host, [c.id]: e.target.value })}>
+                            <option value="">To…</option>
+                            {others.map((o) => <option key={o.id} value={o.id}>House {o.name} · {kindFor(world, P, o.id)}</option>)}
+                          </select>
+                          <button type="button" className="btn small primary" disabled={!h || !!why} title={why ?? (h ? WARD_NOTE[kindFor(world, P, h)] : undefined)} onClick={() => run((w) => sendWard(w, c.id, h))}>{why ?? 'Send'}</button>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {err ? <p className="error body" style={{ margin: 0 }}>{err}</p> : null}
+      </Panel>
+      <Wards className="span-12" />
+    </div>
   );
 }

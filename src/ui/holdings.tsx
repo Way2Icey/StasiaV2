@@ -4,7 +4,7 @@ import { useGame, useNav, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, PersonLink, SectorLink } from './links';
 import { Term } from './tip';
 import {
-  buildCost, buildModule, caigesIn, cannotBuild, cannotHeist, cannotRescue, cellCapacity, cellLoad, cellSecurity, deposit, escapeChance,
+  buildCost, buildModule, caigeRoom, caigesIn, cannotBuild, cannotHeist, cannotRescue, cellCapacity, cellLoad, cellSecurity, deposit, escapeChance,
   executePrisoner, HEIST_COST, inmates, keeperCoverage, MODULE_LABEL, MODULE_NOTE, modulesOf, mountHeist, mountRescue, OVERSEER_TITLE,
   placeOf, REASON_LABEL, releasePrisoner, RESCUE_COST, reservesOf, returnCaige, setKeeper, setModuleOverseer, setReason, setTreatment,
   stabilityWord, TREATMENT_LABEL, TREATMENT_NOTE, upgradeModule, VAULT_CAPACITY, vaultSecurity, withdraw,
@@ -14,6 +14,7 @@ import { executeCaptive, interrogateCaptive, releaseCaptive } from '../sim/capti
 import { demandRansom, econ, heldSectors, ransomValue } from '../sim/economy';
 import { isAway } from '../sim/court';
 import { dateParts, formatDate } from '../sim/time';
+import { findSector } from '../sim/query';
 import { knowledgeOf } from '../sim/knowledge';
 import type { Character, World } from '../sim/types';
 
@@ -238,7 +239,7 @@ function VaultView({ m }: { m: Module }) {
           <button type="button" className="btn small" disabled={drives < 1} onClick={() => run((w) => withdraw(w, m.id, drives))}>Draw all</button>
         </div>
       </Panel>
-      <Panel title={<Term k="caige">Caiges in store</Term>} aside={`${caiges.length} stored · keepers cover ${pct(cover)}`}>
+      <Panel title={<Term k="caige">Caiges in store</Term>} aside={`${caiges.length} of ${caigeRoom(m)} places · keepers cover ${pct(cover)}`}>
         <p className="body muted" style={{ margin: 0 }}>A stored Caige's navisium slips over time unless keepers check on it. Each keeper can mind about three, better with high resonance control. Below 40 it grows restless; below 15 something gives.</p>
         <div className="table-wrap">
           {caiges.length ? (
@@ -364,14 +365,62 @@ function RivalVaults({ className }: { className?: string }) {
   );
 }
 
-/** The holdings at one sector, for the sector page. */
+/** Everything built at one sector, with what can still be built there. The home of holdings. */
 export function SectorHoldings({ sectorId }: { sectorId: string }) {
   const world = useWorld();
-  const mods = Object.values(world.holdings?.modules ?? {}).filter((m) => m.sectorId === sectorId && (m.houseId === world.playerHouseId));
-  if (!mods.length) return null;
+  const { run, err } = usePlay();
+  const P = world.playerHouseId;
+  const found = findSector(world, sectorId);
+  if (!found) return null;
+  const ours = found.planet.houseId === P;
+  const mods = Object.values(world.holdings?.modules ?? {}).filter((m) => m.sectorId === sectorId);
+  const kinds: ModuleKind[] = ['cells', 'vault', 'academy'];
+  if (!ours) {
+    return (
+      <Panel title={<Term k="modules">Holdings</Term>} aside="as far as we know" className="span-12">
+        <p className="body" style={{ margin: 0 }}>
+          {mods.length ? mods.map((m) => `${MODULE_LABEL[m.kind]} (level ${m.level})`).join(' · ') : 'Nothing of note built here.'}
+        </p>
+      </Panel>
+    );
+  }
+  const missing = kinds.filter((k) => !mods.some((m) => m.kind === k));
   return (
-    <Panel title="Holdings here" aside={`${mods.length}`}>
-      {mods.map((m) => <div key={m.id} className="row"><Go to={{ kind: 'holdings', id: m.id }}>{MODULE_LABEL[m.kind]} · level {m.level}{m.works ? ` (works to ${m.works.to})` : ''} ›</Go></div>)}
+    <>
+      <Panel title={<Term k="modules">Holdings here</Term>} aside={mods.length ? mods.map((m) => `${MODULE_LABEL[m.kind]} L${m.level}`).join(' · ') : 'none built'} className="span-12">
+        <p className="body muted" style={{ margin: 0 }}>Cities, bases and ports keep cells; farmland and wilds do not, unless you build them. A vault is worth building where you want othes and Caiges kept safe; an academy where you want people taught.</p>
+        {missing.length ? (
+          <div className="actions body">
+            {missing.map((k) => {
+              const why = cannotBuild(world, k, sectorId);
+              return <button key={k} type="button" className="btn small" disabled={!!why} title={why ?? MODULE_NOTE[k]} onClick={() => run((w) => buildModule(w, k, sectorId))}>Build {MODULE_LABEL[k].toLowerCase()} · {fmt(buildCost(k, 1))}{why && why !== 'Not enough othes' ? '' : ''}</button>;
+            })}
+            <span className="muted" style={{ fontSize: 12 }}>Each takes a Phase to build.</span>
+          </div>
+        ) : null}
+        {err ? <p className="error body" style={{ margin: 0 }}>{err}</p> : null}
+      </Panel>
+      {mods.filter((m) => m.houseId === P).map((m) => <div key={m.id} className="span-6 stack"><ModuleView m={m} /></div>)}
+    </>
+  );
+}
+
+/** Every holding we have, for the map. */
+export function HoldingsOverview() {
+  const world = useWorld();
+  const P = world.playerHouseId;
+  const mods = Object.values(world.holdings?.modules ?? {}).filter((m) => m.houseId === P);
+  const bySector = new Map<string, Module[]>();
+  for (const m of mods) { const k = m.sectorId ?? `ship:${m.shipId}`; bySector.set(k, [...(bySector.get(k) ?? []), m]); }
+  return (
+    <Panel title={<Term k="modules">Our holdings</Term>} aside={`reserves ${fmt(reservesOf(world, P))} othes`}>
+      {[...bySector.entries()].map(([k, ms]) => (
+        <div key={k} className="row" style={{ gap: 8 }}>
+          <span style={{ flex: 1 }}>{k.startsWith('ship:') ? <Go to={{ kind: 'ship', id: k.slice(5) }}>{placeOf(world, ms[0]!)}</Go> : <SectorLink id={k} />}</span>
+          <span className="muted mono" style={{ fontSize: 12 }}>{ms.map((m) => `${m.kind === 'cells' && m.shipId ? 'brig' : m.kind} L${m.level}${m.kind === 'cells' ? ` ${cellLoad(world, m.id)}/${cellCapacity(m)}` : ''}`).join(' · ')}</span>
+        </div>
+      ))}
+      <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Open a sector to build there or manage what is in its cells and vault.</p>
     </Panel>
   );
 }

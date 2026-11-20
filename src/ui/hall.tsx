@@ -226,7 +226,7 @@ export function Desk({ className }: { className?: string }) {
     items.push({ id: `cg-${c.id}`, mark: '[~]', kind: 'CAIGE', text: <>{c.name} is {Math.round(c.stability ?? 0) < 15 ? 'failing' : 'unstable'} in the vault</>, open: () => nav.to({ kind: 'holdings', id: c.vaultId }) });
   }
   for (const o of (world.training?.offers ?? []).filter((x) => x.to === P)) {
-    items.push({ id: o.id, mark: '[w]', kind: 'WARD', text: <>{world.houses[o.from]?.name} offers {world.characters[o.wardId]?.name.given} as a ward</>, when: inCycles(world, o.expires), open: () => nav.to({ kind: 'training' }) });
+    items.push({ id: o.id, mark: '[w]', kind: 'WARD', text: <>{world.houses[o.from]?.name} offers {world.characters[o.wardId]?.name.given} as a ward</>, when: inCycles(world, o.expires), open: () => nav.to({ kind: 'people', view: 'young' }) });
   }
   for (const l of leadsOf(world, P)) {
     items.push({ id: l.id, mark: '[i]', kind: 'LEAD', text: l.title, quiet: true, open: () => scrollTo('leads') });
