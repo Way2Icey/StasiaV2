@@ -5,7 +5,7 @@ import { Go, HouseLink, Panel, PersonById, PersonLink } from './links';
 import { Term } from './tip';
 import {
   ACADEMY_COST, answerWardOffer, askForWard, cannotEnrol, cannotSendWard, cannotTutor, enrolAcademy, kindFor, paceOf, PROGRAM_LABEL, rankOf,
-  recallWard, sendWard, setDrill, setGuardian, startTutoring, stopTraining, studentsAt, SUBJECTS, teacherSkill, TUTOR_COST, WARD_NOTE, youths, enrolmentOf,
+  recallWard, sendWard, chargesOf, PERSONAL_LIMIT, ACADEMY_PLACES, isYoungling, academyAge, setDrill, setGuardian, startTutoring, stopTraining, studentsAt, SUBJECTS, teacherSkill, TUTOR_COST, WARD_NOTE, youths, enrolmentOf,
   type Subject,
 } from '../sim/training';
 import { modulesOf, placeOf } from '../sim/holdings';
@@ -94,6 +94,7 @@ function Tutor({ className }: { className?: string }) {
   const world = useWorld();
   const { run, err } = usePlay();
   const people = ours(world).filter((c) => !isAway(world, c.id));
+  const pupils = people.filter((c) => isYoungling(world, c));
   const [student, setStudent] = useState('');
   const [subject, setSubject] = useState<Subject>('arms');
   const [tutor, setTutor] = useState('');
@@ -101,17 +102,18 @@ function Tutor({ className }: { className?: string }) {
   const why = student && tutor ? cannotTutor(world, student, tutor) : 'Pick a student and a tutor';
   return (
     <Panel title="A tutor" aside={`${TUTOR_COST} othes · one Orbit`} className={className}>
+      <p className="body muted" style={{ margin: 0 }}>For children and younglings only. Each teacher takes at most {PERSONAL_LIMIT} personal charges, pupils and wards together.</p>
       <div className="body" style={{ display: 'grid', gap: 6 }}>
         <select className="select" aria-label="Student" value={student} onChange={(e) => setStudent(e.target.value)}>
           <option value="">Student…</option>
-          {people.map((c) => <option key={c.id} value={c.id}>{c.name.given} {c.name.family ?? ''} · {ageOf(c, world.date)} · {c.role}</option>)}
+          {pupils.map((c) => <option key={c.id} value={c.id}>{c.name.given} {c.name.family ?? ''} · {ageOf(c, world.date)} · {c.role}</option>)}
         </select>
         <select className="select" aria-label="Subject" value={subject} onChange={(e) => setSubject(e.target.value as Subject)}>
           {SUBJ.map((s) => <option key={s} value={s}>{SUBJECTS[s].label} · {SUBJECTS[s].note}</option>)}
         </select>
         <select className="select" aria-label="Tutor" value={tutor} onChange={(e) => setTutor(e.target.value)}>
           <option value="">Tutor…</option>
-          {tutors.map((c) => <option key={c.id} value={c.id}>{c.name.given} {c.name.family ?? ''} · skill {teacherSkill(world, c.id, subject).toFixed(1)}</option>)}
+          {tutors.map((c) => <option key={c.id} value={c.id} disabled={chargesOf(world, c.id).length >= PERSONAL_LIMIT}>{c.name.given} {c.name.family ?? ''} · skill {teacherSkill(world, c.id, subject).toFixed(1)} · {chargesOf(world, c.id).length}/{PERSONAL_LIMIT} charges</option>)}
         </select>
         {student && tutor ? <span className="muted">Pace about {paceOf(world, { studentId: student, program: 'tutor', subject, teacherId: tutor, houseId: world.playerHouseId }).toFixed(2)} a Phase. A pupil who comes to like their tutor keeps them as a mentor.</span> : null}
         <button type="button" className="btn small primary" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => startTutoring(w, student, tutor, subject))}>{why ?? 'Begin'}</button>
@@ -148,17 +150,17 @@ function Academies({ className }: { className?: string }) {
   const mods = modulesOf(world, P, 'academy');
   const [student, setStudent] = useState('');
   const [subject, setSubject] = useState<Subject>('learning');
-  const people = ours(world).filter((c) => !isAway(world, c.id) && !c.seat);
+  const people = ours(world).filter((c) => !isAway(world, c.id) && !c.seat && academyAge(world, c));
   const wardsHere = Object.values(world.training.wards).filter((s) => s.host === P).map((s) => world.characters[s.wardId]!).filter(Boolean);
   return (
     <Panel title={<Term k="academy">Academies</Term>} aside={mods.length ? `${mods.length}` : 'none built'} className={className}>
-      {mods.length === 0 ? <p className="body muted" style={{ margin: 0 }}>We have no academy. Build one from <Go to={{ kind: 'holdings' }}>Holdings</Go>.</p> : null}
+      {mods.length === 0 ? <p className="body muted" style={{ margin: 0 }}>We have no academy. Build one from a sector's page (open it from the <Go to={{ kind: 'worlds' }}>Map</Go>).</p> : null}
       {mods.map((m) => {
         const st = studentsAt(world, m.id);
         const why = student ? cannotEnrol(world, student, m.id) : 'Pick a student';
         return (
           <div key={m.id} className="body" style={{ display: 'grid', gap: 6, borderBottom: '1px solid var(--line)' }}>
-            <div><b>{placeOf(world, m)}</b> <span className="muted">· level {m.level} · {st.length}/{m.level * 3} students · reputation {Math.round(m.reputation ?? 0)} · headmaster {m.overseerId ? <PersonById id={m.overseerId} /> : 'none'}</span></div>
+            <div><b>{placeOf(world, m)}</b> <span className="muted">· level {m.level} · {st.length}/{ACADEMY_PLACES} students · reputation {Math.round(m.reputation ?? 0)} · head {m.overseerId ? <PersonById id={m.overseerId} /> : <b>none: name one on its sector page</b>}</span></div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <select className="select" aria-label="Student" value={student} onChange={(e) => setStudent(e.target.value)}>
                 <option value="">Student…</option>
@@ -172,7 +174,7 @@ function Academies({ className }: { className?: string }) {
           </div>
         );
       })}
-      <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Two Orbits a course. Each graduate raises the academy's name; a known academy draws recruits who ask to join.</p>
+      <p className="body muted" style={{ margin: 0, fontSize: 12 }}>One head teaches up to {ACADEMY_PLACES} students at once, and every student learns from the head's own skills: choose the head for what you want taught. Youths and young adults only. Two Orbits a course; each graduate raises the academy's name, and a known academy draws recruits.</p>
       {err ? <p className="error body" style={{ margin: 0 }}>{err}</p> : null}
     </Panel>
   );
@@ -217,7 +219,7 @@ export function Wards({ className }: { className?: string }) {
                   <td>{s.host === P ? (
                     <select className="select" aria-label="Guardian" value={s.guardianId ?? ''} onChange={(e) => run((w) => setGuardian(w, s.id, e.target.value))}>
                       <option value="">(none)</option>
-                      {guardians.map((g) => <option key={g.id} value={g.id}>{g.name.given} {g.name.family ?? ''} · {g.role}</option>)}
+                      {guardians.map((g) => <option key={g.id} value={g.id} disabled={g.id !== s.guardianId && chargesOf(world, g.id).length >= PERSONAL_LIMIT}>{g.name.given} {g.name.family ?? ''} · {g.role} · {chargesOf(world, g.id).length}/{PERSONAL_LIMIT}</option>)}
                     </select>
                   ) : s.guardianId ? <PersonById id={s.guardianId} /> : '—'}</td>
                   <td className="muted mono">{short(s.end)}</td>
@@ -267,7 +269,7 @@ export function Younglings() {
   return (
     <div className="grid">
       <Panel title="Younglings" aside={`${young.length} of our house · ${eligible.size} old enough to be wards`} className="span-12">
-        <p className="body muted" style={{ margin: 0 }}>The children and youths of the house. From about half of adulthood they can be sent to another house as wards, or taught at home by a tutor or the academy.</p>
+        <p className="body muted" style={{ margin: 0 }}>The children and younglings of the house. From about half of adulthood until they come of age they can be sent to another house as wards or given a personal tutor. Young adults show here too: they can no longer be wards, but an academy will still take them.</p>
         <div className="table-wrap">
           <table className="ctable">
             <thead><tr><th>NAME</th><th>AGE</th><th>WHERE</th><th>LEARNING</th><th>SEND AS WARD</th></tr></thead>
@@ -285,7 +287,7 @@ export function Younglings() {
                     <td>{st ? <>ward at <HouseLink id={st.host} /> · home {short(st.end)}</> : isAway(world, c.id) ? 'away' : 'at court'}</td>
                     <td>{en ? `${PROGRAM_LABEL[en.program]} · ${SUBJECTS[en.subject].label.toLowerCase()}` : <span className="muted">—</span>}</td>
                     <td>
-                      {st ? <span className="muted">—</span> : !eligible.has(c.id) ? <span className="muted">{ageOf(c, world.date) < wardAge ? `too young until ${wardAge}` : 'not now'}</span> : (
+                      {st ? <span className="muted">—</span> : !eligible.has(c.id) ? <span className="muted">{ageOf(c, world.date) < wardAge ? `too young until ${wardAge}` : !isYoungling(world, c) ? 'young adult: academy only' : 'not now'}</span> : (
                         <span style={{ display: 'flex', gap: 6 }}>
                           <select className="select" aria-label="To which house" value={h} onChange={(e) => setHost({ ...host, [c.id]: e.target.value })}>
                             <option value="">To…</option>

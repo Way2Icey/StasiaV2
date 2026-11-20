@@ -93,7 +93,7 @@ export function ensureTraining(world: World): void {
 // ---------------------------------------------------------------- queries
 
 function guardianFor(world: World, host: string): Character | undefined {
-  return Object.values(world.characters).filter((k) => k.alive && k.houseId === host && k.tier === 'full' && (k.seat === 'champion' || k.seat === 'grandMaster' || k.role === 'Knight' || k.seat === 'elder'))
+  return Object.values(world.characters).filter((k) => k.alive && k.houseId === host && k.tier === 'full' && (k.seat === 'champion' || k.seat === 'grandMaster' || k.role === 'Knight' || k.seat === 'elder') && chargesOf(world, k.id).length < PERSONAL_LIMIT)
     .sort((a, b) => b.stats.leadership - a.stats.leadership)[0];
 }
 
@@ -126,12 +126,32 @@ export function ageFactor(world: World, c: Character): number {
   return 1;
 }
 
+/** Children and younglings: not yet adults. Only they take a personal tutor or go as wards. */
+export function isYoungling(world: World, c: Character): boolean {
+  return ageOf(c, world.date) < adultAge(c);
+}
+
+/** Young adults may still go to an academy, up to about one and a half times adulthood. */
+export function academyAge(world: World, c: Character): boolean {
+  const a = ageOf(c, world.date);
+  return a >= adultAge(c) * 0.5 && a < adultAge(c) * 1.6;
+}
+
+/** A teacher can take at most this many personal charges: pupils and wards together. */
+export const PERSONAL_LIMIT = 2;
+export const ACADEMY_PLACES = 10;
+
+export function chargesOf(world: World, teacherId: string): Enrolment[] {
+  return Object.values(world.training?.enrolments ?? {}).filter((e) => e.teacherId === teacherId && (e.program === 'tutor' || e.program === 'ward'));
+}
+
+/** Youths old enough to be sent away as wards, and still children or younglings. */
 export function youths(world: World, houseId: string): Character[] {
   return Object.values(world.characters).filter((c) => {
     if (!c.alive || c.houseId !== houseId || c.tier !== 'full' || c.seat) return false;
     const a = ageOf(c, world.date);
     const ad = adultAge(c);
-    return a >= ad * 0.5 && a < ad * 1.4 && !c.flags.some((f) => f.id === 'ward' || f.id === 'captive');
+    return a >= ad * 0.5 && a < ad && !c.flags.some((f) => f.id === 'ward' || f.id === 'captive');
   });
 }
 
@@ -159,7 +179,8 @@ export function paceOf(world: World, e: Pick<Enrolment, 'studentId' | 'program' 
   let teach = teacherSkill(world, e.teacherId, e.subject) / 12;
   if (e.program === 'academy' && e.moduleId) {
     const m = world.holdings.modules[e.moduleId];
-    teach = (m ? 0.7 + m.level * 0.2 + (m.reputation ?? 0) / 200 : 0.7) * (0.6 + teacherSkill(world, m?.overseerId ?? undefined, e.subject) / 30);
+    // Every student learns from the head's own skills; the building and its name help a little.
+    teach = (teacherSkill(world, m?.overseerId ?? undefined, e.subject) / 12) * (m ? 0.85 + m.level * 0.1 + (m.reputation ?? 0) / 400 : 0.85);
   }
   if (e.program === 'ward') {
     // A great house teaches better.
@@ -195,7 +216,8 @@ export function cannotTutor(world: World, studentId: string, teacherId: string):
   if (s.id === t.id) return 'Cannot teach themselves';
   if (t.houseId !== world.playerHouseId) return 'Not one of ours';
   if (isAway(world, t.id)) return 'The tutor is away';
-  if (Object.values(world.training.enrolments).some((e) => e.teacherId === t.id && e.program === 'tutor')) return 'Already teaching someone';
+  if (!isYoungling(world, s)) return 'Only children and younglings take a personal tutor';
+  if (chargesOf(world, t.id).length >= PERSONAL_LIMIT) return `${t.name.given} already has ${PERSONAL_LIMIT} pupils and wards`;
   if (econ(world, world.playerHouseId).stock.othes < TUTOR_COST) return 'Not enough othes';
   return null;
 }
@@ -214,7 +236,8 @@ export function cannotEnrol(world: World, studentId: string, moduleId: string): 
   const s = world.characters[studentId];
   if (!m || m.kind !== 'academy' || m.level < 1) return 'No academy';
   if (!s?.alive) return 'Not here';
-  if (studentsAt(world, moduleId).length >= m.level * 3) return 'The academy is full';
+  if (!academyAge(world, s)) return 'Only youths and young adults are taken';
+  if (studentsAt(world, moduleId).length >= ACADEMY_PLACES) return 'The academy is full';
   if (econ(world, world.playerHouseId).stock.othes < ACADEMY_COST) return 'Not enough othes';
   return null;
 }
@@ -325,6 +348,7 @@ export function setGuardian(input: World, stayId: string, guardianId: string): W
   return act(input, (w) => {
     const s = w.training.wards[stayId];
     if (!s || s.host !== w.playerHouseId) return;
+    if (s.guardianId !== guardianId && chargesOf(w, guardianId).length >= PERSONAL_LIMIT) throw new Error(`They already have ${PERSONAL_LIMIT} pupils and wards`);
     s.guardianId = guardianId;
     const e = enrolmentOf(w, s.wardId);
     if (e) e.teacherId = guardianId;

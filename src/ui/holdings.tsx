@@ -280,7 +280,7 @@ function VaultView({ m }: { m: Module }) {
 function AcademyNote({ m }: { m: Module }) {
   return (
     <Panel title="Academy" aside={`reputation ${Math.round(m.reputation ?? 0)}`}>
-      <p className="body muted" style={{ margin: 0 }}>Students are enrolled from the Training screen. A good headmaster raises the academy's name; a known academy draws recruits and wards.</p>
+      <p className="body muted" style={{ margin: 0 }}>One head, chosen above, teaches up to 10 students at once from their own skills. Youths and young adults are enrolled from the Training screen; a known academy draws recruits.</p>
       <div className="actions"><Go to={{ kind: 'training' }} className="btn small">Training ›</Go></div>
     </Panel>
   );

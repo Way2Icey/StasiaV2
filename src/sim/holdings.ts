@@ -26,7 +26,7 @@ export type Treatment = 'decent' | 'harsh' | 'isolation';
 export type HoldReason = 'spy' | 'crime' | 'war' | 'leverage';
 
 export const MODULE_LABEL: Record<ModuleKind, string> = { cells: 'Cells', vault: 'Vault', academy: 'Academy', hangar: 'Hangar' };
-export const OVERSEER_TITLE: Record<ModuleKind, string> = { cells: 'Warden', vault: 'Vaultmaster', academy: 'Headmaster', hangar: 'Wing commander' };
+export const OVERSEER_TITLE: Record<ModuleKind, string> = { cells: 'Warden', vault: 'Vaultmaster', academy: 'Head of the academy', hangar: 'Wing commander' };
 export const MODULE_NOTE: Record<ModuleKind, string> = {
   cells: 'Holds prisoners. Four to a level. Higher levels and a sharp warden make escapes and rescues harder.',
   vault: 'Othes on ledger drives, stored Caiges and the house records. Raids cannot touch what is vaulted; heists can try.',
