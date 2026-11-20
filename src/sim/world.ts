@@ -19,6 +19,7 @@ import { ensureTies } from './relationships';
 import { ensureHoldings } from './holdings';
 import { ensureLoans } from './loans';
 import { ensureTraining } from './training';
+import { ensureFleet } from './fleet';
 import './eventDefs';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
@@ -60,6 +61,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     holdings: undefined as unknown as World['holdings'],
     loans: undefined as unknown as World['loans'],
     training: undefined as unknown as World['training'],
+    fleet: undefined as unknown as World['fleet'],
   };
 
   for (const h of SLICE_HOUSES) {
@@ -133,6 +135,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
   ensureHoldings(world);
   ensureLoans(world);
   ensureTraining(world);
+  ensureFleet(world);
   world.rng = rng.state;
   return world;
 }

@@ -21,22 +21,24 @@ const houseName = (w: World, id: string) => `House ${w.houses[id]?.name ?? id}`;
 
 // ---------------------------------------------------------------- types
 
-export type ModuleKind = 'cells' | 'vault' | 'academy';
+export type ModuleKind = 'cells' | 'vault' | 'academy' | 'hangar';
 export type Treatment = 'decent' | 'harsh' | 'isolation';
 export type HoldReason = 'spy' | 'crime' | 'war' | 'leverage';
 
-export const MODULE_LABEL: Record<ModuleKind, string> = { cells: 'Cells', vault: 'Vault', academy: 'Academy' };
-export const OVERSEER_TITLE: Record<ModuleKind, string> = { cells: 'Warden', vault: 'Vaultmaster', academy: 'Headmaster' };
+export const MODULE_LABEL: Record<ModuleKind, string> = { cells: 'Cells', vault: 'Vault', academy: 'Academy', hangar: 'Hangar' };
+export const OVERSEER_TITLE: Record<ModuleKind, string> = { cells: 'Warden', vault: 'Vaultmaster', academy: 'Headmaster', hangar: 'Wing commander' };
 export const MODULE_NOTE: Record<ModuleKind, string> = {
   cells: 'Holds prisoners. Four to a level. Higher levels and a sharp warden make escapes and rescues harder.',
   vault: 'Othes on ledger drives, stored Caiges and the house records. Raids cannot touch what is vaulted; heists can try.',
   academy: 'Trains people of the house and, once it has a name, draws recruits and wards from other houses.',
+  hangar: 'Fighter wings aboard a great ship. Each level adds to the ship\'s fighting strength.',
 };
 /** Othes to build level 1, 2 and 3. */
 export const BUILD_COST: Record<ModuleKind, [number, number, number]> = {
   cells: [1500, 3000, 6000],
   vault: [2500, 5000, 10000],
   academy: [4000, 8000, 15000],
+  hangar: [6000, 12000, 20000],
 };
 /** Othes a vault can hold at each level. */
 export const VAULT_CAPACITY = [0, 30000, 80000, 200000];
@@ -193,7 +195,7 @@ export function modulesAt(world: World, sectorId: string): Module[] {
 
 export function placeOf(world: World, m: Module): string {
   if (m.sectorId) return findSector(world, m.sectorId)?.sector.name ?? 'somewhere';
-  if (m.shipId) return (world as unknown as { fleet?: { ships: Record<string, { name: string }> } }).fleet?.ships[m.shipId]?.name ?? 'a ship';
+  if (m.shipId) return `the ${world.fleet?.ships[m.shipId]?.name ?? 'ship'}`;
   return 'somewhere';
 }
 
@@ -221,7 +223,8 @@ export function cellSecurity(world: World, m: Module | undefined): number {
   const w = m.overseerId ? world.characters[m.overseerId] : undefined;
   const warden = w?.alive ? (w.stats.perception + w.stats.intrigue) / 2 : 5;
   const crowd = Math.max(0, cellLoad(world, m.id) - cellCapacity(m)) * 2;
-  return m.level * 5 + warden * 0.8 - crowd;
+  const atSea = m.shipId && world.fleet?.ships[m.shipId] && world.fleet.ships[m.shipId]!.duty !== 'harbour' ? 5 : 0;
+  return m.level * 5 + warden * 0.8 - crowd + atSea;
 }
 
 export function vaultSecurity(world: World, m: Module): number {
@@ -284,6 +287,31 @@ export function buildModule(input: World, kind: ModuleKind, sectorId: string): W
     record(w, P, { resource: 'othes', amount: -cost, label: `${MODULE_LABEL[kind]} built at ${findSector(w, sectorId)?.sector.name}`, kind: 'develop', sectorId });
     const m = newModule(w, P, kind, sectorId, 0);
     m.works = { to: 1, done: addCycles(w.date, CYCLES_PER_PHASE) };
+  });
+}
+
+/** Fit a module into a great ship: a brig (cells), a strongroom (vault) or a hangar. */
+export function cannotFit(world: World, kind: ModuleKind, shipId: string): string | null {
+  const s = world.fleet?.ships[shipId];
+  if (!s || s.houseId !== world.playerHouseId || s.lost) return 'Not our ship';
+  if (kind === 'academy') return 'No room for a school aboard';
+  const fitted = Object.values(world.holdings.modules).filter((m) => m.shipId === shipId);
+  if (fitted.some((m) => m.kind === kind)) return 'Already fitted';
+  const slots = ({ cruiser: 2, battlecruiser: 2, carrier: 3, dreadnought: 3 } as Record<string, number>)[s.cls] ?? 2;
+  if (fitted.length >= slots) return 'No slots left';
+  if (econ(world, world.playerHouseId).stock.othes < buildCost(kind, 1)) return 'Not enough othes';
+  return null;
+}
+
+export function fitModule(input: World, kind: ModuleKind, shipId: string): World {
+  return act(input, (w) => {
+    const why = cannotFit(w, kind, shipId);
+    if (why) throw new Error(why);
+    const P = w.playerHouseId;
+    const cost = buildCost(kind, 1);
+    record(w, P, { resource: 'othes', amount: -cost, label: `${MODULE_LABEL[kind]} fitted to the ${w.fleet.ships[shipId]!.name}`, kind: 'develop' });
+    const id = `mod${w.nextId++}`;
+    w.holdings.modules[id] = { id, kind, houseId: P, shipId, level: 0, overseerId: null, built: w.date, works: { to: 1, done: addCycles(w.date, CYCLES_PER_PHASE) }, ...(kind === 'vault' ? { drives: 0, keepers: [] } : {}) };
   });
 }
 

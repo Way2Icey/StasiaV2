@@ -3,6 +3,7 @@
 // smuggler's run, raiders scouting a target) and the house sees only what its
 // harbourmaster, customs and agents find out.
 import { imprison } from './holdings';
+import { fleetDefence } from './fleet';
 import { Rng } from './rng';
 import { buildWord, displayName, shortName } from './names';
 import { CULTURES } from '../data/cultures';
@@ -829,10 +830,11 @@ function newRaid(world: World, rng: Rng) {
   world.ports.raids.push(raid);
 }
 
-export function defenceOf(world: World): number {
+export function defenceOf(world: World, sectorId?: string): number {
   const P = world.playerHouseId;
+  const ships = sectorId ? fleetDefence(world, sectorId) : 0;
   const home = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && (c.role === 'Knight' || c.seat === 'champion' || c.seat === 'grandMaster') && !isAway(world, c.id) && !c.flags.some((f) => f.id === 'wounded'));
-  return Math.round(home.reduce((s, c) => s + (c.stats.duelling + c.stats.valor + c.stats.tactics) / 3, 0) * 0.55);
+  return Math.round(home.reduce((s, c) => s + (c.stats.duelling + c.stats.valor + c.stats.tactics) / 3, 0) * 0.55) + ships;
 }
 
 export function tributeFor(raid: Raid): number {
@@ -858,7 +860,7 @@ function strike(world: World, rng: Rng, raid: Raid) {
     tell(world, 'world', `The corsairs took their tribute and passed ${s?.name} by.`, undefined, { type: 'raid', severity: 1, placeId: raid.sectorId, effects: [`Tribute ${tributeFor(raid).toLocaleString('en-US')} othes`, 'Respect −2'] });
     return;
   }
-  const defence = raid.answer === 'muster' ? defenceOf(world) : Math.round(defenceOf(world) * 0.35);
+  const defence = raid.answer === 'muster' ? defenceOf(world, raid.sectorId) : Math.round((defenceOf(world) - 0) * 0.35) + fleetDefence(world, raid.sectorId);
   const roll = defence + rng.gauss() * 8 - raid.strength;
   const knights = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.role === 'Knight' && !isAway(world, c.id));
   if (roll >= 0) {

@@ -15,6 +15,8 @@ import { attitude, relation } from '../sim/relations';
 import { knowledgeOf } from '../sim/knowledge';
 import { absoluteCycle } from '../sim/time';
 import type { World } from '../sim/types';
+import { findSector } from '../sim/query';
+import { FleetPanel, ShipsAt } from './fleet';
 
 const W = 96;
 const H = 30;
@@ -76,6 +78,34 @@ function layout(world: World, selected: string, pick: (id: string) => void) {
     put(r, c, m.stage === 'return' ? '◄' : m.stage === 'task' ? '◆' : '►');
     spans.push({ r: r + 1, c: Math.max(0, c - 3), len: label.length, node: <Go key={m.id} to={{ kind: 'mission', id: m.id }}><span className="inv">{label}</span></Go> });
   }
+  // Great ships: at anchor beside their world, or out on the lanes.
+  for (const sh of Object.values(world.fleet?.ships ?? {})) {
+    if (sh.lost || sh.ready) continue;
+    const to = findSector(world, sh.sectorId)?.planet.id;
+    const b = to ? MAP_POS[to] : undefined;
+    if (!b) continue;
+    if (sh.arrives && sh.from && sh.left) {
+      const fromP = findSector(world, sh.from)?.planet.id;
+      const a = fromP ? MAP_POS[fromP] : undefined;
+      if (a && fromP !== to) {
+        const total = Math.max(1, absoluteCycle(sh.arrives) - absoluteCycle(sh.left));
+        const t = 0.15 + 0.7 * Math.max(0, Math.min(1, 1 - (absoluteCycle(sh.arrives) - now) / total));
+        const [c, r] = point(a, b, t);
+        put(r, c, sh.houseId === P ? '▲' : '△');
+        continue;
+      }
+    }
+  }
+  const anchored = new Map<string, number>();
+  for (const sh of Object.values(world.fleet?.ships ?? {})) {
+    if (sh.lost || sh.ready || sh.arrives) continue;
+    const to = findSector(world, sh.sectorId)?.planet.id;
+    const b = to ? MAP_POS[to] : undefined;
+    if (!to || !b) continue;
+    const n = anchored.get(to) ?? 0;
+    anchored.set(to, n + 1);
+    put(b[1] + 2 + Math.floor(n / 3), b[0] - 4 + (n % 3) * 2, sh.houseId === P ? '▲' : '△');
+  }
   // Labels as buttons.
   for (const id of ids) {
     const p = world.planets[id]!;
@@ -134,7 +164,7 @@ export function StarMapPage() {
       <div className="grid">
         <Panel title="The Reaches" aside={`${Object.keys(world.planets).length} worlds · ${activeMissions(world, P).length} of ours in flight`} className="major span-8">
           <div className="body map-wrap"><MapText world={world} selected={selected} pick={setSelected} /></div>
-          <div className="map-legend"><span>· · jump lane</span><span>► ours outbound</span><span>◆ at work</span><span>◄ coming home</span><span>┌ ┐ home world</span></div>
+          <div className="map-legend"><span>· · jump lane</span><span>► ours outbound</span><span>◆ at work</span><span>◄ coming home</span><span>┌ ┐ home world</span><span>▲ our great ship</span><span>△ theirs</span></div>
         </Panel>
         <div className="span-4 stack">
           <Panel title={p.name} aside={isHome ? 'home' : `${travelCycles(home, selected)} cycles out`} className="major">
@@ -164,6 +194,7 @@ export function StarMapPage() {
                 })}
               </div>
             ) : null}
+            <ShipsAt planetId={p.id} />
             {ours.length ? (
               <div style={{ borderTop: '1px solid var(--line-soft)', padding: '6px 14px 8px' }}>
                 <div className="eyebrow">Ours here</div>
@@ -176,6 +207,7 @@ export function StarMapPage() {
               <button type="button" className="btn small" onClick={() => nav.to({ kind: 'planet', id: p.id })}>Open world</button>
             </div>
           </Panel>
+          <FleetPanel />
           <Panel title={<Term k="holdings">All worlds</Term>}>
             {Object.values(world.planets).map((w) => (
               <div key={w.id} className="row">

@@ -522,4 +522,6 @@ export interface World {
   loans: import('./loans').LoansState;
   /** Tutoring, drill, academies and wards between houses. */
   training: import('./training').TrainingState;
+  /** Great ships of every house. */
+  fleet: import('./fleet').FleetState;
 }
