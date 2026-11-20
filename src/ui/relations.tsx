@@ -67,6 +67,7 @@ export function RelationsPage({ focus: initial, view: initialView }: { focus?: s
         {(['web', 'factions', 'everyone'] as View[]).map((v) => (
           <button key={v} type="button" className="pill" aria-pressed={view === v} onClick={() => setView(v)}>{v === 'web' ? 'TIES' : v.toUpperCase()}</button>
         ))}
+        <button type="button" className="pill" onClick={() => nav.to({ kind: 'training' })}>TRAINING &amp; WARDS ›</button>
       </div>
       {view === 'everyone' ? <PeoplePage /> : view === 'factions' ? <Factions /> : (
         <div className="grid">

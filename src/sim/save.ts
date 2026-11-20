@@ -12,6 +12,7 @@ import { ensurePorts } from './ports';
 import { ensureTies } from './relationships';
 import { ensureHoldings } from './holdings';
 import { ensureLoans } from './loans';
+import { ensureTraining } from './training';
 import './eventDefs';
 
 export const SAVE_VERSION = 11;
@@ -95,5 +96,6 @@ export function deserialize(text: string): World {
   ensureTies(world);
   ensureHoldings(world);
   ensureLoans(world);
+  ensureTraining(world);
   return world;
 }

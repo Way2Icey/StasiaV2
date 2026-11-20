@@ -318,6 +318,7 @@ export function CharacterPage({ id }: { id: string }) {
           {c.alive && !own ? <WatchButton id={c.id} /> : null}
           <Go to={{ kind: 'log', person: c.id }} className="btn">Full record</Go>
           <Go to={{ kind: 'people', focus: c.id }} className="btn">Ties</Go>
+          {own && c.alive ? <Go to={{ kind: 'training' }} className="btn">Train</Go> : null}
           {c.alive && own && v.depth < KNOW.exact && c.seat !== 'highroy' ? (
             beingInvestigated ? null : <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn">Look into them</Go>
           ) : null}

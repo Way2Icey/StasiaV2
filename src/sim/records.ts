@@ -69,10 +69,10 @@ export function trimFeed(world: World): void {
   if (world.feed.length <= FEED_LIMIT) return;
   const keep = Math.floor(FEED_LIMIT * 0.85);
   let over = world.feed.length - keep;
-  const out: FeedEntry[] = [];
-  for (const e of world.feed) {
-    if (over > 0 && classify(world, e).severity === 0) { over--; continue; }
-    out.push(e);
-  }
+  // Clock ticks go first, then other routine records, oldest first.
+  const drop = new Set<FeedEntry>();
+  for (const e of world.feed) { if (over <= 0) break; if (e.kind === 'time') { drop.add(e); over--; } }
+  for (const e of world.feed) { if (over <= 0) break; if (!drop.has(e) && classify(world, e).severity === 0) { drop.add(e); over--; } }
+  const out = world.feed.filter((e) => !drop.has(e));
   world.feed = out.length > FEED_LIMIT ? out.slice(-keep) : out;
 }

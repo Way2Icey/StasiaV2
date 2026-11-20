@@ -370,7 +370,7 @@ input.text:focus { border-color: var(--fg); outline: none; }
 .linklike:hover { color: #fff; }
 .term:hover, .term:focus-visible { text-decoration-color: #fff; }
 .chip, .tag, .pill { font-family: var(--mono); }
-.pill[aria-pressed='true'], .choice[aria-pressed='true'], .stock[aria-pressed='true'] { background: var(--fg); color: #000; border-color: var(--fg); box-shadow: none; }
+.btn[aria-pressed='true'], .pill[aria-pressed='true'], .choice[aria-pressed='true'], .stock[aria-pressed='true'] { background: var(--fg); color: #000; border-color: var(--fg); box-shadow: none; }
 .choice[aria-pressed='true'] .muted, .stock[aria-pressed='true'] .muted { color: #333; }
 .chip.earned { border-color: var(--fg); color: var(--fg); }
 .tag { border-color: var(--line); }

@@ -55,7 +55,7 @@ function rollBand(rng: Rng): ResonanceBand {
   return rng.weighted<ResonanceBand>([['bluewake', 40], ['ambercore', 35], ['redline', 20], ['whitebreak', 5]]);
 }
 
-function addLead(world: World, lead: Omit<Lead, 'id' | 'found' | 'expires'>): Lead {
+export function addLead(world: World, lead: Omit<Lead, 'id' | 'found' | 'expires'>): Lead {
   const l: Lead = { ...lead, id: `l${world.nextId++}`, found: world.date, expires: addCycles(world.date, LEAD_LIFE) };
   world.leads.push(l);
   return l;

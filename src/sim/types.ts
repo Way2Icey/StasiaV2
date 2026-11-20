@@ -520,4 +520,6 @@ export interface World {
   holdings: import('./holdings').HoldingsState;
   /** Money lent between houses, and requests waiting for an answer. */
   loans: import('./loans').LoansState;
+  /** Tutoring, drill, academies and wards between houses. */
+  training: import('./training').TrainingState;
 }

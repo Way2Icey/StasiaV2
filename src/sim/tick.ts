@@ -4,6 +4,7 @@ import { trimFeed } from './records';
 import { advanceRelationships } from './relationships';
 import { advanceHoldings } from './holdings';
 import { advanceLoans } from './loans';
+import { advanceTraining } from './training';
 import './eventDefs';
 import { displayName } from './names';
 import { Rng } from './rng';
@@ -77,6 +78,7 @@ function stepInPlace(world: World): void {
   advanceRelationships(world, rng, crossed.phases > 0);
   advanceHoldings(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceLoans(world, rng, crossed.phases > 0);
+  advanceTraining(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceEvents(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 
