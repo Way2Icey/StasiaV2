@@ -10,7 +10,7 @@ import { absoluteCycle, dateParts, formatDate } from '../sim/time';
 import { econ } from '../sim/economy';
 import { CRATE_TEXT } from '../data/ships';
 import {
-  agentAvailable, answerRaid, arrest, BERTHS, boardOf, customsSkill, defenceOf, detainShip, fineShip, flagLabel,
+  agentAvailable, answerRaid, arrest, BERTHS, boardOf, customsSkill, defenceOf, detainShip, fineShip, flagLabel, jailCaptain,
   harbourmaster, inspectShip, openCrate, placeLabel, releaseShip, setAgentOn, setPortOrders, toggleWatch, tributeFor,
   entryFor, gradeOf, GRADE_LABEL, isOurs, postAt, recallAgent, setBan, coverOf, postRisk, watchOf,
   type InspectPolicy, type Ship,
@@ -249,6 +249,7 @@ function Dossier({ ship }: { ship: Ship }) {
           {!ship.inspected ? <button type="button" className="btn small primary" onClick={() => game.update((w) => inspectShip(w, ship.id))}>INSPECT</button> : null}
           {crate ? <button type="button" className="btn small primary" onClick={() => game.update((w) => openCrate(w, ship.id))}>OPEN THE CRATE</button> : null}
           {ship.status === 'docked' ? <button type="button" className="btn small" onClick={() => game.update((w) => detainShip(w, ship.id))}>DETAIN</button> : null}
+          {ship.status === 'held' && foundAny && !ship.captainJailed ? <button type="button" className="btn small" title="Two Orbits in our cells for smuggling" onClick={() => game.update((w) => jailCaptain(w, ship.id))}>JAIL THE CAPTAIN</button> : null}
           {!ship.fined && (ship.status === 'held' || foundAny) ? <button type="button" className="btn small" onClick={() => game.update((w) => fineShip(w, ship.id))}>FINE &amp; RELEASE</button> : null}
           <button type="button" className="btn small" onClick={() => game.update((w) => releaseShip(w, ship.id))}>{ship.status === 'held' ? 'RELEASE' : 'WAVE THROUGH'}</button>
           <button type="button" className="btn small" disabled={!agent || ship.agentChecked} title={!agent ? 'No agent at home. The Spymaster recruits agents from the envoys.' : ship.agentChecked ? 'An agent has already been aboard.' : undefined} onClick={() => game.update((w) => setAgentOn(w, ship.id))}>SET AN AGENT ON IT</button>

@@ -30,6 +30,9 @@ export type Route =
   | { kind: 'band'; id: string }
   | { kind: 'search'; q: string }
   | { kind: 'port'; id: string; ship?: string }
+  | { kind: 'holdings'; id?: string }
+  | { kind: 'training'; id?: string }
+  | { kind: 'ship'; id: string }
   | { kind: 'log'; person?: string; place?: string; house?: string; open?: string };
 
 export type Section = 'throne' | 'council' | 'economy' | 'glossary' | 'people' | 'houses' | 'worlds' | 'missions' | 'save' | 'log';
@@ -40,6 +43,9 @@ export function sectionOf(r: Route): Section | null {
     case 'throne': case 'people': case 'houses': case 'worlds': case 'save': case 'missions': case 'council': case 'economy': case 'glossary': case 'log': return r.kind;
     case 'mission': case 'plan': return 'missions';
     case 'seat': return 'council';
+    case 'holdings': return 'economy';
+    case 'training': return 'people';
+    case 'ship': return 'worlds';
     case 'character': case 'trait': case 'flag': case 'species': case 'band': return 'people';
     case 'house': case 'family': return 'houses';
     case 'planet': case 'sector': case 'port': return 'worlds';
@@ -86,5 +92,8 @@ export function routeLabel(world: World, r: Route): string {
     case 'band': return `${cap(r.id)} resonance`;
     case 'search': return `Search “${r.q}”`;
     case 'port': return `Port: ${findSector(world, r.id)?.sector.name ?? r.id}`;
+    case 'holdings': return 'Holdings';
+    case 'training': return 'Training';
+    case 'ship': return (world as unknown as { fleet?: { ships: Record<string, { name: string }> } }).fleet?.ships[r.id]?.name ?? 'Ship';
   }
 }

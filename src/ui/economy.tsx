@@ -7,7 +7,7 @@ import { addCycles, dateParts, formatDate, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } 
 import { GOODS, RESOURCE_LABEL, RESOURCE_NOTE, RESOURCES, TAX, type Good, type Resource, type TaxRate } from '../data/economy';
 import type { LedgerLine, World } from '../sim/types';
 import { useGame, useWorld } from './context';
-import { Panel, PersonById, SectorLink } from './links';
+import { Go, Panel, PersonById, SectorLink } from './links';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const signed = (n: number) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `−${fmt(-n)}` : '0');
@@ -52,6 +52,7 @@ export function EconomyPage() {
           <h2>Economy</h2>
           <p>Standing flows settle at the start of each Phase: next on {formatDate(next.phase)}, in {next.phaseLeft} {next.phaseLeft === 1 ? "cycle" : "cycles"}. Trades, missions and ransoms settle at once.</p>
         </div>
+        <div className="actions"><Go to={{ kind: 'holdings' }} className="btn">Holdings · vaults & cells ›</Go></div>
       </div>
 
       <div className="stocks">

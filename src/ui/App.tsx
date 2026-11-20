@@ -21,6 +21,9 @@ import { StarMapPage } from './starmap';
 import { PortPage } from './ports';
 import { LogPage } from './log';
 import { RelationsPage } from './relations';
+import { HoldingsPage } from './holdings';
+import { TrainingPage } from './training';
+import { ShipPage } from './fleet';
 import { activeMissions } from '../sim/missions';
 import { routeLabel, sameRoute, sectionOf, type Route, type Section } from './router';
 import { AUTOSAVE, storage } from './storage';
@@ -214,6 +217,9 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'glossary': return <GlossaryPage />;
     case 'log': return <LogPage key={`${route.person}-${route.place}-${route.house}`} person={route.person} place={route.place} house={route.house} open={route.open} />;
     case 'port': return <PortPage key={route.id} id={route.id} ship={route.ship} />;
+    case 'holdings': return <HoldingsPage id={route.id} />;
+    case 'training': return <TrainingPage id={route.id} />;
+    case 'ship': return <ShipPage key={route.id} id={route.id} />;
   }
 }
 

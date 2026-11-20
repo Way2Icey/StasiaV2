@@ -34,6 +34,13 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   relationships: { term: 'Ties', group: 'Houses', text: 'How one person feels about another, from -100 to +100, and why. Strong feelings become bonds: friend, rival, lover, sworn knight, feud. Friends work better together on missions; rivals fight at court.' },
 
   // ---------------------------------------------------------------- holdings
+  modules: { term: 'Holdings (built)', group: 'Holdings', text: 'Cells, vaults and academies a house builds into its sectors, each with an overseer and a level from 1 to 3.' },
+  cells: { term: 'Cells', group: 'Holdings', text: 'Where prisoners are kept, four to a level. Security comes from the level and the warden; treatment (decent, harsh, isolation) is the jailer\'s choice.' },
+  vault: { term: 'Vault', group: 'Holdings', text: 'Othes stored on ledger drives, stored Caiges and the house records. Vaulted othes are safe from raids but not from heists.' },
+  ledgerDrive: { term: 'Ledger drive', group: 'Holdings', text: 'The physical and digital store that holds othes. A house\'s reserves are the othes on its drives.' },
+  keeper: { term: 'Keeper', group: 'Holdings', text: 'Someone who checks on the Caiges in a vault. A Caige\'s navisium slips over time; each keeper can mind about three.' },
+  academy: { term: 'Academy', group: 'Holdings', text: 'A school a house builds. It trains its people faster and, once it has a name, draws recruits and wards.' },
+
   holdings: { term: 'Holdings', group: 'Holdings', text: 'Everything a house owns: its worlds, the sectors on them and the quarters in those sectors.' },
   world: { term: 'World', group: 'Holdings', text: 'A planet held by a house. It has a limit on how many sectors can be settled.' },
   sector: { term: 'Sector', group: 'Holdings', text: 'A region of a world, like a city or a district. It has people, a port, room to build, and unrest. A family of your house holds it.' },

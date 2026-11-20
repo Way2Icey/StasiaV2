@@ -627,6 +627,7 @@ export function SectorPage({ id }: { id: string }) {
               <dt><Term k="heldBy">Held by</Term></dt><dd>{sector.controllerFamilyId ? <FamilyLink id={sector.controllerFamilyId} /> : 'Unclaimed'}</dd>
               <dt>Log</dt><dd><Go to={{ kind: 'log', place: sector.id }}>what happened here ›</Go></dd>
               <dt><Term k="port">Port</Term></dt><dd>{cap(sector.port)}{world.ports?.ports[sector.id] ? <> · <Go to={{ kind: 'port', id: sector.id }}>Port authority ›</Go></> : null}</dd>
+              {Object.values(world.holdings?.modules ?? {}).some((m) => m.sectorId === sector.id && m.houseId === world.playerHouseId) ? <><dt><Term k="modules">Holdings</Term></dt><dd>{Object.values(world.holdings.modules).filter((m) => m.sectorId === sector.id && m.houseId === world.playerHouseId).map((m, i) => <span key={m.id}>{i ? ' · ' : ''}<Go to={{ kind: 'holdings', id: m.id }}>{m.kind} L{m.level}</Go></span>)}</dd></> : null}
               <dt><Term k="room">Room</Term></dt><dd className="mono">{sector.roomUsed} of {sector.room} used</dd>
               <dt><Term k="population">Population</Term></dt><dd className="mono">{sector.population.toLocaleString('en-US')}</dd>
               <dt><Term k="unrest">Unrest</Term></dt><dd className="mono">{sector.controllerFamilyId ? sector.unrest : '—'}</dd>

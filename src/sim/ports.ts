@@ -2,6 +2,7 @@
 // comes from something the world is doing (trade, a rival's mission, a
 // smuggler's run, raiders scouting a target) and the house sees only what its
 // harbourmaster, customs and agents find out.
+import { imprison } from './holdings';
 import { Rng } from './rng';
 import { buildWord, displayName, shortName } from './names';
 import { CULTURES } from '../data/cultures';
@@ -87,6 +88,7 @@ export interface Ship {
   inspected?: boolean;
   agentChecked?: boolean;
   fined?: boolean;
+  captainJailed?: boolean;
   /** What our people have found, in order. */
   notes: string[];
   missionId?: string;
@@ -991,6 +993,19 @@ export function detainShip(input: World, shipId: string): World {
   });
 }
 
+/** Put the master of a held smuggler in our cells for a crime. */
+export function jailCaptain(input: World, shipId: string): World {
+  return act(input, shipId, (w, _rng, ship) => {
+    if (ship.status !== 'held' || ship.captainJailed || !contraband(ship).some((c) => c.found)) return;
+    const p = imprison(w, w.playerHouseId, ship.captain, `master of the ${ship.name}`, w.houses[ship.flag] ? ship.flag : null, 'crime', 8 + (ship.age % 7), ship.sectorId);
+    if (!p) return;
+    ship.captainJailed = true;
+    ship.notes.push(`Captain ${ship.captain} taken to the cells for smuggling.`);
+    logIncident(w, ship, `Captain ${ship.captain} jailed for smuggling.`, 3);
+    tell(w, 'world', `${ship.captain}, master of the ${ship.name}, is jailed for smuggling.`, undefined, { type: 'captive', severity: 1, placeId: ship.sectorId, shipId: ship.id, effects: ['Two Orbits in the cells'] });
+  });
+}
+
 function fineInPlace(w: World, ship: Ship, byCouncil = false, onTheSpot = false) {
   if (ship.fined) return;
   const found = contraband(ship).filter((c) => c.found);
@@ -1072,6 +1087,8 @@ export function arrest(input: World, shipId: string, index: number): World {
         });
       }
     } else if (a.truth === 'scout') {
+      const held = imprison(w, P, a.name, 'corsair scout', null, 'crime', 9 + (a.name.length % 6), ship.sectorId);
+      if (held) ship.notes.push(`${a.name} goes to our cells.`);
       const raid = w.ports.raids.find((r) => r.id === ship.raidId) ?? w.ports.raids.find((r) => r.status === 'brewing');
       if (raid) {
         raid.known = true;

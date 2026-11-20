@@ -381,6 +381,10 @@ export interface Captive {
   interrogated: boolean;
   /** A ransom offer or demand, if one has been made. */
   ransom?: { amount: number; expires: GameDate; status: 'open' | 'refused' | 'paid' };
+  /** Which cells they are kept in. */
+  cellId?: string;
+  treatment?: import('./holdings').Treatment;
+  reason?: import('./holdings').HoldReason;
 }
 
 // ---------------------------------------------------------------- economy
@@ -436,6 +440,9 @@ export interface Caige {
   found: GameDate;
   foundAt: { planetId: string; sectorId: string };
   bondedTo?: string;
+  /** 0..100: how steady its navisium is while it sits in a vault. */
+  stability?: number;
+  vaultId?: string;
 }
 
 export interface Lead {
@@ -507,4 +514,6 @@ export interface World {
   ports: import('./ports').PortsState;
   /** Who feels what about whom. */
   ties: import('./relationships').Ties;
+  /** Cells, vaults and academies; prisoners; rescues and heists under way. */
+  holdings: import('./holdings').HoldingsState;
 }
