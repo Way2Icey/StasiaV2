@@ -60,6 +60,8 @@ export interface AmbitionsState {
   heldAudience?: GameDate;
   /** Fulfilled ambitions, for the record. */
   done: Record<string, number>;
+  /** The last want each person had met, so they want something new next. */
+  last?: Record<string, { kind: AmbitionKind; target?: string; date: GameDate }>;
 }
 
 const COUNCIL: CouncilSeat[] = ['grandMaster', 'envoy', 'spymaster', 'steward', 'physician', 'elder', 'champion'];
@@ -119,10 +121,13 @@ function chooseAmbition(w: World, rng: Rng, c: Character): Ambition | null {
   // The heart: someone they already like a great deal.
   const crush = tiesOf(w, c.id).filter((t) => t.out > 40 && !t.bond && w.characters[t.other]?.alive && notable(w, w.characters[t.other]!) && adult(w, w.characters[t.other]!)).sort((a, b) => b.out - a.out)[0];
   if (crush && isAdult) options.push([{ kind: 'love', target: crush.other, since: w.date, frustration: 0 }, 3]);
-  const foe = tiesOf(w, c.id).filter((t) => (t.bond === 'rival' || t.bond === 'feud') && w.characters[t.other]?.alive).sort((a, b) => a.out - b.out)[0];
+  const foe = tiesOf(w, c.id).filter((t) => (t.bond === 'rival' || t.bond === 'feud') && w.characters[t.other]?.alive && w.characters[t.other]!.houseId === c.houseId).sort((a, b) => a.out - b.out)[0];
   if (foe) options.push([{ kind: 'revenge', target: foe.other, since: w.date, frustration: 0 }, 2 + (20 - c.hidden.temperament) / 6]);
-  if (!options.length) return null;
-  return rng.weighted(options);
+  // Not the same want they just had satisfied.
+  const last = w.ambitions?.last?.[c.id];
+  const fresh = last && absoluteCycle(w.date) - absoluteCycle(last.date) < CYCLES_PER_ORBIT * 6 ? options.filter(([o]) => o.kind !== last.kind) : options;
+  if (!fresh.length) return null;
+  return rng.weighted(fresh);
 }
 
 export function ensureAmbitions(world: World): void {
@@ -151,7 +156,7 @@ function fulfilled(w: World, c: Character, a: Ambition): boolean {
     case 'love': return !!a.target && ['lover', 'spouse'].includes(bondOf(w, c.id, a.target) ?? '');
     case 'fortune': return false; // only by a grant
     case 'abroad': return c.flags.some((f) => (f.id === 'posted' && /ambassador/.test(f.detail ?? '')) || f.id === 'ward');
-    case 'mastery': return c.traits.length >= 1 && (a.deeds ?? 0) >= 1;
+    case 'mastery': return (a.deeds ?? 0) >= 3;
     case 'revenge': return !!a.target && (!w.characters[a.target]?.alive || w.characters[a.target]!.houseId !== c.houseId || (a.deeds ?? 0) >= 1);
   }
 }
@@ -165,8 +170,9 @@ export function blocker(w: World, c: Character, a: Ambition): Character | undefi
 
 // ---------------------------------------------------------------- what happens when they get it
 
-function satisfy(w: World, c: Character, _a: Ambition, how: string) {
+function satisfy(w: World, c: Character, a: Ambition, how: string) {
   delete w.ambitions.of[c.id];
+  (w.ambitions.last ??= {})[c.id] = { kind: a.kind, target: a.target, date: w.date };
   w.ambitions.done[c.id] = (w.ambitions.done[c.id] ?? 0) + 1;
   shiftMood(c, 15);
   const lord = w.houses[c.houseId]?.rulerId;
@@ -324,7 +330,7 @@ function grant(w: World, rng: Rng, c: Character, a: Ambition, au: Audience) {
     case 'mastery':
       record(w, P, { resource: 'othes', amount: -400, label: `A year of study for ${shortName(c.name)}`, kind: 'court' });
       for (const k of (Object.keys(c.stats) as (keyof typeof c.stats)[]).sort((x, y) => c.stats[y] - c.stats[x]).slice(0, 2)) c.stats[k] = clamp(c.stats[k] + 1, 1, 20);
-      a.deeds = 1;
+      a.deeds = 3;
       satisfy(w, c, a, 'a year of study, and better for it');
       break;
     case 'abroad': {
@@ -568,6 +574,35 @@ function otherHouse(w: World, rng: Rng, c: Character, a: Ambition) {
 }
 
 export { COUNCIL as AMBITION_SEATS };
+
+/** The Highroy knights someone in the hall: 300 othes and a ceremony. */
+export function cannotKnight(world: World, id: string): string | null {
+  const c = world.characters[id];
+  if (!c?.alive || c.houseId !== world.playerHouseId) return 'Not one of ours';
+  if (c.role === 'Knight') return 'Already a knight';
+  if (c.seat) return 'A councillor';
+  if (!adult(world, c)) return 'Too young';
+  if (isAway(world, id)) return 'They are away';
+  if (econ(world, world.playerHouseId).stock.othes < 300) return 'Not enough othes';
+  return null;
+}
+
+export function knight(input: World, id: string): World {
+  const w = structuredClone(input);
+  ensureAmbitions(w);
+  const why = cannotKnight(w, id);
+  if (why) throw new Error(why);
+  const c = w.characters[id]!;
+  record(w, w.playerHouseId, { resource: 'othes', amount: -300, label: `Knighting of ${shortName(c.name)}`, kind: 'court' });
+  c.role = 'Knight';
+  shiftMood(c, 10);
+  const lord = w.houses[w.playerHouseId]?.rulerId;
+  if (lord) shiftOpinion(w, c.id, lord, 15, 'knighted them');
+  const a = w.ambitions.of[c.id];
+  if (a?.kind === 'knight') satisfy(w, c, a, 'knighted in the hall');
+  logRecord(w, { kind: 'world', type: 'world', severity: 2, text: `${displayName(c.name)} kneels in the hall and rises a knight of the house.`, who: [{ id: c.id, part: 'knighted' }, ...(lord ? [{ id: lord, part: 'gave the accolade' }] : [])], effects: ['−300 othes'] });
+  return w;
+}
 
 /** The Highroy names someone to a council seat directly. */
 export function appointToSeat(input: World, seat: CouncilSeat, id: string): World {

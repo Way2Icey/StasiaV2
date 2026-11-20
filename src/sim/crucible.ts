@@ -8,7 +8,7 @@ import { Rng } from './rng';
 import { displayName, shortName } from './names';
 import { ageOf } from './characters';
 import { SPECIES } from '../data/species';
-import { econ, record } from './economy';
+import { buyPrice, econ, record, tradeInPlace } from './economy';
 import { logRecord } from './records';
 import { isAway } from './court';
 import { shiftMood } from './mood';
@@ -62,6 +62,8 @@ export const GUEST_HOUSES: { id: string; name: string; might: number }[] = [
   { id: 'g-mhoro', name: 'Mhoro', might: 0.9 },
   { id: 'g-ilthane', name: 'Ilthane', might: 1.1 },
 ];
+
+const GIVEN = ['Aster', 'Corven', 'Ysolde', 'Marrek', 'Tavin', 'Oriel', 'Daska', 'Bren', 'Lio', 'Hesk', 'Sabine', 'Torvald', 'Ilse', 'Cassian', 'Mireth', 'Doran', 'Quell', 'Varra', 'Ennis', 'Halvard', 'Senna', 'Rook', 'Thessaly', 'Garret', 'Wynn', 'Odile', 'Petra', 'Caius', 'Livia', 'Brannoc'];
 
 export type PrizeKind = 'othes' | 'navisium' | 'components' | 'metals' | 'provisions' | 'caige' | 'relic';
 export interface Location { id: string; name: string; prize: PrizeKind; amount: number; holder?: string; glyph: string; x: number; y: number }
@@ -175,11 +177,18 @@ export function cannotEnter(world: World, c: Contingent): string | null {
   if (c.men > troopsOf(world, P)) return `We can only raise ${fmt(troopsOf(world, P))} men`;
   const cost = contingentCost(c);
   const e = econ(world, P);
-  if (e.stock.othes < cost.othes) return `Needs ${fmt(cost.othes)} othes`;
-  if (e.stock.provisions < cost.provisions) return `Needs ${cost.provisions} provisions`;
-  if (e.stock.fuel < cost.fuel) return `Needs ${cost.fuel} fuel`;
+  const short = shortfallCost(world, P, cost);
+  if (e.stock.othes < cost.othes + short) return `Needs ${fmt(cost.othes + short)} othes`;
   if (c.shipId) { const s = world.fleet?.ships[c.shipId]; if (!s || s.houseId !== P || s.lost || s.ready || s.arrives) return 'That ship cannot go'; }
   return null;
+}
+
+/** Othes to buy whatever provisions and fuel we lack, at the Exchange. */
+export function shortfallCost(world: World, houseId: string, cost: { provisions: number; fuel: number }): number {
+  const e = econ(world, houseId);
+  const lackP = Math.max(0, cost.provisions - e.stock.provisions);
+  const lackF = Math.max(0, cost.fuel - e.stock.fuel);
+  return Math.round(lackP * buyPrice(world, houseId, 'provisions') + lackF * buyPrice(world, houseId, 'fuel'));
 }
 
 /** Men follow from knights: five hundred, less fifty for each knight. */
@@ -188,6 +197,10 @@ export function menFor(knights: number): number { return FORCE - knights * KNIGH
 function pay(w: World, houseId: string, c: Contingent) {
   const cost = contingentCost(c);
   if (w.houses[houseId]) {
+    // Buy what we lack first.
+    const e = econ(w, houseId);
+    if (e.stock.provisions < cost.provisions) tradeInPlace(w, houseId, 'provisions', Math.ceil(cost.provisions - e.stock.provisions));
+    if (e.stock.fuel < cost.fuel) tradeInPlace(w, houseId, 'fuel', Math.ceil(cost.fuel - e.stock.fuel));
     record(w, houseId, { resource: 'othes', amount: -cost.othes, label: `The Crucible: ${c.men} men${c.shipId ? '' : ' and a chartered transport'}`, kind: 'mission' });
     record(w, houseId, { resource: 'provisions', amount: -cost.provisions, label: 'The Crucible: supplies', kind: 'mission' });
     record(w, houseId, { resource: 'fuel', amount: -cost.fuel, label: 'The Crucible: passage', kind: 'mission' });
@@ -273,7 +286,7 @@ function aiContingent(w: World, rng: Rng, houseId: string): Contingent {
   const guest = GUEST_HOUSES.find((g) => g.id === houseId);
   if (guest) {
     const knights = Math.floor(rng.next() * (MAX_KNIGHTS + 1));
-    const nm = () => displayName({ given: rng.pick(['Aster', 'Corven', 'Ysolde', 'Marrek', 'Tavin', 'Oriel', 'Daska', 'Bren', 'Lio', 'Hesk']), family: guest.name } as never);
+    const nm = () => displayName({ given: rng.pick(GIVEN), family: guest.name } as never);
     return {
       houseId, marshalId: null, championId: null, knights: [], men: menFor(knights), menLost: 0,
       names: { marshal: nm(), champion: nm(), knights },

@@ -4,7 +4,7 @@ import { useGame, useWorld } from './context';
 import { HouseLink, Panel, PersonById, PersonLink } from './links';
 import { Portrait } from './portrait';
 import {
-  AMBITION_LABEL, ambitionText, answerAudience, appointToSeat, blocker, cannotHoldAudience, holdAudience, optionsFor, seatTitle,
+  AMBITION_LABEL, ambitionText, answerAudience, appointToSeat, blocker, cannotHoldAudience, cannotKnight, knight, holdAudience, optionsFor, seatTitle,
   type Answer, type Audience,
 } from '../sim/ambitions';
 import { knowledgeOf } from '../sim/knowledge';
@@ -85,6 +85,7 @@ export function WantsPanel({ id, className }: { id: string; className?: string }
               {seats.filter((s) => s !== c.seat).map((s) => <option key={s} value={s}>{seatTitle(s)}</option>)}
             </select>
             <button type="button" className="btn small" disabled={!seat || isAway(world, id)} onClick={() => { if (seat) run((w) => appointToSeat(w, seat, id)); setSeat(''); }}>Name them</button>
+            {c.role !== 'Knight' && !c.seat ? <button type="button" className="btn small" disabled={!!cannotKnight(world, id)} title={cannotKnight(world, id) ?? '300 othes and a ceremony in the hall'} onClick={() => run((w) => knight(w, id))}>Knight them</button> : null}
           </div>
         ) : null}
         {err ? <p className="error" style={{ margin: 0 }}>{err}</p> : null}
