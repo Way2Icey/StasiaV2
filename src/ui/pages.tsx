@@ -1,3 +1,4 @@
+import { TiesPanel } from './relations';
 import { useMemo, useState } from 'react';
 import { RaidPanel, WatchButton } from './ports';
 import { Portrait } from './portrait';
@@ -316,6 +317,7 @@ export function CharacterPage({ id }: { id: string }) {
           ) : null}
           {c.alive && !own ? <WatchButton id={c.id} /> : null}
           <Go to={{ kind: 'log', person: c.id }} className="btn">Full record</Go>
+          <Go to={{ kind: 'people', focus: c.id }} className="btn">Ties</Go>
           {c.alive && own && v.depth < KNOW.exact && c.seat !== 'highroy' ? (
             beingInvestigated ? null : <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn">Look into them</Go>
           ) : null}
@@ -323,7 +325,8 @@ export function CharacterPage({ id }: { id: string }) {
       </section>
 
       <div className="grid">
-        <section className="panel span-8">
+        <div className="span-8 stack">
+        <section className="panel">
           <header><h3>Attributes</h3><span className="aside">1–20 · <span className="gold">17+</span> · <span style={{ color: 'var(--blue)' }}>13–16</span> · 8–12 · <span style={{ color: 'var(--orange)' }}>≤7</span></span></header>
           <div className="stat-cols">
             {statCol('MIND', MIND_STATS)}
@@ -331,6 +334,8 @@ export function CharacterPage({ id }: { id: string }) {
             {statCol('SPIRIT', SPIRIT_STATS)}
           </div>
         </section>
+        <TiesPanel id={c.id} limit={8} />
+        </div>
         <div className="span-4 stack">
           <Panel title="Identity">
             <div className="body">

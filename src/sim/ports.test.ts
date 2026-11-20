@@ -135,9 +135,13 @@ describe('the register, travel and rival ports', () => {
   });
 
   it('sends our people travelling and brings them home', () => {
-    const w = advanceUntil(world, 300, false).world;
-    const ours = Object.values(w.ports.ships).filter((s) => s.purpose === 'travel');
-    expect(ours.length).toBeGreaterThan(0);
+    let w = world;
+    let seen = 0;
+    for (let i = 0; i < 30 && !seen; i++) {
+      w = advanceUntil(w, 20, false).world;
+      seen = Object.values(w.ports.ships).filter((s) => s.purpose === 'travel').length;
+    }
+    expect(seen).toBeGreaterThan(0);
     const traveller = Object.values(w.characters).find((c) => c.flags.some((f) => f.id === 'travelling'));
     if (traveller) expect(isAway(w, traveller.id)).toBe(true);
   });

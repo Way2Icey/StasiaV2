@@ -20,11 +20,12 @@ import { Coffers, EconomyPage } from './economy';
 import { StarMapPage } from './starmap';
 import { PortPage } from './ports';
 import { LogPage } from './log';
+import { RelationsPage } from './relations';
 import { activeMissions } from '../sim/missions';
 import { routeLabel, sameRoute, sectionOf, type Route, type Section } from './router';
 import { AUTOSAVE, storage } from './storage';
 import {
-  BandPage, CharacterPage, FamilyPage, FlagPage, HousePage, HousesPage, PeoplePage, PlanetPage,
+  BandPage, CharacterPage, FamilyPage, FlagPage, HousePage, HousesPage, PlanetPage,
   SavePage, SearchPage, SectorPage, SpeciesPage, ThroneRoom, TraitPage,
 } from './pages';
 
@@ -42,7 +43,7 @@ const SECTIONS: { id: Section; label: string; key: string }[] = [
   { id: 'missions', label: 'MISSIONS', key: '3' },
   { id: 'worlds', label: 'MAP', key: '4' },
   { id: 'economy', label: 'LEDGER', key: '5' },
-  { id: 'people', label: 'PEOPLE', key: '6' },
+  { id: 'people', label: 'RELATIONS', key: '6' },
   { id: 'houses', label: 'HOUSES', key: '7' },
   { id: 'log', label: 'LOG', key: '8' },
   { id: 'save', label: 'SAVE', key: '9' },
@@ -190,7 +191,7 @@ export function App() {
 function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void }) {
   switch (route.kind) {
     case 'throne': return <ThroneRoom />;
-    case 'people': return <PeoplePage />;
+    case 'people': return <RelationsPage focus={route.focus} view={route.view} />;
     case 'houses': return <HousesPage />;
     case 'worlds': return <StarMapPage />;
     case 'save': return <SavePage setWorld={setWorld} />;

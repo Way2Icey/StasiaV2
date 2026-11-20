@@ -9,6 +9,7 @@ import { econ, heldSectors } from './economy';
 import { agentsOf } from './household';
 import { caigesOf, cannotBond } from './discovery';
 import { ageOf } from './characters';
+import { shiftBoth, shiftOpinion } from './relationships';
 import type { Character, CouncilSeat, Sector } from './types';
 
 // ---------------------------------------------------------------- helpers
@@ -404,13 +405,14 @@ const court: EventDef[] = [
     },
     text: (c) => `${full(c.person)} and ${nm(c.second)} have called each other out. They mean to settle it at dawn, with blades.`,
     options: [
-      { label: 'Forbid it', resolve: (c) => { c.fx.mood(c.person, -4).mood(c.second, -4); } },
+      { label: 'Forbid it', resolve: (c) => { c.fx.mood(c.person, -4).mood(c.second, -4); if (c.person && c.second) shiftBoth(c.world, c.person.id, c.second.id, -10, 'a duel forbidden'); } },
       { label: 'Let them fight', resolve: (c) => {
         const [a, b] = c.rng.chance(0.5) ? [c.person, c.second] : [c.second, c.person];
         c.fx.say(`${nm(a)} wins`).wound(b).mood(a, 3).respect(1);
+        if (a && b) { shiftOpinion(c.world, b.id, a.id, -25, 'beaten at dawn'); shiftOpinion(c.world, a.id, b.id, 5, 'a fair fight'); }
       } },
       { label: 'Reconcile them', check: { who: highroy, stats: ['diplomacy', 'leadership'], dc: 10 },
-        resolve: (c, ok) => { if (ok) c.fx.mood(c.person, 3).mood(c.second, 3); else c.fx.mood(c.person, -3).mood(c.second, -3); } },
+        resolve: (c, ok) => { if (ok) c.fx.mood(c.person, 3).mood(c.second, 3); else c.fx.mood(c.person, -3).mood(c.second, -3); if (c.person && c.second) shiftBoth(c.world, c.person.id, c.second.id, ok ? 20 : -15, ok ? 'reconciled by the Highroy' : 'a failed reconciliation'); } },
     ],
     fallback: 0,
   },

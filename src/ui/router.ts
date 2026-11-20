@@ -8,7 +8,7 @@ import { SPECIES } from '../data/species';
 
 export type Route =
   | { kind: 'throne' }
-  | { kind: 'people' }
+  | { kind: 'people'; focus?: string; view?: 'web' | 'factions' | 'everyone' }
   | { kind: 'houses' }
   | { kind: 'worlds' }
   | { kind: 'save' }
@@ -56,7 +56,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export function routeLabel(world: World, r: Route): string {
   switch (r.kind) {
     case 'throne': return 'Hall';
-    case 'people': return 'People';
+    case 'people': return 'Relations';
     case 'houses': return 'Houses';
     case 'worlds': return 'Star map';
     case 'save': return 'Save & Load';

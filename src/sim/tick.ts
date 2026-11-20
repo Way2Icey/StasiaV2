@@ -1,6 +1,7 @@
 import { advanceEvents } from './events';
 import { advancePorts } from './ports';
 import { trimFeed } from './records';
+import { advanceRelationships } from './relationships';
 import './eventDefs';
 import { displayName } from './names';
 import { Rng } from './rng';
@@ -71,6 +72,7 @@ function stepInPlace(world: World): void {
   advancePolitics(world, crossed.phases > 0);
   advanceHousehold(world, crossed.phases > 0);
   advancePorts(world, rng, crossed.phases > 0);
+  advanceRelationships(world, rng, crossed.phases > 0);
   advanceEvents(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 

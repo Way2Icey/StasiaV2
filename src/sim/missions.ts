@@ -2,6 +2,7 @@
 // Milestone 2 has two kinds: Investigate (look into a person) and Scout
 // (survey a world). Everything resolves turn by turn, deterministically.
 import { logRecord } from './records';
+import { afterMission, synergy } from './relationships';
 import { Rng } from './rng';
 import { ageOf } from './characters';
 import { displayName, shortName } from './names';
@@ -292,7 +293,7 @@ export function forecast(world: World, spec: MissionSpec): Forecast | { ok: fals
   const travel = travelCycles(r.leader.location.planetId, r.planetId);
   const task = TASK_CYCLES[spec.kind][spec.approach];
   const rolls = task / 2;
-  const skill = partySkill(spec.kind, r.leader, r.companions, spec.force);
+  const skill = partySkill(spec.kind, r.leader, r.companions, spec.force) * synergy(world, [r.leader.id, ...r.companions.map((c) => c.id)]);
   const diff = difficulty(world, spec.kind, r, spec.houseId);
   // The house guesses the watchers from what it knows of the target's spymaster.
   const p = spec.kind === 'envoy' ? 0 : detectionChance(world, r, spec.approach);
@@ -469,7 +470,7 @@ function taskTurn(world: World, m: Mission, leader: Character, rng: Rng) {
     end(world, m, 'failure', `The trail went cold: ${r.toLowerCase()}`);
     return;
   }
-  const gain = progressRoll(rng, partySkill(m.kind, leader, r.companions, m.forced), difficulty(world, m.kind, r, null), m.approach);
+  const gain = progressRoll(rng, partySkill(m.kind, leader, r.companions, m.forced) * synergy(world, [leader.id, ...r.companions.map((c) => c.id)]), difficulty(world, m.kind, r, null), m.approach);
   m.progress += gain;
   m.rolls += 1;
   const LINES = {
@@ -648,6 +649,7 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
     rivalFind(world, rng, m.houseId, m.kind, { planetId: m.targetPlanetId, sectorId: m.targetSectorId }, m.targetHouseId);
   }
 
+  afterMission(world, rng, [m.leaderId, ...(m.companions ?? [])], outcome);
   m.report = report(world, m, leader, outcome, rng);
   m.findings = findings;
   m.stage = 'done';

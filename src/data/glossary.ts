@@ -31,6 +31,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   dread: { term: 'Dread', group: 'Houses', text: 'How much the other houses fear you. Raised by executions, patrols and victories in the pits.' },
   regard: { term: 'Regard', group: 'Houses', text: 'How one house feels about another, from -100 (Hostile) to +100 (Close). Envoys and courtesy warm it; spies and executions sour it.' },
 
+  relationships: { term: 'Ties', group: 'Houses', text: 'How one person feels about another, from -100 to +100, and why. Strong feelings become bonds: friend, rival, lover, sworn knight, feud. Friends work better together on missions; rivals fight at court.' },
+
   // ---------------------------------------------------------------- holdings
   holdings: { term: 'Holdings', group: 'Holdings', text: 'Everything a house owns: its worlds, the sectors on them and the quarters in those sectors.' },
   world: { term: 'World', group: 'Holdings', text: 'A planet held by a house. It has a limit on how many sectors can be settled.' },

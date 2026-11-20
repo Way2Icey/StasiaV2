@@ -1,5 +1,6 @@
 import { displayName } from './names';
 import { logRecord } from './records';
+import { onDeath } from './relationships';
 import { ageOf } from './characters';
 import { addCycles, CYCLES_PER_ORBIT, type GameDate } from './time';
 import type { Character, World } from './types';
@@ -11,6 +12,7 @@ function log(world: World, kind: World['feed'][number]['kind'], text: string, ch
 export function kill(world: World, c: Character, now: GameDate, cause: string) {
   c.alive = false;
   c.death = { date: now, cause };
+  onDeath(world, c.id);
   const seat = c.seat;
   c.seat = undefined;
   if (c.tier === 'full') {

@@ -505,4 +505,6 @@ export interface World {
   events: import('./events').EventState;
   /** Ships through our ports, raids, the watchlist. */
   ports: import('./ports').PortsState;
+  /** Who feels what about whom. */
+  ties: import('./relationships').Ties;
 }

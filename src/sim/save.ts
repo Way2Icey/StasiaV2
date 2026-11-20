@@ -9,6 +9,7 @@ import { ensurePolitics } from './politics';
 import { ensureHousehold } from './household';
 import { ensureEvents } from './events';
 import { ensurePorts } from './ports';
+import { ensureTies } from './relationships';
 import './eventDefs';
 
 export const SAVE_VERSION = 11;
@@ -89,5 +90,6 @@ export function deserialize(text: string): World {
   ensureHousehold(world);
   ensureEvents(world);
   ensurePorts(world);
+  ensureTies(world);
   return world;
 }
