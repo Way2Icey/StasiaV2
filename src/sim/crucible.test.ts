@@ -1,8 +1,8 @@
 import { createWorld } from './world';
 import { advanceTurn } from './tick';
 import { deserialize, serialize } from './save';
-import { championScore, eligible, enterCrucible, knightScore, marshalScore, ourNext, setStance } from './crucible';
-import { diamondRead, diamondsOf, diamondText, seasonLine, tally, titlesOf } from './careers';
+import { championScore, currentRound, eligible, enterCrucible, knightScore, marshalScore, menFor, setStance } from './crucible';
+import { diamondRead, diamondsOf, diamondText, seasonLine, tally } from './careers';
 import { isAway } from './court';
 import type { World } from './types';
 
@@ -21,30 +21,31 @@ describe('careers', () => {
 });
 
 describe('the Crucible', () => {
-  it('runs a year: entries, three rounds, a final, a champion; the contingent is away meanwhile', () => {
+  it('draws houses, runs four Orbits of battles over sites, crowns a winner; our people are away meanwhile', () => {
     let w = createWorld();
     const P = w.playerHouseId;
     let sent: string[] = [];
     let wasAway = false;
-    for (let i = 0; i < 400 && w.crucible.history.length === 0; i++) {
+    for (let i = 0; i < 1300 && !(w.crucible.history.length && sent.length); i++) {
       w = step(w);
-      if (w.crucible.stage === 'open' && !w.crucible.contingents[P]) {
+      if (w.crucible.stage === 'drawn' && w.crucible.entrants.includes(P) && !w.crucible.contingents[P]) {
+        w.economy.houses[P]!.stock.provisions += 500; w.economy.houses[P]!.stock.fuel += 500;
         const pool = eligible(w, P);
         const m = [...pool].sort((a, b) => marshalScore(b) - marshalScore(a))[0]!;
-        const ch = pool.filter((c) => c !== m).sort((a, b) => championScore(b) - championScore(a)).slice(0, 3);
-        const kn = pool.filter((c) => c !== m && !ch.includes(c)).sort((a, b) => knightScore(b) - knightScore(a)).slice(0, 6);
-        w = enterCrucible(w, { houseId: P, marshalId: m.id, champions: ch.map((c) => c.id), knights: kn.map((c) => c.id), chest: 1000 });
-        sent = [m.id, ...ch.map((c) => c.id)];
+        const ch = pool.filter((c) => c !== m).sort((a, b) => championScore(b) - championScore(a))[0]!;
+        const kn = pool.filter((c) => c !== m && c !== ch).sort((a, b) => knightScore(b) - knightScore(a)).slice(0, 4);
+        w = enterCrucible(w, { houseId: P, marshalId: m.id, championId: ch.id, knights: kn.map((c) => c.id), men: menFor(4), menLost: 0 });
+        expect(w.crucible.contingents[P]!.men).toBe(300);
+        sent = [m.id, ch.id];
       }
       if (w.crucible.stage === 'campaign' && sent.some((id) => w.characters[id]?.alive && isAway(w, id))) wasAway = true;
-      const nx = ourNext(w);
-      if (nx && !nx.stance[P]) w = setStance(w, nx.id, 'cunning');
+      const r = currentRound(w);
+      if (r && w.crucible.contingents[P] && !r.stance[P]) w = setStance(w, 'cunning');
     }
+    expect(sent.length).toBe(2);
     expect(wasAway).toBe(true);
-    expect(w.crucible.history.length).toBe(1);
-    const champ = w.crucible.history[0]!.champion;
-    const someone = Object.values(w.characters).find((c) => c.houseId === champ && titlesOf(w, c.id).length);
-    expect(someone).toBeTruthy();
+    const last = w.crucible.history[w.crucible.history.length - 1]!;
+    expect(last.drawn.length).toBeGreaterThanOrEqual(5);
     expect(sent.every((id) => !w.characters[id]?.flags.some((f) => f.id === 'crucible'))).toBe(true);
     expect(deserialize(serialize(w)).crucible).toEqual(w.crucible);
   });

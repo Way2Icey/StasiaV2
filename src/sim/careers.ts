@@ -61,7 +61,7 @@ export function totals(world: World, id: string): Season {
   return t;
 }
 
-/** The season in a line, FM-style. */
+/** A record in a line, FM-style. */
 export function seasonLine(s: Season): string {
   const bits: string[] = [];
   if (s.missions) bits.push(`${s.missions} missions${s.triumphs ? `, ${s.triumphs} triumphs` : ''}`);
@@ -73,7 +73,7 @@ export function seasonLine(s: Season): string {
   if (s.rescues) bits.push(`${s.rescues} rescues`);
   if (s.heists) bits.push(`${s.heists} heists`);
   if (s.taught) bits.push(`${s.taught} pupils taught`);
-  return bits.join(' · ') || 'a quiet year';
+  return bits.join(' · ') || 'nothing of note yet';
 }
 
 export function award(world: World, id: string, title: string): void {

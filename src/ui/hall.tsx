@@ -5,7 +5,7 @@ import { useState, type ReactNode } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { AudienceCard } from './ambitions';
 import { AMBITION_LABEL } from '../sim/ambitions';
-import { CLOSES, ourNext } from '../sim/crucible';
+import { CLOSES, currentRound } from '../sim/crucible';
 import { classify } from '../sim/records';
 import { Panel, PersonLink } from './links';
 import { Term } from './tip';
@@ -201,12 +201,9 @@ export function Desk({ className }: { className?: string }) {
     });
   }
   const cr = world.crucible;
-  if (cr?.stage === 'open' && !cr.contingents[P]) items.push({ id: 'crucible-open', mark: '[⚔]', kind: 'CRUCIBLE', text: <>Name our contingent for the Crucible</>, when: `by Orbit ${CLOSES}`, open: () => nav.to({ kind: 'crucible' }) });
-  const nextFight = ourNext(world);
-  if (nextFight && (cr?.stage === 'campaign' || cr?.stage === 'final') && !nextFight.stance[P]) {
-    const foe = nextFight.a === P ? nextFight.b : nextFight.a;
-    items.push({ id: `cs-${nextFight.id}`, mark: '[⚔]', kind: 'CRUCIBLE', text: <>{nextFight.round === 4 ? 'The final' : `Round ${nextFight.round}`} v {world.houses[foe]?.name}: choose a stance</>, when: `Orbit ${nextFight.orbit}`, open: () => nav.to({ kind: 'crucible' }) });
-  }
+  if (cr?.stage === 'drawn' && cr.entrants.includes(P) && !cr.contingents[P]) items.push({ id: 'crucible-open', mark: '[⚔]', kind: 'CRUCIBLE', text: <>We are drawn for the Crucible: raise our contingent</>, when: `by Orbit ${CLOSES}`, open: () => nav.to({ kind: 'crucible' }) });
+  const round = cr?.stage === 'campaign' && cr.contingents[P] && !cr.contingents[P]!.out ? currentRound(world) : undefined;
+  if (round && !round.stance[P]) items.push({ id: `cs-${round.orbit}`, mark: '[⚔]', kind: 'CRUCIBLE', text: <>Orbit {round.orbit} on the battle world: choose the Marshal's stance</>, when: `Orbit ${round.orbit}`, open: () => nav.to({ kind: 'crucible' }) });
   for (const au of world.ambitions?.audiences ?? []) {
     const c = world.characters[au.characterId];
     items.push({ id: au.id, mark: '[»]', kind: 'AUDIENCE', text: <>{c ? displayName(c.name) : 'Someone'} · {AMBITION_LABEL[au.kind].toLowerCase()}</>, when: inCycles(world, au.expires), open: () => setOpen((o) => (o === au.id ? null : au.id)) });
