@@ -528,4 +528,8 @@ export interface World {
   embassies: import('./embassies').EmbassiesState;
   /** What people want, and who has come to the Highroy about it. */
   ambitions: import('./ambitions').AmbitionsState;
+  /** Every deed counted by season, titles won, and who the Highroy follows. */
+  careers: import('./careers').CareersState;
+  /** The year's mock war. */
+  crucible: import('./crucible').CrucibleState;
 }

@@ -1,6 +1,7 @@
 // Holdings: what a house builds into its sectors (and later its great ships).
 // Three modules for now: cells for prisoners, vaults for othes on ledger drives,
 // Caiges and records, and academies for training.
+import { tally } from './careers';
 import { Rng } from './rng';
 import { displayName, shortName } from './names';
 import { econ, record } from './economy';
@@ -817,6 +818,7 @@ function resolveOps(world: World, rng: Rng) {
       if (roll > 0) {
         freeCaptive(world, cap);
         shiftBoth(world, a.id, c.id, 35, 'broke them out');
+        tally(world, a.id, 'rescues');
         shiftRelation(world, op.targetHouseId, P, -8);
         world.houses[P]!.standing.dread = clamp(world.houses[P]!.standing.dread + 2, 0, 100);
         logRecord(world, {
@@ -884,6 +886,7 @@ function heist(world: World, rng: Rng, thief: Character, v: Module) {
       placeId: v.sectorId, houseIds: [owner, by], effects,
     });
     if (by === P) shiftMood(thief, 8);
+    tally(world, thief.id, 'heists');
   } else if (roll > -5) {
     if (ours) logRecord(world, { kind: 'intrigue', type: 'intrigue', severity: 1, text: owner === P ? `Someone tried our vault at ${placeOf(world, v)} and got nowhere.` : `${displayName(thief.name)} could not get into the vault of ${houseName(world, owner)} and slipped away.`, placeId: v.sectorId, who: by === P ? [{ id: thief.id, part: 'thief' }] : [] });
   } else {

@@ -1,6 +1,7 @@
 // Missions: the house sends one of its people to do something somewhere.
 // Milestone 2 has two kinds: Investigate (look into a person) and Scout
 // (survey a world). Everything resolves turn by turn, deterministically.
+import { tally } from './careers';
 import { logRecord } from './records';
 import { afterMission, synergy } from './relationships';
 import { addGlory } from './ambitions';
@@ -652,6 +653,7 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
 
   afterMission(world, rng, [m.leaderId, ...(m.companions ?? [])], outcome);
   if (outcome === 'triumph' || outcome === 'success') for (const id of [m.leaderId, ...(m.companions ?? [])]) addGlory(world, id, outcome === 'triumph' ? 2 : 1);
+  for (const id of [m.leaderId, ...(m.companions ?? [])]) { tally(world, id, 'missions'); if (outcome === 'triumph') tally(world, id, 'triumphs'); }
   m.report = report(world, m, leader, outcome, rng);
   m.findings = findings;
   m.stage = 'done';

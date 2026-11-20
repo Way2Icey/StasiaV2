@@ -1,4 +1,5 @@
 // Training and development: a tutor for one, drill for the knights, an academy for many, and wards between houses.
+import { tally } from './careers';
 import { Rng } from './rng';
 import { displayName, shortName } from './names';
 import { ageOf } from './characters';
@@ -432,6 +433,7 @@ function graduate(world: World, rng: Rng, e: Enrolment) {
     const m = world.holdings.modules[e.moduleId];
     if (m) m.reputation = clamp((m.reputation ?? 0) + 4 + total * 2, 0, 100);
     if (total >= 3) addGlory(world, c.id, 1);
+    if (e.teacherId) tally(world, e.teacherId, 'taught');
     const trait = SUBJECT_TRAIT[e.subject];
     if (total >= 4 && trait && !c.traits.some((t) => t.id === trait)) { c.traits.push({ id: trait }); gains.push(`learned: ${trait}`); }
   }

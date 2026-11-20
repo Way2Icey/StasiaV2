@@ -22,6 +22,8 @@ import { ensureTraining } from './training';
 import { ensureFleet } from './fleet';
 import { ensureEmbassies } from './embassies';
 import { ensureAmbitions } from './ambitions';
+import { ensureCareers } from './careers';
+import { ensureCrucible } from './crucible';
 import './eventDefs';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
@@ -66,6 +68,8 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     fleet: undefined as unknown as World['fleet'],
     embassies: undefined as unknown as World['embassies'],
     ambitions: undefined as unknown as World['ambitions'],
+    careers: undefined as unknown as World['careers'],
+    crucible: undefined as unknown as World['crucible'],
   };
 
   for (const h of SLICE_HOUSES) {
@@ -142,6 +146,8 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
   ensureFleet(world);
   ensureEmbassies(world);
   ensureAmbitions(world);
+  ensureCareers(world);
+  ensureCrucible(world);
   world.rng = rng.state;
   return world;
 }

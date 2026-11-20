@@ -42,7 +42,7 @@ export function AudienceCard({ au, onDone }: { au: Audience; onDone?: () => void
       <p style={{ margin: 0 }}>{au.text}</p>
       <div style={{ display: 'grid', gap: 6 }}>
         {opts.map((o) => (
-          <button key={o.id} type="button" className="btn option" disabled={!!o.disabled} title={o.disabled ?? undefined} onClick={() => { run((w) => answerAudience(w, au.id, o.id as Answer)); onDone?.(); }} style={{ textAlign: 'left', display: 'grid', gap: 2 }}>
+          <button key={o.id} type="button" className="btn option" disabled={!!o.disabled} title={o.disabled ?? undefined} onClick={() => { run((w) => answerAudience(w, au.id, o.id as Answer)); onDone?.(); }} style={{ textAlign: 'left', display: 'grid', gap: 2, whiteSpace: 'normal', height: 'auto' }}>
             <span>{o.label}{o.disabled ? ` — ${o.disabled}` : ''}</span>
             <span className="muted" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 0 }}>{o.note}</span>
           </button>

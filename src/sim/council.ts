@@ -1,5 +1,6 @@
 // The council at work: standing tasks for each seat, the Highroy's oath,
 // petitions from the council, and the house's standing and relations.
+import { tally } from './careers';
 import { addGlory } from './ambitions';
 import { Rng } from './rng';
 import { ageOf } from './characters';
@@ -521,6 +522,8 @@ function runTask(world: World, rng: Rng, houseId: string, c: Character, def: Tas
     }
     case 'pits': {
       const win = rng.chance(clamp(0.35 + (taskScore(def, c) - 10) * 0.05, 0.1, 0.9));
+      tally(world, c.id, 'bouts');
+      if (win) tally(world, c.id, 'boutsWon');
       if (win) {
         addGlory(world, c.id, 1);
         st.respect = clamp(st.respect + 1, 0, 100);

@@ -1,4 +1,5 @@
 // Great ships: each house's capital ships, their captains and crews, where they are and what they are doing.
+import { tally } from './careers';
 import { Rng } from './rng';
 import { displayName } from './names';
 import { econ, record } from './economy';
@@ -64,6 +65,8 @@ export interface CapitalShip {
   ready?: GameDate;
   yardId?: string;
   lost?: { date: GameDate; how: string };
+  /** Sent to the Crucible for the season. */
+  crucible?: boolean;
   unpaid?: number;
 }
 
@@ -126,7 +129,7 @@ export function shipsOf(world: World, houseId: string): CapitalShip[] {
 }
 
 export function shipsAt(world: World, sectorId: string): CapitalShip[] {
-  return Object.values(world.fleet?.ships ?? {}).filter((s) => !s.lost && !s.ready && s.sectorId === sectorId && !s.arrives);
+  return Object.values(world.fleet?.ships ?? {}).filter((s) => !s.lost && !s.ready && !s.crucible && s.sectorId === sectorId && !s.arrives);
 }
 
 export function underway(s: CapitalShip): boolean { return !!s.arrives; }
@@ -202,7 +205,7 @@ export function setCaptain(input: World, shipId: string, captainId: string | nul
 export function setDuty(input: World, shipId: string, duty: Duty, target?: string): World {
   return act(input, (w) => {
     const s = w.fleet.ships[shipId];
-    if (!s || s.houseId !== w.playerHouseId || s.ready || s.lost) return;
+    if (!s || s.houseId !== w.playerHouseId || s.ready || s.lost || s.crucible) return;
     dutyInPlace(w, s, duty, target);
   });
 }
@@ -412,7 +415,7 @@ function standoff(w: World, rng: Rng, a: CapitalShip, b: CapitalShip) {
     loser.condition = clamp(loser.condition - (10 + rng.next() * 20), 0, 100);
     winner.condition = clamp(winner.condition - rng.next() * 8, 0, 100);
     winner.crewMood = clamp(winner.crewMood + 8, 0, 100);
-    if (winner.captainId) addGlory(w, winner.captainId, 2);
+    if (winner.captainId) { addGlory(w, winner.captainId, 2); tally(w, winner.captainId, 'standoffsWon'); }
     loser.crewMood = clamp(loser.crewMood - 6, 0, 100);
     w.houses[winner.houseId]!.standing.dread = clamp(w.houses[winner.houseId]!.standing.dread + 3, 0, 100);
     shiftRelation(w, loser.houseId, winner.houseId, -10);
@@ -437,7 +440,7 @@ function standoff(w: World, rng: Rng, a: CapitalShip, b: CapitalShip) {
 function aiFleet(w: World, rng: Rng) {
   const P = w.playerHouseId;
   for (const s of Object.values(w.fleet.ships)) {
-    if (s.houseId === P || s.lost || s.ready || s.arrives) continue;
+    if (s.houseId === P || s.lost || s.ready || s.arrives || s.crucible) continue;
     const h = w.houses[s.houseId]!;
     if (!s.captainId) { const c = bestCaptain(w, s.houseId, new Set(Object.values(w.fleet.ships).map((x) => x.captainId ?? ''))); if (c) { s.captainId = c.id; aboard(w, s); } }
     const out = s.deployed ? (absoluteCycle(w.date) - absoluteCycle(s.deployed)) / CYCLES_PER_ORBIT : 0;

@@ -1,6 +1,7 @@
 // Ambitions: what people want out of life, and what they do when they don't get it.
 // Everyone of note wants something: a seat, a ship, glory, love, a fortune, the wide Reaches.
 // Wants that go unmet sour into resentment; ours come to the Highroy in audience, and the Highroy must answer.
+import { tally } from './careers';
 import { Rng } from './rng';
 import { displayName, shortName } from './names';
 import { ageOf, focusForSeat, ROLE_FOCUS } from './characters';
@@ -386,6 +387,7 @@ function grant(w: World, rng: Rng, c: Character, a: Ambition, au: Audience) {
       if (dies) kill(w, loser, w.date, `killed in a duel with ${displayName(winner.name)}`);
       else loser.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, CYCLES_PER_PHASE * 3) });
       shiftBoth(w, c.id, t.id, -10, 'the duel');
+      tally(w, c.id, 'duels'); tally(w, t.id, 'duels'); tally(w, winner.id, 'duelsWon');
       if (winner === c) { a.deeds = 1; satisfy(w, c, a, `${displayName(t.name)} beaten at dawn`); }
       else { a.frustration = clamp(a.frustration + 15, 0, 100); shiftMood(c, -10); }
       logRecord(w, {

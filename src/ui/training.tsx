@@ -13,6 +13,7 @@ import { isAway } from '../sim/court';
 import { seatHolder } from '../sim/query';
 import { ageOf } from '../sim/characters';
 import { SPECIES } from '../data/species';
+import { Diamonds } from './careers';
 import { dateParts } from '../sim/time';
 import type { Character, World } from '../sim/types';
 
@@ -272,7 +273,7 @@ export function Younglings() {
         <p className="body muted" style={{ margin: 0 }}>The children and younglings of the house. From about half of adulthood until they come of age they can be sent to another house as wards or given a personal tutor. Young adults show here too: they can no longer be wards, but an academy will still take them.</p>
         <div className="table-wrap">
           <table className="ctable">
-            <thead><tr><th>NAME</th><th>AGE</th><th>WHERE</th><th>LEARNING</th><th>SEND AS WARD</th></tr></thead>
+            <thead><tr><th>NAME</th><th>AGE</th><th>POTENTIAL</th><th>WHERE</th><th>LEARNING</th><th>SEND AS WARD</th></tr></thead>
             <tbody>
               {young.map((c) => {
                 const st = stayOf(c.id);
@@ -284,6 +285,7 @@ export function Younglings() {
                   <tr key={c.id}>
                     <td><PersonLink c={c} /></td>
                     <td className="mono">{ageOf(c, world.date)}</td>
+                    <td><Diamonds c={c} /></td>
                     <td>{st ? <>ward at <HouseLink id={st.host} /> · home {short(st.end)}</> : isAway(world, c.id) ? 'away' : 'at court'}</td>
                     <td>{en ? `${PROGRAM_LABEL[en.program]} · ${SUBJECTS[en.subject].label.toLowerCase()}` : <span className="muted">—</span>}</td>
                     <td>

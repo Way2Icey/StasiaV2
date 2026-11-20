@@ -1,5 +1,7 @@
 import { TiesPanel } from './relations';
 import { WantsPanel } from './ambitions';
+import { CareerPanel, Followed, PinButton } from './careers';
+import { CrucibleGlance } from './crucible';
 import { SectorHoldings } from './holdings';
 import { EmbassyPanel, OurCourtEmbassies } from './embassies';
 import { useMemo, useState } from 'react';
@@ -125,8 +127,10 @@ export function ThroneRoom() {
         <div className="span-5 stack">
           <RaidPanel />
           <Desk />
+          <CrucibleGlance />
           <OathSummary />
         </div>
+        <Followed className="span-12" />
         <CouncilTable className="span-7" />
         <Panel title="This Orbit" aside={`Orbit ${parts.orbit} of 10 · SY-${parts.year}`} className="span-5">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -321,6 +325,7 @@ export function CharacterPage({ id }: { id: string }) {
           {c.alive && !own ? <WatchButton id={c.id} /> : null}
           <Go to={{ kind: 'log', person: c.id }} className="btn">Full record</Go>
           <Go to={{ kind: 'people', focus: c.id }} className="btn">Ties</Go>
+          <PinButton id={c.id} />
           {own && c.alive ? <Go to={{ kind: 'training' }} className="btn">Train</Go> : null}
           {c.alive && own && v.depth < KNOW.exact && c.seat !== 'highroy' ? (
             beingInvestigated ? null : <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn">Look into them</Go>
@@ -338,6 +343,7 @@ export function CharacterPage({ id }: { id: string }) {
             {statCol('SPIRIT', SPIRIT_STATS)}
           </div>
         </section>
+        <CareerPanel c={c} />
         <WantsPanel id={c.id} />
         <TiesPanel id={c.id} limit={8} />
         </div>
@@ -425,6 +431,7 @@ export function HousesPage() {
   return (
     <>
       <Title title="Houses" sub="The four houses of the vertical slice." />
+      <div className="actions" style={{ marginBottom: 12 }}><Go to={{ kind: 'crucible' }} className="btn primary">The Crucible ›</Go></div>
       <div className="grid">
         {Object.values(world.houses).map((h) => {
           const r = ruler(world, h.id);

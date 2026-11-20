@@ -4,6 +4,7 @@
 // harbourmaster, customs and agents find out.
 import { baseStrength, imprison, listeningOn } from './holdings';
 import { fleetDefence } from './fleet';
+import { tally } from './careers';
 import { Rng } from './rng';
 import { buildWord, displayName, shortName } from './names';
 import { CULTURES } from '../data/cultures';
@@ -870,6 +871,7 @@ function strike(world: World, rng: Rng, raid: Raid) {
     house.standing.dread = Math.min(100, house.standing.dread + 3);
     if (raid.answer === 'muster') house.standing.honour = Math.min(100, house.standing.honour + 1);
     for (const k of knights) shiftMood(k, 3);
+    if (raid.answer === 'muster') for (const k of knights) tally(world, k.id, 'raidsRepelled');
     raid.result = `Driven off at ${s?.name}. Dread +3.`;
     tell(world, 'world', `The corsairs struck ${s?.name} and were driven off${raid.answer === 'muster' ? ' by the mustered knights' : ' by the sector watch'}.`, undefined, {
       type: 'fight', severity: 2, placeId: raid.sectorId, who: knights.map((k) => ({ id: k.id, part: raid.answer === 'muster' ? 'fought' : 'at home' })),
