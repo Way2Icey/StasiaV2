@@ -8,7 +8,7 @@ import { findSector } from './query';
 import { shiftMood } from './mood';
 import { shiftOpinion } from './relationships';
 import { kill } from './death';
-import { ensureBrig } from './holdings';
+import { ensureBrig, type Module } from './holdings';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, type GameDate } from './time';
 import type { Character, World } from './types';
 
@@ -59,8 +59,9 @@ export interface CapitalShip {
   /** When it last left harbour. */
   deployed?: GameDate;
   built: GameDate;
-  /** Under construction until this date. */
+  /** Under construction until this date, at this yard. */
   ready?: GameDate;
+  yardId?: string;
   lost?: { date: GameDate; how: string };
   unpaid?: number;
 }
@@ -232,7 +233,18 @@ function dutyInPlace(w: World, s: CapitalShip, duty: Duty, target?: string) {
   }
 }
 
-export function cannotCommission(world: World, cls: CapitalClass): string | null {
+/** Ships on the slips of a yard: still building there. */
+export function onSlips(world: World, yard: Module): CapitalShip[] {
+  return Object.values(world.fleet?.ships ?? {}).filter((x) => x.ready && x.yardId === yard.id && !x.lost);
+}
+
+/** Orbits a yard takes to build a great ship: two at level 1, down to one at level 3. */
+export function buildOrbits(yard: Module): number { return [2, 2, 1.5, 1][yard.level] ?? 2; }
+
+export function cannotCommission(world: World, cls: CapitalClass, yardId: string): string | null {
+  const yard = world.holdings?.modules[yardId];
+  if (!yard || yard.kind !== 'shipyard' || yard.houseId !== world.playerHouseId || yard.level < 1) return 'Needs a shipyard';
+  if (onSlips(world, yard).length >= yard.level) return `The slips are full (${yard.level})`;
   const e = econ(world, world.playerHouseId);
   const d = CAPITAL_CLASSES[cls];
   if (e.stock.othes < d.cost) return `Needs ${fmt(d.cost)} othes`;
@@ -240,21 +252,23 @@ export function cannotCommission(world: World, cls: CapitalClass): string | null
   return null;
 }
 
-export function commission(input: World, cls: CapitalClass): World {
+export function commission(input: World, cls: CapitalClass, yardId: string): World {
   return act(input, (w, rng) => {
-    const why = cannotCommission(w, cls);
+    const why = cannotCommission(w, cls, yardId);
     if (why) throw new Error(why);
+    const yard = w.holdings.modules[yardId]!;
     const P = w.playerHouseId;
     const d = CAPITAL_CLASSES[cls];
-    record(w, P, { resource: 'othes', amount: -d.cost, label: `Laid down a ${d.label.toLowerCase()}`, kind: 'develop' });
-    record(w, P, { resource: 'components', amount: -d.components, label: `Laid down a ${d.label.toLowerCase()}`, kind: 'develop' });
+    record(w, P, { resource: 'othes', amount: -d.cost, label: `Laid down a ${d.label.toLowerCase()}`, kind: 'develop', sectorId: yard.sectorId });
+    record(w, P, { resource: 'components', amount: -d.components, label: `Laid down a ${d.label.toLowerCase()}`, kind: 'develop', sectorId: yard.sectorId });
     const id = `cs${w.nextId++}`;
+    const orbits = buildOrbits(yard);
     w.fleet.ships[id] = {
       id, houseId: P, name: shipName(w, rng, P), cls, captainId: null, crew: d.crew, crewMood: 60, condition: 100,
-      sectorId: capitalSector(w, P), duty: 'harbour', built: w.date, ready: addCycles(w.date, CYCLES_PER_ORBIT * 2),
+      sectorId: yard.sectorId!, duty: 'harbour', built: w.date, ready: addCycles(w.date, Math.round(CYCLES_PER_ORBIT * orbits)), yardId: yard.id,
     };
     ensureBrig(w, id, P);
-    logRecord(w, { kind: 'world', type: 'economy', severity: 2, text: `The keel of a new ${d.label.toLowerCase()}, the ${w.fleet.ships[id]!.name}, is laid at ${findSector(w, w.fleet.ships[id]!.sectorId)?.sector.name}.`, effects: [`−${fmt(d.cost)} othes`, `−${d.components} components`, 'Ready in two Orbits'] });
+    logRecord(w, { kind: 'world', type: 'economy', severity: 2, text: `The keel of a new ${d.label.toLowerCase()}, the ${w.fleet.ships[id]!.name}, is laid at the yards of ${findSector(w, yard.sectorId!)?.sector.name}.`, effects: [`−${fmt(d.cost)} othes`, `−${d.components} components`, `Ready in ${orbits} Orbits`], placeId: yard.sectorId });
   });
 }
 
@@ -296,7 +310,8 @@ function crewLife(w: World, rng: Rng, s: CapitalShip) {
   let d = (cap?.alive ? (cap.stats.leadership - 10) / 4 : -2) + rng.gauss();
   if (s.duty === 'harbour' && !s.arrives) {
     d -= 0.8;
-    s.condition = clamp(s.condition + 4, 0, 100);
+    const yard = Object.values(w.holdings?.modules ?? {}).some((m) => m.kind === 'shipyard' && m.sectorId === s.sectorId && m.houseId === s.houseId && m.level > 0);
+    s.condition = clamp(s.condition + (yard ? 8 : 4), 0, 100);
     // New hands sign on at home.
     s.crew = Math.min(CAPITAL_CLASSES[s.cls].crew, s.crew + Math.round(CAPITAL_CLASSES[s.cls].crew * 0.05));
   }

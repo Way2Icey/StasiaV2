@@ -21,17 +21,20 @@ const houseName = (w: World, id: string) => `House ${w.houses[id]?.name ?? id}`;
 
 // ---------------------------------------------------------------- types
 
-export type ModuleKind = 'cells' | 'vault' | 'academy' | 'hangar';
+export type ModuleKind = 'cells' | 'vault' | 'academy' | 'hangar' | 'base' | 'listening' | 'shipyard';
 export type Treatment = 'decent' | 'harsh' | 'isolation';
 export type HoldReason = 'spy' | 'crime' | 'war' | 'leverage';
 
-export const MODULE_LABEL: Record<ModuleKind, string> = { cells: 'Cells', vault: 'Vault', academy: 'Academy', hangar: 'Hangar' };
-export const OVERSEER_TITLE: Record<ModuleKind, string> = { cells: 'Warden', vault: 'Vaultmaster', academy: 'Head of the academy', hangar: 'Wing commander' };
+export const MODULE_LABEL: Record<ModuleKind, string> = { cells: 'Cells', vault: 'Vault', academy: 'Academy', hangar: 'Hangar', base: 'Base', listening: 'Listening post', shipyard: 'Shipyard' };
+export const OVERSEER_TITLE: Record<ModuleKind, string> = { cells: 'Warden', vault: 'Vaultmaster', academy: 'Head of the academy', hangar: 'Wing commander', base: 'Commander', listening: 'Listener', shipyard: 'Master shipwright' };
 export const MODULE_NOTE: Record<ModuleKind, string> = {
   cells: 'Holds prisoners. Four to a level. Higher levels and a sharp warden make escapes and rescues harder.',
   vault: 'Othes on ledger drives, stored Caiges and the house records. Raids cannot touch what is vaulted; heists can try.',
   academy: 'Trains people of the house and, once it has a name, draws recruits and wards from other houses.',
   hangar: 'Fighter wings aboard a great ship. Each level adds to the ship\'s fighting strength.',
+  base: 'A garrison of the house\'s troops. It fights any raid on this sector whether or not the knights muster, and keeps its own cells.',
+  listening: 'Antennae and quiet listeners. Raids on this world are seen sooner, foreign agents here are caught more often, and other houses\' great ships near it are seen. Level 2 follows ships on the lanes to and from it; level 3 hears the whole Reaches.',
+  shipyard: 'Slips and drydocks. Great ships are laid down here, one at a time per level, and ships in harbour here are repaired twice as fast. A better yard builds faster.',
 };
 /** Othes to build level 1, 2 and 3. */
 export const BUILD_COST: Record<ModuleKind, [number, number, number]> = {
@@ -39,7 +42,55 @@ export const BUILD_COST: Record<ModuleKind, [number, number, number]> = {
   vault: [2500, 5000, 10000],
   academy: [4000, 8000, 15000],
   hangar: [6000, 12000, 20000],
+  base: [5000, 10000, 20000],
+  listening: [3000, 6000, 12000],
+  shipyard: [8000, 16000, 30000],
 };
+
+/** Kinds that can be built into a sector (not ships). */
+export const SECTOR_KINDS: ModuleKind[] = ['cells', 'vault', 'academy', 'base', 'listening', 'shipyard'];
+
+/** A base's strength against raiders: level and the commander's head for tactics. */
+export function baseStrength(world: World, sectorId: string): number {
+  return modulesAt(world, sectorId).filter((m) => m.kind === 'base' && m.level > 0 && m.houseId === world.playerHouseId).reduce((n, m) => {
+    const c = m.overseerId ? world.characters[m.overseerId] : undefined;
+    return n + m.level * 12 + (c?.alive ? Math.round((c.stats.tactics + c.stats.leadership) / 2) : 0);
+  }, 0);
+}
+
+/** The best listening post a house has on a planet. */
+export function listeningOn(world: World, houseId: string, planetId: string): number {
+  return Object.values(world.holdings?.modules ?? {}).filter((m) => m.kind === 'listening' && m.houseId === houseId && m.level > 0 && m.sectorId && findSector(world, m.sectorId)?.planet.id === planetId)
+    .reduce((n, m) => Math.max(n, m.level), 0);
+}
+
+/** The reach of a house's ears: the worlds it hears, and whether it follows the lanes or hears everything. */
+export function earsOf(world: World, houseId: string): { worlds: Set<string>; lanes: boolean; all: boolean } {
+  const worlds = new Set<string>();
+  let lanes = false;
+  let all = false;
+  for (const m of Object.values(world.holdings?.modules ?? {})) {
+    if (m.kind !== 'listening' || m.houseId !== houseId || m.level < 1 || !m.sectorId) continue;
+    const p = findSector(world, m.sectorId)?.planet.id;
+    if (p) worlds.add(p);
+    if (m.level >= 2) lanes = true;
+    if (m.level >= 3) all = true;
+  }
+  return { worlds, lanes, all };
+}
+
+/** Does this house see that great ship? Its own, any at its own worlds, any its listening posts can hear. */
+export function shipSeen(world: World, houseId: string, s: { houseId: string; sectorId: string; from?: string; arrives?: unknown }): boolean {
+  if (s.houseId === houseId) return true;
+  const to = findSector(world, s.sectorId)?.planet;
+  if (to && to.houseId === houseId && !s.arrives) return true;
+  const ears = earsOf(world, houseId);
+  if (ears.all) return true;
+  const toId = to?.id;
+  const fromId = s.from ? findSector(world, s.from)?.planet.id : undefined;
+  if (!s.arrives) return !!toId && ears.worlds.has(toId);
+  return ears.lanes && ((!!toId && ears.worlds.has(toId)) || (!!fromId && ears.worlds.has(fromId)));
+}
 /** Othes a vault can hold at each level. */
 export const VAULT_CAPACITY = [0, 25000, 60000, 120000];
 export const TREATMENT_LABEL: Record<Treatment, string> = { decent: 'Decent', harsh: 'Harsh', isolation: 'Isolation' };
@@ -106,6 +157,7 @@ export interface HoldingsState {
   cooldown?: Record<string, GameDate>;
   /** Cities, ports and ships have had their cells added. */
   seeded?: boolean;
+  seededYards?: boolean;
 }
 
 // ---------------------------------------------------------------- set-up
@@ -168,6 +220,13 @@ export function sectorHasCells(sector: { designation: string; port: string }): b
 
 /** Give every city, port and base its cells, and every great ship its brig. Runs once per save. */
 function seedCells(world: World): void {
+  if (!world.holdings.seededYards) {
+    world.holdings.seededYards = true;
+    for (const h of Object.values(world.houses)) {
+      const at = capitalSector(world, h.id);
+      if (at && !Object.values(world.holdings.modules).some((m) => m.kind === 'shipyard' && m.houseId === h.id)) newModule(world, h.id, 'shipyard', at, h.tier === 'great' ? 2 : 1);
+    }
+  }
   if (world.holdings.seeded) return;
   world.holdings.seeded = true;
   for (const p of Object.values(world.planets)) {
@@ -312,6 +371,8 @@ export function cannotBuild(world: World, kind: ModuleKind, sectorId: string): s
   const s = findSector(world, sectorId);
   if (!s || s.planet.houseId !== world.playerHouseId) return 'Not our sector';
   if (modulesAt(world, sectorId).some((m) => m.kind === kind && m.houseId === world.playerHouseId)) return 'Already one here';
+  if (kind === 'shipyard' && s.sector.port !== 'spaceport' && s.sector.port !== 'starport') return 'Needs a spaceport or starport';
+  if (kind === 'hangar') return 'Hangars go on ships';
   if (econ(world, world.playerHouseId).stock.othes < buildCost(kind, 1)) return 'Not enough othes';
   return null;
 }
@@ -552,6 +613,7 @@ function finishWorks(world: World) {
     if (!m.works || absoluteCycle(m.works.done) > now) continue;
     m.level = m.works.to;
     delete m.works;
+    if (m.kind === 'base' && m.sectorId && !modulesAt(world, m.sectorId).some((x) => x.kind === 'cells' && x.houseId === m.houseId)) newModule(world, m.houseId, 'cells', m.sectorId, 1);
     if (m.houseId === world.playerHouseId) {
       logRecord(world, { kind: 'world', type: 'economy', severity: 1, text: `${m.level === 1 ? 'New' : 'Improved'} ${MODULE_LABEL[m.kind].toLowerCase()} at ${placeOf(world, m)} ${m.level === 1 ? 'are' : 'now'} ready${m.level > 1 ? ` (level ${m.level})` : ''}.`, placeId: m.sectorId });
     }
@@ -971,6 +1033,15 @@ export function advanceHoldings(world: World, rng: Rng, phaseTurned: boolean, or
   for (const c of Object.values(world.armoury ?? {})) storeInVault(world, c);
   resolveOps(world, rng);
   if (!phaseTurned) return;
+  // Bases cost their garrison's pay.
+  for (const m of Object.values(world.holdings.modules)) {
+    if (m.kind !== 'base' || m.level < 1) continue;
+    const e = world.economy?.houses[m.houseId];
+    if (!e) continue;
+    const pay = 120 * m.level;
+    if (m.houseId === world.playerHouseId) record(world, m.houseId, { resource: 'othes', amount: -Math.min(pay, e.stock.othes), label: `Garrison pay at ${placeOf(world, m)}`, kind: 'stipend', sectorId: m.sectorId });
+    else e.stock.othes = Math.max(0, e.stock.othes - pay);
+  }
   cellsLife(world, rng);
   caigeStability(world, rng);
   aiBuild(world, rng);

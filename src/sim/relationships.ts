@@ -9,6 +9,7 @@ import { ageOf } from './characters';
 import { SPECIES } from '../data/species';
 import { logRecord } from './records';
 import { wardsAt } from './training';
+import { ambassadorsAt } from './embassies';
 import { absoluteCycle, type GameDate } from './time';
 import type { Character, World } from './types';
 
@@ -175,7 +176,7 @@ export function advanceRelationships(world: World, rng: Rng, phaseTurned: boolea
   ensureTies(world);
   if (!phaseTurned) return;
   for (const h of Object.keys(world.houses)) {
-    const court = [...Object.values(world.characters).filter((c) => c.alive && c.houseId === h && c.tier === 'full' && !isAway(world, c.id)), ...wardsAt(world, h)];
+    const court = [...Object.values(world.characters).filter((c) => c.alive && c.houseId === h && c.tier === 'full' && !isAway(world, c.id)), ...wardsAt(world, h), ...ambassadorsAt(world, h)];
     if (court.length < 2) continue;
     // A handful of meetings each Phase.
     const meetings = Math.max(3, Math.round(court.length * 1.2));

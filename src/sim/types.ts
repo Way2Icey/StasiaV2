@@ -524,4 +524,6 @@ export interface World {
   training: import('./training').TrainingState;
   /** Great ships of every house. */
   fleet: import('./fleet').FleetState;
+  /** Every house's embassy in every other house's capital. */
+  embassies: import('./embassies').EmbassiesState;
 }

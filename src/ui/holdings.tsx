@@ -4,7 +4,7 @@ import { useGame, useNav, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, PersonLink, SectorLink } from './links';
 import { Term } from './tip';
 import {
-  buildCost, buildModule, caigeRoom, caigesIn, cannotBuild, cannotHeist, cannotRescue, cellCapacity, cellLoad, cellSecurity, deposit, escapeChance,
+  baseStrength, buildCost, buildModule, caigeRoom, SECTOR_KINDS, caigesIn, cannotBuild, cannotHeist, cannotRescue, cellCapacity, cellLoad, cellSecurity, deposit, escapeChance,
   executePrisoner, HEIST_COST, inmates, keeperCoverage, MODULE_LABEL, MODULE_NOTE, modulesOf, mountHeist, mountRescue, OVERSEER_TITLE,
   placeOf, REASON_LABEL, releasePrisoner, RESCUE_COST, reservesOf, returnCaige, setKeeper, setModuleOverseer, setReason, setTreatment,
   stabilityWord, TREATMENT_LABEL, TREATMENT_NOTE, upgradeModule, VAULT_CAPACITY, vaultSecurity, withdraw,
@@ -15,6 +15,7 @@ import { demandRansom, econ, heldSectors, ransomValue } from '../sim/economy';
 import { isAway } from '../sim/court';
 import { dateParts, formatDate } from '../sim/time';
 import { findSector } from '../sim/query';
+import { ShipyardView } from './fleet';
 import { knowledgeOf } from '../sim/knowledge';
 import type { Character, World } from '../sim/types';
 
@@ -133,6 +134,19 @@ function ModuleView({ m }: { m: Module }) {
       {m.kind === 'cells' && m.level > 0 ? <CellsView m={m} /> : null}
       {m.kind === 'vault' && m.level > 0 ? <VaultView m={m} /> : null}
       {m.kind === 'academy' && m.level > 0 ? <AcademyNote m={m} /> : null}
+      {m.kind === 'shipyard' && m.level > 0 ? <ShipyardView yard={m} /> : null}
+      {m.kind === 'base' && m.level > 0 && m.sectorId ? (
+        <Panel title="Garrison" aside={`strength ${baseStrength(world, m.sectorId)} · pay ${120 * m.level}/Phase`}>
+          <p className="body muted" style={{ margin: 0 }}>Fights any raid on {placeOf(world, m)} alongside whoever else is there, mustered or not. A commander with tactics and leadership adds to its strength. The base keeps its own cells.</p>
+        </Panel>
+      ) : null}
+      {m.kind === 'listening' && m.level > 0 ? (
+        <Panel title="What it hears" aside={`level ${m.level}`}>
+          <p className="body muted" style={{ margin: 0 }}>
+            Raids on this world are sighted {m.level * 6} cycles sooner. Foreign agents here face a sharper watch. Other houses' great ships at this world are seen{m.level >= 2 ? ', and followed on the lanes to and from it' : ''}{m.level >= 3 ? '; at level 3 we hear ships across the whole Reaches' : ''}.
+          </p>
+        </Panel>
+      ) : null}
     </>
   );
 }
@@ -374,7 +388,7 @@ export function SectorHoldings({ sectorId }: { sectorId: string }) {
   if (!found) return null;
   const ours = found.planet.houseId === P;
   const mods = Object.values(world.holdings?.modules ?? {}).filter((m) => m.sectorId === sectorId);
-  const kinds: ModuleKind[] = ['cells', 'vault', 'academy'];
+  const kinds: ModuleKind[] = SECTOR_KINDS;
   if (!ours) {
     return (
       <Panel title={<Term k="modules">Holdings</Term>} aside="as far as we know" className="span-12">
@@ -388,7 +402,7 @@ export function SectorHoldings({ sectorId }: { sectorId: string }) {
   return (
     <>
       <Panel title={<Term k="modules">Holdings here</Term>} aside={mods.length ? mods.map((m) => `${MODULE_LABEL[m.kind]} L${m.level}`).join(' · ') : 'none built'} className="span-12">
-        <p className="body muted" style={{ margin: 0 }}>Cities, bases and ports keep cells; farmland and wilds do not, unless you build them. A vault is worth building where you want othes and Caiges kept safe; an academy where you want people taught.</p>
+        <p className="body muted" style={{ margin: 0 }}>Cities, bases and ports keep cells; farmland and wilds do not, unless you build them. Hover a button for what each holding does.</p>
         {missing.length ? (
           <div className="actions body">
             {missing.map((k) => {

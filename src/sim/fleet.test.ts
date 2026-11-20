@@ -41,7 +41,8 @@ describe('great ships', () => {
     const w0 = structuredClone(world);
     econ(w0, P).stock.othes = 100000;
     econ(w0, P).stock.components = 500;
-    let w = commission(w0, 'cruiser');
+    const yard = Object.values(w0.holdings.modules).find((m) => m.kind === 'shipyard' && m.houseId === P)!;
+    let w = commission(w0, 'cruiser', yard.id);
     const fresh = shipsOf(w, P).find((s) => s.ready)!;
     expect(fresh).toBeTruthy();
     w = run(w, 82);

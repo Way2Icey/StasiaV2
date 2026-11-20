@@ -18,6 +18,7 @@ import type { World } from '../sim/types';
 import { findSector } from '../sim/query';
 import { FleetPanel, ShipsAt } from './fleet';
 import { HoldingsOverview } from './holdings';
+import { shipSeen } from '../sim/holdings';
 
 const W = 96;
 const H = 30;
@@ -81,7 +82,7 @@ function layout(world: World, selected: string, pick: (id: string) => void) {
   }
   // Great ships: at anchor beside their world, or out on the lanes.
   for (const sh of Object.values(world.fleet?.ships ?? {})) {
-    if (sh.lost || sh.ready) continue;
+    if (sh.lost || sh.ready || !shipSeen(world, P, sh)) continue;
     const to = findSector(world, sh.sectorId)?.planet.id;
     const b = to ? MAP_POS[to] : undefined;
     if (!b) continue;
@@ -99,7 +100,7 @@ function layout(world: World, selected: string, pick: (id: string) => void) {
   }
   const anchored = new Map<string, number>();
   for (const sh of Object.values(world.fleet?.ships ?? {})) {
-    if (sh.lost || sh.ready || sh.arrives) continue;
+    if (sh.lost || sh.ready || sh.arrives || !shipSeen(world, P, sh)) continue;
     const to = findSector(world, sh.sectorId)?.planet.id;
     const b = to ? MAP_POS[to] : undefined;
     if (!to || !b) continue;
@@ -165,7 +166,7 @@ export function StarMapPage() {
       <div className="grid">
         <Panel title="The Reaches" aside={`${Object.keys(world.planets).length} worlds · ${activeMissions(world, P).length} of ours in flight`} className="major span-8">
           <div className="body map-wrap"><MapText world={world} selected={selected} pick={setSelected} /></div>
-          <div className="map-legend"><span>· · jump lane</span><span>► ours outbound</span><span>◆ at work</span><span>◄ coming home</span><span>┌ ┐ home world</span><span>▲ our great ship</span><span>△ theirs</span></div>
+          <div className="map-legend"><span>· · jump lane</span><span>► ours outbound</span><span>◆ at work</span><span>◄ coming home</span><span>┌ ┐ home world</span><span>▲ our great ship</span><span>△ theirs (where we can see)</span></div>
         </Panel>
         <div className="span-4 stack">
           <Panel title={p.name} aside={isHome ? 'home' : `${travelCycles(home, selected)} cycles out`} className="major">

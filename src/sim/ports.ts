@@ -2,7 +2,7 @@
 // comes from something the world is doing (trade, a rival's mission, a
 // smuggler's run, raiders scouting a target) and the house sees only what its
 // harbourmaster, customs and agents find out.
-import { imprison } from './holdings';
+import { baseStrength, imprison, listeningOn } from './holdings';
 import { fleetDefence } from './fleet';
 import { Rng } from './rng';
 import { buildWord, displayName, shortName } from './names';
@@ -771,7 +771,7 @@ export function watchOf(world: World, sectorId: string): number {
   const hm = harbourmaster(world, sectorId);
   const a = spy ? (spy.stats.intrigue + spy.stats.insight) / 2 : 9;
   const b = hm ? hm.stats.perception : 9;
-  return (a + b) / 2 + (f.sector.port === 'starport' ? 1 : 0);
+  return (a + b) / 2 + (f.sector.port === 'starport' ? 1 : 0) + listeningOn(world, f.planet.houseId, f.planet.id) * 1.5;
 }
 
 /** Chance each Phase that a posted agent is found out. */
@@ -827,6 +827,9 @@ function newRaid(world: World, rng: Rng) {
     id: `r${world.nextId++}`, sectorId: sector.id, strength: between(rng, [25, 55]), status: 'brewing',
     arrives: addCycles(world.date, lead), revealAt: addCycles(world.date, lead - 6), known: false,
   };
+  // A listening post on that world hears them coming sooner.
+  const ears = listeningOn(world, world.playerHouseId, findSector(world, sector.id)?.planet.id ?? '');
+  if (ears) raid.revealAt = addCycles(world.date, Math.max(1, lead - 6 - ears * 6));
   world.ports.raids.push(raid);
 }
 
@@ -860,7 +863,7 @@ function strike(world: World, rng: Rng, raid: Raid) {
     tell(world, 'world', `The corsairs took their tribute and passed ${s?.name} by.`, undefined, { type: 'raid', severity: 1, placeId: raid.sectorId, effects: [`Tribute ${tributeFor(raid).toLocaleString('en-US')} othes`, 'Respect −2'] });
     return;
   }
-  const defence = raid.answer === 'muster' ? defenceOf(world, raid.sectorId) : Math.round((defenceOf(world) - 0) * 0.35) + fleetDefence(world, raid.sectorId);
+  const defence = (raid.answer === 'muster' ? defenceOf(world, raid.sectorId) : Math.round(defenceOf(world) * 0.35) + fleetDefence(world, raid.sectorId)) + baseStrength(world, raid.sectorId);
   const roll = defence + rng.gauss() * 8 - raid.strength;
   const knights = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.role === 'Knight' && !isAway(world, c.id));
   if (roll >= 0) {

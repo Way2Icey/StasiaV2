@@ -1,5 +1,6 @@
 import { TiesPanel } from './relations';
 import { SectorHoldings } from './holdings';
+import { EmbassyPanel, OurCourtEmbassies } from './embassies';
 import { useMemo, useState } from 'react';
 import { RaidPanel, WatchButton } from './ports';
 import { Portrait } from './portrait';
@@ -466,6 +467,7 @@ export function HousePage({ id }: { id: string }) {
       <div className="grid">
         <StandingPanel houseId={h.id} className="span-6" />
         <AnnalsPanel houseId={h.id} className="span-6" />
+        <EmbassyPanel houseId={h.id} className="span-12" />
         <Panel title="Rule" className="span-5">
           <div className="body">
             <dl className="kv">
@@ -658,6 +660,7 @@ export function SectorPage({ id }: { id: string }) {
           </div>
         </Panel>
         <SectorHoldings sectorId={sector.id} />
+        {Object.values(world.houses).some((x) => x.capitalPlanetId === planet.id) && planet.sectors[0]?.id === sector.id ? <CapitalEmbassies planetId={planet.id} /> : null}
         <Panel title="Who is here" aside={`${here.length} named`} className="span-12">
           <PeopleTable people={here} />
         </Panel>
@@ -887,4 +890,13 @@ function AnnalsPanel({ houseId, className }: { houseId: string; className?: stri
       {!own && hidden > 0 ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>There is more we do not know. A successful scouting run, investigation or envoy to this house will tell us what they have been up to.</p> : null}
     </Panel>
   );
+}
+
+/** On a capital's first sector: the embassies housed there. */
+function CapitalEmbassies({ planetId }: { planetId: string }) {
+  const world = useWorld();
+  const host = Object.values(world.houses).find((h) => h.capitalPlanetId === planetId);
+  if (!host) return null;
+  if (host.id === world.playerHouseId) return <OurCourtEmbassies className="span-12" />;
+  return <EmbassyPanel houseId={host.id} className="span-12" />;
 }

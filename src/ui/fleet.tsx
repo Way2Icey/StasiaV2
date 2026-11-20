@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { useGame, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonLink, SectorLink } from './links';
 import {
-  CAPITAL_CLASSES, cannotCommission, commission, DUTY_LABEL, DUTY_NOTE, mainPortOf, moodWord, powerOf, renameShip, setCaptain, setDuty, shipsOf, upkeepOf,
+  CAPITAL_CLASSES, buildOrbits, cannotCommission, commission, onSlips, DUTY_LABEL, DUTY_NOTE, mainPortOf, moodWord, powerOf, renameShip, setCaptain, setDuty, shipsOf, upkeepOf,
   type CapitalClass, type CapitalShip, type Duty,
 } from '../sim/fleet';
-import { buildCost, cannotFit, fitModule, MODULE_LABEL, upgradeModule, type ModuleKind } from '../sim/holdings';
+import { buildCost, cannotFit, fitModule, MODULE_LABEL, shipSeen, upgradeModule, type Module, type ModuleKind } from '../sim/holdings';
 import { findSector } from '../sim/query';
 import { heldSectors as heldSectorsOf } from '../sim/economy';
 import { isAway } from '../sim/court';
@@ -35,30 +35,48 @@ export function ShipLink({ s }: { s: CapitalShip }) {
   return <Go to={{ kind: 'ship', id: s.id }}>{s.name}</Go>;
 }
 
-/** All our great ships, and the means to lay down more. */
+/** All our great ships; new ones are laid down at a shipyard. */
 export function FleetPanel({ className }: { className?: string }) {
   const world = useWorld();
-  const { run, err } = usePlay();
   const P = world.playerHouseId;
   const ours = shipsOf(world, P);
-  const [cls, setCls] = useState<CapitalClass>('cruiser');
-  const why = cannotCommission(world, cls);
+  const yards = Object.values(world.holdings?.modules ?? {}).filter((m) => m.kind === 'shipyard' && m.houseId === P);
   return (
     <Panel title="Our great ships" aside={`${ours.length} · upkeep ${fmt(ours.reduce((n, s) => n + (s.ready ? 0 : upkeepOf(s)), 0))}/Phase`} className={className}>
       {ours.map((s) => (
         <div key={s.id} className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
           <span style={{ flex: '1 1 200px' }}>▲ <ShipLink s={s} /> <span className="muted">· {CAPITAL_CLASSES[s.cls].label.toLowerCase()} · {DUTY_LABEL[s.duty].toLowerCase()} · {where(world, s)}</span></span>
-          <span className="mono muted">crew {moodWord(s.crewMood)} · power {powerOf(world, s)}</span>
+          <span className="mono muted">{s.ready ? 'on the slips' : `crew ${moodWord(s.crewMood)} · power ${powerOf(world, s)}`}</span>
         </div>
       ))}
-      <div className="body" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--line)' }}>
+      <p className="body muted" style={{ margin: 0, fontSize: 12 }}>
+        New ships are laid down at a shipyard: {yards.length ? yards.map((y, i) => <span key={y.id}>{i ? ', ' : ''}{y.sectorId ? <SectorLink id={y.sectorId} /> : null}</span>) : 'we have none. Build one in a sector with a spaceport or starport.'}
+      </p>
+    </Panel>
+  );
+}
+
+/** The slips of one shipyard: what is building, what is in dock, and the means to lay down a keel. */
+export function ShipyardView({ yard }: { yard: Module }) {
+  const world = useWorld();
+  const { run, err } = usePlay();
+  const P = world.playerHouseId;
+  const [cls, setCls] = useState<CapitalClass>('cruiser');
+  const why = cannotCommission(world, cls, yard.id);
+  const slips = onSlips(world, yard);
+  const docked = Object.values(world.fleet?.ships ?? {}).filter((s) => !s.lost && !s.ready && !s.arrives && s.sectorId === yard.sectorId && s.houseId === P);
+  return (
+    <Panel title="The slips" aside={`${slips.length} of ${yard.level} building · ${buildOrbits(yard)} Orbits a ship`}>
+      {slips.map((s) => <div key={s.id} className="row">▲ <ShipLink s={s} /> <span className="muted">· {CAPITAL_CLASSES[s.cls].label.toLowerCase()} · launches {s.ready ? formatDate(s.ready) : ''}</span></div>)}
+      {docked.length ? <div className="body muted" style={{ fontSize: 12 }}>In dock, repairing twice as fast: {docked.map((s, i) => <span key={s.id}>{i ? ', ' : ''}<ShipLink s={s} /> ({Math.round(s.condition)})</span>)}</div> : null}
+      <div className="body" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         <span className="eyebrow">Lay down a keel</span>
         <select className="select" aria-label="Class" value={cls} onChange={(e) => setCls(e.target.value as CapitalClass)}>
           {(Object.keys(CAPITAL_CLASSES) as CapitalClass[]).map((k) => <option key={k} value={k}>{CAPITAL_CLASSES[k].label} · {fmt(CAPITAL_CLASSES[k].cost)} othes · {CAPITAL_CLASSES[k].components} comp.</option>)}
         </select>
-        <button type="button" className="btn small primary" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => commission(w, cls))}>{why ?? 'Commission'}</button>
-        <span className="muted" style={{ fontSize: 12 }}>{CAPITAL_CLASSES[cls].note} Two Orbits in the yards; {fmt(CAPITAL_CLASSES[cls].upkeep)} othes a Phase to keep.</span>
+        <button type="button" className="btn small primary" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => commission(w, cls, yard.id))}>{why ?? 'Commission'}</button>
       </div>
+      <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{CAPITAL_CLASSES[cls].note} {fmt(CAPITAL_CLASSES[cls].upkeep)} othes a Phase to keep once launched.</p>
       {err ? <p className="error body" style={{ margin: 0 }}>{err}</p> : null}
     </Panel>
   );
@@ -67,7 +85,7 @@ export function FleetPanel({ className }: { className?: string }) {
 /** Great ships at a world, for the star map. */
 export function ShipsAt({ planetId }: { planetId: string }) {
   const world = useWorld();
-  const here = Object.values(world.fleet?.ships ?? {}).filter((s) => !s.lost && !s.ready && !s.arrives && findSector(world, s.sectorId)?.planet.id === planetId);
+  const here = Object.values(world.fleet?.ships ?? {}).filter((s) => !s.lost && !s.ready && !s.arrives && findSector(world, s.sectorId)?.planet.id === planetId && shipSeen(world, world.playerHouseId, s));
   if (!here.length) return null;
   return (
     <div style={{ borderTop: '1px solid var(--line-soft)', padding: '6px 14px 8px' }}>
