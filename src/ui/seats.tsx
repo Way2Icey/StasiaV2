@@ -1,5 +1,6 @@
 // The Council of Designers as a set of seats you open, each running its own
 // part of the house.
+import { appointToSeat } from '../sim/ambitions';
 import { attend, ATTEND_COST, cannotAttend, frail, patients, physicianSkill, TREAT_COST } from '../sim/infirmary';
 import { useState } from 'react';
 import { councilOf, SEAT_TITLE } from '../sim/world';
@@ -128,6 +129,7 @@ export function SeatPage({ seat }: { seat: CouncilSeat }) {
               </>
             ) : <span className="muted">The seat is empty.</span>}
           </div>
+          {seat !== 'highroy' ? <NameToSeat seat={seat} /> : null}
         </Panel>
         {seat === 'grandMaster' ? <GrandMaster /> : null}
         {seat === 'envoy' ? <Speaker /> : null}
@@ -532,5 +534,34 @@ export function HouseholdPanel({ className }: { className?: string }) {
         </table>
       </div>
     </Panel>
+  );
+}
+
+/** The Highroy names someone to this seat. */
+function NameToSeat({ seat }: { seat: CouncilSeat }) {
+  const world = useWorld();
+  const game = useGame();
+  const house = world.playerHouseId;
+  const [pick, setPick] = useState('');
+  const people = alive(world).filter((c) => c.houseId === house && c.tier === 'full' && c.seat !== 'highroy' && c.seat !== seat && !isAway(world, c.id) && ageOf(c, world.date) >= 16)
+    .sort((a, b) => {
+      const wa = world.ambitions?.of[a.id];
+      const wb = world.ambitions?.of[b.id];
+      return (wb?.kind === 'seat' && wb.target === seat ? 1 : 0) - (wa?.kind === 'seat' && wa.target === seat ? 1 : 0);
+    });
+  return (
+    <div className="body" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--line-soft)' }}>
+      <span className="eyebrow">Name someone to the seat</span>
+      <select className="select" aria-label="Who" value={pick} onChange={(e) => setPick(e.target.value)}>
+        <option value="">Choose…</option>
+        {people.map((c) => {
+          const a = world.ambitions?.of[c.id];
+          const wants = a?.known && a.kind === 'seat' && a.target === seat;
+          return <option key={c.id} value={c.id}>{c.name.given} {c.name.family ?? ''} · {c.role}{wants ? ' · wants this seat' : ''}</option>;
+        })}
+      </select>
+      <button type="button" className="btn small primary" disabled={!pick} onClick={() => { game.update((w) => { try { return appointToSeat(w, seat, pick); } catch { return w; } }); setPick(''); }}>Name them</button>
+      <span className="muted" style={{ fontSize: 12 }}>Whoever holds it now will be bitter.</span>
+    </div>
   );
 }

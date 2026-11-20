@@ -3,6 +3,7 @@
 // (survey a world). Everything resolves turn by turn, deterministically.
 import { logRecord } from './records';
 import { afterMission, synergy } from './relationships';
+import { addGlory } from './ambitions';
 import { Rng } from './rng';
 import { ageOf } from './characters';
 import { displayName, shortName } from './names';
@@ -650,6 +651,7 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
   }
 
   afterMission(world, rng, [m.leaderId, ...(m.companions ?? [])], outcome);
+  if (outcome === 'triumph' || outcome === 'success') for (const id of [m.leaderId, ...(m.companions ?? [])]) addGlory(world, id, outcome === 'triumph' ? 2 : 1);
   m.report = report(world, m, leader, outcome, rng);
   m.findings = findings;
   m.stage = 'done';

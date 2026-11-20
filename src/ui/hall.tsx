@@ -2,7 +2,10 @@
 // that follows the house's state, the council as a table, and the Desk, where
 // everything waiting on the Highroy lands.
 import { useState, type ReactNode } from 'react';
-import { useNav, useWorld } from './context';
+import { useGame, useNav, useWorld } from './context';
+import { AudienceCard } from './ambitions';
+import { AMBITION_LABEL } from '../sim/ambitions';
+import { classify } from '../sim/records';
 import { Panel, PersonLink } from './links';
 import { Term } from './tip';
 import { Decision } from './events';
@@ -181,6 +184,7 @@ function scrollTo(id: string) {
 
 export function Desk({ className }: { className?: string }) {
   const world = useWorld();
+  const game = useGame();
   const nav = useNav();
   const P = world.playerHouseId;
   const [open, setOpen] = useState<string | null>(null);
@@ -194,6 +198,10 @@ export function Desk({ className }: { className?: string }) {
       when: inCycles(world, p.expires),
       open: () => setOpen((o) => (o === p.id ? null : p.id)),
     });
+  }
+  for (const au of world.ambitions?.audiences ?? []) {
+    const c = world.characters[au.characterId];
+    items.push({ id: au.id, mark: '[»]', kind: 'AUDIENCE', text: <>{c ? displayName(c.name) : 'Someone'} · {AMBITION_LABEL[au.kind].toLowerCase()}</>, when: inCycles(world, au.expires), open: () => setOpen((o) => (o === au.id ? null : au.id)) });
   }
   for (const r of world.ports?.raids ?? []) {
     if (r.status !== 'revealed' || r.answer) continue;
@@ -235,8 +243,17 @@ export function Desk({ className }: { className?: string }) {
   for (const e of recent) {
     items.push({ id: `m-${e.missionId}`, mark: '[r]', kind: 'REPORT', text: e.text, quiet: true, open: () => nav.to({ kind: 'mission', id: e.missionId! }) });
   }
-  const pending = (world.events?.pending.length ?? 0) + (world.courts[P]?.petitions.length ?? 0) + items.filter((i) => i.kind === 'RAID' || i.kind === 'HELD' || i.kind === 'LOAN' || i.kind === 'DEFAULT' || i.kind === 'CAIGE' || i.kind === 'WARD').length;
+  // News: what has happened to the house lately, put in front of the Highroy until set aside.
+  const seen = new Set(world.ambitions?.seen ?? []);
+  const shown = new Set(items.map((i) => i.id));
+  const since = absoluteCycle(world.date) - 32;
+  const news = world.feed.filter((e) => e.id && !seen.has(e.id) && !shown.has(e.id) && absoluteCycle(e.date) >= since && e.type !== 'decision' && e.type !== 'raid' && e.type !== 'time'
+    && classify(world, e).severity >= 2 && (e.who?.some((w) => world.characters[w.id]?.houseId === P) || e.houseIds?.includes(P))).slice(-6).reverse();
+  for (const e of news) items.push({ id: e.id!, mark: '[·]', kind: 'NEWS', text: e.text, quiet: true, open: () => { game.update((w) => ({ ...w, ambitions: { ...w.ambitions, seen: [...(w.ambitions.seen ?? []), e.id!].slice(-300) } })); nav.to({ kind: 'log', open: e.id }); } });
+  const pending = (world.ambitions?.audiences.length ?? 0) + (world.events?.pending.length ?? 0) + (world.courts[P]?.petitions.length ?? 0) + items.filter((i) => i.kind === 'RAID' || i.kind === 'HELD' || i.kind === 'LOAN' || i.kind === 'DEFAULT' || i.kind === 'CAIGE' || i.kind === 'WARD').length;
   const opened = open ? world.events?.pending.find((p) => p.id === open) : undefined;
+  const audience = open ? world.ambitions?.audiences.find((a) => a.id === open) : undefined;
+  const clearNews = () => game.update((w) => ({ ...w, ambitions: { ...w.ambitions, seen: [...(w.ambitions.seen ?? []), ...news.map((e) => e.id!)].slice(-300) } }));
   return (
     <Panel title={<Term k="decision">The desk</Term>} aside={`${items.length} letters · ${pending} need you`} className={`major ${className ?? ''}`}>
       {items.length === 0 ? <p className="body muted" style={{ margin: 0 }}>The desk is clear. Press Continue and the world will fill it.</p> : null}
@@ -248,7 +265,9 @@ export function Desk({ className }: { className?: string }) {
         ))}
       </div>
       {opened ? <div style={{ borderTop: '1px solid var(--line)' }}><Decision p={opened} /></div> : null}
-      {opened || items.length === 0 ? null : <p className="body keyhint" style={{ margin: 0, fontSize: 12 }}>Pick a letter to open it. Decisions left too long fall to the council, lapsing on the date shown.</p>}
+      {audience ? <div style={{ borderTop: '1px solid var(--line)' }}><AudienceCard au={audience} onDone={() => setOpen(null)} /></div> : null}
+      {news.length && !opened && !audience ? <div className="body" style={{ paddingTop: 0 }}><button type="button" className="btn small" onClick={clearNews}>Set the news aside ({news.length})</button></div> : null}
+      {opened || audience || items.length === 0 ? null : <p className="body keyhint" style={{ margin: 0, fontSize: 12 }}>Pick a letter to open it. Decisions left too long fall to the council, lapsing on the date shown.</p>}
     </Panel>
   );
 }

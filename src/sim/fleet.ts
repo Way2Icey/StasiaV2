@@ -8,6 +8,7 @@ import { findSector } from './query';
 import { shiftMood } from './mood';
 import { shiftOpinion } from './relationships';
 import { kill } from './death';
+import { addGlory } from './ambitions';
 import { ensureBrig, type Module } from './holdings';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, type GameDate } from './time';
 import type { Character, World } from './types';
@@ -411,6 +412,7 @@ function standoff(w: World, rng: Rng, a: CapitalShip, b: CapitalShip) {
     loser.condition = clamp(loser.condition - (10 + rng.next() * 20), 0, 100);
     winner.condition = clamp(winner.condition - rng.next() * 8, 0, 100);
     winner.crewMood = clamp(winner.crewMood + 8, 0, 100);
+    if (winner.captainId) addGlory(w, winner.captainId, 2);
     loser.crewMood = clamp(loser.crewMood - 6, 0, 100);
     w.houses[winner.houseId]!.standing.dread = clamp(w.houses[winner.houseId]!.standing.dread + 3, 0, 100);
     shiftRelation(w, loser.houseId, winner.houseId, -10);

@@ -11,6 +11,7 @@ import { seatHolder } from './query';
 import { setBond, shiftOpinion, opinion, tiesOf } from './relationships';
 import { shiftMood } from './mood';
 import { modulesOf } from './holdings';
+import { addGlory } from './ambitions';
 import { addLead, materialize } from './discovery';
 import { learn } from './knowledge';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, type GameDate } from './time';
@@ -430,6 +431,7 @@ function graduate(world: World, rng: Rng, e: Enrolment) {
   if (e.program === 'academy' && e.moduleId) {
     const m = world.holdings.modules[e.moduleId];
     if (m) m.reputation = clamp((m.reputation ?? 0) + 4 + total * 2, 0, 100);
+    if (total >= 3) addGlory(world, c.id, 1);
     const trait = SUBJECT_TRAIT[e.subject];
     if (total >= 4 && trait && !c.traits.some((t) => t.id === trait)) { c.traits.push({ id: trait }); gains.push(`learned: ${trait}`); }
   }

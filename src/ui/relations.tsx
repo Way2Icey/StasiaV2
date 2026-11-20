@@ -5,13 +5,14 @@ import { Go, Panel, PersonById, PersonLink } from './links';
 import { Term } from './tip';
 import { PeoplePage } from './pages';
 import { Younglings } from './training';
+import { AmbitionsView } from './ambitions';
 import { BOND_LABEL, factions, SECRET_BONDS, tiesOf, type Bond } from '../sim/relationships';
 import { knowledgeOf } from '../sim/knowledge';
 import { isAway } from '../sim/court';
 import { SEAT_TITLE } from '../sim/world';
 import type { Character, World } from '../sim/types';
 
-type View = 'web' | 'factions' | 'young' | 'everyone';
+type View = 'web' | 'factions' | 'ambitions' | 'young' | 'everyone';
 
 /** An opinion as a bar from -100 to +100, centred. */
 export function opinionBar(v: number): string {
@@ -65,12 +66,12 @@ export function RelationsPage({ focus: initial, view: initialView }: { focus?: s
         <p>Who feels what about whom. Pick anyone to see the house through their eyes. You see other houses' ties only as far as you know their people.</p>
       </div>
       <div className="filters">
-        {(['web', 'factions', 'young', 'everyone'] as View[]).map((v) => (
+        {(['web', 'factions', 'ambitions', 'young', 'everyone'] as View[]).map((v) => (
           <button key={v} type="button" className="pill" aria-pressed={view === v} onClick={() => setView(v)}>{v === 'web' ? 'TIES' : v === 'young' ? 'YOUNGLINGS & WARDS' : v.toUpperCase()}</button>
         ))}
         <button type="button" className="pill" onClick={() => nav.to({ kind: 'training' })}>TRAINING ›</button>
       </div>
-      {view === 'everyone' ? <PeoplePage /> : view === 'factions' ? <Factions /> : view === 'young' ? <Younglings /> : (
+      {view === 'everyone' ? <PeoplePage /> : view === 'factions' ? <Factions /> : view === 'young' ? <Younglings /> : view === 'ambitions' ? <AmbitionsView /> : (
         <div className="grid">
           <Panel title="Our people" aside="by circle" className="span-4">
             {circles(world).map((g) => (

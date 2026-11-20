@@ -1,4 +1,5 @@
 import { TiesPanel } from './relations';
+import { WantsPanel } from './ambitions';
 import { SectorHoldings } from './holdings';
 import { EmbassyPanel, OurCourtEmbassies } from './embassies';
 import { useMemo, useState } from 'react';
@@ -337,6 +338,7 @@ export function CharacterPage({ id }: { id: string }) {
             {statCol('SPIRIT', SPIRIT_STATS)}
           </div>
         </section>
+        <WantsPanel id={c.id} />
         <TiesPanel id={c.id} limit={8} />
         </div>
         <div className="span-4 stack">

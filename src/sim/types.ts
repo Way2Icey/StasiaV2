@@ -526,4 +526,6 @@ export interface World {
   fleet: import('./fleet').FleetState;
   /** Every house's embassy in every other house's capital. */
   embassies: import('./embassies').EmbassiesState;
+  /** What people want, and who has come to the Highroy about it. */
+  ambitions: import('./ambitions').AmbitionsState;
 }

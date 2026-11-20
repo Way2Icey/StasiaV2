@@ -15,6 +15,7 @@ import { ensureLoans } from './loans';
 import { ensureTraining } from './training';
 import { ensureFleet } from './fleet';
 import { ensureEmbassies } from './embassies';
+import { ensureAmbitions } from './ambitions';
 import './eventDefs';
 
 export const SAVE_VERSION = 11;
@@ -101,5 +102,6 @@ export function deserialize(text: string): World {
   ensureTraining(world);
   ensureFleet(world);
   ensureEmbassies(world);
+  ensureAmbitions(world);
   return world;
 }

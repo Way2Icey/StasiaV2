@@ -7,6 +7,7 @@ import { advanceLoans } from './loans';
 import { advanceTraining } from './training';
 import { advanceFleet } from './fleet';
 import { advanceEmbassies } from './embassies';
+import { advanceAmbitions } from './ambitions';
 import './eventDefs';
 import { displayName } from './names';
 import { Rng } from './rng';
@@ -83,6 +84,7 @@ function stepInPlace(world: World): void {
   advanceTraining(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceFleet(world, rng, crossed.phases > 0);
   advanceEmbassies(world, rng, crossed.phases > 0);
+  advanceAmbitions(world, rng, crossed.phases > 0);
   advanceEvents(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 
