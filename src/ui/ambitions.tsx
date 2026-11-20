@@ -1,4 +1,5 @@
 // Ambitions on screen: the audience chamber, what people want, and the Highroy's own hand.
+import { Term } from './tip';
 import { useState } from 'react';
 import { useGame, useWorld } from './context';
 import { HouseLink, Panel, PersonById, PersonLink } from './links';
@@ -6,6 +7,7 @@ import { Portrait } from './portrait';
 import {
   AMBITION_LABEL, ambitionText, answerAudience, appointToSeat, blocker, cannotHoldAudience, cannotKnight, knight, holdAudience, optionsFor, seatTitle,
   type Answer, type Audience,
+  willOf,
 } from '../sim/ambitions';
 import { knowledgeOf } from '../sim/knowledge';
 import { opinion } from '../sim/relationships';
@@ -75,6 +77,7 @@ export function WantsPanel({ id, className }: { id: string; className?: string }
           <>
             <span>{c.name.given} {ambitionText(world, a)}.{b && b.id !== c.id && a.kind === 'seat' ? <> <PersonById id={b.id} /> holds it now.</> : null}</span>
             <span className="mono muted">FRUSTRATION [{bar(a.frustration)}] {Math.round(a.frustration)}{a.promised ? ` · promised, by ${formatDate(a.promised)}` : ''}</span>
+            <span className="muted" style={{ fontSize: 12 }}><Term k="will">{willOf(world, id) >= 80 ? 'Close to doing something about it.' : willOf(world, id) >= 40 ? 'Gathering themselves.' : 'Biding their time.'}</Term></span>
           </>
         ) : a ? <span className="muted">{ours ? 'They have not said. Call them to an audience to find out.' : 'We do not know them well enough to say.'}</span> : <span className="muted">Nothing just now. They are content.</span>}
         {ours && c.seat !== 'highroy' ? (

@@ -26,7 +26,8 @@ describe('the Crucible', () => {
     const P = w.playerHouseId;
     let sent: string[] = [];
     let wasAway = false;
-    for (let i = 0; i < 1300 && !(w.crucible.history.length && sent.length); i++) {
+    let sentAt = -1;
+    for (let i = 0; i < 1300 && !(sent.length && w.crucible.history.length > sentAt); i++) {
       w = step(w);
       if (w.crucible.stage === 'drawn' && w.crucible.entrants.includes(P) && !w.crucible.contingents[P]) {
         w.economy.houses[P]!.stock.provisions += 500; w.economy.houses[P]!.stock.fuel += 500;
@@ -37,6 +38,8 @@ describe('the Crucible', () => {
         w = enterCrucible(w, { houseId: P, marshalId: m.id, championId: ch.id, knights: kn.map((c) => c.id), men: menFor(4), menLost: 0 });
         expect(w.crucible.contingents[P]!.men).toBe(300);
         sent = [m.id, ch.id];
+        sentAt = w.crucible.history.length;
+        if (sent.every((id) => isAway(w, id))) wasAway = true;
       }
       if (w.crucible.stage === 'campaign' && sent.some((id) => w.characters[id]?.alive && isAway(w, id))) wasAway = true;
       const r = currentRound(w);

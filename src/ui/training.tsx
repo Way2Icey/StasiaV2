@@ -6,7 +6,7 @@ import { Term } from './tip';
 import {
   ACADEMY_COST, answerWardOffer, askForWard, cannotEnrol, cannotSendWard, cannotTutor, enrolAcademy, kindFor, paceOf, PROGRAM_LABEL, rankOf,
   recallWard, sendWard, chargesOf, PERSONAL_LIMIT, ACADEMY_PLACES, isYoungling, academyAge, setDrill, setGuardian, startTutoring, stopTraining, studentsAt, SUBJECTS, teacherSkill, TUTOR_COST, WARD_NOTE, youths, enrolmentOf,
-  type Subject,
+  answerIntake, cannotTakeIntake, type Subject,
 } from '../sim/training';
 import { modulesOf, placeOf } from '../sim/holdings';
 import { isAway } from '../sim/court';
@@ -43,6 +43,7 @@ export function TrainingPage({ id }: { id?: string }) {
         <p>Make the house's people better: a tutor for one, drill for the knights, an academy for many. Wards pass between houses as pledges, honours and, sometimes, hostages.</p>
       </div>
       <div className="grid">
+        <Intake className="span-12" />
         <UnderInstruction className="span-12" />
         <Tutor className="span-6" />
         <Drill className="span-6" />
@@ -50,6 +51,37 @@ export function TrainingPage({ id }: { id?: string }) {
         <Panel title="Wards" className="span-12"><p className="body" style={{ margin: 0 }}>Wards live with the house's young: <Go to={{ kind: 'people', view: 'young' }}>Relations › Younglings ›</Go></p></Panel>
       </div>
     </>
+  );
+}
+
+/** The pupils the academy brings forward each Orbit: educate, train, or send home. */
+function Intake({ className }: { className?: string }) {
+  const world = useWorld();
+  const { run, err } = usePlay();
+  const list = world.training.intake ?? [];
+  if (!list.length) return null;
+  return (
+    <Panel title={<Term k="intake">Brought forward by the academy</Term>} aside={`${list.length} waiting · ${ACADEMY_COST} othes a place`} className={className}>
+      {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
+      {list.map((i) => {
+        const c = world.characters[i.studentId];
+        if (!c) return null;
+        const why = cannotTakeIntake(world, i.id);
+        return (
+          <div key={i.id} className="row petition">
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span><PersonLink c={c} />, {Math.floor(ageOf(c, world.date))} <Diamonds c={c} /></span>
+              <span className="muted" style={{ fontSize: 12 }}>{i.how[0]!.toUpperCase() + i.how.slice(1)}. At {placeOf(world, world.holdings.modules[i.moduleId]!)}. Goes home {short(i.expires)} if no one takes them.</span>
+            </span>
+            <span style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+              <button type="button" className="btn small primary" disabled={!!why} title={why ?? 'Books, ledgers and a sharp eye'} onClick={() => run((w) => answerIntake(w, i.id, 'educate'))}>Educate</button>
+              <button type="button" className="btn small primary" disabled={!!why} title={why ?? 'Blade, gun, footwork and wind'} onClick={() => run((w) => answerIntake(w, i.id, 'train'))}>Train</button>
+              <button type="button" className="btn small" onClick={() => run((w) => answerIntake(w, i.id, 'home'))}>Send home</button>
+            </span>
+          </div>
+        );
+      })}
+    </Panel>
   );
 }
 

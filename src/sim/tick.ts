@@ -8,7 +8,7 @@ import { advanceTraining } from './training';
 import { advanceFleet } from './fleet';
 import { advanceEmbassies } from './embassies';
 import { advanceAmbitions } from './ambitions';
-import { advanceProspects } from './careers';
+import { advanceProspects } from './prospects';
 import { advanceCrucible } from './crucible';
 import './eventDefs';
 import { displayName } from './names';

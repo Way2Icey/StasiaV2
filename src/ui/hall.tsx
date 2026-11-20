@@ -241,8 +241,18 @@ export function Desk({ className }: { className?: string }) {
   for (const o of (world.training?.offers ?? []).filter((x) => x.to === P)) {
     items.push({ id: o.id, mark: '[w]', kind: 'WARD', text: <>{world.houses[o.from]?.name} offers {world.characters[o.wardId]?.name.given} as a ward</>, when: inCycles(world, o.expires), open: () => nav.to({ kind: 'people', view: 'young' }) });
   }
+  for (const i of world.training?.intake ?? []) {
+    const c = world.characters[i.studentId];
+    if (c) items.push({ id: i.id, mark: '[a]', kind: 'INTAKE', text: <>The academy brings forward {displayName(c.name)}</>, when: inCycles(world, i.expires), open: () => nav.to({ kind: 'training' }) });
+  }
+  for (const o of world.training?.pupilOffers ?? []) {
+    const c = world.characters[o.pupilId];
+    const m = world.missions[o.missionId];
+    if (c && m) items.push({ id: o.id, mark: '[a]', kind: 'PUPIL', text: <>{world.characters[o.headId]?.name.given ?? 'The academy'} asks that {c.name.given} go with {world.characters[m.leaderId]?.name.given}</>, open: () => nav.to({ kind: 'mission', id: m.id }) });
+  }
   for (const l of leadsOf(world, P)) {
-    items.push({ id: l.id, mark: '[i]', kind: 'LEAD', text: l.title, quiet: true, open: () => scrollTo('leads') });
+    const who = l.proposal?.sponsorId ? world.characters[l.proposal.sponsorId] : undefined;
+    items.push({ id: l.id, mark: l.proposal ? '[*]' : '[i]', kind: l.proposal ? 'PROSPECT' : 'LEAD', text: l.proposal ? <>{who ? `${who.name.given} wants ` : 'Noticed: '}{l.title}</> : l.title, quiet: !l.proposal, when: inCycles(world, l.expires), open: () => scrollTo('leads') });
   }
   const recent = world.feed.slice(-40).reverse().filter((e) => e.kind === 'mission' && e.missionId && world.missions[e.missionId]?.stage === 'done').slice(0, 2);
   for (const e of recent) {
@@ -256,7 +266,7 @@ export function Desk({ className }: { className?: string }) {
     && ((classify(world, e).severity >= 2 && (e.who?.some((w) => world.characters[w.id]?.houseId === P) || e.houseIds?.includes(P)))
       || (classify(world, e).severity >= 1 && e.who?.some((w) => world.careers?.pinned.includes(w.id))))).slice(-6).reverse();
   for (const e of news) items.push({ id: e.id!, mark: '[·]', kind: 'NEWS', text: e.text, quiet: true, open: () => { game.update((w) => ({ ...w, ambitions: { ...w.ambitions, seen: [...(w.ambitions.seen ?? []), e.id!].slice(-300) } })); nav.to({ kind: 'log', open: e.id }); } });
-  const pending = (world.ambitions?.audiences.length ?? 0) + (world.events?.pending.length ?? 0) + (world.courts[P]?.petitions.length ?? 0) + items.filter((i) => i.kind === 'RAID' || i.kind === 'HELD' || i.kind === 'LOAN' || i.kind === 'DEFAULT' || i.kind === 'CAIGE' || i.kind === 'WARD' || i.kind === 'CRUCIBLE').length;
+  const pending = (world.ambitions?.audiences.length ?? 0) + (world.events?.pending.length ?? 0) + (world.courts[P]?.petitions.length ?? 0) + items.filter((i) => i.kind === 'RAID' || i.kind === 'HELD' || i.kind === 'LOAN' || i.kind === 'DEFAULT' || i.kind === 'CAIGE' || i.kind === 'WARD' || i.kind === 'CRUCIBLE' || i.kind === 'INTAKE' || i.kind === 'PUPIL' || i.kind === 'PROSPECT').length;
   const opened = open ? world.events?.pending.find((p) => p.id === open) : undefined;
   const audience = open ? world.ambitions?.audiences.find((a) => a.id === open) : undefined;
   const clearNews = () => game.update((w) => ({ ...w, ambitions: { ...w.ambitions, seen: [...(w.ambitions.seen ?? []), ...news.map((e) => e.id!)].slice(-300) } }));

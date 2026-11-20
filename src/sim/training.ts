@@ -8,15 +8,15 @@ import { econ, record } from './economy';
 import { relation, shiftRelation } from './relations';
 import { logRecord } from './records';
 import { isAway } from './court';
-import { seatHolder } from './query';
+import { findSector, seatHolder } from './query';
 import { setBond, shiftOpinion, opinion, tiesOf } from './relationships';
 import { shiftMood } from './mood';
 import { modulesOf } from './holdings';
 import { addGlory } from './ambitions';
-import { addLead, materialize } from './discovery';
+import { materialize } from './discovery';
 import { learn } from './knowledge';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, type GameDate } from './time';
-import type { Character, StatId, World } from './types';
+import type { Character, Proposal, StatId, World } from './types';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const H = (w: World, id: string) => `House ${w.houses[id]?.name ?? id}`;
@@ -68,17 +68,24 @@ export interface WardStay {
 }
 export interface WardOffer { id: string; wardId: string; from: string; to: string; expires: GameDate; kind: 'offer' | 'request' }
 
+/** A pupil the academy brings forward: the Highroy decides whether to educate or train them. */
+export interface Intake { id: string; studentId: string; moduleId: string; expires: GameDate; how: string }
+/** The academy's head asks that a pupil go along on a mission, to learn the trade. */
+export interface PupilOffer { id: string; missionId: string; pupilId: string; headId: string; expires: GameDate }
+
 export interface TrainingState {
   enrolments: Record<string, Enrolment>;
   wards: Record<string, WardStay>;
   offers: WardOffer[];
+  intake?: Intake[];
+  pupilOffers?: PupilOffer[];
   /** Drill for our knights: the subject, or none. */
   drill?: Subject | null;
 }
 
 export function ensureTraining(world: World): void {
-  if (world.training?.enrolments) { world.training.offers ??= []; return; }
-  world.training = { enrolments: {}, wards: {}, offers: [] };
+  if (world.training?.enrolments) { world.training.offers ??= []; world.training.intake ??= []; world.training.pupilOffers ??= []; return; }
+  world.training = { enrolments: {}, wards: {}, offers: [], intake: [], pupilOffers: [] };
   // Wards already in the world at the start (Dorran at Serath).
   for (const c of Object.values(world.characters)) {
     const f = c.flags.find((x) => x.id === 'ward' && /fostered at House (\w+)/.test(x.detail ?? ''));
@@ -449,18 +456,148 @@ function graduate(world: World, rng: Rng, e: Enrolment) {
 }
 
 /** An academy with a name draws students from elsewhere: some ask to join. */
+const INTAKE_HOW = [
+  'sent up by the sector schools', 'the best of this Orbit\'s entrance trials', 'a dockworker\'s child who came to the gate and would not leave',
+  'an orphan of the reclamation crews', 'recommended by a guild master', 'a ferryman\'s child who reads everything put in front of them',
+  'picked out by the head at the summer games', 'a fosterling from the outer farms', 'the youngest of a soldier\'s family, wanting more',
+];
+
+/**
+ * The mass of the house's pupils: every Orbit the academy brings some forward, ordinary
+ * children and younglings of our worlds, mostly of modest promise. The Highroy decides
+ * whether to educate or train them, or send them home.
+ */
 function academyDraw(world: World, rng: Rng) {
   const P = world.playerHouseId;
   for (const m of modulesOf(world, P, 'academy')) {
+    if (m.level < 1 || !m.sectorId) continue;
+    if ((world.training.intake ?? []).some((i) => i.moduleId === m.id)) continue;
+    if (!rng.chance(0.7)) continue;
     const rep = m.reputation ?? 0;
-    if (!rng.chance(rep / 250)) continue;
-    const planet = world.planets[world.houses[P]!.capitalPlanetId]!;
-    const c = materialize(world, rng, planet.id, m.sectorId ?? planet.sectors[0]!.id);
-    addLead(world, {
-      houseId: P, kind: 'recruit', targetId: c.id, cost: 150, planetId: planet.id, sectorId: m.sectorId ?? planet.sectors[0]!.id,
-      title: `${displayName(c.name)}, drawn by the academy`, text: `${shortName(c.name)} has heard of our academy and asks to join the house. A ${c.role.toLowerCase()}.`,
-    });
+    const n = 1 + (m.level >= 2 ? 1 : 0) + (rng.chance(rep / 120) ? 1 : 0);
+    const sector = findSector(world, m.sectorId);
+    if (!sector) continue;
+    const names: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const c = materialize(world, rng, sector.planet.id, sector.sector.id);
+      const ad = SPECIES[c.species].adulthood;
+      const age = Math.round(ad * (0.55 + rng.next() * 0.4));
+      c.birth = { year: world.date.year - age, cycle: Math.floor(rng.next() * 800) } as GameDate;
+      c.hidden.potential = clamp(Math.round(3 + rng.next() * 8 + rng.next() * 4 + rep / 25), 1, 20);
+      for (const k of Object.keys(c.stats) as StatId[]) c.stats[k] = Math.max(1, Math.round(c.stats[k] * 0.6));
+      c.role = 'Youngling';
+      delete c.name.title; delete c.name.epithet; // too young for honours
+      learn(world, P, c.id, 40);
+      world.training.intake!.push({ id: `in${world.nextId++}`, studentId: c.id, moduleId: m.id, expires: addCycles(world.date, CYCLES_PER_ORBIT), how: rng.pick(INTAKE_HOW) });
+      names.push(shortName(c.name));
+    }
+    const head = m.overseerId ? world.characters[m.overseerId] : undefined;
+    logRecord(world, { kind: 'world', type: 'world', severity: 1, text: `${head ? displayName(head.name) : 'The academy'} brings forward ${n === 1 ? 'a new pupil' : `${n} new pupils`}: ${names.join(', ')}. Educate them, train them, or send them home.`, placeId: m.sectorId, who: head ? [{ id: head.id, part: 'head of the academy' }] : [] });
+    if (world.ports) world.ports.alerts += 1;
   }
+}
+
+export type IntakeChoice = 'educate' | 'train' | 'home';
+export const INTAKE_SUBJECT: Record<Exclude<IntakeChoice, 'home'>, Subject> = { educate: 'learning', train: 'arms' };
+
+export function cannotTakeIntake(world: World, intakeId: string): string | null {
+  const i = world.training?.intake?.find((x) => x.id === intakeId);
+  if (!i || !world.characters[i.studentId]?.alive) return 'They have gone home';
+  if (studentsAt(world, i.moduleId).length >= ACADEMY_PLACES) return 'The academy is full';
+  if (econ(world, world.playerHouseId).stock.othes < ACADEMY_COST) return 'Not enough othes';
+  return null;
+}
+
+export function answerIntake(input: World, intakeId: string, choice: IntakeChoice): World {
+  return act(input, (w) => {
+    const i = w.training.intake!.find((x) => x.id === intakeId);
+    if (!i) throw new Error('They have gone home');
+    w.training.intake = w.training.intake!.filter((x) => x.id !== intakeId);
+    const c = w.characters[i.studentId];
+    if (!c?.alive) return;
+    if (choice === 'home') return;
+    const why = cannotTakeIntake({ ...w, training: { ...w.training, intake: [i] } } as World, intakeId);
+    if (why) throw new Error(why);
+    const P = w.playerHouseId;
+    record(w, P, { resource: 'othes', amount: -ACADEMY_COST, label: `Academy place for ${shortName(c.name)}`, kind: 'court' });
+    takeIntoHouse(w, c, 'Pupil');
+    enrol(w, c.id, 'academy', INTAKE_SUBJECT[choice], P, undefined, i.moduleId);
+    logRecord(w, { kind: 'world', type: 'world', severity: 0, text: `${displayName(c.name)} takes a place at the academy, to be ${choice === 'educate' ? 'educated' : 'trained in arms'}.`, who: [{ id: c.id, part: 'new pupil' }] });
+  });
+}
+
+/** Someone not of a great family becomes one of ours: a new line of the house under their own name. */
+export function takeIntoHouse(w: World, c: Character, role: string): void {
+  const P = w.playerHouseId;
+  if (c.houseId !== P || !w.families[c.familyId] || w.families[c.familyId]!.houseId !== P || w.families[c.familyId]!.ruling) {
+    const famId = `${P}:line-${w.nextId++}`;
+    const old = w.families[c.familyId];
+    w.families[famId] = { id: famId, houseId: P, name: old?.name || c.name.family || c.name.given, species: c.species, ruling: false, high: false };
+    c.familyId = famId;
+  }
+  c.houseId = P;
+  c.role = role;
+  c.mood = Math.max(c.mood ?? 50, 65);
+  learn(w, P, c.id, 40);
+}
+
+
+/** Put a newly taken-in youngster where their sponsor wanted them, if that is still possible. Free: it was paid for. */
+export function placeStudent(w: World, c: Character, p: Proposal): string | null {
+  ensureTraining(w);
+  if (p.kind === 'academy' && p.moduleId && w.holdings.modules[p.moduleId] && studentsAt(w, p.moduleId).length < ACADEMY_PLACES && academyAge(w, c)) {
+    enrol(w, c.id, 'academy', p.subject, w.playerHouseId, undefined, p.moduleId);
+    return `a place at the academy, for ${SUBJECTS[p.subject].label.toLowerCase()}`;
+  }
+  const t = p.sponsorId ? w.characters[p.sponsorId] : undefined;
+  if (p.kind === 'tutor' && t?.alive && t.houseId === w.playerHouseId && chargesOf(w, t.id).length < PERSONAL_LIMIT && isYoungling(w, c)) {
+    enrol(w, c.id, 'tutor', p.subject, w.playerHouseId, t.id);
+    return `${shortName(t.name)}'s own pupil, in ${SUBJECTS[p.subject].label.toLowerCase()}`;
+  }
+  return null;
+}
+
+/** A teacher going on a mission takes their personal charges along; the academy's head may ask for a pupil to go. */
+export function pupilsFor(world: World, party: string[]): string[] {
+  const out: string[] = [];
+  for (const id of party) for (const e of chargesOf(world, id)) {
+    const s = world.characters[e.studentId];
+    if (s?.alive && s.houseId === world.playerHouseId && !isAway(world, s.id) && !out.includes(s.id)) out.push(s.id);
+  }
+  return out;
+}
+
+export function offerPupil(world: World, rng: Rng, missionId: string, fit: (c: Character) => number): void {
+  ensureTraining(world);
+  const m = world.missions[missionId];
+  if (!m || m.houseId !== world.playerHouseId) return;
+  const party = [m.leaderId, ...(m.companions ?? [])];
+  for (const a of modulesOf(world, m.houseId, 'academy')) {
+    const head = a.overseerId ? world.characters[a.overseerId] : undefined;
+    if (!head?.alive || party.includes(head.id) || isAway(world, head.id)) continue;
+    const pupils = studentsAt(world, a.id).map((e) => world.characters[e.studentId]).filter((c): c is Character => !!c?.alive && c.houseId === m.houseId && !isAway(world, c.id) && !(m.pupils ?? []).includes(c.id));
+    if (!pupils.length || !rng.chance(0.6)) continue;
+    const best = pupils.sort((x, y) => fit(y) + y.hidden.potential / 4 - (fit(x) + x.hidden.potential / 4))[0]!;
+    world.training.pupilOffers!.push({ id: `po${world.nextId++}`, missionId, pupilId: best.id, headId: head.id, expires: m.stageEnds });
+    if (world.ports) world.ports.alerts += 1;
+    return;
+  }
+}
+
+export function answerPupilOffer(input: World, offerId: string, yes: boolean): World {
+  return act(input, (w) => {
+    const o = w.training.pupilOffers!.find((x) => x.id === offerId);
+    if (!o) throw new Error('Too late');
+    w.training.pupilOffers = w.training.pupilOffers!.filter((x) => x.id !== offerId);
+    const m = w.missions[o.missionId];
+    const c = w.characters[o.pupilId];
+    if (!yes) return;
+    if (!m || m.stage !== 'travel') throw new Error('The party has already arrived');
+    if (!c?.alive || isAway(w, c.id)) throw new Error('They cannot go now');
+    (m.pupils ??= []).push(c.id);
+    m.log.push({ date: w.date, text: `${shortName(c.name)}, a pupil of the academy, goes along to learn the trade.` });
+    shiftMood(c, 6);
+  });
 }
 
 /** Lesser houses offer their young to greater ones; some of those offers come to us. */
@@ -490,6 +627,8 @@ export function advanceTraining(world: World, rng: Rng, phaseTurned: boolean, or
   ensureTraining(world);
   const now = absoluteCycle(world.date);
   world.training.offers = world.training.offers.filter((o) => absoluteCycle(o.expires) > now && world.characters[o.wardId]?.alive);
+  world.training.intake = (world.training.intake ?? []).filter((i) => absoluteCycle(i.expires) > now && world.characters[i.studentId]?.alive);
+  world.training.pupilOffers = (world.training.pupilOffers ?? []).filter((o) => world.missions[o.missionId]?.stage === 'travel' && world.characters[o.pupilId]?.alive);
   for (const s of Object.values(world.training.wards)) {
     if (!world.characters[s.wardId]?.alive) { delete world.training.wards[s.id]; continue; }
     if (absoluteCycle(s.end) <= now) endStay(world, s, false);

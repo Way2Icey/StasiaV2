@@ -1,13 +1,9 @@
 // Careers: every deed counted, season by season; potential as diamonds; prospects worth finding young.
-import { Rng } from './rng';
-import { displayName, shortName } from './names';
 import { ageOf } from './characters';
 import { SPECIES } from '../data/species';
-import { addLead, materialize } from './discovery';
 import { knowledgeOf } from './knowledge';
-import { logRecord } from './records';
 import { seatHolder } from './query';
-import { dateParts, type GameDate } from './time';
+import { dateParts } from './time';
 import type { Character, World } from './types';
 
 export type Stat =
@@ -125,32 +121,6 @@ export function diamondText(read: { lo: number; hi: number }): string {
 }
 
 // ---------------------------------------------------------------- prospects
-
-/** Children and younglings of real promise turn up across the Reaches; whoever hears of them first can offer them a place. */
-export function advanceProspects(world: World, rng: Rng, orbitTurned: boolean): void {
-  ensureCareers(world);
-  if (!orbitTurned) return;
-  const P = world.playerHouseId;
-  if (!rng.chance(0.55)) return;
-  const planets = Object.values(world.planets);
-  const planet = rng.chance(0.55) ? planets.find((p) => p.houseId === P) ?? rng.pick(planets) : rng.pick(planets);
-  const sector = rng.pick(planet.sectors);
-  const c = materialize(world, rng, planet.id, sector.id);
-  // Young: twelve to sixteen-ish in their species' terms, with real promise.
-  const ad = SPECIES[c.species].adulthood;
-  const age = Math.round(ad * (0.6 + rng.next() * 0.3));
-  c.birth = { year: world.date.year - age, cycle: Math.floor(rng.next() * 800) } as GameDate;
-  c.hidden.potential = Math.min(20, Math.max(c.hidden.potential, 9 + Math.round(rng.next() * 10)));
-  for (const k of Object.keys(c.stats) as (keyof typeof c.stats)[]) c.stats[k] = Math.max(1, Math.round(c.stats[k] * 0.7));
-  c.role = 'Youngling';
-  const read = diamondText(diamondRead(world, c));
-  addLead(world, {
-    houseId: P, kind: 'recruit', targetId: c.id, cost: 200, planetId: planet.id, sectorId: sector.id,
-    title: `A prospect: ${displayName(c.name)}, ${age} · ${read}`,
-    text: `Word of a ${age}-year-old in ${sector.name} on ${planet.name} with something about them. Potential ${read}. Others will hear of them too; whoever offers first gets them.${planet.houseId !== P ? ` Taking them from House ${world.houses[planet.houseId]!.name}'s world will be noticed.` : ''}`,
-  });
-  logRecord(world, { kind: 'world', type: 'world', severity: 1, text: `A prospect: ${shortName(c.name)}, ${age}, in ${sector.name} — potential ${read}.`, who: [{ id: c.id, part: 'prospect' }], placeId: sector.id, source: 'the house\'s eyes' });
-}
 
 /** Follow someone closely: they sit on the Hall and their news comes first. */
 export function togglePin(input: World, id: string): World {

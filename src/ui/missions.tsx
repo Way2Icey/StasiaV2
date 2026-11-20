@@ -11,6 +11,7 @@ import {
 import { closePetition } from '../sim/council';
 import { averageMood, moodColor, moodLabel, moodOf } from '../sim/mood';
 import { dismissLead, leadsOf, recruit } from '../sim/discovery';
+import { answerPupilOffer } from '../sim/training';
 import { attitude, attitudeColor, relation } from '../sim/relations';
 import type { Approach, Character, Mission, MissionKind, Outcome } from '../sim/types';
 import { useGame, useNav, useWorld } from './context';
@@ -142,6 +143,35 @@ export function MissionsPage() {
 
 // ---------------------------------------------------------------- one mission
 
+/** The academy's head asks that a pupil go along. */
+function PupilOffer({ missionId }: { missionId: string }) {
+  const world = useWorld();
+  const game = useGame();
+  const [err, setErr] = useState<string | null>(null);
+  const o = (world.training?.pupilOffers ?? []).find((x) => x.missionId === missionId);
+  if (!o) return null;
+  const head = world.characters[o.headId];
+  const pupil = world.characters[o.pupilId];
+  const m = world.missions[missionId]!;
+  if (!pupil) return null;
+  const answer = (yes: boolean) => { try { game.update((w) => answerPupilOffer(w, o.id, yes)); setErr(null); } catch (e) { setErr(String((e as Error).message)); } };
+  return (
+    <Panel title="A pupil asks to go" className="span-12">
+      <div className="row petition">
+        <span style={{ flex: 1, minWidth: 0 }}>
+          {head ? <PersonLink c={head} /> : 'The academy'} asks that <PersonLink c={pupil} /> go with {world.characters[m.leaderId] ? <PersonLink c={world.characters[m.leaderId]!} /> : 'the party'}, to learn the trade by watching it done.
+          <span className="muted" style={{ display: 'block', fontSize: 12 }}>Pupils come back knowing more, and share in any glory. On a disaster they can be hurt.</span>
+          {err ? <span className="error" style={{ display: 'block' }}>{err}</span> : null}
+        </span>
+        <span style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <button type="button" className="btn small primary" onClick={() => answer(true)}>Send them along</button>
+          <button type="button" className="btn small" onClick={() => answer(false)}>Not this time</button>
+        </span>
+      </div>
+    </Panel>
+  );
+}
+
 export function MissionPage({ id }: { id: string }) {
   const world = useWorld();
   const m = world.missions[id];
@@ -179,6 +209,7 @@ export function MissionPage({ id }: { id: string }) {
             <dl className="kv" style={{ marginTop: 10 }}>
               <dt>Led by</dt><dd><PersonById id={m.leaderId} /></dd>
               {m.companions?.length ? <><dt><Term k="companions">With</Term></dt><dd>{partyOf(m).slice(1).map((id, i) => <span key={id}>{i ? ', ' : ''}<PersonById id={id} />{m.forced?.includes(id) ? <span className="muted"> (ordered)</span> : null}</span>)}</dd></> : null}
+              {m.pupils?.length ? <><dt>Pupils</dt><dd>{m.pupils.map((id, i) => <span key={id}>{i ? ', ' : ''}<PersonById id={id} /></span>)} <span className="muted">· along to learn</span></dd></> : null}
               <dt>Target</dt><dd><Target m={m} /></dd>
               <dt>Where</dt><dd><SectorLink id={m.targetSectorId} withPlanet /></dd>
               <dt>Journey</dt><dd>{m.travelCycles} cycles each way, {m.taskCycles} at work</dd>
@@ -186,6 +217,7 @@ export function MissionPage({ id }: { id: string }) {
           </div>
         </Panel>
 
+        <PupilOffer missionId={m.id} />
         <DecisionsPanel className="span-12" missionId={m.id} hideWhenEmpty />
         <Panel title="Report" className="span-7">
           {m.stage !== 'done' ? (
@@ -522,7 +554,7 @@ export function LeadsPanel({ className }: { className?: string }) {
                 {l.kind === 'recruit' ? (
                   <button type="button" className="btn small primary" disabled={othes < (l.cost ?? 0)} onClick={() => {
                     try { game.update((w) => recruit(w, l.id)); setErr(null); } catch (e) { setErr(String((e as Error).message)); }
-                  }}>Bring in · {(l.cost ?? 0).toLocaleString('en-US')} othes</button>
+                  }}>Take them in · {(l.cost ?? 0).toLocaleString('en-US')} othes</button>
                 ) : (
                   <Go to={{ kind: 'plan', mission: l.missionKind ?? 'scout', target: l.missionKind === 'investigate' ? l.targetId : l.planetId, lead: l.id }} className="btn small primary">Pursue</Go>
                 )}

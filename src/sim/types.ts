@@ -291,6 +291,8 @@ export interface Mission {
   leadId?: string;
   /** Up to two people riding with the leader. */
   companions?: string[];
+  /** Pupils brought along to learn: a teacher's own charges, or one the academy sent. */
+  pupils?: string[];
   /** Party members the Highroy ordered to go against their wishes. */
   forced?: string[];
   targetPlanetId: string;
@@ -447,6 +449,9 @@ export interface Caige {
   pledgedTo?: string;
 }
 
+/** Who in the house wants a prospect, and what for. */
+export interface Proposal { kind: 'academy' | 'tutor' | 'retainer'; sponsorId?: string; moduleId?: string; subject: 'arms' | 'command' | 'statecraft' | 'intrigue' | 'resonance' | 'learning' }
+
 export interface Lead {
   id: string;
   houseId: string;
@@ -461,6 +466,10 @@ export interface Lead {
   targetId?: string;
   /** For a recruit: what it costs to bring them in. */
   cost?: number;
+  /** For a prospect: who in the house wants them, and for what. */
+  proposal?: Proposal;
+  /** How they came to our notice. */
+  noticedBy?: string;
   found: GameDate;
   expires: GameDate;
   sourceMissionId?: string;

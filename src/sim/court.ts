@@ -27,7 +27,7 @@ export function isAway(world: World, id: string): boolean {
   const c = world.characters[id];
   if (!c) return true;
   if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing' || f.id === 'travelling' || f.id === 'posted' || f.id === 'ward' || f.id === 'aboard' || f.id === 'crucible')) return true;
-  return Object.values(world.missions).some((m) => m.stage !== 'done' && (m.leaderId === id || m.companions?.includes(id)));
+  return Object.values(world.missions).some((m) => m.stage !== 'done' && (m.leaderId === id || m.companions?.includes(id) || m.pupils?.includes(id)));
 }
 
 function placeOf(world: World, c: Character): Omit<CourtPlace, 'character' | 'home'> | null {
