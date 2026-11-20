@@ -34,6 +34,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   relationships: { term: 'Ties', group: 'Houses', text: 'How one person feels about another, from -100 to +100, and why. Strong feelings become bonds: friend, rival, lover, sworn knight, feud. Friends work better together on missions; rivals fight at court.' },
 
   // ---------------------------------------------------------------- holdings
+  loan: { term: 'Loan', group: 'Houses', text: 'Othes lent between houses (only houses lend) with interest each Phase, a due date and security: a sector\'s revenue, a Caige or a ward. While it runs the debtor\'s regard for the lender cannot sink below −20.' },
   modules: { term: 'Holdings (built)', group: 'Holdings', text: 'Cells, vaults and academies a house builds into its sectors, each with an overseer and a level from 1 to 3.' },
   cells: { term: 'Cells', group: 'Holdings', text: 'Where prisoners are kept, four to a level. Security comes from the level and the warden; treatment (decent, harsh, isolation) is the jailer\'s choice.' },
   vault: { term: 'Vault', group: 'Holdings', text: 'Othes stored on ledger drives, stored Caiges and the house records. Vaulted othes are safe from raids but not from heists.' },

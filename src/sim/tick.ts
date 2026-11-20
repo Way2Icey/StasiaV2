@@ -3,6 +3,7 @@ import { advancePorts } from './ports';
 import { trimFeed } from './records';
 import { advanceRelationships } from './relationships';
 import { advanceHoldings } from './holdings';
+import { advanceLoans } from './loans';
 import './eventDefs';
 import { displayName } from './names';
 import { Rng } from './rng';
@@ -75,6 +76,7 @@ function stepInPlace(world: World): void {
   advancePorts(world, rng, crossed.phases > 0);
   advanceRelationships(world, rng, crossed.phases > 0);
   advanceHoldings(world, rng, crossed.phases > 0, crossed.orbits > 0);
+  advanceLoans(world, rng, crossed.phases > 0);
   advanceEvents(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 
@@ -129,7 +131,7 @@ function snapshotOfAttention(w: World): Attention {
 function needsAttention(w: World, b: Attention): string | null {
   const a = snapshotOfAttention(w);
   if (a.decisions > b.decisions) return 'A decision awaits your word.';
-  if (a.alerts > b.alerts) return 'News from the ports.';
+  if (a.alerts > b.alerts) return 'Word has come that needs you.';
   if (a.done > b.done) return 'A mission has come home.';
   if (a.demands > b.demands) return 'A ransom demand has arrived.';
   if (a.held > b.held) return 'We have caught someone.';

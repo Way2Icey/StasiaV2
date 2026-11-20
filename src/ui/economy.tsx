@@ -8,6 +8,7 @@ import { GOODS, RESOURCE_LABEL, RESOURCE_NOTE, RESOURCES, TAX, type Good, type R
 import type { LedgerLine, World } from '../sim/types';
 import { useGame, useWorld } from './context';
 import { Go, Panel, PersonById, SectorLink } from './links';
+import { LoansPanel } from './loans';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const signed = (n: number) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `−${fmt(-n)}` : '0');
@@ -157,6 +158,7 @@ export function EconomyPage() {
           </div>
           <p className="body muted" style={{ margin: 0, fontSize: 11 }}>Every house trades here. What they buy and sell moves prices each Phase; prices drift back toward the usual level over time.</p>
         </Panel>
+        <div id="loans" className="span-12"><LoansPanel /></div>
       </div>
     </>
   );

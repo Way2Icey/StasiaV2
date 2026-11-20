@@ -443,6 +443,8 @@ export interface Caige {
   /** 0..100: how steady its navisium is while it sits in a vault. */
   stability?: number;
   vaultId?: string;
+  /** Put up as security for a loan from this house. */
+  pledgedTo?: string;
 }
 
 export interface Lead {
@@ -516,4 +518,6 @@ export interface World {
   ties: import('./relationships').Ties;
   /** Cells, vaults and academies; prisoners; rescues and heists under way. */
   holdings: import('./holdings').HoldingsState;
+  /** Money lent between houses, and requests waiting for an answer. */
+  loans: import('./loans').LoansState;
 }

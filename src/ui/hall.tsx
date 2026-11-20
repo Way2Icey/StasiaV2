@@ -216,6 +216,15 @@ export function Desk({ className }: { className?: string }) {
     if (cap.ransom?.status !== 'open' || c?.houseId !== P) continue;
     items.push({ id: `r-${c.id}`, mark: '[$]', kind: 'RANSOM', text: <>{world.houses[cap.heldBy]?.name} holds {c.name.given} · {cap.ransom.amount.toLocaleString('en-US')}</>, when: inCycles(world, cap.ransom.expires), open: () => scrollTo('ransoms') });
   }
+  for (const a of (world.loans?.asks ?? []).filter((x) => x.to === P)) {
+    items.push({ id: a.id, mark: '[$]', kind: 'LOAN', text: <>{world.houses[a.from]?.name} asks to borrow {a.amount.toLocaleString('en-US')}</>, when: inCycles(world, a.expires), open: () => nav.to({ kind: 'economy' }) });
+  }
+  for (const l of Object.values(world.loans?.loans ?? {}).filter((x) => x.lender === P && x.overdue)) {
+    items.push({ id: `d-${l.id}`, mark: '[$]', kind: 'DEFAULT', text: <>{world.houses[l.borrower]?.name} has not paid · {l.owed.toLocaleString('en-US')}</>, open: () => nav.to({ kind: 'economy' }) });
+  }
+  for (const c of Object.values(world.armoury ?? {}).filter((x) => x.houseId === P && x.vaultId && !x.bondedTo && (x.stability ?? 100) < 40)) {
+    items.push({ id: `cg-${c.id}`, mark: '[~]', kind: 'CAIGE', text: <>{c.name} is {Math.round(c.stability ?? 0) < 15 ? 'failing' : 'unstable'} in the vault</>, open: () => nav.to({ kind: 'holdings', id: c.vaultId }) });
+  }
   for (const l of leadsOf(world, P)) {
     items.push({ id: l.id, mark: '[i]', kind: 'LEAD', text: l.title, quiet: true, open: () => scrollTo('leads') });
   }
@@ -223,7 +232,7 @@ export function Desk({ className }: { className?: string }) {
   for (const e of recent) {
     items.push({ id: `m-${e.missionId}`, mark: '[r]', kind: 'REPORT', text: e.text, quiet: true, open: () => nav.to({ kind: 'mission', id: e.missionId! }) });
   }
-  const pending = (world.events?.pending.length ?? 0) + (world.courts[P]?.petitions.length ?? 0) + items.filter((i) => i.kind === 'RAID' || i.kind === 'HELD').length;
+  const pending = (world.events?.pending.length ?? 0) + (world.courts[P]?.petitions.length ?? 0) + items.filter((i) => i.kind === 'RAID' || i.kind === 'HELD' || i.kind === 'LOAN' || i.kind === 'DEFAULT' || i.kind === 'CAIGE').length;
   const opened = open ? world.events?.pending.find((p) => p.id === open) : undefined;
   return (
     <Panel title={<Term k="decision">The desk</Term>} aside={`${items.length} letters · ${pending} need you`} className={`major ${className ?? ''}`}>
