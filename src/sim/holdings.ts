@@ -230,7 +230,9 @@ export function cellSecurity(world: World, m: Module | undefined): number {
 export function vaultSecurity(world: World, m: Module): number {
   const vm = m.overseerId ? world.characters[m.overseerId] : undefined;
   const master = vm?.alive ? (vm.stats.perception + vm.stats.stewardship) / 2 : 5;
-  return m.level * 6 + master * 0.8 + (m.keepers?.length ?? 0);
+  const robbed = world.holdings?.cooldown?.[`guard:${m.id}`];
+  const alert = robbed && absoluteCycle(world.date) - absoluteCycle(robbed) < CYCLES_PER_ORBIT * 3 ? 8 : 0;
+  return m.level * 6 + master * 0.8 + (m.keepers?.length ?? 0) + alert;
 }
 
 export function reservesOf(world: World, houseId: string): number {
@@ -767,13 +769,15 @@ function heist(world: World, rng: Rng, thief: Character, v: Module) {
       what = 'the house records';
       effects.push(`${houseName(world, by)} knows ${houseName(world, owner)}'s people better`);
     } else {
-      const take = Math.round((v.drives ?? 0) * (0.1 + rng.next() * 0.15));
+      const take = Math.min(15000, Math.round((v.drives ?? 0) * (0.05 + rng.next() * 0.1)));
       v.drives = (v.drives ?? 0) - take;
       record(world, by, { resource: 'othes', amount: take, label: `Taken from the vault of ${houseName(world, owner)}`, kind: 'raid' });
       what = `${fmt(take)} othes on ledger drives`;
       effects.push(`−${fmt(take)} othes for ${houseName(world, owner)}`);
     }
     shiftRelation(world, owner, by, rng.chance(0.5) ? -10 : -2);
+    // The vaultmaster doubles the guard for a good while.
+    (world.holdings.cooldown ??= {})[`guard:${v.id}`] = world.date;
     if (ours) logRecord(world, {
       kind: 'intrigue', type: 'intrigue', severity: owner === P ? 3 : 2,
       text: owner === P ? `Our vault at ${placeOf(world, v)} has been robbed: ${what} gone.` : `${displayName(thief.name)} has robbed the vault of ${houseName(world, owner)}: ${what}.`,
@@ -800,8 +804,8 @@ function aiHeists(world: World, rng: Rng) {
   for (const h of Object.values(world.houses)) {
     if (h.id === world.playerHouseId) continue;
     const cool = world.holdings.cooldown?.[`heist:${h.id}`];
-    if (cool && absoluteCycle(world.date) - absoluteCycle(cool) < CYCLES_PER_ORBIT * 3) continue;
-    if (!rng.chance(0.01 + h.personality.intrigue * 0.03 + h.personality.greed * 0.02)) continue;
+    if (cool && absoluteCycle(world.date) - absoluteCycle(cool) < CYCLES_PER_ORBIT * 4) continue;
+    if (!rng.chance(0.006 + h.personality.intrigue * 0.02 + h.personality.greed * 0.012)) continue;
     (world.holdings.cooldown ??= {})[`heist:${h.id}`] = world.date;
     const targets = Object.values(world.houses).filter((o) => o.id !== h.id && relation(world, h.id, o.id) < 10);
     if (!targets.length) continue;

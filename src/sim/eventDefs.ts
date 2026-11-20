@@ -1,5 +1,6 @@
 // The events themselves, drawn from the Event Pool doc (slice picks, less the
 // battle and election events, which need war and the vote first).
+import { SPECIES } from '../data/species';
 import { choose, registerEvents, who, type Ctx, type EventDef } from './events';
 import { displayName, shortName } from './names';
 import { findSector, ruler, seatHolder } from './query';
@@ -225,7 +226,7 @@ const arrival: EventDef[] = [
     setup: (c) => {
       const h = foreignTarget(c);
       if (c.m?.kind !== 'envoy' || !h) return false;
-      const young = athome(c).filter((x) => !x.seat && ageOf(x, c.world.date) < 30 && !hasFlag(x, 'ward'));
+      const young = athome(c).filter((x) => !x.seat && ageOf(x, c.world.date) < 30 && ageOf(x, c.world.date) >= SPECIES[x.species].adulthood * 0.4 && !hasFlag(x, 'ward'));
       return young.length > 0 && choose(c, { otherHouseId: h, personId: c.rng.pick(young).id });
     },
     text: (c) => `House ${houseName(c, c.other)} will deal, but they want ${full(c.person)} sent to their court as a ward, as surety of our word.`,

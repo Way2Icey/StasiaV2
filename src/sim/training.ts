@@ -8,7 +8,7 @@ import { relation, shiftRelation } from './relations';
 import { logRecord } from './records';
 import { isAway } from './court';
 import { seatHolder } from './query';
-import { setBond, shiftOpinion, opinion } from './relationships';
+import { setBond, shiftOpinion, opinion, tiesOf } from './relationships';
 import { shiftMood } from './mood';
 import { modulesOf } from './holdings';
 import { addLead, materialize } from './discovery';
@@ -350,8 +350,11 @@ function endStay(w: World, s: WardStay, early: boolean) {
   const home = w.planets[w.houses[c.houseId]?.capitalPlanetId ?? ''];
   if (home) c.location = { planetId: home.id, sectorId: home.sectors[0]!.id };
   // What they think of their hosts colours their house's view.
-  const hosts = Object.values(w.characters).filter((k) => k.alive && k.houseId === s.host && k.tier === 'full');
-  const feel = hosts.length ? hosts.reduce((n, k) => n + opinion(w, c.id, k.id), 0) / hosts.length : 0;
+  // Judged by the people they actually came to know there.
+  const known = tiesOf(w, c.id).filter((t) => w.characters[t.other]?.houseId === s.host && t.bond !== 'kin');
+  const feel = known.length ? known.reduce((n, t) => n + t.out * (t.bond ? 1.5 : 1), 0) / known.length : 0;
+  const friend = known.filter((t) => t.out > 30).sort((a, b) => b.out - a.out)[0];
+  const foe = known.filter((t) => t.out < -30).sort((a, b) => a.out - b.out)[0];
   shiftRelation(w, s.from, s.host, Math.round(feel / 4) - (early ? 8 : 0));
   const P = w.playerHouseId;
   if (s.from === P || s.host === P) {
@@ -359,7 +362,7 @@ function endStay(w: World, s: WardStay, early: boolean) {
     logRecord(w, {
       kind: 'world', type: 'politics', severity: 1,
       text: s.from === P ? `${displayName(c.name)} comes home from ${H(w, s.host)}${early ? ', called back early' : ''}.` : `${displayName(c.name)} goes home to ${H(w, s.from)}${early ? ', recalled early' : ''}.`,
-      detail: `${feel > 15 ? 'They speak warmly of their hosts.' : feel < -15 ? 'They are glad to be gone.' : 'They have little to say of their hosts.'}`,
+      detail: `${feel > 15 ? 'They speak warmly of their hosts.' : feel < -15 ? 'They are glad to be gone.' : 'They have little to say of their hosts.'}${friend ? ` They will miss ${displayName(w.characters[friend.other]!.name)}.` : ''}${foe ? ` They will not forget ${displayName(w.characters[foe.other]!.name)}.` : ''}`,
       effects: [...g, `${H(w, s.from)} regard ${feel / 4 - (early ? 8 : 0) >= 0 ? '+' : ''}${Math.round(feel / 4) - (early ? 8 : 0)} toward ${H(w, s.host)}`],
       who: [{ id: c.id, part: 'ward' }], houseIds: [s.from, s.host],
     });

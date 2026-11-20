@@ -72,7 +72,7 @@ function shipName(world: World, rng: Rng, houseId: string): string {
   const h = world.houses[houseId]!;
   const taken = new Set(Object.values(world.fleet?.ships ?? {}).map((s) => s.name));
   for (let i = 0; i < 20; i++) {
-    const n = rng.chance(0.5) ? `${h.name} ${rng.pick(GRAND)}` : `${rng.pick(['The', 'Her', 'His'])} ${rng.pick(['Patient', 'Sworn', 'Iron', 'Seventh', 'Last', 'Ardent', 'Quiet', 'Burning'])} ${rng.pick(GRAND)}`;
+    const n = rng.chance(0.4) ? `${h.name} ${rng.pick(GRAND)}` : `${rng.pick(['Patient', 'Sworn', 'Iron', 'Seventh', 'Last', 'Ardent', 'Quiet', 'Burning', 'Pale', 'Faithful', 'Long'])} ${rng.pick(GRAND)}`;
     if (!taken.has(n)) return n;
   }
   return `${h.name} ${rng.pick(GRAND)} ${world.nextId}`;
@@ -288,7 +288,12 @@ function crewLife(w: World, rng: Rng, s: CapitalShip) {
   const cap = s.captainId ? w.characters[s.captainId] : undefined;
   if (s.captainId && !cap?.alive) s.captainId = null;
   let d = (cap?.alive ? (cap.stats.leadership - 10) / 4 : -2) + rng.gauss();
-  if (s.duty === 'harbour') { d -= 0.8; s.condition = clamp(s.condition + 4, 0, 100); }
+  if (s.duty === 'harbour' && !s.arrives) {
+    d -= 0.8;
+    s.condition = clamp(s.condition + 4, 0, 100);
+    // New hands sign on at home.
+    s.crew = Math.min(CAPITAL_CLASSES[s.cls].crew, s.crew + Math.round(CAPITAL_CLASSES[s.cls].crew * 0.05));
+  }
   else s.condition = clamp(s.condition - 0.6, 0, 100);
   if (s.duty === 'escort') d += 0.5;
   const out = s.deployed ? (absoluteCycle(w.date) - absoluteCycle(s.deployed)) / CYCLES_PER_ORBIT : 0;
@@ -309,12 +314,14 @@ function mutiny(w: World, rng: Rng, s: CapitalShip) {
     const lost = Math.round(s.crew * 0.3);
     s.crew -= lost;
     s.crewMood = 40;
+    if (s.duty !== 'harbour') dutyInPlace(w, s, 'harbour');
     if (s.houseId === P) logRecord(w, { kind: 'world', type: 'condition', severity: 2, text: `${fmt(lost)} of the ${s.name}'s crew have deserted.`, detail: 'The ones who stayed are calmer for it. The ship fights weaker until it is crewed again.', who: cap ? [{ id: cap.id, part: 'captain' }] : [], effects: [`Crew −${fmt(lost)}`] });
   } else if (roll > 0.2) {
     // The crew put the captain ashore and send demands.
     if (cap) { cap.flags = cap.flags.filter((f) => f.id !== 'aboard'); shiftMood(cap, -15); }
     s.captainId = null;
     s.crewMood = 45;
+    if (s.duty !== 'harbour') dutyInPlace(w, s, 'harbour');
     st.respect = clamp(st.respect - 3, 0, 100);
     if (s.houseId === P) logRecord(w, { kind: 'world', type: 'condition', severity: 3, text: `Mutiny on the ${s.name}: the crew have put ${cap ? displayName(cap.name) : 'their officers'} ashore and refuse to sail until they are paid and heard.`, detail: 'Name a new captain they can stomach, keep them paid, and bring the ship home.', who: cap ? [{ id: cap.id, part: 'put ashore' }] : [], effects: ['Respect −3', 'No captain'] });
   } else {
@@ -353,8 +360,13 @@ function onStation(w: World, rng: Rng, s: CapitalShip) {
     w.houses[s.houseId]!.standing.dread = clamp(w.houses[s.houseId]!.standing.dread + 2, 0, 100);
     w.houses[s.houseId]!.standing.honour = clamp(w.houses[s.houseId]!.standing.honour - 1, 0, 100);
     // Their great ships may come out to test us. War is not declared; this is a standoff, and sometimes shots.
-    const theirs = shipsAt(w, s.sectorId).filter((x) => x.houseId === them);
-    if (theirs.length && rng.chance(0.35)) standoff(w, rng, s, theirs[0]!);
+    const theirs = shipsAt(w, s.sectorId).filter((x) => x.houseId === them && x.condition > 50);
+    const key = `standoff:${s.id}`;
+    const last = (w.holdings?.cooldown ?? {})[key];
+    if (theirs.length && (!last || absoluteCycle(w.date) - absoluteCycle(last) >= CYCLES_PER_ORBIT) && rng.chance(0.35)) {
+      if (w.holdings) (w.holdings.cooldown ??= {})[key] = w.date;
+      standoff(w, rng, s, theirs[0]!);
+    }
     if (them === P || s.houseId === P) {
       if (rng.chance(0.3)) logRecord(w, { kind: 'world', type: 'economy', severity: 1, text: `The blockade of ${H(w, them)}'s port holds. ${fmt(took)} othes of trade turned away this Phase.`, houseIds: [s.houseId, them], placeId: s.sectorId });
     }
@@ -371,6 +383,7 @@ function standoff(w: World, rng: Rng, a: CapitalShip, b: CapitalShip) {
   const pa = powerOf(w, a) + rng.gauss() * 6;
   const pb = powerOf(w, b) + rng.gauss() * 6;
   const shots = rng.chance(0.4);
+  const where = findSector(w, a.sectorId);
   const loser = pa >= pb ? b : a;
   const winner = loser === a ? b : a;
   if (shots) {
@@ -382,14 +395,14 @@ function standoff(w: World, rng: Rng, a: CapitalShip, b: CapitalShip) {
     shiftRelation(w, loser.houseId, winner.houseId, -10);
     const wc = winner.captainId ? w.characters[winner.captainId] : undefined;
     const lc = loser.captainId ? w.characters[loser.captainId] : undefined;
-    if (wc && lc) shiftOpinion(w, lc.id, wc.id, -30, `outfought them at ${findSector(w, a.sectorId)?.sector.name}`);
+    if (wc && lc) shiftOpinion(w, lc.id, wc.id, -30, `outfought them at ${where?.sector.name}`);
     if (loser === a && a.duty === 'blockade') { dutyInPlace(w, a, 'harbour'); }
     if (a.houseId === P || b.houseId === P) logRecord(w, {
       kind: 'world', type: 'fight', severity: 3,
-      text: `Shots exchanged over ${findSector(w, a.sectorId)?.planet.name}: the ${winner.name} and the ${loser.name}. The ${loser.name} came off worse${loser === a ? ' and broke the blockade off' : ' and was driven back to her moorings'}.`,
+      text: `Shots exchanged over ${where?.planet.name}: the ${winner.name} and the ${loser.name}. The ${loser.name} came off worse${loser === a ? ' and broke the blockade off' : ' and was driven back to her moorings'}.`,
       detail: 'No war has been declared. The Numarade will hear of this.',
       who: [...(wc ? [{ id: wc.id, part: `captain of the ${winner.name}` }] : []), ...(lc ? [{ id: lc.id, part: `captain of the ${loser.name}` }] : [])],
-      houseIds: [a.houseId, b.houseId], placeId: a.sectorId,
+      houseIds: [a.houseId, b.houseId], placeId: where?.sector.id,
       effects: [`${loser.name} damaged`, `${H(w, winner.houseId)} dread +3`, `${H(w, loser.houseId)} regard −10`],
     });
   } else if (a.houseId === P || b.houseId === P) {
