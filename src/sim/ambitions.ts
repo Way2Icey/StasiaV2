@@ -1,7 +1,7 @@
 // Ambitions: what people want out of life, and what they do when they don't get it.
 // Everyone of note wants something: a seat, a ship, glory, love, a fortune, the wide Reaches.
 // Wants that go unmet sour into resentment; ours come to the Highroy in audience, and the Highroy must answer.
-import { tally } from './careers';
+import { award, tally, titlesOf } from './careers';
 import { Rng } from './rng';
 import { displayName, shortName } from './names';
 import { ageOf, focusForSeat, ROLE_FOCUS } from './characters';
@@ -476,6 +476,8 @@ export function advanceAmbitions(world: World, rng: Rng, phaseTurned: boolean): 
     if (a && c?.alive) { a.frustration = clamp(a.frustration + 10, 0, 100); if (lord) shiftOpinion(world, c.id, lord, -8, 'kept waiting for an answer'); }
   }
   if (!phaseTurned) return;
+  // The Highroy's door: at most one new petitioner a Phase, and not every Phase.
+  let doorOpen = Math.floor(now / CYCLES_PER_PHASE) % 2 === 0;
   for (const c of Object.values(world.characters)) {
     if (!notable(world, c)) { if (!c.alive) delete world.ambitions.of[c.id]; continue; }
     let a = world.ambitions.of[c.id];
@@ -507,9 +509,10 @@ export function advanceAmbitions(world: World, rng: Rng, phaseTurned: boolean): 
     const askedLately = a.asked && now - absoluteCycle(a.asked) < CYCLES_PER_ORBIT * 1.5;
     const lordFam = world.characters[world.houses[P]?.rulerId ?? '']?.familyId;
     const important = !!c.seat || c.role === 'Knight' || c.role === 'Heir' || c.familyId === lordFam || a.frustration >= 70;
-    if (important && a.frustration >= 40 && !askedLately && world.ambitions.audiences.length < 3 && !isAway(world, c.id) && !world.ambitions.audiences.some((x) => x.characterId === c.id) && rng.chance(0.3)) {
+    if (doorOpen && important && a.frustration >= 40 && !askedLately && world.ambitions.audiences.length < 3 && !isAway(world, c.id) && !world.ambitions.audiences.some((x) => x.characterId === c.id) && rng.chance(0.3)) {
       a.asked = world.date;
       a.known = true;
+      doorOpen = false;
       world.ambitions.audiences.push({ id: `au${world.nextId++}`, characterId: c.id, kind: a.kind, target: a.target, text: requestText(world, c, a), expires: addCycles(world.date, CYCLES_PER_PHASE * 2) });
       if (world.ports) world.ports.alerts += 1;
     }
@@ -579,7 +582,7 @@ export { COUNCIL as AMBITION_SEATS };
 export function cannotKnight(world: World, id: string): string | null {
   const c = world.characters[id];
   if (!c?.alive || c.houseId !== world.playerHouseId) return 'Not one of ours';
-  if (c.role === 'Knight') return 'Already a knight';
+  if (c.role === 'Knight' || titlesOf(world, id).some((t) => t.title.startsWith('Knighted'))) return 'Already a knight';
   if (c.seat) return 'A councillor';
   if (!adult(world, c)) return 'Too young';
   if (isAway(world, id)) return 'They are away';
@@ -595,6 +598,7 @@ export function knight(input: World, id: string): World {
   const c = w.characters[id]!;
   record(w, w.playerHouseId, { resource: 'othes', amount: -300, label: `Knighting of ${shortName(c.name)}`, kind: 'court' });
   c.role = 'Knight';
+  award(w, c.id, 'Knighted');
   shiftMood(c, 10);
   const lord = w.houses[w.playerHouseId]?.rulerId;
   if (lord) shiftOpinion(w, c.id, lord, 15, 'knighted them');

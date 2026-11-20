@@ -234,7 +234,7 @@ export function recruit(input: World, leadId: string): World {
   world.families[famId] = { id: famId, houseId: lead.houseId, name: oldFam?.name || c.name.family || c.name.given, species: c.species, ruling: false, high: false };
   c.houseId = lead.houseId;
   c.familyId = famId;
-  c.role = `Retainer (${c.role.toLowerCase()})`;
+  c.role = c.role === 'Youngling' ? 'Retainer' : `Retainer (${c.role.toLowerCase()})`;
   const home = world.planets[world.houses[lead.houseId]!.capitalPlanetId]!;
   c.location = { planetId: home.id, sectorId: home.sectors[0]!.id };
   c.mood = 70;

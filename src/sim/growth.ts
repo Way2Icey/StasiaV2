@@ -132,7 +132,7 @@ export function rivalRecruit(world: World, rng: Rng, houseId: string, c: Charact
   world.families[fam] = { id: fam, houseId, name: world.families[c.familyId]?.name || c.name.given, species: c.species, ruling: false, high: false };
   c.houseId = houseId;
   c.familyId = fam;
-  c.role = `Retainer (${c.role.toLowerCase()})`;
+  c.role = c.role === 'Youngling' ? 'Retainer' : `Retainer (${c.role.toLowerCase()})`;
   const home = world.planets[world.houses[houseId]!.capitalPlanetId]!;
   c.location = { planetId: home.id, sectorId: home.sectors[0]!.id };
   c.mood = 65;
