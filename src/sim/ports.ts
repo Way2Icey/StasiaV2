@@ -879,7 +879,7 @@ function strike(world: World, rng: Rng, raid: Raid) {
       effects: ['Dread +3', ...(raid.answer === 'muster' ? ['Honour +1', 'Knights mood +3'] : [])], detail: `Raid strength ${raid.strength} against our defence ${defence}.`,
     });
     // In the thick of it, someone young may have shown what they are.
-    if (s && rng.chance(0.5)) { const pl = Object.values(world.planets).find((x) => x.sectors.some((y) => y.id === raid.sectorId)); if (pl) noticeYouth(world, rng, pl.id, raid.sectorId, 'raid'); }
+    if (s && rng.chance(0.3)) { const pl = Object.values(world.planets).find((x) => x.sectors.some((y) => y.id === raid.sectorId)); if (pl) noticeYouth(world, rng, pl.id, raid.sectorId, 'raid'); }
   } else {
     const loss = Math.min(econ(world, P).stock.othes, raid.strength * 60);
     record(world, P, { resource: 'othes', amount: -loss, label: `Raid on ${s?.name ?? 'a sector'}`, kind: 'raid', sectorId: raid.sectorId });
@@ -898,7 +898,7 @@ function strike(world: World, rng: Rng, raid: Raid) {
       effects: [loss ? `−${loss.toLocaleString('en-US')} othes` : '', food ? `−${food} provisions` : '', 'Unrest +10', 'Respect −2', `Population −${raid.strength * 30}`].filter(Boolean),
       who: knights.map((k) => ({ id: k.id, part: raid.answer === 'muster' ? 'fought' : 'at home' })),
     });
-    if (s && rng.chance(0.5)) { const pl = Object.values(world.planets).find((x) => x.sectors.some((y) => y.id === raid.sectorId)); if (pl) noticeYouth(world, rng, pl.id, raid.sectorId, 'raid'); }
+    if (s && rng.chance(0.3)) { const pl = Object.values(world.planets).find((x) => x.sectors.some((y) => y.id === raid.sectorId)); if (pl) noticeYouth(world, rng, pl.id, raid.sectorId, 'raid'); }
   }
   world.ports.alerts++;
 }

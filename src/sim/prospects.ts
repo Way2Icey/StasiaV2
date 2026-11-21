@@ -135,7 +135,7 @@ export function prospectCost(p: Proposal): number {
 export function noticeYouth(world: World, rng: Rng, planetId: string, sectorId: string, incident: Incident): Character | null {
   // Promise first: most of those caught up in it are nobody in particular.
   const potential = clamp(Math.round(6 + rng.next() * 9 + rng.next() * 6), 1, 20);
-  if (!rng.chance((potential / 20) ** 2)) return null;
+  if (!rng.chance((potential / 20) ** 3)) return null;
   const eyes = eyesOn(world, rng, planetId, sectorId);
   if (!eyes) return null;
   const c = materialize(world, rng, planetId, sectorId);
@@ -176,7 +176,7 @@ export function advanceProspects(world: World, rng: Rng, orbitTurned: boolean): 
   const P = world.playerHouseId;
   const planets = Object.values(world.planets);
   // A handful of incidents across the Reaches each Orbit; most come to nothing.
-  const n = 1 + (rng.chance(0.5) ? 1 : 0);
+  const n = rng.chance(0.7) ? 1 : 0;
   for (let i = 0; i < n; i++) {
     const planet = rng.chance(0.5) ? planets.find((p) => p.houseId === P) ?? rng.pick(planets) : rng.pick(planets);
     const sector = rng.pick(planet.sectors);
