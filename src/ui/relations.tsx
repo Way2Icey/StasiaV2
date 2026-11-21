@@ -57,20 +57,13 @@ export function RelationsPage({ focus: initial, view: initialView }: { focus?: s
   const P = world.playerHouseId;
   const lord = Object.values(world.characters).find((c) => c.alive && c.houseId === P && c.seat === 'highroy');
   const [focus, setFocus] = useState<string | undefined>(initial ?? lord?.id);
-  const [view, setView] = useState<View>(initialView ?? 'web');
+  const view: View = initialView ?? 'web';
   const me = focus ? world.characters[focus] : undefined;
   return (
     <>
       <div className="page-title">
-        <h2>Relationships</h2>
+        <h2>{view === 'ambitions' ? 'Ambitions & audiences' : view === 'factions' ? 'Factions' : view === 'young' ? 'Younglings & wards' : view === 'everyone' ? 'Everyone' : 'Ties'}</h2>
         <p>Who feels what about whom. Pick anyone to see the house through their eyes. You see other houses' ties only as far as you know their people.</p>
-      </div>
-      <div className="filters">
-        {(['web', 'factions', 'ambitions', 'young', 'everyone'] as View[]).map((v) => (
-          <button key={v} type="button" className="pill" aria-pressed={view === v} onClick={() => setView(v)}>{v === 'web' ? 'TIES' : v === 'young' ? 'YOUNGLINGS & WARDS' : v.toUpperCase()}</button>
-        ))}
-        <button type="button" className="pill" onClick={() => nav.to({ kind: 'training' })}>TRAINING ›</button>
-        <button type="button" className="pill" onClick={() => nav.to({ kind: 'grounds' })}>PROVING GROUNDS ›</button>
       </div>
       {view === 'everyone' ? <PeoplePage /> : view === 'factions' ? <Factions /> : view === 'young' ? <Younglings /> : view === 'ambitions' ? <AmbitionsView /> : (
         <div className="grid">

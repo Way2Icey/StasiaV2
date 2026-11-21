@@ -114,7 +114,7 @@ function OverseerPicker({ m }: { m: Module }) {
   );
 }
 
-function ModuleView({ m }: { m: Module }) {
+export function ModuleView({ m }: { m: Module }) {
   const world = useWorld();
   const { run, err } = usePlay();
   const next = m.level < 3 ? buildCost(m.kind, m.level + 1) : 0;

@@ -34,27 +34,91 @@ export type Route =
   | { kind: 'crucible' }
   | { kind: 'training'; id?: string }
   | { kind: 'grounds' }
+  | { kind: 'knights' }
+  | { kind: 'fleet' }
+  | { kind: 'embassies' }
+  | { kind: 'loans' }
+  | { kind: 'vaults' }
+  | { kind: 'build' }
   | { kind: 'ship'; id: string }
   | { kind: 'log'; person?: string; place?: string; house?: string; open?: string };
 
-export type Section = 'throne' | 'council' | 'economy' | 'glossary' | 'people' | 'houses' | 'worlds' | 'missions' | 'save' | 'log';
+export type Section = 'hall' | 'court' | 'people' | 'arms' | 'realm' | 'treasury' | 'missions' | 'log' | 'save' | 'glossary';
 
-/** Which sidebar section a page belongs to. */
+/** Which rail section a page belongs to: grouped by what the Highroy is doing, not by what things are. */
 export function sectionOf(r: Route): Section | null {
   switch (r.kind) {
-    case 'throne': case 'people': case 'houses': case 'worlds': case 'save': case 'missions': case 'council': case 'economy': case 'glossary': case 'log': return r.kind;
-    case 'mission': case 'plan': return 'missions';
-    case 'seat': return 'council';
-    case 'holdings': return 'economy';
-    case 'crucible': return 'houses';
-    case 'training': case 'grounds': return 'people';
-    case 'ship': return 'worlds';
-    case 'character': case 'trait': case 'flag': case 'species': case 'band': return 'people';
-    case 'house': case 'family': return 'houses';
-    case 'planet': case 'sector': case 'port': return 'worlds';
+    case 'throne': return 'hall';
+    case 'council': case 'seat': return 'court';
+    case 'people': return r.view === 'ambitions' ? 'court' : 'people';
+    case 'training': case 'character': case 'trait': case 'flag': case 'species': case 'band': case 'family': return 'people';
+    case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': return 'arms';
+    case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'houses': case 'house': case 'embassies': return 'realm';
+    case 'economy': case 'loans': case 'vaults': return 'treasury';
+    case 'missions': case 'mission': case 'plan': return 'missions';
+    case 'log': return 'log';
+    case 'save': return 'save';
+    case 'glossary': return 'glossary';
     default: return null;
   }
 }
+
+export interface SectionDef { id: Section; label: string; key: string; home: Route; utility?: boolean }
+export const SECTIONS: SectionDef[] = [
+  { id: 'hall', label: 'HALL', key: '1', home: { kind: 'throne' } },
+  { id: 'court', label: 'COURT', key: '2', home: { kind: 'council' } },
+  { id: 'people', label: 'PEOPLE', key: '3', home: { kind: 'people' } },
+  { id: 'arms', label: 'ARMS', key: '4', home: { kind: 'crucible' } },
+  { id: 'realm', label: 'REALM', key: '5', home: { kind: 'worlds' } },
+  { id: 'treasury', label: 'TREASURY', key: '6', home: { kind: 'economy' } },
+  { id: 'missions', label: 'MISSIONS', key: '7', home: { kind: 'missions' } },
+  { id: 'log', label: 'LOG', key: '8', home: { kind: 'log' }, utility: true },
+  { id: 'save', label: 'SAVE', key: '9', home: { kind: 'save' }, utility: true },
+  { id: 'glossary', label: 'GLOSSARY', key: '?', home: { kind: 'glossary' }, utility: true },
+];
+
+export interface SubTab { label: string; to: Route; on: (r: Route) => boolean }
+const is = (k: Route['kind']) => (r: Route) => r.kind === k;
+/** Each section's strip of tabs: every feature at most two clicks from the rail. */
+export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
+  court: [
+    { label: 'Council', to: { kind: 'council' }, on: is('council') },
+    { label: 'Ambitions & audiences', to: { kind: 'people', view: 'ambitions' }, on: (r) => r.kind === 'people' && r.view === 'ambitions' },
+    { label: 'Infirmary', to: { kind: 'seat', id: 'physician' }, on: (r) => r.kind === 'seat' && r.id === 'physician' },
+    { label: 'Seats', to: { kind: 'seat', id: 'envoy' }, on: (r) => r.kind === 'seat' && r.id !== 'physician' },
+  ],
+  people: [
+    { label: 'Ties', to: { kind: 'people', view: 'web' }, on: (r) => r.kind === 'people' && (!r.view || r.view === 'web') },
+    { label: 'Factions', to: { kind: 'people', view: 'factions' }, on: (r) => r.kind === 'people' && r.view === 'factions' },
+    { label: 'Younglings & wards', to: { kind: 'people', view: 'young' }, on: (r) => r.kind === 'people' && r.view === 'young' },
+    { label: 'Training & academy', to: { kind: 'training' }, on: is('training') },
+    { label: 'Everyone', to: { kind: 'people', view: 'everyone' }, on: (r) => r.kind === 'people' && r.view === 'everyone' },
+  ],
+  arms: [
+    { label: 'The Crucible', to: { kind: 'crucible' }, on: is('crucible') },
+    { label: 'Circuit & tourneys', to: { kind: 'grounds' }, on: is('grounds') },
+    { label: 'Knights & challenges', to: { kind: 'knights' }, on: is('knights') },
+    { label: 'Fleet', to: { kind: 'fleet' }, on: (r) => r.kind === 'fleet' || r.kind === 'ship' },
+  ],
+  realm: [
+    { label: 'Star map', to: { kind: 'worlds' }, on: (r) => r.kind === 'worlds' || r.kind === 'planet' || r.kind === 'sector' || r.kind === 'port' },
+    { label: 'Holdings', to: { kind: 'holdings' }, on: is('holdings') },
+    { label: 'Build', to: { kind: 'build' }, on: is('build') },
+    { label: 'Houses', to: { kind: 'houses' }, on: (r) => r.kind === 'houses' || r.kind === 'house' },
+    { label: 'Embassies', to: { kind: 'embassies' }, on: is('embassies') },
+  ],
+  treasury: [
+    { label: 'Ledger & exchange', to: { kind: 'economy' }, on: is('economy') },
+    { label: 'Loans', to: { kind: 'loans' }, on: is('loans') },
+    { label: 'Vaults', to: { kind: 'vaults' }, on: is('vaults') },
+  ],
+  missions: [
+    { label: 'Board', to: { kind: 'missions' }, on: (r) => r.kind === 'missions' || r.kind === 'mission' },
+    { label: 'Investigate', to: { kind: 'plan', mission: 'investigate' }, on: (r) => r.kind === 'plan' && r.mission === 'investigate' },
+    { label: 'Scout', to: { kind: 'plan', mission: 'scout' }, on: (r) => r.kind === 'plan' && r.mission === 'scout' },
+    { label: 'Envoy', to: { kind: 'plan', mission: 'envoy' }, on: (r) => r.kind === 'plan' && r.mission === 'envoy' },
+  ],
+};
 
 export function sameRoute(a: Route, b: Route): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
@@ -98,7 +162,13 @@ export function routeLabel(world: World, r: Route): string {
     case 'holdings': return 'Holdings';
     case 'crucible': return 'The Crucible';
     case 'training': return 'Training';
-    case 'grounds': return 'Proving grounds';
+    case 'grounds': return 'Circuit & tourneys';
+    case 'knights': return 'Knights';
+    case 'fleet': return 'Fleet';
+    case 'embassies': return 'Embassies';
+    case 'loans': return 'Loans';
+    case 'vaults': return 'Vaults';
+    case 'build': return 'Build';
     case 'ship': return (world as unknown as { fleet?: { ships: Record<string, { name: string }> } }).fleet?.ships[r.id]?.name ?? 'Ship';
   }
 }

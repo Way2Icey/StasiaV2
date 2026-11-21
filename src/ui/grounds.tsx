@@ -27,7 +27,7 @@ export function GroundsPage() {
   return (
     <>
       <div className="page-title">
-        <h2>Proving grounds</h2>
+        <h2>Circuit &amp; tourneys</h2>
         <p>Where reputations are made before anyone is a knight. The circuit runs all year across the Reaches: underground pits in the undercities, public tourneys any house may hold, invitationals and pit nights for invitees only. Our people go on their own when their blood is up; we can send them where we are welcome, and host. Challenges between soldiers come to the Highroy. Less sanctioned than the Crucible, and closer to home.</p>
       </div>
       <div className="grid">
@@ -67,7 +67,7 @@ function Tourney({ className }: { className?: string }) {
   );
 }
 
-function Challenges({ className }: { className?: string }) {
+export function Challenges({ className }: { className?: string }) {
   const world = useWorld();
   const { run, err } = usePlay();
   const list = world.grounds.challenges;

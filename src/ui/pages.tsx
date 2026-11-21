@@ -1,3 +1,5 @@
+import { CalendarPanel } from './calendar';
+import { PersonActions } from './sections';
 import { TiesPanel } from './relations';
 import { WantsPanel } from './ambitions';
 import { CareerPanel, Followed, PinButton } from './careers';
@@ -12,7 +14,7 @@ import { absoluteCycle } from '../sim/time';
 import { ageOf } from '../sim/characters';
 import { displayName } from '../sim/names';
 import { councilOf, createWorld, SEAT_TITLE } from '../sim/world';
-import { dateParts, formatDate } from '../sim/time';
+import { formatDate } from '../sim/time';
 import { deserialize, SaveError, serialize } from '../sim/save';
 import {
   alive, familyHead, familyMembers, findSector, isCommoner, peopleAt, quartersOverseenBy,
@@ -112,8 +114,6 @@ function explore(world: World, see: (c: Character) => CharacterView): { key: str
 export function ThroneRoom() {
   const world = useWorld();
   const house = world.houses[world.playerHouseId]!;
-  const parts = dateParts(world.date);
-  const people = alive(world).filter((c) => c.houseId === house.id);
   const feed = [...world.feed].reverse().slice(0, 30);
   const see = useSee();
   const threads = explore(world, see);
@@ -121,28 +121,20 @@ export function ThroneRoom() {
 
   return (
     <>
-      <Title title="The Hall" sub="Your house at a glance. Every name, place and label is a door: hover for a preview, follow anything that catches your eye." />
+      <Title title="The Hall" sub="What needs you, what is coming, and the people you follow. Press / to find anything." />
       <div className="grid">
-        <HallPanel className="span-7" />
-        <div className="span-5 stack">
+        <div className="span-8 stack">
           <RaidPanel />
           <Desk />
+        </div>
+        <div className="span-4 stack">
+          <CalendarPanel />
           <CrucibleGlance />
           <OathSummary />
         </div>
         <Followed className="span-12" />
-        <CouncilTable className="span-7" />
-        <Panel title="This Orbit" aside={`Orbit ${parts.orbit} of 10 · SY-${parts.year}`} className="span-5">
-          <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <pre className="ascii" aria-label={`Phase ${parts.phase} of 5`}>{[1, 2, 3, 4, 5].map((p) => (p < parts.phase ? '█████' : p === parts.phase ? '▓▓▓▓▓' : '░░░░░')).join(' ')}{'\n'}{[1, 2, 3, 4, 5].map((p) => `PH ${p} `).join(' ')}</pre>
-            <dl className="kv">
-              <dt>House</dt><dd><HouseLink id={house.id} /></dd>
-              <dt>People of the house</dt><dd className="mono">{people.length}</dd>
-              <dt>Noble families</dt><dd className="mono">{Object.values(world.families).filter((f) => f.houseId === house.id && !isCommoner(f)).length}</dd>
-              <dt>Holdings</dt><dd><PlanetLink id={house.capitalPlanetId} /></dd>
-            </dl>
-          </div>
-        </Panel>
+        <HallPanel className="span-7" />
+        <CouncilTable className="span-5" />
         <div id="petitions" className="span-6"><Petitions /></div>
         <div id="ransoms" className="span-6"><RansomDemands /></div>
         <div id="leads" className="span-12"><LeadsPanel /></div>
@@ -326,7 +318,6 @@ export function CharacterPage({ id }: { id: string }) {
           <Go to={{ kind: 'log', person: c.id }} className="btn">Full record</Go>
           <Go to={{ kind: 'people', focus: c.id }} className="btn">Ties</Go>
           <PinButton id={c.id} />
-          {own && c.alive ? <Go to={{ kind: 'training' }} className="btn">Train</Go> : null}
           {c.alive && own && v.depth < KNOW.exact && c.seat !== 'highroy' ? (
             beingInvestigated ? null : <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn">Look into them</Go>
           ) : null}
@@ -334,6 +325,7 @@ export function CharacterPage({ id }: { id: string }) {
       </section>
 
       <div className="grid">
+        <PersonActions id={c.id} />
         <div className="span-8 stack">
         <section className="panel">
           <header><h3>Attributes</h3><span className="aside">1–20 · <span className="gold">17+</span> · <span style={{ color: 'var(--blue)' }}>13–16</span> · 8–12 · <span style={{ color: 'var(--orange)' }}>≤7</span></span></header>

@@ -2,6 +2,12 @@
 // that follows the house's state, the council as a table, and the Desk, where
 // everything waiting on the Highroy lands.
 import { readyForCommand } from '../sim/missions';
+import { answerChallenge } from '../sim/grounds';
+import { declineCircuit } from '../sim/circuit';
+import { answerIntake, answerPupilOffer, cannotTakeIntake } from '../sim/training';
+import { answerAsk } from '../sim/loans';
+import { dismissLead, recruit } from '../sim/discovery';
+import { ageOf } from '../sim/characters';
 import { useState, type ReactNode } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { AudienceCard } from './ambitions';
@@ -170,6 +176,7 @@ export function CouncilTable({ className }: { className?: string }) {
 
 // ---------------------------------------------------------------- the desk
 
+interface DeskAct { label: string; run: (w: World) => World; primary?: boolean; title?: string; disabled?: boolean }
 interface DeskItem {
   id: string;
   mark: string;
@@ -178,7 +185,13 @@ interface DeskItem {
   when?: string;
   quiet?: boolean;
   open: () => void;
+  /** Done right here, without leaving the Hall. */
+  acts?: DeskAct[];
 }
+
+type DeskTab = 'needs' | 'chances' | 'news';
+const NEEDS = new Set(['DECISION', 'AUDIENCE', 'PETITION', 'RAID', 'HELD', 'RANSOM', 'LOAN', 'DEFAULT', 'CAIGE', 'CRUCIBLE', 'CHALLENGE', 'INTAKE', 'PUPIL', 'INVITATION', 'WARD']);
+const tabOf = (k: string): DeskTab => (NEEDS.has(k) ? 'needs' : k === 'NEWS' ? 'news' : 'chances');
 
 function scrollTo(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -190,6 +203,8 @@ export function Desk({ className }: { className?: string }) {
   const nav = useNav();
   const P = world.playerHouseId;
   const [open, setOpen] = useState<string | null>(null);
+  const [tabPick, setTabPick] = useState<DeskTab | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   const items: DeskItem[] = [];
   for (const p of [...(world.events?.pending ?? [])].reverse()) {
     const m = p.missionId ? world.missions[p.missionId] : undefined;
@@ -231,10 +246,10 @@ export function Desk({ className }: { className?: string }) {
     items.push({ id: `r-${c.id}`, mark: '[$]', kind: 'RANSOM', text: <>{world.houses[cap.heldBy]?.name} holds {c.name.given} · {cap.ransom.amount.toLocaleString('en-US')}</>, when: inCycles(world, cap.ransom.expires), open: () => scrollTo('ransoms') });
   }
   for (const a of (world.loans?.asks ?? []).filter((x) => x.to === P)) {
-    items.push({ id: a.id, mark: '[$]', kind: 'LOAN', text: <>{world.houses[a.from]?.name} asks to borrow {a.amount.toLocaleString('en-US')}</>, when: inCycles(world, a.expires), open: () => nav.to({ kind: 'economy' }) });
+    items.push({ id: a.id, mark: '[$]', kind: 'LOAN', text: <>{world.houses[a.from]?.name} asks to borrow {a.amount.toLocaleString('en-US')}</>, when: inCycles(world, a.expires), open: () => nav.to({ kind: 'loans' }), acts: [{ label: 'Lend', primary: true, run: (w) => answerAsk(w, a.id, true) }, { label: 'Refuse', run: (w) => answerAsk(w, a.id, false) }] });
   }
   for (const l of Object.values(world.loans?.loans ?? {}).filter((x) => x.lender === P && x.overdue)) {
-    items.push({ id: `d-${l.id}`, mark: '[$]', kind: 'DEFAULT', text: <>{world.houses[l.borrower]?.name} has not paid · {l.owed.toLocaleString('en-US')}</>, open: () => nav.to({ kind: 'economy' }) });
+    items.push({ id: `d-${l.id}`, mark: '[$]', kind: 'DEFAULT', text: <>{world.houses[l.borrower]?.name} has not paid · {l.owed.toLocaleString('en-US')}</>, open: () => nav.to({ kind: 'loans' }) });
   }
   for (const c of Object.values(world.armoury ?? {}).filter((x) => x.houseId === P && x.vaultId && !x.bondedTo && (x.stability ?? 100) < 40)) {
     items.push({ id: `cg-${c.id}`, mark: '[~]', kind: 'CAIGE', text: <>{c.name} is {Math.round(c.stability ?? 0) < 15 ? 'failing' : 'unstable'} in the vault</>, open: () => nav.to({ kind: 'holdings', id: c.vaultId }) });
@@ -244,28 +259,36 @@ export function Desk({ className }: { className?: string }) {
   }
   for (const i of world.training?.intake ?? []) {
     const c = world.characters[i.studentId];
-    if (c) items.push({ id: i.id, mark: '[a]', kind: 'INTAKE', text: <>The academy brings forward {displayName(c.name)}</>, when: inCycles(world, i.expires), open: () => nav.to({ kind: 'training' }) });
+    if (c) {
+      const why = cannotTakeIntake(world, i.id) ?? undefined;
+      items.push({ id: i.id, mark: '[a]', kind: 'INTAKE', text: <>The academy brings forward {displayName(c.name)}, {Math.floor(ageOf(c, world.date))}</>, when: inCycles(world, i.expires), open: () => nav.to({ kind: 'training' }), acts: [
+        { label: 'Educate', primary: true, disabled: !!why, title: why, run: (w) => answerIntake(w, i.id, 'educate') },
+        { label: 'Train', primary: true, disabled: !!why, title: why, run: (w) => answerIntake(w, i.id, 'train') },
+        { label: 'Home', run: (w) => answerIntake(w, i.id, 'home') },
+      ] });
+    }
   }
   for (const o of world.training?.pupilOffers ?? []) {
     const c = world.characters[o.pupilId];
     const m = world.missions[o.missionId];
-    if (c && m) items.push({ id: o.id, mark: '[a]', kind: 'PUPIL', text: <>{world.characters[o.headId]?.name.given ?? 'The academy'} asks that {c.name.given} go with {world.characters[m.leaderId]?.name.given}</>, open: () => nav.to({ kind: 'mission', id: m.id }) });
+    if (c && m) items.push({ id: o.id, mark: '[a]', kind: 'PUPIL', text: <>{world.characters[o.headId]?.name.given ?? 'The academy'} asks that {c.name.given} go with {world.characters[m.leaderId]?.name.given}</>, open: () => nav.to({ kind: 'mission', id: m.id }), acts: [{ label: 'Send', primary: true, run: (w) => answerPupilOffer(w, o.id, true) }, { label: 'No', run: (w) => answerPupilOffer(w, o.id, false) }] });
   }
   for (const c of world.grounds?.challenges ?? []) {
     const a = world.characters[c.challenger];
     const b = world.characters[c.challenged];
-    if (a && b) items.push({ id: c.id, mark: '[!]', kind: 'CHALLENGE', text: <>{a.name.given} has challenged {b.name.given} over {c.cause}</>, when: inCycles(world, c.expires), open: () => nav.to({ kind: 'grounds' }) });
+    if (a && b) items.push({ id: c.id, mark: '[!]', kind: 'CHALLENGE', text: <>{a.name.given} has challenged {b.name.given} over {c.cause}</>, when: inCycles(world, c.expires), open: () => nav.to({ kind: 'knights' }), acts: [{ label: 'Allow', primary: true, run: (w) => answerChallenge(w, c.id, true) }, { label: 'Forbid', run: (w) => answerChallenge(w, c.id, false) }] });
   }
   for (const e of (world.grounds?.circuit ?? []).filter((x) => !x.done && x.host !== P && (x.invited?.includes(P) || x.kind === 'public') && !x.entrants.some((y) => y.houseId === P))) {
     const inv = e.invited?.includes(P);
-    items.push({ id: e.id, mark: '[»]', kind: inv ? 'INVITATION' : 'TOURNEY', text: <>{inv ? `House ${world.houses[e.host!]?.name} invites us: ` : ''}{e.name}</>, quiet: !inv, when: inCycles(world, e.held), open: () => nav.to({ kind: 'grounds' }) });
+    items.push({ id: e.id, mark: '[»]', kind: inv ? 'INVITATION' : 'TOURNEY', text: <>{inv ? `House ${world.houses[e.host!]?.name} invites us: ` : ''}{e.name}</>, quiet: !inv, when: inCycles(world, e.held), open: () => nav.to({ kind: 'grounds' }), acts: inv ? [{ label: 'Decline', run: (w) => declineCircuit(w, e.id) }] : undefined });
   }
   for (const c of readyForCommand(world, P).slice(0, 2)) {
     items.push({ id: `ready-${c.id}`, mark: '[*]', kind: 'READY', text: <>{c.name.given} is ready for a first command</>, quiet: true, open: () => nav.to({ kind: 'plan', mission: 'scout', leader: c.id }) });
   }
   for (const l of leadsOf(world, P)) {
     const who = l.proposal?.sponsorId ? world.characters[l.proposal.sponsorId] : undefined;
-    items.push({ id: l.id, mark: l.proposal ? '[*]' : '[i]', kind: l.proposal ? 'PROSPECT' : 'LEAD', text: l.proposal ? <>{who ? `${who.name.given} wants ` : 'Noticed: '}{l.title}</> : l.title, quiet: !l.proposal, when: inCycles(world, l.expires), open: () => scrollTo('leads') });
+    items.push({ id: l.id, mark: l.proposal ? '[*]' : '[i]', kind: l.proposal ? 'PROSPECT' : 'LEAD', text: l.proposal ? <>{who ? `${who.name.given} wants ` : 'Noticed: '}{l.title}</> : l.title, quiet: !l.proposal, when: inCycles(world, l.expires), open: () => scrollTo('leads'),
+      acts: l.kind === 'recruit' ? [{ label: `Take in · ${(l.cost ?? 0).toLocaleString('en-US')}`, primary: true, run: (w) => recruit(w, l.id) }, { label: 'Let go', run: (w) => dismissLead(w, l.id) }] : undefined });
   }
   const recent = world.feed.slice(-40).reverse().filter((e) => e.kind === 'mission' && e.missionId && world.missions[e.missionId]?.stage === 'done').slice(0, 2);
   for (const e of recent) {
@@ -278,25 +301,40 @@ export function Desk({ className }: { className?: string }) {
   const news = world.feed.filter((e) => e.id && !seen.has(e.id) && !shown.has(e.id) && absoluteCycle(e.date) >= since && e.type !== 'decision' && e.type !== 'raid' && e.type !== 'time' && e.type !== 'port' && e.type !== 'seizure'
     && ((classify(world, e).severity >= 2 && (e.who?.some((w) => world.characters[w.id]?.houseId === P) || e.houseIds?.includes(P)))
       || (classify(world, e).severity >= 1 && e.who?.some((w) => world.careers?.pinned.includes(w.id))))).slice(-6).reverse();
-  for (const e of news) items.push({ id: e.id!, mark: '[·]', kind: 'NEWS', text: e.text, quiet: true, open: () => { game.update((w) => ({ ...w, ambitions: { ...w.ambitions, seen: [...(w.ambitions.seen ?? []), e.id!].slice(-300) } })); nav.to({ kind: 'log', open: e.id }); } });
-  const pending = (world.ambitions?.audiences.length ?? 0) + (world.events?.pending.length ?? 0) + (world.courts[P]?.petitions.length ?? 0) + items.filter((i) => i.kind === 'RAID' || i.kind === 'HELD' || i.kind === 'LOAN' || i.kind === 'DEFAULT' || i.kind === 'CAIGE' || i.kind === 'WARD' || i.kind === 'CRUCIBLE' || i.kind === 'INTAKE' || i.kind === 'PUPIL' || i.kind === 'PROSPECT' || i.kind === 'CHALLENGE' || i.kind === 'INVITATION').length;
+  for (const e of news) items.push({ id: e.id!, mark: '[·]', kind: 'NEWS', text: e.text, quiet: true, open: () => { game.update((w) => ({ ...w, ambitions: { ...w.ambitions, seen: [...(w.ambitions.seen ?? []), e.id!].slice(-300) } })); nav.to({ kind: 'log', open: e.id }); },
+    acts: [{ label: 'Seen', run: (w) => ({ ...w, ambitions: { ...w.ambitions, seen: [...(w.ambitions.seen ?? []), e.id!].slice(-300) } }) }] });
   const opened = open ? world.events?.pending.find((p) => p.id === open) : undefined;
   const audience = open ? world.ambitions?.audiences.find((a) => a.id === open) : undefined;
   const clearNews = () => game.update((w) => ({ ...w, ambitions: { ...w.ambitions, seen: [...(w.ambitions.seen ?? []), ...news.map((e) => e.id!)].slice(-300) } }));
+  const counts: Record<DeskTab, number> = { needs: 0, chances: 0, news: 0 };
+  for (const it of items) counts[tabOf(it.kind)]++;
+  const tab: DeskTab = tabPick ?? (counts.needs ? 'needs' : counts.chances ? 'chances' : 'news');
+  const shownItems = items.filter((it) => tabOf(it.kind) === tab);
+  const act = (fn: (w: World) => World) => { setErr(null); game.update((w) => { try { return fn(w); } catch (e) { setErr((e as Error).message); return w; } }); };
+  const LABEL: Record<DeskTab, string> = { needs: 'Needs you', chances: 'Opportunities', news: 'News' };
   return (
-    <Panel title={<Term k="decision">The desk</Term>} aside={`${items.length} letters · ${pending} need you`} className={`major ${className ?? ''}`}>
-      {items.length === 0 ? <p className="body muted" style={{ margin: 0 }}>The desk is clear. Press Continue and the world will fill it.</p> : null}
-      <div style={{ display: 'flex', flexDirection: 'column', padding: '4px 4px 6px' }}>
-        {items.map((it) => (
-          <button key={it.id} type="button" className={`desk-item${it.quiet ? ' quiet' : ''}`} aria-pressed={open === it.id} onClick={it.open}>
-            <span>{it.mark}</span><span>{it.kind}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.text}</span><span className="when">{it.when ?? ''}</span>
-          </button>
+    <Panel title={<Term k="decision">The desk</Term>} aside={`${counts.needs} need you`} className={`major ${className ?? ''}`}>
+      <div className="desk-filters">
+        {(['needs', 'chances', 'news'] as DeskTab[]).map((t) => (
+          <button key={t} type="button" className="subtab" aria-current={tab === t ? 'page' : undefined} onClick={() => setTabPick(t)}>{LABEL[t]} ({counts[t]})</button>
+        ))}
+      </div>
+      {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
+      {shownItems.length === 0 ? <p className="body muted" style={{ margin: 0 }}>{tab === 'needs' ? 'Nothing needs you. Press Continue and the world will fill the desk.' : tab === 'chances' ? 'No openings just now.' : 'No news you have not seen.'}</p> : null}
+      <div className="desk-list">
+        {shownItems.map((it) => (
+          <div key={it.id} className="desk-row">
+            <button type="button" className={`desk-item${it.quiet ? ' quiet' : ''}`} aria-pressed={open === it.id} onClick={it.open} title="Open">
+              <span>{it.mark}</span><span>{it.kind}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.text}</span><span className="when">{it.when ?? ''}</span>
+            </button>
+            {it.acts ? <span className="desk-acts">{it.acts.map((a) => <button key={a.label} type="button" className={`btn small${a.primary ? ' primary' : ''}`} disabled={a.disabled} title={a.title} onClick={() => act(a.run)}>{a.label}</button>)}</span> : null}
+          </div>
         ))}
       </div>
       {opened ? <div style={{ borderTop: '1px solid var(--line)' }}><Decision p={opened} /></div> : null}
       {audience ? <div style={{ borderTop: '1px solid var(--line)' }}><AudienceCard au={audience} onDone={() => setOpen(null)} /></div> : null}
-      {news.length && !opened && !audience ? <div className="body" style={{ paddingTop: 0 }}><button type="button" className="btn small" onClick={clearNews}>Set the news aside ({news.length})</button></div> : null}
-      {opened || audience || items.length === 0 ? null : <p className="body keyhint" style={{ margin: 0, fontSize: 12 }}>Pick a letter to open it. Decisions left too long fall to the council, lapsing on the date shown.</p>}
+      {tab === 'news' && news.length && !opened && !audience ? <div className="body" style={{ paddingTop: 0 }}><button type="button" className="btn small" onClick={clearNews}>Set all the news aside ({news.length})</button></div> : null}
+      {opened || audience || shownItems.length === 0 ? null : <p className="body keyhint" style={{ margin: 0, fontSize: 12 }}>Act on a letter here, or open it for the whole story. Decisions left too long fall to the council on the date shown.</p>}
     </Panel>
   );
 }

@@ -35,7 +35,6 @@ function ours(world: World): Character[] {
 }
 
 export function TrainingPage({ id }: { id?: string }) {
-  void id;
   return (
     <>
       <div className="page-title">
@@ -45,10 +44,10 @@ export function TrainingPage({ id }: { id?: string }) {
       <div className="grid">
         <Intake className="span-12" />
         <UnderInstruction className="span-12" />
-        <Tutor className="span-6" />
+        <Tutor className="span-6" pick={id} />
         <Drill className="span-6" />
-        <Academies className="span-12" />
-        <Panel title="Wards" className="span-12"><p className="body" style={{ margin: 0 }}>Wards live with the house's young: <Go to={{ kind: 'people', view: 'young' }}>Relations › Younglings ›</Go></p></Panel>
+        <Academies className="span-12" pick={id} />
+        <Panel title="Wards" className="span-12"><p className="body" style={{ margin: 0 }}>Wards live with the house's young: <Go to={{ kind: 'people', view: 'young' }}>People › Younglings & wards ›</Go></p></Panel>
       </div>
     </>
   );
@@ -123,12 +122,12 @@ function UnderInstruction({ className }: { className?: string }) {
   );
 }
 
-function Tutor({ className }: { className?: string }) {
+function Tutor({ className, pick }: { className?: string; pick?: string }) {
   const world = useWorld();
   const { run, err } = usePlay();
   const people = ours(world).filter((c) => !isAway(world, c.id));
   const pupils = people.filter((c) => isYoungling(world, c));
-  const [student, setStudent] = useState('');
+  const [student, setStudent] = useState(pick && pupils.some((c) => c.id === pick) ? pick : '');
   const [subject, setSubject] = useState<Subject>('arms');
   const [tutor, setTutor] = useState('');
   const tutors = people.filter((c) => c.id !== student).sort((a, b) => teacherSkill(world, b.id, subject) - teacherSkill(world, a.id, subject)).slice(0, 8);
@@ -176,12 +175,12 @@ function Drill({ className }: { className?: string }) {
   );
 }
 
-function Academies({ className }: { className?: string }) {
+function Academies({ className, pick }: { className?: string; pick?: string }) {
   const world = useWorld();
   const { run, err } = usePlay();
   const P = world.playerHouseId;
   const mods = modulesOf(world, P, 'academy');
-  const [student, setStudent] = useState('');
+  const [student, setStudent] = useState(pick ?? '');
   const [subject, setSubject] = useState<Subject>('learning');
   const people = ours(world).filter((c) => !isAway(world, c.id) && !c.seat && academyAge(world, c));
   const wardsHere = Object.values(world.training.wards).filter((s) => s.host === P).map((s) => world.characters[s.wardId]!).filter(Boolean);

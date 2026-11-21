@@ -458,3 +458,32 @@ pre.ascii .inv, span.inv { background: var(--fg); color: #000; }
   .log-row { grid-template-columns: 70px 22px minmax(0, 1fr); }
   .log-row .type, .log-row .where { display: none; }
 }
+
+/* section tabs: the strip under each rail section */
+.subtabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--line); margin: -8px 0 4px; }
+.subtab { height: 32px; padding: 0 14px; background: #000; color: var(--fg-2); border: 0; border-bottom: 2px solid transparent; font: 12px var(--mono); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.subtab:hover { color: #fff; }
+.subtab[aria-current='page'] { color: #fff; border-bottom-color: var(--fg); font-weight: 700; }
+.rail button.utility { color: var(--muted); }
+.rail button.utility:first-of-type { margin-left: 0; }
+.rail .rail-gap { flex: 1; }
+
+/* the command bar */
+.command-veil { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50; display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; }
+.command { width: min(640px, calc(100vw - 32px)); background: #000; border: 1px solid var(--fg); display: flex; flex-direction: column; }
+.command input.text { border: 0; border-bottom: 1px solid var(--line); height: 44px; padding: 0 14px; font: 14px var(--mono); }
+.command-list { max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; }
+.command-item { display: flex; justify-content: space-between; gap: 12px; padding: 8px 14px; background: #000; color: var(--fg); border: 0; text-align: left; font: 13px var(--mono); }
+.command-item[aria-selected='true'] { background: var(--fg); color: #000; }
+.command-item[aria-selected='true'] .muted { color: #000; }
+
+/* the desk as an inbox */
+.desk-filters { display: flex; gap: 0; padding: 0 8px; border-bottom: 1px solid var(--line); }
+.desk-row { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #111; }
+.desk-row .desk-item { flex: 1; min-width: 0; }
+.desk-row .desk-acts { display: flex; gap: 4px; flex-shrink: 0; padding-right: 8px; }
+.desk-row .desk-acts .btn { height: 24px; padding: 0 8px; font-size: 11px; }
+.desk-list { display: flex; flex-direction: column; max-height: 460px; overflow-y: auto; padding: 4px 4px 6px; }
+.calendar { display: flex; flex-direction: column; }
+.calendar .row { font-size: 12px; gap: 10px; }
+.calendar time { width: 52px; flex-shrink: 0; color: var(--muted); font: 11px var(--mono); }
