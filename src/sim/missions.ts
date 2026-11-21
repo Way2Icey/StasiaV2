@@ -1,6 +1,7 @@
 // Missions: the house sends one of its people to do something somewhere.
 // Milestone 2 has two kinds: Investigate (look into a person) and Scout
 // (survey a world). Everything resolves turn by turn, deterministically.
+import { rivalsFrom } from './grounds';
 import { award, tally } from './careers';
 import { offerPupil, pupilsFor } from './training';
 import { logRecord } from './records';
@@ -732,6 +733,11 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
     if (m.houseId === world.playerHouseId) logRecord(world, { kind: 'world', type: 'world', severity: outcome === 'triumph' ? 2 : 1, text: `${displayName(leader.name)}, ${Math.floor(yr)}, comes home from a first command: ${outcome === 'triumph' ? 'a triumph, and the court knows it' : outcome === 'success' ? 'it went well' : outcome === 'partial' ? 'half of what was hoped' : outcome === 'failure' ? 'it came to nothing, and they know it' : 'a disaster they will carry'}.`, who: [{ id: leader.id, part: 'first command' }] });
   }
   afterMission(world, rng, [m.leaderId, ...(m.companions ?? [])], outcome);
+  // After a failure, someone gets the blame.
+  if (outcome === 'failure' && m.companions?.length && rng.chance(0.3)) {
+    const blamer = rng.pick(m.companions.filter((x) => world.characters[x]?.alive && world.characters[x]!.houseId === leader.houseId));
+    if (blamer) rivalsFrom(world, blamer, leader.id, `blames them for how the mission went`);
+  }
   if (outcome === 'triumph' || outcome === 'success') for (const id of [m.leaderId, ...(m.companions ?? [])]) addGlory(world, id, outcome === 'triumph' ? 2 : 1);
   for (const id of [m.leaderId, ...(m.companions ?? [])]) { tally(world, id, 'missions'); if (outcome === 'triumph') tally(world, id, 'triumphs'); }
   m.report = report(world, m, leader, outcome, rng);

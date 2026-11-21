@@ -40,6 +40,7 @@ export type Route =
   | { kind: 'loans' }
   | { kind: 'vaults' }
   | { kind: 'build' }
+  | { kind: 'spend' }
   | { kind: 'ship'; id: string }
   | { kind: 'log'; person?: string; place?: string; house?: string; open?: string };
 
@@ -54,7 +55,7 @@ export function sectionOf(r: Route): Section | null {
     case 'training': case 'character': case 'trait': case 'flag': case 'species': case 'band': case 'family': return 'people';
     case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': return 'arms';
     case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'houses': case 'house': case 'embassies': return 'realm';
-    case 'economy': case 'loans': case 'vaults': return 'treasury';
+    case 'economy': case 'loans': case 'vaults': case 'spend': return 'treasury';
     case 'missions': case 'mission': case 'plan': return 'missions';
     case 'log': return 'log';
     case 'save': return 'save';
@@ -111,6 +112,7 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'Ledger & exchange', to: { kind: 'economy' }, on: is('economy') },
     { label: 'Loans', to: { kind: 'loans' }, on: is('loans') },
     { label: 'Vaults', to: { kind: 'vaults' }, on: is('vaults') },
+    { label: 'Pay & great works', to: { kind: 'spend' }, on: is('spend') },
   ],
   missions: [
     { label: 'Board', to: { kind: 'missions' }, on: (r) => r.kind === 'missions' || r.kind === 'mission' },
@@ -169,6 +171,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'loans': return 'Loans';
     case 'vaults': return 'Vaults';
     case 'build': return 'Build';
+    case 'spend': return 'Pay & great works';
     case 'ship': return (world as unknown as { fleet?: { ships: Record<string, { name: string }> } }).fleet?.ships[r.id]?.name ?? 'Ship';
   }
 }

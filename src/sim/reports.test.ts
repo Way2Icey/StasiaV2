@@ -23,7 +23,10 @@ describe('council reports', () => {
     let w = structuredClone(createWorld());
     const P = w.playerHouseId;
     econ(w, P).stock.othes += 5000;
-    const c = Object.values(w.characters).find((x) => x.alive && x.houseId === P && x.tier === 'full' && !cannotKnight(w, x.id))!;
+    const cand = Object.values(w.characters).find((x) => x.alive && x.houseId === P && x.tier === 'full' && x.seat !== 'highroy' && x.role !== 'Knight' && !x.flags.some((f) => f.id === 'knighted'))!;
+    cand.flags.push({ id: 'blooded', since: w.date });
+    expect(cannotKnight(w, cand.id)).toBeNull();
+    const c = cand;
     w = knight(w, c.id);
     const letter = lettersFor(w).find((e) => e.quote?.from === c.id);
     expect(letter).toBeDefined();

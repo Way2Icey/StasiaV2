@@ -549,4 +549,5 @@ export interface World {
   crucible: import('./crucible').CrucibleState;
   grounds: import('./grounds').GroundsState;
   ladder: import('./ladder').LadderState;
+  treasury: import('./treasury').TreasuryState;
 }

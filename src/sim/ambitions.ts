@@ -1,6 +1,7 @@
 // Ambitions: what people want out of life, and what they do when they don't get it.
 // Everyone of note wants something: a seat, a ship, glory, love, a fortune, the wide Reaches.
 // Wants that go unmet sour into resentment; ours come to the Highroy in audience, and the Highroy must answer.
+import { rivalsFrom, sting } from './grounds';
 import { award, tally, titlesOf } from './careers';
 import { Rng } from './rng';
 import { displayName, shortName } from './names';
@@ -605,12 +606,15 @@ function otherHouse(w: World, rng: Rng, c: Character, a: Ambition) {
 
 export { COUNCIL as AMBITION_SEATS };
 
+const hashOf = (x: string) => { let h = 0; for (let i = 0; i < x.length; i++) h = (h * 31 + x.charCodeAt(i)) | 0; return h; };
+
 /** The Highroy knights someone in the hall: 300 othes and a ceremony. */
 export function cannotKnight(world: World, id: string): string | null {
   const c = world.characters[id];
   if (!c?.alive || c.houseId !== world.playerHouseId) return 'Not one of ours';
   if (world.ladder?.of[id] && world.ladder.of[id]!.stage !== 'blooded') return world.ladder.of[id]!.stage === 'pupil' ? 'Still a pupil' : 'Not yet blooded';
   if (c.flags.some((f) => f.id === 'retired')) return 'Retired from arms';
+  if (!c.flags.some((f) => f.id === 'blooded' || f.id === 'knighted') && c.role !== 'Knight') return 'Never blooded';
   if (c.role === 'Knight' || c.flags.some((f) => f.id === 'knighted') || titlesOf(world, id).some((t) => t.title.startsWith('Knighted'))) return 'Already a knight';
   if (c.seat) return 'A councillor';
   if (!adult(world, c)) return 'Too young';
@@ -635,6 +639,13 @@ export function knight(input: World, id: string): World {
   const a = w.ambitions.of[c.id];
   if (a?.kind === 'knight') satisfy(w, c, a, 'knighted in the hall');
   logRecord(w, { kind: 'world', type: 'world', severity: 2, seat: 'grandMaster', text: `${displayName(c.name)} kneels in the hall and rises a knight of the house.`, who: [{ id: c.id, part: 'knighted' }, ...(lord ? [{ id: lord, part: 'gave the accolade' }] : [])], effects: ['−300 othes'] });
+  // Those who waited longer feel passed over.
+  for (const [oid, r] of Object.entries(w.ladder?.of ?? {})) {
+    if (oid === c.id || r.stage !== 'blooded' || w.characters[oid]?.houseId !== w.playerHouseId) continue;
+    const mine = w.ladder.of[c.id];
+    if (mine && absoluteCycle(r.since) >= absoluteCycle(mine.since)) continue;
+    if (Math.abs(hashOf(oid + c.id)) % 2 === 0) { rivalsFrom(w, oid, c.id, `passed over for a knighthood that went to ${shortName(c.name)}`, 2); sting(w, oid, c.id, 'passed over'); }
+  }
   // A few days later, their letter: thanks, and what they mean to do.
   logRecord(w, { kind: 'world', type: 'world', severity: 2, seat: 'grandMaster', text: `A letter from ${displayName(c.name)}, newly knighted.`, quote: { from: c.id, text: oathOf(w, c) }, who: [{ id: c.id, part: 'wrote' }] });
   return w;
@@ -668,6 +679,7 @@ export function appointToSeat(input: World, seat: CouncilSeat, id: string): Worl
   if (c.seat === seat) return w;
   const old = seatHolder(w, c.houseId, seat);
   setSeat(w, c, seat);
+  for (const [oid, oa] of Object.entries(w.ambitions.of)) if (oid !== c.id && oa.kind === 'seat' && oa.target === seat && w.characters[oid]?.alive && w.characters[oid]!.houseId === w.playerHouseId) { rivalsFrom(w, oid, c.id, `wanted to be ${seatTitle(seat)} and saw it go to ${shortName(c.name)}`, 2); sting(w, oid, c.id, 'passed over for a seat'); }
   const a = w.ambitions.of[c.id];
   if (a?.kind === 'seat' && a.target === seat) satisfy(w, c, a, `named ${seatTitle(seat)}`);
   else { shiftMood(c, 5); }

@@ -26,6 +26,7 @@ import { HoldingsPage } from './holdings';
 import { CruciblePage } from './crucible';
 import { TrainingPage } from './training';
 import { GroundsPage } from './grounds';
+import { SpendPage } from './spend';
 import { BuildPage, EmbassiesPage, FleetPage, KnightsPage, LoansPage, railCount, SubTabs, VaultsPage } from './sections';
 import { CommandBar } from './command';
 import { ShipPage } from './fleet';
@@ -230,6 +231,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'loans': return <LoansPage />;
     case 'vaults': return <VaultsPage />;
     case 'build': return <BuildPage />;
+    case 'spend': return <SpendPage />;
     case 'ship': return <ShipPage key={route.id} id={route.id} />;
   }
 }

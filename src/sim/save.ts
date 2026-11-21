@@ -20,6 +20,7 @@ import { ensureCareers } from './careers';
 import { ensureCrucible } from './crucible';
 import { ensureGrounds } from './grounds';
 import { ensureLadder } from './ladder';
+import { ensureTreasury } from './treasury';
 import './eventDefs';
 
 export const SAVE_VERSION = 11;
@@ -111,5 +112,6 @@ export function deserialize(text: string): World {
   ensureCrucible(world);
   ensureGrounds(world);
   ensureLadder(world);
+  ensureTreasury(world);
   return world;
 }

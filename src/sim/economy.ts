@@ -115,9 +115,51 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
     lines.push({ resource: r, amount: v, label: 'Holdings beyond the capital', kind: 'quarter' });
   }
   if (people) lines.push({ resource: 'provisions', amount: -round(people / PEOPLE_PER_PROVISION), label: `Feeding ${people.toLocaleString('en-US')} people`, kind: 'food' });
+  const pay = PAY_SCALE[world.economy?.payScale ?? 'fair'];
+  const mult = houseId === world.playerHouseId ? pay.mult : 1;
   const seats = alive(world).filter((c) => c.houseId === houseId && c.seat && c.seat !== 'highroy').length;
-  if (seats) lines.push({ resource: 'othes', amount: -seats * STIPEND, label: `Council stipends (${seats})`, kind: 'stipend' });
+  if (seats) lines.push({ resource: 'othes', amount: -Math.round(seats * STIPEND * mult), label: `Council stipends (${seats})`, kind: 'stipend' });
+  // Knights are paid by their fame; the blooded get an allowance.
+  const knights = alive(world).filter((c) => c.houseId === houseId && c.tier === 'full' && (c.role === 'Knight' || c.flags.some((f) => f.id === 'knighted')) && !c.flags.some((f) => f.id === 'retired'));
+  if (knights.length) lines.push({ resource: 'othes', amount: -Math.round(knights.reduce((n, k) => n + stipendOf(world, k), 0) * mult), label: `Knights' stipends (${knights.length})`, kind: 'stipend' });
+  const blooded = Object.entries(world.ladder?.of ?? {}).filter(([id, r]) => r.stage === 'blooded' && world.characters[id]?.houseId === houseId).length;
+  if (blooded) lines.push({ resource: 'othes', amount: -Math.round(blooded * 8 * mult), label: `Allowances for the blooded (${blooded})`, kind: 'stipend' });
+  // What we own costs to keep.
+  let upkeep = 0;
+  let mods = 0;
+  for (const m of Object.values(world.holdings?.modules ?? {})) if (m.houseId === houseId && m.level > 0) { upkeep += m.level * (MODULE_UPKEEP[m.kind] ?? 20); mods++; }
+  const pupils = Object.values(world.training?.enrolments ?? {}).filter((e) => e.houseId === houseId && e.program === 'academy').length;
+  upkeep += pupils * 8;
+  if (upkeep) lines.push({ resource: 'othes', amount: -upkeep, label: `Upkeep of holdings (${mods})${pupils ? ` and ${pupils} academy places` : ''}`, kind: 'stipend' });
   return lines;
+}
+
+/** Per Phase, per level. */
+export const MODULE_UPKEEP: Record<string, number> = { cells: 30, vault: 45, academy: 90, base: 120, listening: 60, shipyard: 160, hangar: 40, brig: 10 };
+export const PAY_SCALE = {
+  meagre: { mult: 0.6, label: 'Meagre', note: 'Saves money. The famous resent it, and loyalty wears.' },
+  fair: { mult: 1, label: 'Fair', note: 'What the Reaches expect.' },
+  generous: { mult: 1.5, label: 'Generous', note: 'Costly. Knights stay, and some grow more loyal.' },
+} as const;
+
+/** What a knight is paid a Phase: a base, and more for every name they have made. */
+export function stipendOf(world: World, c: Character): number {
+  const t = world.careers?.titles[c.id]?.length ?? 0;
+  const won = Object.values(world.careers?.of[c.id] ?? {}).reduce((n, s) => n + (s.boutsWon ?? 0) + (s.duelsWon ?? 0) + (s.cDuelsWon ?? 0) * 2, 0);
+  const fame = t * 2 + won / 3;
+  return Math.round((30 + Math.min(40, fame) * 4) * (c.seat === 'champion' ? 1.5 : c.seat === 'grandMaster' ? 1.3 : 1));
+}
+
+export function fameOf(world: World, c: Character): number {
+  const t = world.careers?.titles[c.id]?.length ?? 0;
+  const won = Object.values(world.careers?.of[c.id] ?? {}).reduce((n, s) => n + (s.boutsWon ?? 0) + (s.duelsWon ?? 0) + (s.cDuelsWon ?? 0) * 2, 0);
+  return t * 2 + won / 3;
+}
+
+export function setPayScale(input: World, scale: 'meagre' | 'fair' | 'generous'): World {
+  const w = structuredClone(input);
+  w.economy.payScale = scale;
+  return w;
 }
 
 export function netPerPhase(lines: LedgerLine[]): Record<Resource, number> {

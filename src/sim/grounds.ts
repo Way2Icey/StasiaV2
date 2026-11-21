@@ -34,6 +34,8 @@ export interface GroundsState {
   /** When we last hosted a tourney for the circuit. */
   hosted?: GameDate;
   duels: { date: GameDate; bout: Bout; cause: string; sanctioned: boolean }[];
+  /** Finals lost, loser>winner → times. */
+  finals?: Record<string, number>;
   /** When someone last threw down a challenge, so grudges do not boil every Phase. */
   lastChallenge?: Record<string, GameDate>;
 }
@@ -132,6 +134,8 @@ export function callTourney(input: World): World {
     round = next;
   }
   const champ = w.characters[round[0]!]!;
+  const fin = rounds[rounds.length - 1]?.[0];
+  if (fin) noteFinal(w, fin.winner === fin.a ? fin.b : fin.a, fin.winner);
   const year = dateParts(w.date).year;
   award(w, champ.id, `Tourney champion, ${year}`);
   addGlory(w, champ.id, 2);
@@ -157,6 +161,39 @@ export function callTourney(input: World): World {
 
 // ---------------------------------------------------------------- challenges
 
+/** Pride stung by someone: for a while, a soldier will call them out without any older quarrel. */
+export function sting(world: World, id: string, by: string, why: string): void {
+  const c = world.characters[id];
+  if (!c?.alive || id === by) return;
+  c.flags = c.flags.filter((f) => f.id !== 'stung');
+  c.flags.push({ id: 'stung', since: world.date, until: addCycles(world.date, CYCLES_PER_PHASE * 6), detail: by, note: why } as never);
+}
+export function stungBy(c: Character): string | undefined {
+  return c.flags.find((f) => f.id === 'stung')?.detail;
+}
+
+/** Rivalries are made in moments: the same final lost twice, a place given to another, blame after a disaster. */
+export function rivalsFrom(world: World, a: string, b: string, why: string, severity: 1 | 2 = 1): void {
+  if (a === b || !world.characters[a]?.alive || !world.characters[b]?.alive) return;
+  const bond = bondOf(world, a, b);
+  if (bond === 'rival' || bond === 'feud' || bond === 'spouse' || bond === 'lover') return;
+  setBond(world, a, b, 'rival', 'rival', why);
+  shiftOpinion(world, a, b, -15, why);
+  const P = world.playerHouseId;
+  if (world.characters[a]!.houseId === P || world.characters[b]!.houseId === P)
+    logRecord(world, { kind: 'intrigue', type: 'intrigue', severity, seat: 'champion', text: `${displayName(world.characters[a]!.name)} and ${displayName(world.characters[b]!.name)} are rivals now: ${why}.`, who: [{ id: a, part: 'rival' }, { id: b, part: 'rival' }] });
+}
+
+/** A final lost to the same person twice is personal. */
+export function noteFinal(world: World, loser: string, winner: string): void {
+  ensureGrounds(world);
+  const k = `${loser}>${winner}`;
+  const f = (world.grounds.finals ??= {});
+  f[k] = (f[k] ?? 0) + 1;
+  if (f[k] === 2) rivalsFrom(world, loser, winner, 'lost two finals to them');
+  sting(world, loser, winner, 'lost a final to them');
+}
+
 /**
  * Who might throw down a challenge: the military only. Our soldiers against each other, or against
  * another house's soldiers they have a rivalry with (often made on the circuit), fought on neutral ground.
@@ -166,13 +203,13 @@ function grudges(world: World): [Character, Character, string, boolean][] {
   const here = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full' && !isAway(world, c.id) && oldEnough(world, c) && c.seat !== 'highroy' && isMilitary(world, c));
   const out: [Character, Character, string, boolean][] = [];
   for (const a of here) {
-    const foreign = Object.keys(world.ties?.[a.id] ?? {}).map((id) => world.characters[id]).filter((b): b is Character => !!b?.alive && b.houseId !== P && !!world.houses[b.houseId] && !isAway(world, b.id) && isMilitary(world, b));
+    const foreign = [...new Set([...Object.keys(world.ties?.[a.id] ?? {}), ...(stungBy(a) ? [stungBy(a)!] : [])])].map((id) => world.characters[id]).filter((b): b is Character => !!b?.alive && b.houseId !== P && !!world.houses[b.houseId] && !isAway(world, b.id) && isMilitary(world, b));
     for (const b of [...here, ...foreign]) {
       if (a.id === b.id || b.seat === 'highroy') continue;
-      if (b.houseId !== P && bondOf(world, a.id, b.id) !== 'rival' && bondOf(world, a.id, b.id) !== 'feud') continue;
+      if (b.houseId !== P && bondOf(world, a.id, b.id) !== 'rival' && bondOf(world, a.id, b.id) !== 'feud' && stungBy(a) !== b.id) continue;
       const bond = bondOf(world, a.id, b.id);
       const o = opinion(world, a.id, b.id);
-      const cause = bond === 'feud' ? 'an old feud' : bond === 'rival' ? 'their rivalry' : o <= -55 ? 'an insult that will not be let go' : '';
+      const cause = bond === 'feud' ? 'an old feud' : bond === 'rival' ? 'their rivalry' : stungBy(a) === b.id ? 'wounded pride' : o <= -55 ? 'an insult that will not be let go' : '';
       if (cause) out.push([a, b, cause, b.houseId !== P]);
     }
   }
@@ -195,7 +232,7 @@ export function advanceGrounds(world: World, rng: Rng, phaseTurned: boolean): vo
       const last = g.lastChallenge?.[a.id];
       if (last && now - absoluteCycle(last) < CYCLES_PER_ORBIT * 2) continue;
       // Fire in the blood: the proud and the bold throw down first.
-      const heat = (a.stats.valor + a.hidden.ambition) / 40 + (cause === 'an old feud' ? 0.15 : 0);
+      const heat = (a.stats.valor + a.hidden.ambition) / 40 + (cause === 'an old feud' ? 0.15 : 0) + (cause === 'wounded pride' ? 0.6 : 0);
       if (!rng.chance(0.07 * heat)) continue;
       g.challenges.push({ id: `ch${world.nextId++}`, challenger: a.id, challenged: b.id, cause, foreign, expires: addCycles(world.date, CYCLES_PER_PHASE) });
       g.lastChallenge![a.id] = world.date;

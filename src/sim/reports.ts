@@ -32,7 +32,8 @@ export function reporterOf(world: World, e: FeedEntry): Reporter {
   const t = e.text.toLowerCase();
   const P = world.playerHouseId;
   const ours = (e.who ?? []).some((x) => world.characters[x.id]?.houseId === P) || (e.characterIds ?? []).some((id) => world.characters[id]?.houseId === P) || !!e.houseIds?.includes(P);
-  if (e.type === 'economy' || has(t, 'othes', 'ledger', 'upkeep', 'stipend', 'loan', 'vault', 'exchange')) return ours ? 'steward' : 'heralds';
+  if (has(t, 'become friends', 'open rivals', 'are rivals now', 'no longer hides', 'think of the highroy', 'whispers', 'corridors', 'drift')) return 'spymaster';
+  if (e.type === 'economy' || has(t, 'ledger', 'upkeep', 'stipend', 'loan', 'vault', 'exchange', 'great work', 'finished. ')) return ours ? 'steward' : 'heralds';
   if (e.type === 'death' || e.kind === 'death' || has(t, 'wounded', 'wound', 'scar', 'fever', 'illness', 'infirmary', 'recover')) return ours ? 'physician' : 'heralds';
   if (has(t, 'caige', 'resonance', 'omen', 'shrine')) return ours ? 'masterOfRites' : 'heralds';
   if (has(t, 'academy', 'pupil', 'tutor', 'taught', 'trials', 'intake', 'ward', 'prospect', 'noticed', 'taken into the house')) return 'elder';
@@ -79,6 +80,7 @@ function hash(s: string): number {
 export function reaches(world: World, e: FeedEntry, sev: number): boolean {
   if (sev >= 2) return true;
   const r = reporterOf(world, e);
+  if (r === 'elder' && world.treasury?.works.some((x) => x.id === 'archive' && x.done)) return true;
   const c = competence(world, r);
   if (c === 0) return false;
   return hash(e.id ?? e.text) % 100 < 35 + c * 3.2;
@@ -101,7 +103,9 @@ export function noteOn(world: World, e: FeedEntry): { by?: string; text: string 
   const who = subj ? shortName(subj.name) : '';
   const pick = (xs: string[]) => xs[n % xs.length]!;
   let text: string;
-  if (subj && o >= 35) text = pick([`${who} has earned every word of this.`, `I think well of ${who}. This bears it out.`, `I would trust ${who} with more than this.`]);
+  const bad = /robbed|killed|dead|lost|fail|wound|defect|sworn to|left us|disaster|stolen|captured|ran dry|shortage|debt|escaped/i.test(e.text);
+  if (bad) text = stern ? pick(['It should not have happened. I will see that it does not again.', 'A failure, and someone will answer for it.', 'I take this badly, my lord, and so should you.']) : warm ? pick(['A hard thing. We will weather it.', 'I am sorry to be the one to bring it.', 'It hurts the house; it will not break it.']) : pick(['Bad news, plainly told.', 'I have nothing to soften it with.', 'As it was reported to me.']);
+  else if (subj && o >= 35) text = pick([`${who} has earned every word of this.`, `I think well of ${who}. This bears it out.`, `I would trust ${who} with more than this.`]);
   else if (subj && o <= -30) text = pick([`I would not read too much into it. ${who} talks a better fight than they give.`, `${who} will want credit for this. Give them less than they ask.`, `Mark it, but watch ${who}.`]);
   else if (stern) text = pick(['It is as it should be. Nothing more.', 'Adequate. The house expects no less.', 'Noted. I will hold them to it.']);
   else if (warm) text = pick(['Good news is rare enough; take this one.', 'It lifted the room when it came in.', 'A small thing, but it matters to them.']);

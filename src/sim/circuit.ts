@@ -16,8 +16,9 @@ import { addGlory, willOf } from './ambitions';
 import { award, tally, titlesOf } from './careers';
 import { listeningOn } from './holdings';
 import { noticeYouth } from './prospects';
-import { ensureGrounds, fighters, fightScore, isMilitary } from './grounds';
+import { ensureGrounds, fighters, fightScore, isMilitary, noteFinal, sting, stungBy } from './grounds';
 import { lastingWound, seasoned } from './ladder';
+import { hasWork } from './treasury';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, dateParts, type GameDate } from './time';
 import type { Character, World } from './types';
 
@@ -52,6 +53,8 @@ export interface CircuitEvent {
   done?: boolean;
   /** Whether word of it reached us. */
   heard?: boolean;
+  /** A call-out fought before the card. */
+  callout?: CBout & { why: string };
 }
 
 const VENUES = ['the Kessar Pits', 'the Drowned Ring', 'the Chain Yard', 'the Hollow Market pits', 'the Ash Cellar', 'the Rust Bowl', 'the Undertow', 'the Salt Pit', 'the Lantern Hole', 'the Furnace Ring'];
@@ -98,7 +101,7 @@ function schedule(world: World, rng: Rng, kind: CircuitKind, host?: string, invi
     id: `cv${world.nextId++}`, kind, name, host, planetId: place.planetId, sectorId: place.sectorId, announced: world.date,
     held: addCycles(world.date, CYCLES_PER_PHASE * phases), invited,
     shady: kind === 'underground' && rng.chance(0.45) ? rng.pick(SHADY) : undefined,
-    purse: kind === 'underground' ? 300 + Math.round(rng.next() * 1200) : kind === 'public' ? 2000 + Math.round(rng.next() * 3000) : kind === 'invitational' ? 3000 + Math.round(rng.next() * 2000) : 1500,
+    purse: kind === 'underground' ? 150 + Math.round(rng.next() * 450) : kind === 'public' ? 800 + Math.round(rng.next() * 1000) : kind === 'invitational' ? 1200 + Math.round(rng.next() * 800) : 600,
     entrants: [],
   };
   world.grounds.circuit.push(e);
@@ -188,7 +191,7 @@ export function hostTourney(input: World, kind: 'public' | 'invitational', invit
   if (why) throw new Error(why);
   if (kind === 'invitational' && !invited.length) throw new Error('Invite someone');
   const P = w.playerHouseId;
-  record(w, P, { resource: 'othes', amount: -HOST_COST, label: `Hosting ${kind === 'public' ? 'a public' : 'an invitational'} tourney`, kind: 'court' });
+  record(w, P, { resource: 'othes', amount: -(hasWork(w, 'arena') ? HOST_COST / 2 : HOST_COST), label: `Hosting ${kind === 'public' ? 'a public' : 'an invitational'} tourney`, kind: 'court' });
   w.grounds.hosted = w.date;
   const rng = new Rng(w.rng);
   const e = schedule(w, rng, kind, P, kind === 'invitational' ? invited : undefined)!;
@@ -226,6 +229,7 @@ function boutOf(world: World, rng: Rng, e: CircuitEvent, a: Entrant, b: Entrant,
     if (met >= 2 && !bondOf(world, L.id, W.id) && rng.chance(0.4)) setBond(world, L.id, W.id, 'rival', 'rival', 'kept meeting on the circuit');
   }
   if (W && out.killed && L) setBond(world, W.id, L.id, undefined, 'feud', 'a death on the circuit');
+  if (W && L?.alive && !out.killed && L.houseId !== W.houseId && isMilitary(world, L) && rng.chance(0.15)) sting(world, L.id, W.id, `beaten in front of a crowd at ${e.name}`);
   return out;
 }
 
@@ -238,6 +242,36 @@ function resolve(world: World, rng: Rng, e: CircuitEvent) {
   // Those who went, still standing.
   e.entrants = e.entrants.filter((x) => !x.id || (world.characters[x.id]?.alive && !world.characters[x.id]!.flags.some((f) => f.id === 'wounded')));
   const bouts: CBout[] = [];
+  // A call-out first: someone with a score against another on the card says so, in front of everyone.
+  if (e.kind !== 'pitnight') {
+    const real = e.entrants.filter((x) => x.id && world.characters[x.id]?.alive);
+    let done = false;
+    for (const a of real) {
+      if (done) break;
+      const A = world.characters[a.id!]!;
+      for (const b of real) {
+        const B = world.characters[b.id!]!;
+        if (a === b || A.houseId === B.houseId) continue;
+        const bond = bondOf(world, A.id, B.id);
+        if (bond !== 'rival' && bond !== 'feud' && stungBy(A) !== B.id) continue;
+        if (!rng.chance(0.5)) continue;
+        const why = bond === 'feud' ? 'an old feud' : bond === 'rival' ? 'their rivalry' : 'a beating they have not forgotten';
+        const ca = boutOf(world, rng, e, a, b, 0.3, 0.03);
+        A.flags = A.flags.filter((f) => f.id !== 'stung');
+        e.callout = { ...ca, why };
+        const N = (k: string) => entrantName(world, k);
+        const ours = A.houseId === P || B.houseId === P;
+        if (ours) e.heard = true;
+        logRecord(world, {
+          kind: 'world', type: 'fight', severity: 2, seat: ours ? 'champion' : 'heralds',
+          text: `At ${e.name}, ${N(A.id)} called out ${N(B.id)} over ${why}, before the whole crowd. ${N(ca.winner)} won${ca.killed ? `, and ${N(ca.killed)} is dead` : ca.hurt ? `; ${N(ca.hurt)} was hurt` : ''}.`,
+          who: [{ id: A.id, part: 'called out' }, { id: B.id, part: 'answered' }], placeId: e.sectorId, source: 'heralds',
+        });
+        done = true;
+        break;
+      }
+    }
+  }
   if (e.kind === 'underground') {
     const card = [...e.entrants, ...localsFor(rng, 4 + Math.floor(rng.next() * 5), 8, 16)];
     // Each of the houses' people fights twice, against whoever the promoter puts in front of them.
@@ -279,6 +313,8 @@ function resolve(world: World, rng: Rng, e: CircuitEvent) {
       round = next;
     }
     const champ = round[0];
+    const fin = bouts[bouts.length - 1];
+    if (fin && !isLocal(fin.a) && !isLocal(fin.b)) noteFinal(world, fin.winner === fin.a ? fin.b : fin.a, fin.winner);
     if (champ) {
       e.winner = champ.id ?? LOCAL + champ.name;
       if (champ.id && world.characters[champ.id]) {
@@ -286,7 +322,7 @@ function resolve(world: World, rng: Rng, e: CircuitEvent) {
         award(world, c.id, `Victor of ${e.name}, ${dateParts(world.date).year}`);
         addGlory(world, c.id, 2);
         if (!c.traits.some((t) => t.id === 'victorOf')) c.traits.push({ id: 'victorOf', detail: e.name });
-        if (world.houses[c.houseId]) { const st = world.houses[c.houseId]!.standing; st.respect = clamp(st.respect + 1, 0, 100); }
+        if (world.houses[c.houseId]) { const st = world.houses[c.houseId]!.standing; st.respect = clamp(st.respect + 2, 0, 100); }
       }
     }
     if (e.host && world.houses[e.host]) { const st = world.houses[e.host]!.standing; st.respect = clamp(st.respect + 1, 0, 100); }

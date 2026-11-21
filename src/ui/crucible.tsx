@@ -1,4 +1,5 @@
 // The Crucible on screen: the draw, our contingent, the battle world and who holds what.
+import { cannotFund, FUND_COST, fundBid } from '../sim/treasury';
 import { useState } from 'react';
 import { useGame, useWorld } from './context';
 import { HouseLink, Panel, PersonById, PersonLink } from './links';
@@ -128,6 +129,7 @@ function Orders({ className }: { className?: string }) {
           {others.map((h) => <option key={h} value={h}>{shortHouse(world, h)}{intelOn(world, h) >= 1 ? ` · ${doctrineOf(h).name}` : ''}</option>)}
         </select>
       </div>
+      <div className="actions" style={{ marginTop: 6 }}><button type="button" className="btn small" disabled={!!cannotFund(world)} title={cannotFund(world) ?? 'The best kit and provisions: about a twelfth stronger'} onClick={() => run(fundBid)}>{world.treasury?.funded.includes(world.crucible.year) ? 'Bid funded in full' : `Fund the bid in full · ${FUND_COST.toLocaleString('en-US')}`}</button></div>
       <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>{AIM_NOTE[plan.aim]} The house we study fights at a small disadvantage against us{plan.aim === 'bleed' ? ', and is the one we hunt' : ''}. Each round the Marshal sets our stance against whoever holds the ground we go for, unless you set it yourself.</p>
     </Panel>
   );

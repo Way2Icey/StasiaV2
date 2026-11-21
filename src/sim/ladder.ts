@@ -7,7 +7,7 @@ import { Rng } from './rng';
 import { displayName, shortName } from './names';
 import { ageOf } from './characters';
 import { SPECIES } from '../data/species';
-import { econ, record } from './economy';
+import { econ, fameOf, record } from './economy';
 import { logRecord } from './records';
 import { isAway } from './court';
 import { shiftMood } from './mood';
@@ -17,6 +17,8 @@ import { bondOf, opinion, shiftOpinion } from './relationships';
 import { addGlory } from './ambitions';
 import { award, titlesOf, totals, type Season } from './careers';
 import { competence } from './reports';
+import { rivalsFrom } from './grounds';
+import { hasWork } from './treasury';
 import { SUBJECTS, teacherSkill, type Subject } from './training';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, dateParts, type GameDate } from './time';
 import type { Character, StatId, World } from './types';
@@ -132,7 +134,7 @@ function holdTrials(world: World, rng: Rng) {
     const best = bestSubject(c);
     const t = mentorOf(world, id);
     const enrolled = Object.values(world.training?.enrolments ?? {}).some((e) => e.studentId === id);
-    const p = clamp(0.3 + (best.value - 8) * 0.06 + (enrolled ? 0.12 : 0) + teacherSkill(world, t?.id, best.subject) / 100 + r.failed * 0.08, 0.1, 0.95);
+    const p = clamp(0.3 + (best.value - 8) * 0.06 + (enrolled ? 0.12 : 0) + teacherSkill(world, t?.id, best.subject) / 100 + r.failed * 0.08 + (hasWork(world, 'archive') ? 0.1 : 0), 0.1, 0.95);
     if (rng.chance(p)) {
       r.stage = 'aspirant';
       r.since = world.date;
@@ -210,6 +212,11 @@ function bloodIn(w: World, c: Character, r: Rung, t: Character | undefined, choi
   if (choice === 'seat') { addGlory(w, c.id, 1); shiftMood(c, 5); }
   shiftMood(c, 8);
   award(w, c.id, `Blooded at ${sector}`);
+  // The teacher's other charges notice who went first.
+  if (t) for (const [oid, or] of Object.entries(w.ladder.of)) if (oid !== c.id && or.stage === 'aspirant' && mentorOf(w, oid)?.id === t.id && w.characters[oid]?.alive && (oid.charCodeAt(oid.length - 1) + c.id.charCodeAt(c.id.length - 1)) % 3 === 0) {
+    shiftOpinion(w, oid, t.id, -8, `put ${shortName(c.name)} forward first`);
+    rivalsFrom(w, oid, c.id, `${shortName(t.name)} put them forward first`);
+  }
   note(r, w, `blooded at ${sector} before ${came.length}`);
   const deed = titlesOf(w, c.id).filter((x) => !x.title.startsWith('Blooded')).slice(-1)[0]?.title;
   const words = t ? (deed ? `I have watched ${shortName(c.name)} since they were a pupil. ${deed}. They are ready.` : `I have watched ${shortName(c.name)} since they were a pupil. They are ready, and they know it.`) : undefined;
@@ -229,7 +236,8 @@ function bloodIn(w: World, c: Character, r: Rung, t: Character | undefined, choi
 export function seasoned(world: World, rng: Rng, id: string, won: boolean): void {
   const c = world.characters[id];
   if (!c?.alive) return;
-  if (!rng.chance(won ? 0.3 : 0.12)) return;
+  const home = c.houseId === world.playerHouseId && hasWork(world, 'arena') ? 1.3 : 1;
+  if (!rng.chance((won ? 0.3 : 0.12) * home)) return;
   const cap = 6 + c.hidden.potential * 0.7;
   const k = rng.pick(['duelling', 'agility', 'reflexes', 'valor', 'endurance'] as StatId[]);
   if (c.stats[k] < cap) c.stats[k] = Math.min(20, c.stats[k] + 1);
@@ -299,6 +307,9 @@ function churn(world: World, rng: Rng, orbitTurned: boolean, yearTurned: boolean
     }
     // Loyalty wears when they are unhappy, or ill paid.
     const ill = (world.economy?.payScale ?? 'fair') === 'meagre' && c.houseId === P;
+    // The famous know their worth; paid meanly, they sour.
+    if (ill && fameOf(world, c) >= 6) { shiftMood(c, -3); const a = world.ambitions?.of[c.id]; if (a) a.frustration = Math.min(100, a.frustration + 5); }
+    if ((world.economy?.payScale ?? 'fair') === 'generous' && c.houseId === P) shiftMood(c, 1);
     if (((c.mood ?? 50) < 35 || ill) && rng.chance(0.25)) c.hidden.loyalty = Math.max(1, c.hidden.loyalty - 1);
     if ((world.economy?.payScale ?? 'fair') === 'generous' && c.houseId === P && rng.chance(0.15)) c.hidden.loyalty = Math.min(20, c.hidden.loyalty + 1);
     const pull = pullOf(world, c);
@@ -348,7 +359,12 @@ export function advanceLadder(world: World, rng: Rng, orbitTurned: boolean): voi
     if (c.flags.some((f) => f.id === 'knighted') || c.seat) continue;
     const a = ageOf(c, world.date);
     if (a < trialAge(c)) L.of[c.id] = { stage: 'pupil', since: world.date, failed: 0, history: [] };
-    else if (a < SPECIES[c.species].adulthood * 1.3) L.of[c.id] = { stage: 'aspirant', since: world.date, failed: 0, base: totals(world, c.id), history: [{ date: world.date, what: 'counted among the aspirants' }] };
+    else if (a < SPECIES[c.species].adulthood * 1.3) {
+      // Grown already and handy with a blade: blooded before our time.
+      const blooded = a >= SPECIES[c.species].adulthood && fightOf(c) >= 10;
+      L.of[c.id] = { stage: blooded ? 'blooded' : 'aspirant', since: world.date, failed: 0, base: totals(world, c.id), history: [{ date: world.date, what: blooded ? 'already blooded' : 'counted among the aspirants' }] };
+      if (blooded && !c.flags.some((f) => f.id === 'blooded')) c.flags.push({ id: 'blooded', since: world.date });
+    }
   }
   // How they are growing.
   for (const id of Object.keys(L.of)) {

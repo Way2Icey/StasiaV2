@@ -5,6 +5,7 @@
 // men die, knights are wounded and some do not come home. It costs money, supplies, a ship and people,
 // and it is one avenue among many: a house is not drawn every year.
 import { lastingWound, seasoned } from './ladder';
+import { fundedEdge } from './treasury';
 import { Rng } from './rng';
 import { displayName, shortName } from './names';
 import { ageOf } from './characters';
@@ -317,7 +318,7 @@ const SITES: [string, PrizeKind, string][] = [
 function draw(w: World, rng: Rng) {
   const year = dateParts(w.date).year;
   const P = w.playerHouseId;
-  const real = Object.keys(w.houses).filter((h) => rng.chance(h === P ? 0.7 : 0.75));
+  const real = Object.keys(w.houses).filter((h) => rng.chance(h === P ? 0.7 : 0.75) || (h === P && w.treasury?.bribed === year));
   const n = 5 + Math.floor(rng.next() * 4);
   const guests = rng.shuffle([...GUEST_HOUSES]).slice(0, Math.max(0, n - real.length)).map((g) => g.id);
   const entrants = [...real, ...guests].slice(0, 8);
@@ -574,7 +575,7 @@ function championOf(w: World, c: Contingent): { score: number; id?: string; name
 export function strengthOf(w: World, c: Contingent): number {
   const men = Math.max(0, c.men - c.menLost);
   const kn = c.skill ? (c.names?.knights ?? 0) * KNIGHT_WEIGHT * (c.skill.knight / 12) : alive(w, c.knights).reduce((n, k) => n + KNIGHT_WEIGHT * (knightScore(k) / 12), 0);
-  return men + kn;
+  return (men + kn) * fundedEdge(w, c.houseId);
 }
 
 /** The Marshal's choice of where to strike. */
