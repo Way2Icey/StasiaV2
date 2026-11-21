@@ -1,6 +1,7 @@
 // The Hall: the home screen in the terminal look. A drawing of the throne room
 // that follows the house's state, the council as a table, and the Desk, where
 // everything waiting on the Highroy lands.
+import { readyForCommand } from '../sim/missions';
 import { useState, type ReactNode } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { AudienceCard } from './ambitions';
@@ -249,6 +250,9 @@ export function Desk({ className }: { className?: string }) {
     const c = world.characters[o.pupilId];
     const m = world.missions[o.missionId];
     if (c && m) items.push({ id: o.id, mark: '[a]', kind: 'PUPIL', text: <>{world.characters[o.headId]?.name.given ?? 'The academy'} asks that {c.name.given} go with {world.characters[m.leaderId]?.name.given}</>, open: () => nav.to({ kind: 'mission', id: m.id }) });
+  }
+  for (const c of readyForCommand(world, P).slice(0, 2)) {
+    items.push({ id: `ready-${c.id}`, mark: '[*]', kind: 'READY', text: <>{c.name.given} is ready for a first command</>, quiet: true, open: () => nav.to({ kind: 'missions' }) });
   }
   for (const l of leadsOf(world, P)) {
     const who = l.proposal?.sponsorId ? world.characters[l.proposal.sponsorId] : undefined;

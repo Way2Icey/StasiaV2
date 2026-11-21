@@ -1,12 +1,13 @@
 // Missions: the house sends one of its people to do something somewhere.
 // Milestone 2 has two kinds: Investigate (look into a person) and Scout
 // (survey a world). Everything resolves turn by turn, deterministically.
-import { tally } from './careers';
+import { award, tally } from './careers';
 import { offerPupil, pupilsFor } from './training';
 import { logRecord } from './records';
-import { afterMission, synergy } from './relationships';
+import { afterMission, kindredOf, shiftBoth, synergy } from './relationships';
 import { addGlory } from './ambitions';
 import { Rng } from './rng';
+import { isAway } from './court';
 import { ageOf } from './characters';
 import { displayName, shortName } from './names';
 import { findSector, seatHolder } from './query';
@@ -74,6 +75,22 @@ export function activeMissionOf(world: World, characterId: string): Mission | un
 
 /** Most people a leader can take along. */
 export const MAX_COMPANIONS = 2;
+/** Near-adults (this share of adulthood) may lead a first command, with someone seasoned alongside. */
+export const FIRST_COMMAND_AGE = 0.8;
+
+const isYoung = (world: World, c: Character) => ageOf(c, world.date) < SPECIES[c.species].adulthood;
+const hadFirstCommand = (world: World, c: Character) => (world.careers?.titles[c.id] ?? []).some((t) => t.title.startsWith('First command'));
+
+/** Young people our teachers think ready to lead something small. */
+export function readyForCommand(world: World, houseId: string): Character[] {
+  return Object.values(world.characters).filter((c) => {
+    if (!c.alive || c.houseId !== houseId || c.tier !== 'full' || hadFirstCommand(world, c)) return false;
+    const a = ageOf(c, world.date) / SPECIES[c.species].adulthood;
+    if (a < FIRST_COMMAND_AGE || a >= 1.2 || activeMissionOf(world, c.id)) return false;
+    const taught = Object.values(world.training?.enrolments ?? {}).some((e) => e.studentId === c.id) || Object.keys(world.careers?.of[c.id] ?? {}).length > 0;
+    return taught && (c.stats.leadership + c.stats.tactics + c.stats.perception) / 3 >= 8;
+  });
+}
 
 export function activeMissions(world: World, houseId?: string): Mission[] {
   return Object.values(world.missions)
@@ -100,7 +117,7 @@ export function availability(world: World, houseId: string, c: Character): Avail
   if (!c.alive) return no('Dead');
   if (c.houseId !== houseId) return no('Not of your house');
   if (c.tier !== 'full') return no('Not someone you can send');
-  if (ageOf(c, world.date) < SPECIES[c.species].adulthood) return no('Too young');
+  if (ageOf(c, world.date) < SPECIES[c.species].adulthood * FIRST_COMMAND_AGE) return no('Too young');
   if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing')) return no('Unaccounted for');
   if (activeMissionOf(world, c.id)) return no('Already on a mission');
   if (c.flags.some((f) => f.id === 'wounded')) return no('Wounded');
@@ -188,6 +205,10 @@ function resolveSpec(world: World, spec: MissionSpec, checkLeader = true): Resol
   }
   const companions = (spec.companions ?? []).map((id) => world.characters[id]).filter((c): c is Character => !!c);
   if (companions.length > MAX_COMPANIONS) return `At most ${MAX_COMPANIONS} can go with the leader.`;
+  if (checkLeader && isYoung(world, leader)) {
+    if (spec.kind === 'envoy') return 'Too young to speak for the house.';
+    if (!companions.some((c) => !isYoung(world, c))) return 'A first command needs someone seasoned alongside.';
+  }
   if (new Set([leader.id, ...companions.map((c) => c.id)]).size !== companions.length + 1) return 'Someone is listed twice.';
   if (checkLeader) {
     for (const c of companions) {
@@ -385,6 +406,19 @@ export function launchInPlace(world: World, spec: MissionSpec): string {
     leaderKnowsNoticed: false,
     log: [],
   };
+  // Kindred spirits seek each other out: if there is room, the leader's naturally comes along.
+  if (m.companions!.length < MAX_COMPANIONS) {
+    const inParty = new Set([...party.map((c) => c.id)]);
+    const k = kindredOf(world, r.leader.id, (c) => !inParty.has(c.id) && c.seat !== 'highroy' && !isYoung(world, c) && availability(world, spec.houseId, c).ok && !isAway(world, c.id));
+    const roll = Rng.fromSeed(`kin|${id}|${world.rng}`);
+    if (k && roll.chance(0.6)) {
+      m.companions!.push(k.c.id);
+      party.push(k.c);
+      m.log.push({ date: world.date, text: `${shortName(k.c.name)} comes too, unasked: they and ${shortName(r.leader.name)} are kindred spirits (${k.why}).` });
+      shiftBoth(world, r.leader.id, k.c.id, 3, `kindred spirits: ${k.why}`);
+    }
+  }
+  if (isYoung(world, r.leader) && !hadFirstCommand(world, r.leader)) m.log.push({ date: world.date, text: `${shortName(r.leader.name)}'s first command.` });
   // A teacher does not leave their pupils behind: their personal charges go too.
   const pupils = pupilsFor(world, party.map((c) => c.id));
   if (pupils.length) {
@@ -690,6 +724,13 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
   }
 
   findings.push(...pupilsLearn(world, rng, m, outcome));
+  // A first command, remembered whatever came of it.
+  const yr = ageOf(leader, world.date);
+  if (leader.houseId === m.houseId && !hadFirstCommand(world, leader) && yr < SPECIES[leader.species].adulthood * 1.2 && m.log.some((l) => /first command/.test(l.text))) {
+    award(world, leader.id, `First command (${outcome})`);
+    if (outcome === 'triumph' || outcome === 'success') { addGlory(world, leader.id, 1); shiftMood(leader, 6); }
+    if (m.houseId === world.playerHouseId) logRecord(world, { kind: 'world', type: 'world', severity: outcome === 'triumph' ? 2 : 1, text: `${displayName(leader.name)}, ${Math.floor(yr)}, comes home from a first command: ${outcome === 'triumph' ? 'a triumph, and the court knows it' : outcome === 'success' ? 'it went well' : outcome === 'partial' ? 'half of what was hoped' : outcome === 'failure' ? 'it came to nothing, and they know it' : 'a disaster they will carry'}.`, who: [{ id: leader.id, part: 'first command' }] });
+  }
   afterMission(world, rng, [m.leaderId, ...(m.companions ?? [])], outcome);
   if (outcome === 'triumph' || outcome === 'success') for (const id of [m.leaderId, ...(m.companions ?? [])]) addGlory(world, id, outcome === 'triumph' ? 2 : 1);
   for (const id of [m.leaderId, ...(m.companions ?? [])]) { tally(world, id, 'missions'); if (outcome === 'triumph') tally(world, id, 'triumphs'); }

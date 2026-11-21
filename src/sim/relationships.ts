@@ -1,6 +1,8 @@
 // Relationships: what people feel about each other. Every notable person can
 // hold a tie to another, with an opinion from -100 to +100 and, once it earns
 // one, a bond: friends, rivals, sworn knights, lovers, mentors, a blood feud.
+import { SUBJECTS } from './training';
+import { traitLabel } from '../data/traits';
 import { Rng } from './rng';
 import { displayName } from './names';
 import { isAway } from './court';
@@ -146,15 +148,58 @@ export function tiesOf(world: World, id: string): { other: string; out: number; 
     .sort((x, y) => Math.abs(y.out) + (y.bond ? 40 : 0) - (Math.abs(x.out) + (x.bond ? 40 : 0)));
 }
 
-/** Friends pull together; rivals drag. Used as a multiplier on a mission party. */
+/** Friends pull together; rivals drag; kindred spirits most of all. Used as a multiplier on a mission party. */
 export function synergy(world: World, ids: string[]): number {
   if (ids.length < 2) return 1;
   let sum = 0;
   let n = 0;
-  for (const a of ids) for (const b of ids) if (a !== b) { sum += opinion(world, a, b); n++; }
+  let kin = 0;
+  for (const a of ids) for (const b of ids) if (a !== b) { sum += opinion(world, a, b); n++; if (a < b && kindred(world, a, b)) kin++; }
   const avg = sum / n;
   const sworn = ids.some((a) => ids.some((b) => bondOf(world, a, b) === 'sworn'));
-  return clamp(1 + avg / 800 + (sworn ? 0.05 : 0), 0.85, 1.15);
+  return clamp(1 + avg / 800 + (sworn ? 0.05 : 0) + kin * 0.03, 0.85, 1.18);
+}
+
+/** The thing a person is best at, as a subject. */
+function bent(c: Character): string {
+  let best = '';
+  let v = -1;
+  for (const [k, def] of Object.entries(SUBJECTS)) {
+    const x = def.stats.reduce((n, s) => n + c.stats[s], 0) / def.stats.length;
+    if (x > v) { v = x; best = k; }
+  }
+  return best;
+}
+
+/**
+ * Kindred spirits: two people who like each other and share something real, a trait, a calling,
+ * or a teacher and the pupil they think well of. They seek each other out for work and do it better together.
+ * Returns what they share, or null.
+ */
+export function kindred(world: World, a: string, b: string): string | null {
+  const x = world.characters[a];
+  const y = world.characters[b];
+  if (!x?.alive || !y?.alive || x.houseId !== y.houseId) return null;
+  if (opinion(world, a, b) < 30 || opinion(world, b, a) < 30) return null;
+  const shared = x.traits.find((t) => y.traits.some((u) => u.id === t.id));
+  if (shared) return `both ${traitLabel(shared.id)}`;
+  const teach = Object.values(world.training?.enrolments ?? {}).find((e) => (e.teacherId === a && e.studentId === b) || (e.teacherId === b && e.studentId === a));
+  if (teach) return 'teacher and pupil';
+  const bx = bent(x);
+  if (bx === bent(y)) return `both given to ${SUBJECTS[bx as keyof typeof SUBJECTS].label.toLowerCase()}`;
+  return null;
+}
+
+/** Someone the leader would naturally bring: kindred, free, and willing. */
+export function kindredOf(world: World, id: string, ok: (c: Character) => boolean): { c: Character; why: string } | undefined {
+  const out: { c: Character; why: string; o: number }[] = [];
+  for (const other of Object.keys(world.ties?.[id] ?? {})) {
+    const c = world.characters[other];
+    if (!c || !ok(c)) continue;
+    const why = kindred(world, id, other);
+    if (why) out.push({ c, why, o: opinion(world, id, other) });
+  }
+  return out.sort((p, q) => q.o - p.o)[0];
 }
 
 // ---------------------------------------------------------------- the passage of time
