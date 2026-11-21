@@ -110,7 +110,7 @@ export function proofOf(world: World, id: string): number {
   const d = (k: keyof Season) => (now[k] ?? 0) - (b[k] ?? 0);
   const orbits = (absoluteCycle(world.date) - absoluteCycle(r.since)) / CYCLES_PER_ORBIT;
   return d('boutsWon') * 2 + d('duelsWon') * 3 + d('triumphs') * 3 + d('missions') + d('crucible') * 2 + d('crucibleWon') * 3
-    + d('rescues') * 3 + d('raidsRepelled') * 2 + d('titles') * 3 + orbits * 0.4;
+    + d('rescues') * 3 + d('raidsRepelled') * 2 + d('titles') * 3 + orbits * 0.25;
 }
 
 function note(r: Rung, world: World, what: string) {
@@ -134,7 +134,7 @@ function holdTrials(world: World, rng: Rng) {
     const best = bestSubject(c);
     const t = mentorOf(world, id);
     const enrolled = Object.values(world.training?.enrolments ?? {}).some((e) => e.studentId === id);
-    const p = clamp(0.3 + (best.value - 8) * 0.06 + (enrolled ? 0.12 : 0) + teacherSkill(world, t?.id, best.subject) / 100 + r.failed * 0.08 + (hasWork(world, 'archive') ? 0.1 : 0), 0.1, 0.95);
+    const p = clamp(0.4 + (best.value - 8) * 0.06 + (enrolled ? 0.12 : 0) + teacherSkill(world, t?.id, best.subject) / 100 + r.failed * 0.08 + (hasWork(world, 'archive') ? 0.1 : 0), 0.1, 0.95);
     if (rng.chance(p)) {
       r.stage = 'aspirant';
       r.since = world.date;
@@ -213,9 +213,12 @@ function bloodIn(w: World, c: Character, r: Rung, t: Character | undefined, choi
   shiftMood(c, 8);
   award(w, c.id, `Blooded at ${sector}`);
   // The teacher's other charges notice who went first.
-  if (t) for (const [oid, or] of Object.entries(w.ladder.of)) if (oid !== c.id && or.stage === 'aspirant' && mentorOf(w, oid)?.id === t.id && w.characters[oid]?.alive && (oid.charCodeAt(oid.length - 1) + c.id.charCodeAt(c.id.length - 1)) % 3 === 0) {
-    shiftOpinion(w, oid, t.id, -8, `put ${shortName(c.name)} forward first`);
-    rivalsFrom(w, oid, c.id, `${shortName(t.name)} put them forward first`);
+  // Only a teacher's own pupils, and at most one of them, take it personally.
+  const own = t ? Object.entries(w.ladder.of).filter(([oid, or]) => oid !== c.id && or.stage === 'aspirant' && w.characters[oid]?.alive && Object.values(w.training?.enrolments ?? {}).some((e) => e.studentId === oid && e.teacherId === t.id)) : [];
+  const jealous = own.find(([oid]) => (oid.charCodeAt(oid.length - 1) + c.id.charCodeAt(c.id.length - 1)) % 2 === 0);
+  if (t && jealous) {
+    shiftOpinion(w, jealous[0], t.id, -8, `put ${shortName(c.name)} forward first`);
+    rivalsFrom(w, jealous[0], c.id, `${shortName(t.name)} put them forward first`);
   }
   note(r, w, `blooded at ${sector} before ${came.length}`);
   const deed = titlesOf(w, c.id).filter((x) => !x.title.startsWith('Blooded')).slice(-1)[0]?.title;
@@ -382,6 +385,7 @@ export function advanceLadder(world: World, rng: Rng, orbitTurned: boolean): voi
   // The trials, once a year.
   if (d.orbit === 2 && L.trialsYear !== d.year) { L.trialsYear = d.year; holdTrials(world, rng); }
   // Teachers put aspirants forward.
+  const putForward = new Set<string>();
   for (const [id, r] of Object.entries(L.of)) {
     if (r.stage !== 'aspirant' || L.proposals.some((b) => b.aspirantId === id)) continue;
     const c = world.characters[id]!;
@@ -391,6 +395,11 @@ export function advanceLadder(world: World, rng: Rng, orbitTurned: boolean): voi
     const { bar } = sternness(t);
     const proof = proofOf(world, id);
     if (proof < bar) continue;
+    // A teacher puts forward one at a time, and not on time served alone.
+    if (t && putForward.has(t.id)) continue;
+    const r0 = world.ladder.of[id]!;
+    if (proof - ((absoluteCycle(world.date) - absoluteCycle(r0.since)) / CYCLES_PER_ORBIT) * 0.25 < 2) continue;
+    if (t) putForward.add(t.id);
     const readiness = proof < 10 ? 'early' : proof >= 18 ? 'overdue' : 'ready';
     L.proposals.push({ id: `bl${world.nextId++}`, aspirantId: id, teacherId: t?.id, readiness, expires: addCycles(world.date, CYCLES_PER_ORBIT) });
     if (world.ports) world.ports.alerts += 1;
