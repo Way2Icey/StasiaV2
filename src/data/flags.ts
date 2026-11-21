@@ -40,6 +40,7 @@ export const FLAGS: FlagDef[] = [
   { id: 'agent', label: 'Agent', kind: 'secret', visibility: 'secret', endsBy: 'Released by the Spymaster' },
   { id: 'travelling', label: 'Travelling', kind: 'condition', visibility: 'all', endsBy: 'Comes home when the trip is done' },
   { id: 'crucible', label: 'In the Crucible', kind: 'condition', visibility: 'all', endsBy: 'Their house is out, or the final is fought' },
+  { id: 'circuit', label: 'On the circuit', kind: 'condition', visibility: 'all', endsBy: 'The fights are over and they are home' },
   { id: 'aboard', label: 'At sea', kind: 'condition', visibility: 'all', endsBy: 'The ship comes home' },
   { id: 'turncoat', label: 'Turncoat', kind: 'relation', visibility: 'all', endsBy: 'Permanent' },
   { id: 'keeper', label: 'Vault keeper', kind: 'condition', visibility: 'all', endsBy: 'Relieved of the duty' },

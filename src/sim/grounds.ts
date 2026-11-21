@@ -9,9 +9,8 @@ import { econ, record } from './economy';
 import { logRecord } from './records';
 import { isAway } from './court';
 import { shiftMood } from './mood';
-import { shiftRelation, relation } from './relations';
+import { shiftRelation } from './relations';
 import { bondOf, opinion, setBond, shiftOpinion } from './relationships';
-import { ambassadorsAt } from './embassies';
 import { kill } from './death';
 import { addGlory } from './ambitions';
 import { award, tally } from './careers';
@@ -23,22 +22,27 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 export interface Bout { a: string; b: string; winner: string; hurt?: string; killed?: string }
 export interface TourneyResult { year: number; date: GameDate; rounds: Bout[][]; champion: string }
 export interface Challenge { id: string; challenger: string; challenged: string; cause: string; expires: GameDate; foreign?: boolean }
-export interface PitInvite { id: string; host: string; expires: GameDate }
-export interface PitNight { date: GameDate; host: string; bouts: Bout[] }
 
 export interface GroundsState {
   tourneys: TourneyResult[];
   challenges: Challenge[];
-  invites: PitInvite[];
-  pitNights: PitNight[];
+  /** The fight circuit across the Reaches: underground pits, tourneys, pit nights. */
+  circuit: import('./circuit').CircuitEvent[];
+  /** The Highroy forbids the house's people the underground pits. */
+  pitsForbidden?: boolean;
+  /** When we last hosted a tourney for the circuit. */
+  hosted?: GameDate;
   duels: { date: GameDate; bout: Bout; cause: string; sanctioned: boolean }[];
   /** When someone last threw down a challenge, so grudges do not boil every Phase. */
   lastChallenge?: Record<string, GameDate>;
 }
 
 export function ensureGrounds(world: World): void {
-  world.grounds ??= { tourneys: [], challenges: [], invites: [], pitNights: [], duels: [] };
+  world.grounds ??= { tourneys: [], challenges: [], circuit: [], duels: [] };
   world.grounds.lastChallenge ??= {};
+  world.grounds.circuit ??= [];
+  const old = world.grounds as unknown as { invites?: unknown; pitNights?: unknown };
+  delete old.invites; delete old.pitNights;
 }
 
 /** Skill with a blade in a ring. */
@@ -54,6 +58,15 @@ export function oldEnough(world: World, c: Character): boolean {
 export function fighters(world: World, houseId: string): Character[] {
   return Object.values(world.characters).filter((c) => c.alive && c.houseId === houseId && c.tier === 'full' && c.seat !== 'highroy'
     && oldEnough(world, c) && !isAway(world, c.id) && !c.flags.some((f) => f.id === 'wounded' || f.id === 'ill'));
+}
+
+/** Of the military: knights, the champion and Grand Master, ship captains, base commanders, those of arms by trade. */
+export function isMilitary(world: World, c: Character): boolean {
+  if (c.seat === 'champion' || c.seat === 'grandMaster') return true;
+  if (c.flags.some((f) => f.id === 'knighted') || /knight|soldier|sergeant|marshal|captain|commander|guard|warden/i.test(c.role)) return true;
+  if (Object.values(world.fleet?.ships ?? {}).some((s) => s.captainId === c.id && !s.lost)) return true;
+  if (Object.values(world.holdings?.modules ?? {}).some((m) => m.kind === 'base' && m.overseerId === c.id)) return true;
+  return false;
 }
 
 /** One bout. Blunted weapons hurt less; real ones kill. */
@@ -140,15 +153,19 @@ export function callTourney(input: World): World {
 
 // ---------------------------------------------------------------- challenges
 
-/** Who might throw down a challenge: rivals at the same court, ours and the ambassadors among us. */
+/**
+ * Who might throw down a challenge: the military only. Our soldiers against each other, or against
+ * another house's soldiers they have a rivalry with (often made on the circuit), fought on neutral ground.
+ */
 function grudges(world: World): [Character, Character, string, boolean][] {
   const P = world.playerHouseId;
-  const here = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full' && !isAway(world, c.id) && oldEnough(world, c) && c.seat !== 'highroy');
-  const guests = ambassadorsAt(world, P);
+  const here = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full' && !isAway(world, c.id) && oldEnough(world, c) && c.seat !== 'highroy' && isMilitary(world, c));
   const out: [Character, Character, string, boolean][] = [];
   for (const a of here) {
-    for (const b of [...here, ...guests]) {
+    const foreign = Object.keys(world.ties?.[a.id] ?? {}).map((id) => world.characters[id]).filter((b): b is Character => !!b?.alive && b.houseId !== P && !!world.houses[b.houseId] && !isAway(world, b.id) && isMilitary(world, b));
+    for (const b of [...here, ...foreign]) {
       if (a.id === b.id || b.seat === 'highroy') continue;
+      if (b.houseId !== P && bondOf(world, a.id, b.id) !== 'rival' && bondOf(world, a.id, b.id) !== 'feud') continue;
       const bond = bondOf(world, a.id, b.id);
       const o = opinion(world, a.id, b.id);
       const cause = bond === 'feud' ? 'an old feud' : bond === 'rival' ? 'their rivalry' : o <= -55 ? 'an insult that will not be let go' : '';
@@ -158,11 +175,10 @@ function grudges(world: World): [Character, Character, string, boolean][] {
   return out;
 }
 
-export function advanceGrounds(world: World, rng: Rng, phaseTurned: boolean, orbitTurned: boolean): void {
+export function advanceGrounds(world: World, rng: Rng, phaseTurned: boolean): void {
   ensureGrounds(world);
   const g = world.grounds;
   const now = absoluteCycle(world.date);
-  const P = world.playerHouseId;
   // Lapsed challenges: half the time they fight anyway, without leave.
   for (const c of g.challenges.filter((x) => absoluteCycle(x.expires) <= now)) {
     const a = world.characters[c.challenger];
@@ -170,7 +186,6 @@ export function advanceGrounds(world: World, rng: Rng, phaseTurned: boolean, orb
     if (a?.alive && b?.alive && !isAway(world, a.id) && !isAway(world, b.id) && rng.chance(0.5)) fightChallenge(world, rng, c, false);
   }
   g.challenges = g.challenges.filter((x) => absoluteCycle(x.expires) > now);
-  g.invites = g.invites.filter((x) => absoluteCycle(x.expires) > now);
   if (phaseTurned && !g.challenges.length) {
     for (const [a, b, cause, foreign] of rng.shuffle(grudges(world))) {
       const last = g.lastChallenge?.[a.id];
@@ -183,16 +198,6 @@ export function advanceGrounds(world: World, rng: Rng, phaseTurned: boolean, orb
       if (world.ports) world.ports.alerts += 1;
       logRecord(world, { kind: 'intrigue', type: 'intrigue', severity: 2, text: `${displayName(a.name)} has challenged ${displayName(b.name)}${foreign ? ` of House ${world.houses[b.houseId]!.name}` : ''} over ${cause}. The Highroy may allow it or forbid it.`, who: [{ id: a.id, part: 'challenger' }, { id: b.id, part: 'challenged' }] });
       break;
-    }
-  }
-  // Another house's pit night.
-  if (orbitTurned && !g.invites.length && rng.chance(0.3)) {
-    const hosts = Object.keys(world.houses).filter((h) => h !== P && relation(world, P, h) > -60 && fighters(world, h).length >= 3);
-    if (hosts.length) {
-      const host = rng.pick(hosts);
-      g.invites.push({ id: `pn${world.nextId++}`, host, expires: addCycles(world.date, CYCLES_PER_ORBIT / 2) });
-      if (world.ports) world.ports.alerts += 1;
-      logRecord(world, { kind: 'world', type: 'politics', severity: 1, text: `House ${world.houses[host]!.name} invites us to a pit night: three of ours against three of theirs, in their undercity, for the crowd and the name.`, houseIds: [host] });
     }
   }
 }
@@ -246,60 +251,3 @@ export function answerChallenge(input: World, id: string, allow: boolean): World
   return w;
 }
 
-// ---------------------------------------------------------------- pit nights
-
-export const PIT_SIDE = 3;
-
-export function cannotSendToPits(world: World, inviteId: string, ids: string[]): string | null {
-  const inv = world.grounds?.invites.find((x) => x.id === inviteId);
-  if (!inv) return 'The invitation has lapsed';
-  if (ids.length < 1 || ids.length > PIT_SIDE) return `Send one to ${PIT_SIDE}`;
-  const ok = new Set(fighters(world, world.playerHouseId).map((c) => c.id));
-  if (ids.some((id) => !ok.has(id))) return 'Someone named cannot fight';
-  return null;
-}
-
-export function answerPitNight(input: World, inviteId: string, ids: string[] | null): World {
-  const w = structuredClone(input);
-  ensureGrounds(w);
-  const inv = w.grounds.invites.find((x) => x.id === inviteId);
-  if (!inv) throw new Error('The invitation has lapsed');
-  const P = w.playerHouseId;
-  if (!ids) {
-    w.grounds.invites = w.grounds.invites.filter((x) => x.id !== inviteId);
-    shiftRelation(w, P, inv.host, -1);
-    logRecord(w, { kind: 'world', type: 'politics', severity: 0, text: `We decline House ${w.houses[inv.host]!.name}'s pit night. They will say we were afraid.`, houseIds: [inv.host] });
-    return w;
-  }
-  const why = cannotSendToPits(w, inviteId, ids);
-  if (why) throw new Error(why);
-  w.grounds.invites = w.grounds.invites.filter((x) => x.id !== inviteId);
-  const rng = new Rng(w.rng);
-  const theirs = fighters(w, inv.host).sort((a, b) => fightScore(b) - fightScore(a)).slice(0, PIT_SIDE);
-  const ours = ids.map((id) => w.characters[id]!);
-  const bouts: Bout[] = [];
-  let won = 0;
-  for (let i = 0; i < ours.length; i++) {
-    const foe = theirs[i] ?? theirs[0]!;
-    const b = bout(w, rng, ours[i]!, foe, 0.15, 0.01, `in House ${w.houses[inv.host]!.name}'s pits`);
-    bouts.push(b);
-    tally(w, b.a, 'bouts'); tally(w, b.b, 'bouts'); tally(w, b.winner, 'boutsWon');
-    if (b.winner === ours[i]!.id) { won++; addGlory(w, ours[i]!.id, 1); }
-  }
-  const lost = ours.length - won;
-  const st = w.houses[P]!.standing;
-  st.respect = clamp(st.respect + (won > lost ? 2 : won < lost ? -1 : 0), 0, 100);
-  shiftRelation(w, P, inv.host, bouts.some((b) => b.killed) ? -4 : 1);
-  w.grounds.pitNights.push({ date: w.date, host: inv.host, bouts });
-  const N = (id: string) => shortName(w.characters[id]!.name);
-  const young = ours.filter((c) => ageOf(c, w.date) < SPECIES[c.species].adulthood);
-  logRecord(w, {
-    kind: 'world', type: 'fight', severity: 2,
-    text: `Pit night in House ${w.houses[inv.host]!.name}'s undercity: we win ${won} of ${ours.length}.${young.length ? ` ${young.map((c) => shortName(c.name)).join(' and ')} fought though not yet of age.` : ''}`,
-    detail: bouts.map((b) => `${N(b.winner)} beat ${N(b.winner === b.a ? b.b : b.a)}${b.hurt ? ' (hurt)' : ''}${b.killed ? ' (killed)' : ''}`).join('\n'),
-    who: ours.map((c) => ({ id: c.id, part: bouts.find((b) => b.a === c.id)?.winner === c.id ? 'won' : 'lost' })),
-    houseIds: [inv.host],
-  });
-  w.rng = rng.state;
-  return w;
-}

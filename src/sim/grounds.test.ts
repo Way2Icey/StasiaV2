@@ -2,7 +2,8 @@ import { createWorld } from './world';
 import { advanceTurn } from './tick';
 import { deserialize, serialize } from './save';
 import { econ } from './economy';
-import { answerChallenge, answerPitNight, callTourney, cannotCallTourney, fighters, TOURNEY_COST } from './grounds';
+import { answerChallenge, callTourney, cannotCallTourney, fighters, isMilitary, TOURNEY_COST } from './grounds';
+import { cannotEnter, enterCircuit, knownEvents } from './circuit';
 import { setBond, kindred, opinion, shiftOpinion } from './relationships';
 import { availability, launchMission, readyForCommand, FIRST_COMMAND_AGE } from './missions';
 import { titlesOf } from './careers';
@@ -32,7 +33,9 @@ describe('challenges and pit nights', () => {
   it('rivals at court throw down challenges; allowed, they fight', () => {
     let w = structuredClone(createWorld());
     const P = w.playerHouseId;
-    const [a, b] = fighters(w, P);
+    const [a, b] = fighters(w, P).filter((c) => isMilitary(w, c));
+    const courtier = fighters(w, P).find((c) => !isMilitary(w, c))!;
+    setBond(w, courtier.id, a!.id, 'feud', 'feud', 'test');
     setBond(w, a!.id, b!.id, 'feud', 'feud', 'test');
     a!.stats.valor = 20; a!.hidden.ambition = 20;
     for (let i = 0; i < 400 && !w.grounds.challenges.length; i++) w = step(w);
@@ -42,17 +45,34 @@ describe('challenges and pit nights', () => {
     expect(w.grounds.challenges.length).toBe(0);
     expect(w.grounds.duels.length).toBe(1);
     expect([c.challenger, c.challenged]).toContain(w.grounds.duels[0]!.bout.winner);
+    expect([c.challenger, c.challenged]).not.toContain(courtier.id);
   });
 
-  it('another house invites us to a pit night; we send three', () => {
+  it('the circuit runs on its own: cards, tourneys, our people going, and word coming home', () => {
     let w = structuredClone(createWorld());
     const P = w.playerHouseId;
-    for (let i = 0; i < 600 && !w.grounds.invites.length; i++) w = step(w);
-    expect(w.grounds.invites.length).toBe(1);
-    const ours = fighters(w, P).slice(0, 3).map((c) => c.id);
-    w = answerPitNight(w, w.grounds.invites[0]!.id, ours);
-    expect(w.grounds.pitNights[0]!.bouts.length).toBe(3);
-    expect(w.grounds.invites.length).toBe(0);
+    let sent = false;
+    for (let i = 0; i < 900; i++) {
+      w = step(w);
+      if (!sent) {
+        const e = w.grounds.circuit.find((x) => !x.done && x.kind === 'public');
+        if (e) {
+          const ids = fighters(w, P).slice(0, 2).map((c) => c.id);
+          if (!cannotEnter(w, e.id, ids)) { w = enterCircuit(w, e.id, ids); sent = true; }
+        }
+      }
+    }
+    const done = w.grounds.circuit.filter((e) => e.done);
+    expect(done.some((e) => e.kind === 'underground')).toBe(true);
+    expect(done.some((e) => e.kind === 'public')).toBe(true);
+    expect(sent).toBe(true);
+    // We hear about some of it, not all of it.
+    const heard = knownEvents(w).filter((e) => e.done);
+    expect(heard.length).toBeGreaterThan(0);
+    expect(heard.length).toBeLessThan(done.length);
+    // Someone of ours went somewhere on their own.
+    expect(w.grounds.circuit.some((e) => e.entrants.some((x) => x.houseId === P && !x.sent))).toBe(true);
+    expect(deserialize(serialize(w)).grounds).toEqual(w.grounds);
   });
 });
 
