@@ -6,6 +6,7 @@ import {
   BATTLE_WORLD, cannotEnter, championScore, CLOSES, contingentCost, contingentPeople, COST_FUEL, COST_PROVISIONS, currentRound, DRAW_ORBIT, eligible,
   enterCrucible, FORCE, houseLabel, KNIGHT_WEIGHT, knightScore, marshalScore, MAX_KNIGHTS, menFor, ROUND_ORBITS, setStance, shortHouse, STANCE_LABEL,
   STANCE_NOTE, standings, strengthOf, troopsOf, type Contingent, type Stance,
+  AGENTS_COST, AIM_LABEL, AIM_NOTE, cannotSendAgents, doctrineOf, foeActive, intelOn, reportOn, sendAgents, setPlan, type Aim,
 } from '../sim/crucible';
 import { dateParts } from '../sim/time';
 import { econ } from '../sim/economy';
@@ -51,7 +52,10 @@ export function CruciblePage() {
         <p>The houses' answer to having no war. Each year five to eight houses are drawn to {BATTLE_WORLD}. Every house fields one champion and {FORCE} men's worth of troops, where a knight counts as {KNIGHT_WEIGHT} men, with a Marshal directing from orbit. They fight over the battle world's sites and the prizes in them. The battles are real. {stage}</p>
       </div>
       <div className="grid">
+        {cr.stage === 'drawn' && cr.entrants.includes(P) ? <Reports className="span-12" /> : null}
+        {cr.stage === 'drawn' && cr.entrants.includes(P) ? <Orders className="span-12" /> : null}
         {cr.stage === 'drawn' && cr.entrants.includes(P) && !ours ? <Muster className="span-12" /> : null}
+        {cr.stage !== 'drawn' && (cr.nemeses ?? []).some((n) => !n.settled) ? <Scores className="span-12" /> : null}
         {cr.stage === 'campaign' && ours && !ours.out && currentRound(world) ? <StancePicker className="span-12" /> : null}
         {cr.stage !== 'quiet' && cr.locations.length ? <BattleWorld className="span-7" /> : null}
         {Object.keys(cr.table).length ? <Table className="span-5" /> : null}
@@ -69,6 +73,79 @@ export function CruciblePage() {
         </Panel>
       </div>
     </>
+  );
+}
+
+/** What our people can tell us about each house drawn with us. */
+function Reports({ className }: { className?: string }) {
+  const world = useWorld();
+  const { run, err } = usePlay();
+  const P = world.playerHouseId;
+  const others = world.crucible.entrants.filter((h) => h !== P);
+  const LV = ['Nothing but rumour', 'Their habits', 'Their people', 'Their numbers'];
+  return (
+    <Panel title="Reports on the drawn houses" aside="Before we sail" className={className}>
+      <p className="body muted" style={{ margin: '0 0 8px', fontSize: 12 }}>What we know comes from the Spymaster, from our ambassadors in their capitals, from having met them here before, and from agents sent to watch them ({AGENTS_COST} othes a house). A Marshal who knows a house's habits can set the stance that beats them.</p>
+      {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
+        {others.map((h) => {
+          const r = reportOn(world, h);
+          const why = cannotSendAgents(world, h);
+          return (
+            <div key={h} className="petition" style={{ border: '1px solid var(--line)', padding: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span><strong>{houseLink(world, h)}</strong> <span className="mono muted" style={{ fontSize: 11 }}>[{'■'.repeat(r.level)}{'□'.repeat(3 - r.level)}] {LV[r.level]}</span></span>
+              {r.doctrine ? <span><em>{r.doctrine.name}.</em> <span className="muted">{r.doctrine.text}</span></span> : <span className="muted">We know nothing of how they fight.</span>}
+              {r.marshal ? <span className="muted">Marshal: {r.marshal.id ? <PersonById id={r.marshal.id} /> : r.marshal.name} · {r.marshal.read}</span> : null}
+              {r.champion ? <span className="muted">Champion: {r.champion.id ? <PersonById id={r.champion.id} /> : r.champion.name} · {r.champion.read} · {r.champion.record}</span> : null}
+              {r.knights ? <span className="muted">Usually {r.knights}.</span> : null}
+              {r.leaning ? <span className="mono muted" style={{ fontSize: 11 }}>{r.leaning}</span> : null}
+              {r.scores.map((n) => <span key={n.foeKey + n.victimId} className="error" style={{ fontSize: 12 }}>A score to settle: {n.foeName} {n.what} <PersonById id={n.victimId} /> in {n.year}.</span>)}
+              {r.level < 3 ? <button type="button" className="btn small" style={{ alignSelf: 'flex-start', marginTop: 4 }} disabled={!!why} title={why ?? ''} onClick={() => run((w) => sendAgents(w, h))}>Send agents · {AGENTS_COST}</button> : null}
+            </div>
+          );
+        })}
+      </div>
+    </Panel>
+  );
+}
+
+/** The Marshal's orders: what we are there for, and whom we have studied. */
+function Orders({ className }: { className?: string }) {
+  const world = useWorld();
+  const { run } = usePlay();
+  const P = world.playerHouseId;
+  const plan = world.crucible.plan ?? { aim: 'hold' as Aim };
+  const others = world.crucible.entrants.filter((h) => h !== P);
+  return (
+    <Panel title="Orders to the Marshal" aside="Can change until landfall" className={className}>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        {(Object.keys(AIM_LABEL) as Aim[]).map((a) => (
+          <button key={a} type="button" className={`btn small${plan.aim === a ? ' primary' : ''}`} title={AIM_NOTE[a]} onClick={() => run((w) => setPlan(w, { ...plan, aim: a }))}>{AIM_LABEL[a]}</button>
+        ))}
+        <span className="muted" style={{ marginLeft: 8 }}>Study and counter:</span>
+        <select value={plan.counter ?? ''} onChange={(e) => run((w) => setPlan(w, { ...plan, counter: e.target.value || undefined }))}>
+          <option value="">No one in particular</option>
+          {others.map((h) => <option key={h} value={h}>{shortHouse(world, h)}{intelOn(world, h) >= 1 ? ` · ${doctrineOf(h).name}` : ''}</option>)}
+        </select>
+      </div>
+      <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>{AIM_NOTE[plan.aim]} The house we study fights at a small disadvantage against us{plan.aim === 'bleed' ? ', and is the one we hunt' : ''}. Each round the Marshal sets our stance against whoever holds the ground we go for, unless you set it yourself.</p>
+    </Panel>
+  );
+}
+
+/** Old scores, between Crucibles. */
+function Scores({ className }: { className?: string }) {
+  const world = useWorld();
+  const open = (world.crucible.nemeses ?? []).filter((n) => !n.settled);
+  return (
+    <Panel title="Scores to settle" aside={`${open.length}`} className={className}>
+      {open.map((n) => (
+        <div key={n.foeKey + n.victimId} className="row" style={{ gap: 8 }}>
+          <span style={{ flex: 1 }}>{n.foeName} of {shortHouse(world, n.foeHouse)} {n.what} <PersonById id={n.victimId} /> in {n.year}.</span>
+          <span className="muted">{foeActive(world, n) ? 'Still fighting' : 'Gone from the field'}</span>
+        </div>
+      ))}
+    </Panel>
   );
 }
 
@@ -130,7 +207,7 @@ export function StancePicker({ className }: { className?: string }) {
   const mine = r.stance[world.playerHouseId];
   return (
     <Panel title={`Orbit ${r.orbit}: the Marshal's stance`} aside="the Marshal chooses where to strike" className={className}>
-      <p className="body muted" style={{ margin: 0 }}>Each stance beats one and loses to another. Where the force goes is the Marshal's call for now.</p>
+      <p className="body muted" style={{ margin: 0 }}>Each stance beats one and loses to another. {mine ? 'You have set it.' : 'Left alone, the Marshal sets it against whoever holds the ground we go for, as well as our reports allow.'}</p>
       <div className="actions body">
         {(['bold', 'measured', 'cunning'] as Stance[]).map((s) => (
           <button key={s} type="button" className="btn option" aria-pressed={mine === s} onClick={() => run((w) => setStance(w, s))} style={{ textAlign: 'left', display: 'grid', gap: 2, maxWidth: 340, whiteSpace: 'normal', height: 'auto' }}>

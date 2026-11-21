@@ -63,9 +63,58 @@ export const GUEST_HOUSES: { id: string; name: string; might: number }[] = [
   { id: 'g-ilthane', name: 'Ilthane', might: 1.1 },
 ];
 
+// ---------------------------------------------------------------- doctrines
+
+/** How a house tends to fight its Crucible. A Marshal who knows it can counter it. */
+export type Aim = 'riches' | 'hold' | 'bleed';
+export const AIM_LABEL: Record<Aim, string> = { riches: 'Seize the riches', hold: 'Hold what we take', bleed: 'Bleed a rival' };
+export const AIM_NOTE: Record<Aim, string> = {
+  riches: 'Go where the prizes are richest, whoever holds them.',
+  hold: 'Take a few sites and refuse to give them up.',
+  bleed: 'Hunt one house\'s force wherever it goes.',
+};
+export interface Doctrine {
+  name: string;
+  text: string;
+  /** How often they choose each stance. */
+  stance: Record<Stance, number>;
+  /** How many knights they tend to field. */
+  knights: [number, number];
+  aim: Aim;
+  /** What they do best. */
+  edge?: 'duel' | 'defend' | 'raid';
+}
+export const DOCTRINES: Record<string, Doctrine> = {
+  alerion: { name: 'The Long Line', text: 'Discipline and patience: a measured line that gives ground slowly and takes it back.', stance: { bold: 2, measured: 5, cunning: 3 }, knights: [3, 6], aim: 'hold', edge: 'defend' },
+  torvann: { name: 'The Iron Tide', text: 'Everything forward at once, knights at the front. Their champions want the duel more than the site.', stance: { bold: 6, measured: 2, cunning: 2 }, knights: [6, 10], aim: 'bleed', edge: 'duel' },
+  serath: { name: 'The Wolf Run', text: 'Fast and everywhere: they take what is left unguarded and are gone before the line forms.', stance: { bold: 2, measured: 1, cunning: 6 }, knights: [1, 4], aim: 'riches', edge: 'raid' },
+  shaaliin: { name: 'The Choir', text: 'They choose a ground and sing it closed. Hard to move once they are dug in.', stance: { bold: 1, measured: 6, cunning: 3 }, knights: [2, 5], aim: 'hold', edge: 'defend' },
+  'g-lumen': { name: 'The Bright Hand', text: 'Old money and the best-drilled host in the Archon: rich, confident, and usually first to the treasury.', stance: { bold: 4, measured: 4, cunning: 2 }, knights: [4, 8], aim: 'riches', edge: 'duel' },
+  'g-veyr': { name: 'The Knife Wind', text: 'Feints, false retreats and night marches.', stance: { bold: 2, measured: 2, cunning: 6 }, knights: [2, 5], aim: 'bleed', edge: 'raid' },
+  'g-ostrava': { name: 'The Anvil', text: 'Slow, heavy and hard to kill.', stance: { bold: 2, measured: 6, cunning: 2 }, knights: [5, 9], aim: 'hold', edge: 'defend' },
+  'g-caldrenne': { name: 'The Gilded Charge', text: 'One great blow, led by the champion, and damn the cost.', stance: { bold: 6, measured: 1, cunning: 3 }, knights: [5, 10], aim: 'riches', edge: 'duel' },
+  'g-mhoro': { name: 'The Tidewatch', text: 'They wait for others to bleed each other, then take the remains.', stance: { bold: 1, measured: 4, cunning: 5 }, knights: [1, 4], aim: 'riches', edge: 'raid' },
+  'g-ilthane': { name: 'The Glass Wall', text: 'Precise, cold and patient; they rarely lose a site they mean to keep.', stance: { bold: 2, measured: 5, cunning: 3 }, knights: [3, 7], aim: 'hold', edge: 'defend' },
+};
+const FALLBACK: Doctrine = { name: 'No set doctrine', text: 'They fight as the day takes them.', stance: { bold: 1, measured: 1, cunning: 1 }, knights: [0, MAX_KNIGHTS], aim: 'riches' };
+export function doctrineOf(houseId: string): Doctrine { return DOCTRINES[houseId] ?? FALLBACK; }
+export function likelyStance(d: Doctrine): Stance { return (Object.entries(d.stance) as [Stance, number][]).sort((a, b) => b[1] - a[1])[0]![0]; }
+/** The stance that beats this one. */
+export function counterTo(s: Stance): Stance { return (Object.keys(BEATS) as Stance[]).find((k) => BEATS[k] === s)!; }
+
 const GIVEN = ['Aster', 'Corven', 'Ysolde', 'Marrek', 'Tavin', 'Oriel', 'Daska', 'Bren', 'Lio', 'Hesk', 'Sabine', 'Torvald', 'Ilse', 'Cassian', 'Mireth', 'Doran', 'Quell', 'Varra', 'Ennis', 'Halvard', 'Senna', 'Rook', 'Thessaly', 'Garret', 'Wynn', 'Odile', 'Petra', 'Caius', 'Livia', 'Brannoc'];
 
 export type PrizeKind = 'othes' | 'navisium' | 'components' | 'metals' | 'provisions' | 'caige' | 'relic';
+/** A guest house's people, kept from year to year so they can be known, feared and met again. */
+export interface Named { key: string; name: string; skill: number; duels: number; won: number; kills: number; since: number }
+export interface Roster { marshal: Named; champion: Named; knight: number; checked?: number }
+
+/** Someone who beat, wounded or killed one of ours: a score to settle. */
+export interface Nemesis { victimId: string; foeKey: string; foeName: string; foeHouse: string; year: number; what: 'beat' | 'wounded' | 'killed'; settled?: boolean }
+
+/** What the Marshal is told to do. */
+export interface Plan { aim: Aim; counter?: string }
+
 export interface Location { id: string; name: string; prize: PrizeKind; amount: number; holder?: string; glyph: string; x: number; y: number }
 
 export interface Contingent {
@@ -90,7 +139,7 @@ export interface Battle {
   sides: string[];
   winner: string;
   losses: Record<string, number>;
-  duel?: { a: string; b: string; winner: string };
+  duel?: { a: string; b: string; winner: string; rematch?: boolean; avenged?: string };
   fallen: string[];
   wounded: string[];
   mvp?: string;
@@ -113,12 +162,19 @@ export interface CrucibleState {
   depleted: Record<string, number>;
   /** Whether the player was drawn this year. */
   drawnUs?: boolean;
+  /** Guest houses' marshals and champions, year to year. */
+  rosters?: Record<string, Roster>;
+  nemeses?: Nemesis[];
+  /** Our orders to the Marshal, set before sailing. */
+  plan?: Plan;
+  /** Houses our agents watched this year. */
+  agents?: string[];
 }
 
 export function ensureCrucible(world: World): void {
   const old = world.crucible as unknown as { entrants?: string[]; depleted?: Record<string, number> } | undefined;
-  if (old && old.entrants && old.depleted) return;
-  world.crucible = { year: dateParts(world.date).year, stage: 'quiet', entrants: [], contingents: {}, locations: [], rounds: [], table: {}, history: [], depleted: {} };
+  if (old && old.entrants && old.depleted) { const c = world.crucible; c.rosters ??= {}; c.nemeses ??= []; c.agents ??= []; return; }
+  world.crucible = { year: dateParts(world.date).year, stage: 'quiet', entrants: [], contingents: {}, locations: [], rounds: [], table: {}, history: [], depleted: {}, rosters: {}, nemeses: [], agents: [] };
 }
 
 export function houseLabel(world: World, id: string): string {
@@ -265,7 +321,8 @@ function draw(w: World, rng: Rng) {
   const guests = rng.shuffle([...GUEST_HOUSES]).slice(0, Math.max(0, n - real.length)).map((g) => g.id);
   const entrants = [...real, ...guests].slice(0, 8);
   const depleted = w.crucible.depleted;
-  w.crucible = { ...w.crucible, year, stage: 'drawn', entrants, contingents: {}, locations: [], rounds: [], table: {}, drawnUs: entrants.includes(P), depleted };
+  w.crucible = { ...w.crucible, year, stage: 'drawn', entrants, contingents: {}, locations: [], rounds: [], table: {}, drawnUs: entrants.includes(P), depleted, plan: undefined, agents: [] };
+  for (const g of entrants) if (GUEST_HOUSES.some((x) => x.id === g)) rosterOf(w, rng, g);
   // The battle world's sites: two more than there are houses.
   const sites = rng.shuffle([...SITES]).slice(0, Math.min(SITES.length, entrants.length + 2));
   w.crucible.locations = sites.map(([name, prize, glyph], i) => ({
@@ -280,17 +337,183 @@ function draw(w: World, rng: Rng) {
     houseIds: entrants.filter((h) => w.houses[h]), source: 'the Numarade',
   });
   if (entrants.includes(P) && w.ports) w.ports.alerts += 1;
+  // Old scores: whoever hurt one of ours, drawn again.
+  if (entrants.includes(P)) for (const n of openNemeses(w)) {
+    if (!entrants.includes(n.foeHouse) || !foeActive(w, n)) continue;
+    const v = w.characters[n.victimId];
+    logRecord(w, {
+      kind: 'world', type: 'fight', severity: 2,
+      text: `A rematch, perhaps: ${n.foeName} of ${shortHouse(w, n.foeHouse)}, who ${n.what === 'killed' ? 'killed' : n.what === 'wounded' ? 'wounded' : 'beat'} ${v ? displayName(v.name) : 'one of ours'} in ${n.year}, is drawn again.`,
+      who: v ? [{ id: v.id, part: n.what === 'killed' ? 'fallen' : 'has a score to settle' }] : [], source: 'the Numarade',
+    });
+  }
+}
+
+// ---------------------------------------------------------------- rosters and old scores
+
+const nk = (gid: string, name: string) => `g:${gid}:${name}`;
+
+/** A guest house's people: the same faces year on year, until they retire or fall. */
+export function rosterOf(w: World, rng: Rng, gid: string): Roster {
+  const cr = w.crucible;
+  cr.rosters ??= {};
+  const guest = GUEST_HOUSES.find((g) => g.id === gid)!;
+  const year = dateParts(w.date).year;
+  const used = new Set(Object.values(cr.rosters).flatMap((r) => [r.marshal.name, r.champion.name]));
+  const fresh = (base: number, spread: number): Named => {
+    let name = '';
+    for (let i = 0; i < 20 && (!name || used.has(name)); i++) name = displayName({ given: rng.pick(GIVEN), family: guest.name } as never);
+    used.add(name);
+    return { key: nk(gid, name), name, skill: (base + rng.next() * spread) * guest.might, duels: 0, won: 0, kills: 0, since: year };
+  };
+  let r = cr.rosters[gid];
+  if (!r) { r = { marshal: fresh(9, 6), champion: fresh(9, 7), knight: (9 + rng.next() * 5) * guest.might, checked: year }; cr.rosters[gid] = r; return r; }
+  if (r.checked === year) return r;
+  r.checked = year;
+  if (r.champion.since < 0) r.champion = fresh(9, 7); // fell last year
+  else if (r.champion.since < year) {
+    // A champion past their best steps aside; the young ones improve.
+    const years = year - r.champion.since;
+    if (years >= 4 && rng.chance(0.15 * (years - 3))) {
+      logRecord(w, { kind: 'world', type: 'world', severity: 0, text: `${r.champion.name}, champion of House ${guest.name}, steps aside after ${years} years (${r.champion.won}–${r.champion.duels - r.champion.won} in Crucible duels).`, source: 'the Numarade' });
+      r.champion = fresh(9, 7);
+    } else r.champion.skill = Math.min(20 * guest.might, r.champion.skill + (years <= 2 ? 0.4 : -0.1));
+  }
+  return r;
+}
+
+export function openNemeses(world: World): Nemesis[] {
+  return (world.crucible?.nemeses ?? []).filter((n) => !n.settled);
+}
+
+/** Whether the foe is still out there to be met. */
+export function foeActive(world: World, n: Nemesis): boolean {
+  if (!n.foeKey.startsWith('g:')) return !!world.characters[n.foeKey]?.alive;
+  const r = world.crucible.rosters?.[n.foeHouse];
+  return !!r && (r.champion.key === n.foeKey || r.marshal.key === n.foeKey);
+}
+
+function markNemesis(w: World, victimId: string, foeKey: string, foeName: string, foeHouse: string, what: Nemesis['what']) {
+  const cr = w.crucible;
+  cr.nemeses ??= [];
+  const old = cr.nemeses.find((n) => !n.settled && n.victimId === victimId && n.foeKey === foeKey);
+  const rank = { beat: 0, wounded: 1, killed: 2 };
+  if (old) { if (rank[what] > rank[old.what]) { old.what = what; old.year = cr.year; } return; }
+  cr.nemeses.push({ victimId, foeKey, foeName, foeHouse, year: cr.year, what });
+  if (w.characters[foeKey] && w.characters[victimId]?.alive) shiftOpinion(w, victimId, foeKey, -15, `${what} them on ${BATTLE_WORLD}`);
+}
+
+// ---------------------------------------------------------------- preparing: reports and the plan
+
+/** How well we know a drawn house: 0 (nothing) to 3 (their habits, their people, their numbers). */
+export function intelOn(world: World, h: string): number {
+  const P = world.playerHouseId;
+  if (h === P) return 3;
+  const spy = Object.values(world.characters).find((c) => c.alive && c.houseId === P && c.seat === 'spymaster');
+  let n = spy ? (spy.stats.intrigue + spy.stats.insight) / 2 / 7 : 0.4;
+  if (world.houses[h] && Object.values(world.embassies ?? {}).some((e) => e.host === h && e.guest === P && e.ambassadorId && world.characters[e.ambassadorId]?.alive)) n += 1;
+  if ((world.crucible?.history ?? []).some((x) => x.drawn.includes(P) && x.drawn.includes(h))) n += 1;
+  if (world.crucible?.agents?.includes(h)) n += 1;
+  return clamp(Math.floor(n), 0, 3);
+}
+
+export const AGENTS_COST = 400;
+export function cannotSendAgents(world: World, h: string): string | null {
+  const cr = world.crucible;
+  if (cr.stage !== 'drawn' || !cr.entrants.includes(world.playerHouseId)) return 'Only before we sail';
+  if (cr.agents?.includes(h)) return 'Already watched';
+  if (intelOn(world, h) >= 3) return 'We know all we can';
+  if (econ(world, world.playerHouseId).stock.othes < AGENTS_COST) return 'Not enough othes';
+  return null;
+}
+
+export function sendAgents(input: World, h: string): World {
+  const w = structuredClone(input);
+  ensureCrucible(w);
+  const why = cannotSendAgents(w, h);
+  if (why) throw new Error(why);
+  record(w, w.playerHouseId, { resource: 'othes', amount: -AGENTS_COST, label: `Agents to watch ${houseLabel(w, h)} before the Crucible`, kind: 'court' });
+  (w.crucible.agents ??= []).push(h);
+  return w;
+}
+
+export function setPlan(input: World, plan: Plan): World {
+  const w = structuredClone(input);
+  ensureCrucible(w);
+  w.crucible.plan = plan;
+  return w;
+}
+
+/** Who a real house will likely send, judged as their own Marshal would. */
+function projected(world: World, h: string): { marshal?: Character; champion?: Character; knights: number } {
+  const pool = eligible(world, h);
+  const marshal = [...pool].sort((a, b) => marshalScore(b) - marshalScore(a))[0];
+  const champion = pool.filter((c) => c !== marshal).sort((a, b) => championScore(b) - championScore(a))[0];
+  const d = doctrineOf(h);
+  return { marshal, champion, knights: Math.min(pool.length - 2, Math.round((d.knights[0] + d.knights[1]) / 2)) };
+}
+
+export interface Report {
+  houseId: string;
+  level: number;
+  doctrine?: Doctrine;
+  marshal?: { id?: string; name: string; read: string };
+  champion?: { id?: string; name: string; read: string; record: string };
+  knights?: string;
+  leaning?: string;
+  /** Old scores with them. */
+  scores: Nemesis[];
+}
+
+const band = (v: number) => (v >= 16 ? 'formidable' : v >= 13 ? 'strong' : v >= 10 ? 'able' : 'middling');
+
+/** What our people can tell us about a drawn house before we sail. */
+export function reportOn(world: World, h: string): Report {
+  const level = intelOn(world, h);
+  const d = doctrineOf(h);
+  const scores = openNemeses(world).filter((n) => n.foeHouse === h && foeActive(world, n));
+  const r: Report = { houseId: h, level, scores };
+  if (level >= 1) r.doctrine = d;
+  if (level >= 2) {
+    const g = world.crucible.rosters?.[h];
+    if (g) {
+      r.marshal = { name: g.marshal.name, read: band(g.marshal.skill) };
+      r.champion = { name: g.champion.name, read: band(g.champion.skill), record: g.champion.duels ? `${g.champion.won}–${g.champion.duels - g.champion.won} in Crucible duels${g.champion.kills ? `, ${g.champion.kills} killed` : ''}` : 'new to the Crucible' };
+    } else {
+      const p = projected(world, h);
+      if (p.marshal) r.marshal = { id: p.marshal.id, name: displayName(p.marshal.name), read: band(marshalScore(p.marshal)) };
+      if (p.champion) {
+        const t = Object.values(world.careers?.of[p.champion.id] ?? {}).reduce((a, s) => ({ d: a.d + (s.cDuels ?? 0), w: a.w + (s.cDuelsWon ?? 0) }), { d: 0, w: 0 });
+        r.champion = { id: p.champion.id, name: displayName(p.champion.name), read: band(championScore(p.champion)), record: t.d ? `${t.w}–${t.d - t.w} in Crucible duels` : 'new to the Crucible' };
+      }
+    }
+    r.knights = `${d.knights[0]}–${d.knights[1]} knights, the rest in men`;
+  }
+  if (level >= 3) {
+    const tot = d.stance.bold + d.stance.measured + d.stance.cunning;
+    r.leaning = (Object.entries(d.stance) as [Stance, number][]).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${STANCE_LABEL[k]} ${Math.round((v / tot) * 100)}%`).join(' · ');
+  }
+  return r;
+}
+
+/** Our Marshal's stance against a house, from what we know of it: the better we know them, the surer the counter. */
+function plannedStance(w: World, rng: Rng, foe: string | undefined): Stance {
+  if (!foe) return 'measured';
+  const lv = intelOn(w, foe);
+  const sure = [0.3, 0.55, 0.75, 0.92][lv]!;
+  return rng.chance(sure) ? counterTo(likelyStance(doctrineOf(foe))) : rng.pick(['bold', 'measured', 'cunning'] as Stance[]);
 }
 
 function aiContingent(w: World, rng: Rng, houseId: string): Contingent {
   const guest = GUEST_HOUSES.find((g) => g.id === houseId);
+  const d = doctrineOf(houseId);
+  const want = d.knights[0] + Math.floor(rng.next() * (d.knights[1] - d.knights[0] + 1));
   if (guest) {
-    const knights = Math.floor(rng.next() * (MAX_KNIGHTS + 1));
-    const nm = () => displayName({ given: rng.pick(GIVEN), family: guest.name } as never);
+    const r = rosterOf(w, rng, houseId);
     return {
-      houseId, marshalId: null, championId: null, knights: [], men: menFor(knights), menLost: 0,
-      names: { marshal: nm(), champion: nm(), knights },
-      skill: { marshal: (9 + rng.next() * 6) * guest.might, champion: (9 + rng.next() * 7) * guest.might, knight: (9 + rng.next() * 5) * guest.might },
+      houseId, marshalId: null, championId: null, knights: [], men: menFor(want), menLost: 0,
+      names: { marshal: r.marshal.name, champion: r.champion.name, knights: want },
+      skill: { marshal: r.marshal.skill, champion: r.champion.skill, knight: r.knight },
     };
   }
   const pool = eligible(w, houseId);
@@ -299,7 +522,6 @@ function aiContingent(w: World, rng: Rng, houseId: string): Contingent {
   const marshal = pick(marshalScore);
   const champion = pick(championScore);
   const knights: Character[] = [];
-  const want = Math.floor(rng.next() * (MAX_KNIGHTS + 1));
   for (let i = 0; i < want; i++) { const k = pick(knightScore); if (k) knights.push(k); }
   const ship = Object.values(w.fleet?.ships ?? {}).find((s) => s.houseId === houseId && !s.lost && !s.ready && s.duty === 'harbour' && !s.arrives);
   const c: Contingent = { houseId, marshalId: marshal?.id ?? null, championId: champion?.id ?? null, knights: knights.map((k) => k.id), men: menFor(knights.length), shipId: ship?.id, menLost: 0 };
@@ -360,11 +582,22 @@ function chooseTarget(w: World, rng: Rng, h: string): string | undefined {
   const c = cr.contingents[h]!;
   const mine = cr.locations.filter((l) => l.holder === h);
   const value = (l: { prize: PrizeKind; amount: number }) => (l.prize === 'caige' ? 3 : l.prize === 'relic' ? 2.5 : l.prize === 'othes' ? l.amount / 3000 : l.amount / 150);
+  const P = w.playerHouseId;
+  const plan: Plan = h === P ? (cr.plan ?? { aim: 'hold' }) : { aim: doctrineOf(h).aim };
+  const edge = h === P ? undefined : doctrineOf(h).edge;
   const options = cr.locations.map((l) => {
     const holder = l.holder ? cr.contingents[l.holder] : undefined;
     const risk = holder && l.holder !== h ? strengthOf(w, holder) / Math.max(1, strengthOf(w, c)) : 0.2;
-    const keep = l.holder === h ? (mine.length <= 2 ? 1.5 : 0.6) : 1;
-    return [l.id, Math.max(0.05, (value(l) + 1) * keep / (0.5 + risk))] as [string, number];
+    let keep = l.holder === h ? (mine.length <= 2 ? 1.5 : 0.6) : 1;
+    let worth = value(l) + 1;
+    if (plan.aim === 'riches') worth *= 1.6;
+    if (plan.aim === 'hold' && l.holder === h) keep *= 1.8;
+    if (plan.aim === 'bleed') {
+      const prey = plan.counter ?? Object.keys(cr.table).filter((x) => x !== h).sort((a, b) => (cr.table[b]?.held ?? 0) - (cr.table[a]?.held ?? 0))[0];
+      if (l.holder && l.holder === prey) worth *= 2.5;
+    }
+    if (edge === 'raid' && !l.holder) worth *= 1.5;
+    return [l.id, Math.max(0.05, worth * keep / (0.5 + (edge === 'raid' ? risk * 1.5 : risk)))] as [string, number];
   });
   return options.length ? rng.weighted(options) : undefined;
 }
@@ -375,7 +608,9 @@ function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[]): 
   const score: Record<string, number> = {};
   const fallen: string[] = []; const wounded: string[] = [];
   // The champions meet first: the two strongest present.
-  const champs = sides.map((h) => ({ h, c: championOf(w, cr.contingents[h]!) })).filter((x) => x.c).sort((a, b) => b.c!.score - a.c!.score);
+  const champs = sides.map((h) => ({ h, c: championOf(w, cr.contingents[h]!) })).filter((x) => x.c)
+    .map((x) => ({ ...x, c: { ...x.c!, score: x.c!.score + (x.h !== P && doctrineOf(x.h).edge === 'duel' ? 1.5 : 0) } }))
+    .sort((a, b) => b.c!.score - a.c!.score);
   let duel: Battle['duel'];
   let duelWinner: string | undefined;
   if (champs.length >= 2) {
@@ -390,12 +625,36 @@ function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[]): 
     if (y.c.id) tally(w, y.c.id, 'cDuels');
     if (win.c.id) { tally(w, win.c.id, 'cDuelsWon'); addGlory(w, win.c.id, 1); }
     if (win.c.id && lose.c.id) shiftOpinion(w, lose.c.id, win.c.id, -10, `beat them on ${BATTLE_WORLD}`);
+    const keyOf = (s: typeof x) => s.c.id ?? nk(s.h, s.c.name);
+    let what: Nemesis['what'] = 'beat';
     if (lose.c.id) {
       const p = w.characters[lose.c.id]!;
       const roll = rng.next();
-      if (roll < 0.02) { kill(w, p, w.date, `killed by ${win.c.name} on ${BATTLE_WORLD}`); fallen.push(p.id); }
-      else if (roll < 0.25) { p.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, 48) }); wounded.push(p.id); }
+      if (roll < 0.02) { kill(w, p, w.date, `killed by ${win.c.name} on ${BATTLE_WORLD}`); fallen.push(p.id); what = 'killed'; }
+      else if (roll < 0.25) { p.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, 48) }); wounded.push(p.id); what = 'wounded'; }
+    } else if (rng.chance(0.02)) {
+      // A guest champion can fall too; their house will find another.
+      what = 'killed';
+      const g = cr.rosters?.[lose.h];
+      if (g && g.champion.name === lose.c.name) g.champion.since = -1;
     }
+    // Guests keep their records.
+    for (const s of [x, y]) {
+      const g = cr.rosters?.[s.h];
+      if (g && g.champion.name === s.c.name) { g.champion.duels++; if (s === win) { g.champion.won++; if (what === 'killed') g.champion.kills++; } }
+    }
+    // Old scores: settled, or new ones made.
+    for (const n of openNemeses(w)) {
+      const victimHere = [x, y].find((s) => s.c.id === n.victimId);
+      const foeHere = [x, y].find((s) => keyOf(s) === n.foeKey);
+      if (foeHere && victimHere) {
+        duel.rematch = true;
+        if (win === victimHere) { n.settled = true; duel.avenged = n.victimId; addGlory(w, n.victimId, 2); }
+      } else if (foeHere && lose === foeHere && win.h === P && n.what === 'killed') {
+        n.settled = true; duel.avenged = n.victimId; if (win.c.id) addGlory(w, win.c.id, 2);
+      }
+    }
+    if (lose.h === P && lose.c.id) markNemesis(w, lose.c.id, keyOf(win), win.c.name, win.h, what);
   }
   // Stances: each side against the strongest of the others.
   for (const h of sides) {
@@ -404,8 +663,9 @@ function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[]): 
     const foes = sides.filter((x) => x !== h);
     const main = foes.sort((a, b) => strengthOf(w, cr.contingents[b]!) - strengthOf(w, cr.contingents[a]!))[0]!;
     const edge = BEATS[st] === r.stance[main] ? 1.15 : BEATS[r.stance[main]!] === st ? 0.88 : 1;
-    const defending = loc.holder === h ? 1.1 : 1;
-    score[h] = (strengthOf(w, c) * (0.75 + marshalOf(w, c) / 40) * edge * defending * (duelWinner === h ? 1.12 : 1)) * (0.85 + rng.next() * 0.3);
+    const defending = loc.holder === h ? (h !== P && doctrineOf(h).edge === 'defend' ? 1.2 : h === P && cr.plan?.aim === 'hold' ? 1.16 : 1.1) : 1;
+    const studied = h === P && cr.plan?.counter && foes.includes(cr.plan.counter) ? 1.06 : 1;
+    score[h] = (strengthOf(w, c) * (0.75 + marshalOf(w, c) / 40) * edge * defending * studied * (duelWinner === h ? 1.12 : 1)) * (0.85 + rng.next() * 0.3);
   }
   const order = [...sides].sort((a, b) => score[b]! - score[a]!);
   const winner = order[0]!;
@@ -452,9 +712,15 @@ function playRound(w: World, rng: Rng, r: Round) {
   const P = w.playerHouseId;
   const active = cr.entrants.filter((h) => cr.contingents[h] && !cr.contingents[h]!.out);
   for (const h of active) {
-    r.stance[h] ??= h === P ? 'measured' : rng.pick(['bold', 'measured', 'cunning'] as Stance[]);
     const t = chooseTarget(w, rng, h);
     if (t) { r.moves[h] = t; cr.contingents[h]!.at = t; }
+    if (h !== P) r.stance[h] ??= rng.weighted(Object.entries(doctrineOf(h).stance) as [Stance, number][]);
+  }
+  // Our Marshal, unless told otherwise, sets the stance against whoever holds the ground we go for.
+  if (active.includes(P) && !r.stance[P]) {
+    const target = cr.locations.find((l) => l.id === r.moves[P]);
+    const foe = target?.holder && target.holder !== P ? target.holder : cr.plan?.counter;
+    r.stance[P] = plannedStance(w, rng, foe);
   }
   for (const loc of cr.locations) {
     const here = active.filter((h) => r.moves[h] === loc.id);
@@ -481,7 +747,7 @@ function playRound(w: World, rng: Rng, r: Round) {
     const nameOf = (x: string) => (w.characters[x] ? displayName(w.characters[x]!.name) : x);
     logRecord(w, {
       kind: 'world', type: 'fight', severity: ours ? 2 : b.sides.some((h) => w.houses[h]) ? 1 : 0,
-      text: `The Crucible, Orbit ${r.orbit}: ${houseLabel(w, b.winner)} took ${loc.name} from ${b.sides.filter((h) => h !== b.winner).map((h) => shortHouse(w, h)).join(' and ')}.${b.duel ? ` ${nameOf(b.duel.winner)} won the champions' duel.` : ''}`,
+      text: `The Crucible, Orbit ${r.orbit}: ${houseLabel(w, b.winner)} took ${loc.name} from ${b.sides.filter((h) => h !== b.winner).map((h) => shortHouse(w, h)).join(' and ')}.${b.duel ? ` ${nameOf(b.duel.winner)} won the champions' duel${b.duel.rematch ? ', a rematch' : ''}.` : ''}${b.duel?.avenged && w.characters[b.duel.avenged] ? ` ${displayName(w.characters[b.duel.avenged]!.name)} is avenged.` : ''}`,
       detail: b.sides.map((h) => `${shortHouse(w, h)}: ${STANCE_LABEL[r.stance[h]!]}, lost ${b.losses[h]} men`).join('\n') + (b.fallen.length ? `\nFallen: ${b.fallen.map(nameOf).join(', ')}.` : '') + (b.wounded.length ? `\nWounded: ${b.wounded.map(nameOf).join(', ')}.` : ''),
       who: [...(b.mvp && w.characters[b.mvp] ? [{ id: b.mvp, part: 'best of the field' }] : []), ...b.fallen.map((id) => ({ id, part: 'fell' })), ...b.wounded.map((id) => ({ id, part: 'wounded' }))],
       houseIds: b.sides.filter((h) => w.houses[h]), source: BATTLE_WORLD,

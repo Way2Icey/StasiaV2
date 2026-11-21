@@ -53,3 +53,44 @@ describe('the Crucible', () => {
     expect(deserialize(serialize(w)).crucible).toEqual(w.crucible);
   });
 });
+
+describe('preparing for the Crucible', () => {
+  it('reports grow with what we know; agents and a plan can be bought and set before sailing', async () => {
+    const { intelOn, reportOn, sendAgents, setPlan, cannotSendAgents, AGENTS_COST } = await import('./crucible');
+    let w = structuredClone(createWorld());
+    const P = w.playerHouseId;
+    for (let i = 0; i < 1300 && !(w.crucible.stage === 'drawn' && w.crucible.entrants.includes(P)); i++) w = step(w);
+    expect(w.crucible.stage).toBe('drawn');
+    const foe = w.crucible.entrants.find((h) => h !== P)!;
+    const before = intelOn(w, foe);
+    const rep = reportOn(w, foe);
+    expect(rep.level).toBe(before);
+    if (before >= 1) expect(rep.doctrine).toBeDefined(); else expect(rep.doctrine).toBeUndefined();
+    w.economy.houses[P]!.stock.othes += 5000;
+    if (before < 3) {
+      const o = w.economy.houses[P]!.stock.othes;
+      w = sendAgents(w, foe);
+      expect(intelOn(w, foe)).toBe(before + 1);
+      expect(w.economy.houses[P]!.stock.othes).toBe(o - AGENTS_COST);
+      expect(cannotSendAgents(w, foe)).toBeTruthy();
+    }
+    w = setPlan(w, { aim: 'bleed', counter: foe });
+    expect(w.crucible.plan).toEqual({ aim: 'bleed', counter: foe });
+  });
+
+  it('guest houses keep their champions from year to year, with records', () => {
+    let w = structuredClone(createWorld());
+    const seen: Record<string, Set<string>> = {};
+    for (let i = 0; i < 1600 && w.crucible.history.length < 3; i++) {
+      w = step(w);
+      for (const [g, r] of Object.entries(w.crucible.rosters ?? {})) (seen[g] ??= new Set()).add(r.champion.name);
+    }
+    expect(w.crucible.history.length).toBe(3);
+    const rosters = Object.values(w.crucible.rosters ?? {});
+    expect(rosters.length).toBeGreaterThan(0);
+    // Mostly the same faces: far fewer champions than years × houses.
+    const total = Object.values(seen).reduce((n, s) => n + s.size, 0);
+    expect(total).toBeLessThan(Object.keys(seen).length * 3);
+    expect(rosters.some((r) => r.champion.duels > 0)).toBe(true);
+  });
+});
