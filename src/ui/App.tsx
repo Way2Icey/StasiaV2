@@ -25,6 +25,7 @@ import { RelationsPage } from './relations';
 import { HoldingsPage } from './holdings';
 import { CruciblePage } from './crucible';
 import { TrainingPage } from './training';
+import { GroundsPage } from './grounds';
 import { ShipPage } from './fleet';
 import { activeMissions } from '../sim/missions';
 import { routeLabel, sameRoute, sectionOf, type Route, type Section } from './router';
@@ -222,6 +223,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'holdings': return <HoldingsPage id={route.id} />;
     case 'crucible': return <CruciblePage />;
     case 'training': return <TrainingPage id={route.id} />;
+    case 'grounds': return <GroundsPage />;
     case 'ship': return <ShipPage key={route.id} id={route.id} />;
   }
 }

@@ -18,6 +18,7 @@ import { ensureEmbassies } from './embassies';
 import { ensureAmbitions } from './ambitions';
 import { ensureCareers } from './careers';
 import { ensureCrucible } from './crucible';
+import { ensureGrounds } from './grounds';
 import './eventDefs';
 
 export const SAVE_VERSION = 11;
@@ -107,5 +108,6 @@ export function deserialize(text: string): World {
   ensureAmbitions(world);
   ensureCareers(world);
   ensureCrucible(world);
+  ensureGrounds(world);
   return world;
 }

@@ -541,4 +541,5 @@ export interface World {
   careers: import('./careers').CareersState;
   /** The year's mock war. */
   crucible: import('./crucible').CrucibleState;
+  grounds: import('./grounds').GroundsState;
 }

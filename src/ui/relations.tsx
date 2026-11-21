@@ -70,6 +70,7 @@ export function RelationsPage({ focus: initial, view: initialView }: { focus?: s
           <button key={v} type="button" className="pill" aria-pressed={view === v} onClick={() => setView(v)}>{v === 'web' ? 'TIES' : v === 'young' ? 'YOUNGLINGS & WARDS' : v.toUpperCase()}</button>
         ))}
         <button type="button" className="pill" onClick={() => nav.to({ kind: 'training' })}>TRAINING ›</button>
+        <button type="button" className="pill" onClick={() => nav.to({ kind: 'grounds' })}>PROVING GROUNDS ›</button>
       </div>
       {view === 'everyone' ? <PeoplePage /> : view === 'factions' ? <Factions /> : view === 'young' ? <Younglings /> : view === 'ambitions' ? <AmbitionsView /> : (
         <div className="grid">

@@ -10,6 +10,7 @@ import { advanceEmbassies } from './embassies';
 import { advanceAmbitions } from './ambitions';
 import { advanceProspects } from './prospects';
 import { advanceCrucible } from './crucible';
+import { advanceGrounds } from './grounds';
 import './eventDefs';
 import { displayName } from './names';
 import { Rng } from './rng';
@@ -89,6 +90,7 @@ function stepInPlace(world: World): void {
   advanceAmbitions(world, rng, crossed.phases > 0);
   advanceProspects(world, rng, crossed.orbits > 0);
   advanceCrucible(world, rng, crossed.phases > 0);
+  advanceGrounds(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceEvents(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 

@@ -33,6 +33,7 @@ export type Route =
   | { kind: 'holdings'; id?: string }
   | { kind: 'crucible' }
   | { kind: 'training'; id?: string }
+  | { kind: 'grounds' }
   | { kind: 'ship'; id: string }
   | { kind: 'log'; person?: string; place?: string; house?: string; open?: string };
 
@@ -46,7 +47,7 @@ export function sectionOf(r: Route): Section | null {
     case 'seat': return 'council';
     case 'holdings': return 'economy';
     case 'crucible': return 'houses';
-    case 'training': return 'people';
+    case 'training': case 'grounds': return 'people';
     case 'ship': return 'worlds';
     case 'character': case 'trait': case 'flag': case 'species': case 'band': return 'people';
     case 'house': case 'family': return 'houses';
@@ -97,6 +98,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'holdings': return 'Holdings';
     case 'crucible': return 'The Crucible';
     case 'training': return 'Training';
+    case 'grounds': return 'Proving grounds';
     case 'ship': return (world as unknown as { fleet?: { ships: Record<string, { name: string }> } }).fleet?.ships[r.id]?.name ?? 'Ship';
   }
 }

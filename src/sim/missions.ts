@@ -410,7 +410,7 @@ export function launchInPlace(world: World, spec: MissionSpec): string {
   if (m.companions!.length < MAX_COMPANIONS) {
     const inParty = new Set([...party.map((c) => c.id)]);
     const k = kindredOf(world, r.leader.id, (c) => !inParty.has(c.id) && c.seat !== 'highroy' && !isYoung(world, c) && availability(world, spec.houseId, c).ok && !isAway(world, c.id));
-    const roll = Rng.fromSeed(`kin|${id}|${world.rng}`);
+    const roll = Rng.fromSeed(`kin|${id}|${world.date.year}|${world.date.cycle}`);
     if (k && roll.chance(0.6)) {
       m.companions!.push(k.c.id);
       party.push(k.c);
