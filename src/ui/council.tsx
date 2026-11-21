@@ -59,7 +59,7 @@ export function Regard({ v }: { v: number }) {
   return <span style={{ color: attitudeColor(v) }}>{attitude(v)} <span className="mono muted">{v > 0 ? `+${v}` : v}</span></span>;
 }
 
-function petitionTarget(world: World, p: Petition) {
+export function petitionTarget(world: World, p: Petition) {
   if (p.targetId) return <PersonById id={p.targetId} />;
   if (p.targetHouseId) return <>House <HouseLink id={p.targetHouseId} /></>;
   if (p.targetPlanetId) return <PlanetLink id={p.targetPlanetId} />;

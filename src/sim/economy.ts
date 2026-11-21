@@ -135,7 +135,7 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
 }
 
 /** Per Phase, per level. */
-export const MODULE_UPKEEP: Record<string, number> = { cells: 30, vault: 45, academy: 90, base: 120, listening: 60, shipyard: 160, hangar: 40, brig: 10 };
+export const MODULE_UPKEEP: Record<string, number> = { cells: 45, vault: 65, academy: 130, base: 170, listening: 85, shipyard: 220, hangar: 55, brig: 15 };
 export const PAY_SCALE = {
   meagre: { mult: 0.6, label: 'Meagre', note: 'Saves money. The famous resent it, and loyalty wears.' },
   fair: { mult: 1, label: 'Fair', note: 'What the Reaches expect.' },
@@ -147,7 +147,7 @@ export function stipendOf(world: World, c: Character): number {
   const t = world.careers?.titles[c.id]?.length ?? 0;
   const won = Object.values(world.careers?.of[c.id] ?? {}).reduce((n, s) => n + (s.boutsWon ?? 0) + (s.duelsWon ?? 0) + (s.cDuelsWon ?? 0) * 2, 0);
   const fame = t * 2 + won / 3;
-  return Math.round((30 + Math.min(40, fame) * 4) * (c.seat === 'champion' ? 1.5 : c.seat === 'grandMaster' ? 1.3 : 1));
+  return Math.round((40 + Math.min(40, fame) * 4) * (c.seat === 'champion' ? 1.5 : c.seat === 'grandMaster' ? 1.3 : 1));
 }
 
 export function fameOf(world: World, c: Character): number {

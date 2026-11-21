@@ -19,7 +19,8 @@ import { award, titlesOf, totals, type Season } from './careers';
 import { competence } from './reports';
 import { rivalsFrom } from './grounds';
 import { hasWork } from './treasury';
-import { SUBJECTS, teacherSkill, type Subject } from './training';
+import { SUBJECTS, takeIntoHouse, teacherSkill, type Subject } from './training';
+import { materialize } from './discovery';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, dateParts, type GameDate } from './time';
 import type { Character, StatId, World } from './types';
 
@@ -41,7 +42,16 @@ export interface Rung {
 }
 
 /** A teacher puts an aspirant forward to be blooded. */
-export interface Blooding { id: string; aspirantId: string; teacherId?: string; readiness: 'early' | 'ready' | 'overdue'; expires: GameDate }
+export interface Blooding {
+  id: string;
+  aspirantId: string;
+  teacherId?: string;
+  readiness: 'early' | 'ready' | 'overdue';
+  expires: GameDate;
+  /** The Champion's find in the rings: one of ours never blooded, or a local fighter worth taking in. */
+  scout?: boolean;
+  local?: { name: string; skill: number; where: string; planetId: string; sectorId: string; record: string };
+}
 
 export interface LadderState {
   of: Record<string, Rung>;
@@ -50,8 +60,9 @@ export interface LadderState {
   snaps: Record<string, [number, number, number][]>;
   /** The year the trials were last held. */
   trialsYear?: number;
-  /** Who the Spymaster has already warned about. */
+  /** Who the Spymaster has already warned about, and toward which house. */
   warned?: Record<string, GameDate>;
+  warnedTo?: Record<string, string>;
 }
 
 export function ensureLadder(world: World): void {
@@ -175,8 +186,22 @@ export function answerBlooding(input: World, id: string, choice: 'gift' | 'word'
   const b = w.ladder.proposals.find((x) => x.id === id);
   if (!b) throw new Error('That has passed');
   w.ladder.proposals = w.ladder.proposals.filter((x) => x.id !== id);
+  if (b.local && choice !== 'wait') {
+    // Take the fighter in from the rings first.
+    if (econ(w, w.playerHouseId).stock.othes < LOCAL_COST + (choice === 'gift' ? 200 : 0)) throw new Error('Not enough othes');
+    record(w, w.playerHouseId, { resource: 'othes', amount: -LOCAL_COST, label: `Buying out ${b.local.name}'s contract`, kind: 'court' });
+    const rng = new Rng(w.rng);
+    const nc = materialize(w, rng, b.local.planetId, b.local.sectorId);
+    w.rng = rng.state;
+    nc.name = { given: b.local.name } as typeof nc.name;
+    nc.birth = { year: w.date.year - Math.round(SPECIES[nc.species].adulthood * 1.15), cycle: 0 } as GameDate;
+    for (const k of ['duelling', 'agility', 'reflexes', 'valor', 'endurance', 'strength'] as StatId[]) nc.stats[k] = clamp(Math.round(b.local.skill + (k === 'duelling' ? 1 : -1)), 4, 20);
+    takeIntoHouse(w, nc, 'Blooded');
+    b.aspirantId = nc.id;
+  }
   const c = w.characters[b.aspirantId];
-  const r = w.ladder.of[b.aspirantId];
+  if (c?.alive && !w.ladder.of[c.id]) w.ladder.of[c.id] = { stage: 'aspirant', since: w.date, failed: 0, base: totals(w, c.id), history: [{ date: w.date, what: b.local ? `taken in from ${b.local.where}` : 'put forward by the Champion' }] };
+  const r = c ? w.ladder.of[c.id] : undefined;
   if (!c?.alive || !r) return w;
   const t = b.teacherId ? w.characters[b.teacherId] : undefined;
   r.asked = w.date;
@@ -231,6 +256,43 @@ function bloodIn(w: World, c: Character, r: Rung, t: Character | undefined, choi
     detail: came.length ? `There: ${came.slice(0, 12).map((x) => shortName(x.name)).join(', ')}${came.length > 12 ? '…' : ''}` : undefined,
     who: [{ id: c.id, part: 'blooded' }, ...(t ? [{ id: t.id, part: 'stood for them' }] : []), ...stayed.map((x) => ({ id: x.id, part: 'stayed away' }))],
   });
+}
+
+// ---------------------------------------------------------------- the Champion's eye
+
+export const LOCAL_COST = 400;
+
+/** The Champion watches the rings: one of ours who has proved themselves without ever being blooded, or a local worth buying. */
+function scoutRings(world: World, rng: Rng) {
+  const P = world.playerHouseId;
+  const champ = seatHolder(world, P, 'champion');
+  if (!champ || isAway(world, champ.id) || world.ladder.proposals.some((b) => b.scout) || !rng.chance(0.4)) return;
+  const wins = (id: string) => { const t = totals(world, id); return (t.boutsWon ?? 0) + (t.duelsWon ?? 0) + (t.cDuelsWon ?? 0); };
+  const ours = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full' && c.seat !== 'highroy'
+    && !c.flags.some((f) => f.id === 'blooded' || f.id === 'knighted' || f.id === 'retired') && c.role !== 'Knight' && world.ladder.of[c.id]?.stage !== 'pupil'
+    && ageOf(c, world.date) >= SPECIES[c.species].adulthood && wins(c.id) >= 3).sort((a, b) => wins(b.id) - wins(a.id));
+  const exp = addCycles(world.date, CYCLES_PER_ORBIT);
+  if (ours[0]) {
+    const n = wins(ours[0].id);
+    world.ladder.proposals.push({ id: `bl${world.nextId++}`, aspirantId: ours[0].id, teacherId: champ.id, readiness: n >= 8 ? 'overdue' : 'ready', expires: exp, scout: true });
+    logRecord(world, { kind: 'world', type: 'world', severity: 2, seat: 'champion', text: `The Champion has been watching ${displayName(ours[0].name)} in the rings.`, quote: { from: champ.id, text: `${n} wins and never blooded. Either we blood ${shortName(ours[0].name)} or someone else will take them.` }, who: [{ id: ours[0].id, part: 'watched' }] });
+    return;
+  }
+  // A local fighter, seen on a card we heard about.
+  const since = absoluteCycle(world.date) - CYCLES_PER_ORBIT * 2;
+  for (const e of [...(world.grounds?.circuit ?? [])].reverse()) {
+    if (!e.done || !e.heard || absoluteCycle(e.held) < since || !e.bouts) continue;
+    const won: Record<string, number> = {};
+    for (const b of e.bouts) if (b.winner.startsWith('~')) won[b.winner] = (won[b.winner] ?? 0) + 1;
+    const best = Object.entries(won).sort((a, b) => b[1] - a[1])[0];
+    if (!best || best[1] < 2) continue;
+    const name = best[0].slice(1);
+    if (Object.values(world.characters).some((c) => c.alive && c.houseId === P && c.name.given === name && !c.name.family)) continue;
+    const skill = 11 + rng.next() * 5;
+    world.ladder.proposals.push({ id: `bl${world.nextId++}`, aspirantId: '', teacherId: champ.id, readiness: 'ready', expires: exp, scout: true, local: { name, skill, where: e.name, planetId: e.planetId, sectorId: e.sectorId, record: `${best[1]} wins on one card` } });
+    logRecord(world, { kind: 'world', type: 'world', severity: 2, seat: 'champion', text: `The Champion wants a pit fighter called ${name}, seen at ${e.name}.`, quote: { from: champ.id, text: `${name} won ${best[1]} on the card and walked out. No house, no name. Buy them out (${LOCAL_COST} othes), blood them, and we have a fighter.` } });
+    return;
+  }
 }
 
 // ---------------------------------------------------------------- the knighthood turns over
@@ -320,8 +382,10 @@ function churn(world: World, rng: Rng, orbitTurned: boolean, yearTurned: boolean
     // The Spymaster may see it coming.
     if (c.houseId === P && c.hidden.loyalty <= 10 && competence(world, 'spymaster') >= 8) {
       const last = world.ladder.warned![c.id];
-      if (!last || absoluteCycle(world.date) - absoluteCycle(last) > CYCLES_PER_ORBIT * 3) {
+      const sameHouse = (world.ladder.warnedTo ??= {})[c.id] === pull.house;
+      if (!last || !sameHouse || absoluteCycle(world.date) - absoluteCycle(last) > CYCLES_PER_ORBIT * 8) {
         world.ladder.warned![c.id] = world.date;
+        world.ladder.warnedTo![c.id] = pull.house;
         logRecord(world, { kind: 'intrigue', type: 'intrigue', severity: 2, seat: 'spymaster', text: `${displayName(c.name)}'s eye has been wandering toward House ${world.houses[pull.house]!.name}: ${pull.why}.`, who: [{ id: c.id, part: 'drifting' }], houseIds: [pull.house] });
       }
     }
@@ -354,7 +418,7 @@ export function advanceLadder(world: World, rng: Rng, orbitTurned: boolean): voi
   const P = world.playerHouseId;
   const d = dateParts(world.date);
   const now = absoluteCycle(world.date);
-  L.proposals = L.proposals.filter((b) => absoluteCycle(b.expires) > now && world.characters[b.aspirantId]?.alive);
+  L.proposals = L.proposals.filter((b) => absoluteCycle(b.expires) > now && (b.local || world.characters[b.aspirantId]?.alive));
   if (!orbitTurned) return;
   // Everyone young of the house is on the ladder.
   for (const c of Object.values(world.characters)) {
@@ -404,6 +468,7 @@ export function advanceLadder(world: World, rng: Rng, orbitTurned: boolean): voi
     L.proposals.push({ id: `bl${world.nextId++}`, aspirantId: id, teacherId: t?.id, readiness, expires: addCycles(world.date, CYCLES_PER_ORBIT) });
     if (world.ports) world.ports.alerts += 1;
   }
+  scoutRings(world, rng);
   // Other houses blood their own quietly.
   churn(world, rng, orbitTurned, d.orbit === 1);
 }

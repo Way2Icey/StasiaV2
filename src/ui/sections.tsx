@@ -10,6 +10,7 @@ import { EmbassyPanel, OurCourtEmbassies } from './embassies';
 import { LoansPanel } from './loans';
 import { ModuleView } from './holdings';
 import { Challenges } from './grounds';
+import { CouncilViews } from './hall';
 import { PinButton } from './careers';
 import { isMilitary, fightScore } from '../sim/grounds';
 import { cannotHoldAudience, cannotKnight, holdAudience, knight } from '../sim/ambitions';
@@ -288,6 +289,7 @@ export function PersonActions({ id }: { id: string }) {
   const c = world.characters[id];
   if (!c || !c.alive || c.houseId !== world.playerHouseId || c.seat === 'highroy') return null;
   const young = ageOf(c, world.date) < SPECIES[c.species].adulthood;
+  const [ask, setAsk] = useState(false);
   const kn = cannotKnight(world, id);
   const aud = cannotHoldAudience(world, id);
   const B = ({ label, to, title }: { label: string; to: Route; title?: string }) => <button type="button" className="btn small" title={title} onClick={() => nav.to(to)}>{label}</button>;
@@ -303,7 +305,9 @@ export function PersonActions({ id }: { id: string }) {
         {!young ? <B label="Make ambassador ›" to={{ kind: 'embassies' }} /> : null}
         {isMilitary(world, c) || fightScore(c) >= 10 ? <B label="Enter in a tourney ›" to={{ kind: 'grounds' }} /> : null}
         {isMilitary(world, c) ? <B label="Knights & challenges ›" to={{ kind: 'knights' }} /> : null}
+        <button type="button" className="btn small" aria-pressed={ask} onClick={() => setAsk(!ask)}>Ask the council</button>
       </div>
+      {ask ? <div className="body" style={{ paddingTop: 0 }}><CouncilViews id={id} /></div> : null}
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
     </Panel>
   );

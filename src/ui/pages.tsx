@@ -32,7 +32,7 @@ import { useSee } from './fog';
 import { LeadsPanel, MissionRow } from './missions';
 import { moodColor, moodLabel, moodOf } from '../sim/mood';
 import { CouncilTable, Desk, HallPanel } from './hall';
-import { CaptivesPanel, OathSummary, Petitions, RansomDemands, StandingPanel } from './council';
+import { CaptivesPanel, OathSummary, RansomDemands, StandingPanel } from './council';
 import { formatRange, KNOW, knowledgeOf, type CharacterView } from '../sim/knowledge';
 import { activeMissionOf, activeMissions, MISSION_LABEL } from '../sim/missions';
 import {
@@ -135,7 +135,6 @@ export function ThroneRoom() {
         <Followed className="span-12" />
         <HallPanel className="span-7" />
         <CouncilTable className="span-5" />
-        <div id="petitions" className="span-6"><Petitions /></div>
         <div id="ransoms" className="span-6"><RansomDemands /></div>
         <div id="leads" className="span-12"><LeadsPanel /></div>
         <CaptivesPanel className="span-12" hideWhenEmpty />

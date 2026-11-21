@@ -479,7 +479,7 @@ pre.ascii .inv, span.inv { background: var(--fg); color: #000; }
 
 /* the desk as an inbox */
 .desk-filters { display: flex; gap: 0; padding: 0 8px; border-bottom: 1px solid var(--line); }
-.desk-row { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #111; }
+.desk-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border-bottom: 1px solid #111; }
 .desk-row .desk-item { flex: 1; min-width: 0; }
 .desk-row .desk-acts { display: flex; gap: 4px; flex-shrink: 0; padding-right: 8px; }
 .desk-row .desk-acts .btn { height: 24px; padding: 0 8px; font-size: 11px; }

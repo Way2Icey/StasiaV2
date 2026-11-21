@@ -68,3 +68,38 @@ describe('the ladder', () => {
     expect(what).toBeTruthy();
   });
 });
+
+describe('the council has its say', () => {
+  it('every councillor gives a view on a blooding', async () => {
+    const { councilViews } = await import('./views');
+    const w = structuredClone(createWorld());
+    const c = Object.values(w.characters).find((x) => x.alive && x.houseId === w.playerHouseId && x.tier === 'full' && !x.seat)!;
+    const v = councilViews(w, c.id);
+    expect(v.length).toBeGreaterThanOrEqual(5);
+    expect(v.every((x) => x.text.length > 5)).toBe(true);
+  });
+
+  it('a petition can be approved as the councillor planned it', async () => {
+    const { approvePetition } = await import('./council');
+    let w = createWorld();
+    for (let i = 0; i < 300 && !(w.courts[w.playerHouseId]?.petitions.length); i++) w = step(w);
+    const p = w.courts[w.playerHouseId]!.petitions[0]!;
+    expect(p).toBeDefined();
+    const before = Object.keys(w.missions).length;
+    w = approvePetition(w, w.playerHouseId, p.id);
+    expect(Object.keys(w.missions).length).toBe(before + 1);
+    expect(w.courts[w.playerHouseId]!.petitions.some((x) => x.id === p.id)).toBe(false);
+  });
+
+  it('the Champion puts forward a fighter from the rings, and a local can be bought out and blooded', () => {
+    let w = structuredClone(createWorld());
+    const P = w.playerHouseId;
+    econ(w, P).stock.othes += 5000;
+    const champ = Object.values(w.characters).find((x) => x.houseId === P && x.seat === 'champion')!;
+    w.ladder.proposals.push({ id: 'blX', aspirantId: '', teacherId: champ.id, readiness: 'ready', expires: { year: w.date.year + 1, cycle: 0 }, scout: true, local: { name: 'Grisk', skill: 14, where: 'the Chain Yard', planetId: Object.values(w.planets)[0]!.id, sectorId: Object.values(w.planets)[0]!.sectors[0]!.id, record: '3 wins on one card' } });
+    w = answerBlooding(w, 'blX', 'word');
+    const g = Object.values(w.characters).find((x) => x.name.given === 'Grisk' && x.houseId === P)!;
+    expect(g).toBeDefined();
+    expect(stageOf(w, g.id)).toBe('blooded');
+  });
+});
