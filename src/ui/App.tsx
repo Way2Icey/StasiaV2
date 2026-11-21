@@ -1,3 +1,4 @@
+import { VERSION } from '../version';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Term } from './tip';
 import { GlossaryPage } from './glossary';
@@ -140,7 +141,7 @@ export function App() {
                 </svg>
                 <span>
                   <span className="crest-name">House {house.name}</span>
-                  <small>{house.tier === 'great' ? 'Great House' : 'Minor House'}</small>
+                  <small>{house.tier === 'great' ? 'Great House' : 'Minor House'} · v{VERSION}</small>
                 </span>
               </button>
               <div className="navbtns">
