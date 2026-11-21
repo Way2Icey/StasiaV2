@@ -258,6 +258,10 @@ export interface FeedEntry {
   houseIds?: string[];
   /** The record that led to this one. */
   causeId?: string;
+  /** Which councillor brings it to the Highroy (else worked out from what it is). */
+  seat?: import('./reports').Reporter;
+  /** The original words of a letter: who wrote it, and what they said. */
+  quote?: { from: string; text: string };
 }
 
 // ---------------------------------------------------------------- knowledge

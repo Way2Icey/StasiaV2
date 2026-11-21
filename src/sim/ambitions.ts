@@ -632,8 +632,29 @@ export function knight(input: World, id: string): World {
   if (lord) shiftOpinion(w, c.id, lord, 15, 'knighted them');
   const a = w.ambitions.of[c.id];
   if (a?.kind === 'knight') satisfy(w, c, a, 'knighted in the hall');
-  logRecord(w, { kind: 'world', type: 'world', severity: 2, text: `${displayName(c.name)} kneels in the hall and rises a knight of the house.`, who: [{ id: c.id, part: 'knighted' }, ...(lord ? [{ id: lord, part: 'gave the accolade' }] : [])], effects: ['−300 othes'] });
+  logRecord(w, { kind: 'world', type: 'world', severity: 2, seat: 'grandMaster', text: `${displayName(c.name)} kneels in the hall and rises a knight of the house.`, who: [{ id: c.id, part: 'knighted' }, ...(lord ? [{ id: lord, part: 'gave the accolade' }] : [])], effects: ['−300 othes'] });
+  // A few days later, their letter: thanks, and what they mean to do.
+  logRecord(w, { kind: 'world', type: 'world', severity: 2, seat: 'grandMaster', text: `A letter from ${displayName(c.name)}, newly knighted.`, quote: { from: c.id, text: oathOf(w, c) }, who: [{ id: c.id, part: 'wrote' }] });
   return w;
+}
+
+/** What a new knight swears they will do: their want, their old score, or their nature. */
+export function oathOf(w: World, c: Character): string {
+  const a = w.ambitions?.of[c.id];
+  const score = (w.crucible?.nemeses ?? []).find((n) => !n.settled && n.victimId === c.id);
+  const rival = Object.entries(w.ties?.[c.id] ?? {}).find(([, t]) => t.bond === 'rival' || t.bond === 'feud');
+  const R = rival && w.characters[rival[0]] ? shortName(w.characters[rival[0]]!.name) : '';
+  const thanks = c.hidden.temperament >= 12 ? 'My lord, I have no words fit for the honour, so I will use these:' : 'My lord.';
+  const vow = score ? `I will meet ${score.foeName} again, and this time I will not fall.`
+    : a?.kind === 'seat' && a.target === 'champion' ? 'I will be the champion of this house one day. Hold me to it.'
+    : a?.kind === 'seat' && a.target === 'grandMaster' ? 'I mean to lead the knights of this house before I am done.'
+    : a?.kind === 'glory' ? 'I will give this house a name the Reaches sing.'
+    : a?.kind === 'captain' ? 'Give me a ship and I will carry the house\'s colours wherever you point it.'
+    : rival ? `I will prove I was the better choice. ${R} knows what I mean.`
+    : c.hidden.loyalty >= 14 ? 'Whatever this house asks, the answer is yes.'
+    : c.stats.valor >= 14 ? 'Put me where it is hardest. That is where I am useful.'
+    : 'I will not make you regret it.';
+  return `${thanks} ${vow}`;
 }
 
 /** The Highroy names someone to a council seat directly. */

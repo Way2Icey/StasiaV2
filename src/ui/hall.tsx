@@ -2,6 +2,8 @@
 // that follows the house's state, the council as a table, and the Desk, where
 // everything waiting on the Highroy lands.
 import { readyForCommand } from '../sim/missions';
+import { lettersFor, noteOn, REPORTER_LABEL, REPORTER_REACH, reporterOf, REPORTERS, type Reporter } from '../sim/reports';
+import { seasonLine, titlesOf, totals } from '../sim/careers';
 import { answerChallenge } from '../sim/grounds';
 import { declineCircuit } from '../sim/circuit';
 import { answerIntake, answerPupilOffer, cannotTakeIntake } from '../sim/training';
@@ -14,11 +16,11 @@ import { AudienceCard } from './ambitions';
 import { AMBITION_LABEL } from '../sim/ambitions';
 import { CLOSES, currentRound } from '../sim/crucible';
 import { classify } from '../sim/records';
-import { Panel, PersonLink } from './links';
+import { Panel, PersonById, PersonLink } from './links';
 import { Term } from './tip';
 import { Decision } from './events';
 import { councilOf, SEAT_TITLE } from '../sim/world';
-import { findSector, ruler } from '../sim/query';
+import { findSector, ruler, seatHolder } from '../sim/query';
 import { isAway } from '../sim/court';
 import { activeMissionOf } from '../sim/missions';
 import { moodLabel, moodOf } from '../sim/mood';
@@ -27,7 +29,7 @@ import { leadsOf } from '../sim/discovery';
 import { absoluteCycle, type GameDate } from '../sim/time';
 import { eventDef } from '../sim/events';
 import { displayName } from '../sim/names';
-import type { World } from '../sim/types';
+import type { FeedEntry, World } from '../sim/types';
 
 /** Cycles from now, as the terminal shows them: "C+4". */
 function inCycles(world: World, d: GameDate): string {
@@ -294,24 +296,16 @@ export function Desk({ className }: { className?: string }) {
   for (const e of recent) {
     items.push({ id: `m-${e.missionId}`, mark: '[r]', kind: 'REPORT', text: e.text, quiet: true, open: () => nav.to({ kind: 'mission', id: e.missionId! }) });
   }
-  // News: what has happened to the house lately, put in front of the Highroy until set aside.
-  const seen = new Set(world.ambitions?.seen ?? []);
-  const shown = new Set(items.map((i) => i.id));
-  const since = absoluteCycle(world.date) - 32;
-  const news = world.feed.filter((e) => e.id && !seen.has(e.id) && !shown.has(e.id) && absoluteCycle(e.date) >= since && e.type !== 'decision' && e.type !== 'raid' && e.type !== 'time' && e.type !== 'port' && e.type !== 'seizure'
-    && ((classify(world, e).severity >= 2 && (e.who?.some((w) => world.characters[w.id]?.houseId === P) || e.houseIds?.includes(P)))
-      || (classify(world, e).severity >= 1 && e.who?.some((w) => world.careers?.pinned.includes(w.id))))).slice(-6).reverse();
-  for (const e of news) items.push({ id: e.id!, mark: '[·]', kind: 'NEWS', text: e.text, quiet: true, open: () => { game.update((w) => ({ ...w, ambitions: { ...w.ambitions, seen: [...(w.ambitions.seen ?? []), e.id!].slice(-300) } })); nav.to({ kind: 'log', open: e.id }); },
-    acts: [{ label: 'Seen', run: (w) => ({ ...w, ambitions: { ...w.ambitions, seen: [...(w.ambitions.seen ?? []), e.id!].slice(-300) } }) }] });
+  // Letters: everything the house learns, brought by the councillor whose people saw it.
+  const news = lettersFor(world);
   const opened = open ? world.events?.pending.find((p) => p.id === open) : undefined;
   const audience = open ? world.ambitions?.audiences.find((a) => a.id === open) : undefined;
-  const clearNews = () => game.update((w) => ({ ...w, ambitions: { ...w.ambitions, seen: [...(w.ambitions.seen ?? []), ...news.map((e) => e.id!)].slice(-300) } }));
-  const counts: Record<DeskTab, number> = { needs: 0, chances: 0, news: 0 };
+  const counts: Record<DeskTab, number> = { needs: 0, chances: 0, news: news.length };
   for (const it of items) counts[tabOf(it.kind)]++;
   const tab: DeskTab = tabPick ?? (counts.needs ? 'needs' : counts.chances ? 'chances' : 'news');
-  const shownItems = items.filter((it) => tabOf(it.kind) === tab);
+  const shownItems = tab === 'news' ? [] : items.filter((it) => tabOf(it.kind) === tab);
   const act = (fn: (w: World) => World) => { setErr(null); game.update((w) => { try { return fn(w); } catch (e) { setErr((e as Error).message); return w; } }); };
-  const LABEL: Record<DeskTab, string> = { needs: 'Needs you', chances: 'Opportunities', news: 'News' };
+  const LABEL: Record<DeskTab, string> = { needs: 'Needs you', chances: 'Opportunities', news: 'Letters' };
   return (
     <Panel title={<Term k="decision">The desk</Term>} aside={`${counts.needs} need you`} className={`major ${className ?? ''}`}>
       <div className="desk-filters">
@@ -320,7 +314,7 @@ export function Desk({ className }: { className?: string }) {
         ))}
       </div>
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
-      {shownItems.length === 0 ? <p className="body muted" style={{ margin: 0 }}>{tab === 'needs' ? 'Nothing needs you. Press Continue and the world will fill the desk.' : tab === 'chances' ? 'No openings just now.' : 'No news you have not seen.'}</p> : null}
+      {tab === 'news' ? <Letters letters={news} /> : shownItems.length === 0 ? <p className="body muted" style={{ margin: 0 }}>{tab === 'needs' ? 'Nothing needs you. Press Continue and the world will fill the desk.' : 'No openings just now.'}</p> : null}
       <div className="desk-list">
         {shownItems.map((it) => (
           <div key={it.id} className="desk-row">
@@ -333,9 +327,79 @@ export function Desk({ className }: { className?: string }) {
       </div>
       {opened ? <div style={{ borderTop: '1px solid var(--line)' }}><Decision p={opened} /></div> : null}
       {audience ? <div style={{ borderTop: '1px solid var(--line)' }}><AudienceCard au={audience} onDone={() => setOpen(null)} /></div> : null}
-      {tab === 'news' && news.length && !opened && !audience ? <div className="body" style={{ paddingTop: 0 }}><button type="button" className="btn small" onClick={clearNews}>Set all the news aside ({news.length})</button></div> : null}
       {opened || audience || shownItems.length === 0 ? null : <p className="body keyhint" style={{ margin: 0, fontSize: 12 }}>Act on a letter here, or open it for the whole story. Decisions left too long fall to the council on the date shown.</p>}
     </Panel>
+  );
+}
+
+const markSeen = (ids: string[]) => (w: World): World => ({ ...w, ambitions: { ...w.ambitions, seen: [...(w.ambitions.seen ?? []), ...ids].slice(-600) } });
+
+/** The Letters tab: one stack per councillor, opened to read. */
+function Letters({ letters }: { letters: FeedEntry[] }) {
+  const world = useWorld();
+  const game = useGame();
+  const [openSeat, setOpenSeat] = useState<Reporter | null>(null);
+  if (!letters.length) return <p className="body muted" style={{ margin: 0 }}>No letters you have not read.</p>;
+  const by: Partial<Record<Reporter, FeedEntry[]>> = {};
+  for (const e of letters) (by[reporterOf(world, e)] ??= []).push(e);
+  const P = world.playerHouseId;
+  return (
+    <div className="desk-list">
+      {REPORTERS.filter((r) => by[r]?.length).map((r) => {
+        const list = by[r]!;
+        const who = r === 'heralds' ? undefined : seatHolder(world, P, r);
+        const big = list.filter((e) => classify(world, e).severity >= 2);
+        const small = list.filter((e) => classify(world, e).severity < 2);
+        const isOpen = openSeat === r;
+        return (
+          <div key={r} style={{ borderBottom: '1px solid #111' }}>
+            <div className="desk-row">
+              <button type="button" className="desk-item" aria-pressed={isOpen} onClick={() => setOpenSeat(isOpen ? null : r)} title={`Reports on ${REPORTER_REACH[r]}`}>
+                <span>[✉]</span><span>{REPORTER_LABEL[r].toUpperCase()}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{who ? displayName(who.name) : r === 'heralds' ? 'Cried in every port' : <em className="muted">The seat is empty</em>} · {list.length} {list.length === 1 ? 'letter' : 'letters'}{big.length ? ` · ${big.length} that matter` : ''}</span>
+                <span className="when">{isOpen ? '▾' : '▸'}</span>
+              </button>
+              <span className="desk-acts"><button type="button" className="btn small" onClick={() => game.update(markSeen(list.map((e) => e.id!)))}>Read</button></span>
+            </div>
+            {isOpen ? (
+              <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
+                {big.map((e) => <Letter key={e.id} e={e} />)}
+                {small.length ? (
+                  <div>
+                    <div className="eyebrow muted" style={{ marginBottom: 2 }}>{big.length ? 'And the rest, briefly' : 'This Phase, briefly'}</div>
+                    {small.map((e) => <div key={e.id} style={{ fontSize: 12.5, padding: '2px 0' }}>· {e.text}</div>)}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** One letter: the original words, the councillor's note, and what the person has been doing. */
+function Letter({ e }: { e: FeedEntry }) {
+  const world = useWorld();
+  const game = useGame();
+  const nav = useNav();
+  const note = noteOn(world, e);
+  const P = world.playerHouseId;
+  const subjId = e.quote?.from ?? (e.who ?? []).map((x) => x.id).find((id) => world.characters[id]?.houseId === P);
+  const recent = subjId ? seasonLine(totals(world, subjId)) : '';
+  const lastTitle = subjId ? titlesOf(world, subjId).slice(-1)[0]?.title : undefined;
+  return (
+    <div style={{ borderLeft: '2px solid var(--line)', paddingLeft: 10 }}>
+      <div><strong>{e.text}</strong></div>
+      {e.quote ? <blockquote style={{ margin: '6px 0', fontStyle: 'italic' }}>“{e.quote.text}” <span className="muted" style={{ fontStyle: 'normal' }}>— <PersonById id={e.quote.from} /></span></blockquote> : e.detail ? <div className="muted" style={{ fontSize: 12, whiteSpace: 'pre-line' }}>{e.detail}</div> : null}
+      {note ? <div style={{ fontSize: 12.5 }}><span className="muted">{note.by ? <><PersonById id={note.by} />, in the margin:</> : 'In the margin:'}</span> {note.text}</div> : null}
+      {subjId && (recent !== 'nothing of note yet' || lastTitle) ? <div className="muted" style={{ fontSize: 12 }}>Lately, <PersonById id={subjId} />: {recent}{lastTitle ? ` · ${lastTitle}` : ''}</div> : null}
+      <div className="actions" style={{ marginTop: 4 }}>
+        <button type="button" className="btn small" onClick={() => game.update(markSeen([e.id!]))}>Read</button>
+        <button type="button" className="btn small" onClick={() => nav.to({ kind: 'log', open: e.id })}>In the log ›</button>
+      </div>
+    </div>
   );
 }
 
