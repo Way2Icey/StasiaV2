@@ -17,6 +17,7 @@ import { award, tally, titlesOf } from './careers';
 import { listeningOn } from './holdings';
 import { noticeYouth } from './prospects';
 import { ensureGrounds, fighters, fightScore, isMilitary } from './grounds';
+import { lastingWound, seasoned } from './ladder';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, dateParts, type GameDate } from './time';
 import type { Character, World } from './types';
 
@@ -213,10 +214,11 @@ function boutOf(world: World, rng: Rng, e: CircuitEvent, a: Entrant, b: Entrant,
   const W = win.id ? world.characters[win.id] : undefined;
   if (L?.alive) {
     if (out.killed) kill(world, L, world.date, `killed by ${win.name} at ${e.name}`);
-    else if (out.hurt) L.flags.push({ id: 'wounded', since: world.date, until: addCycles(world.date, CYCLES_PER_PHASE * 2), detail: `at ${e.name}` });
+    else if (out.hurt) { L.flags.push({ id: 'wounded', since: world.date, until: addCycles(world.date, CYCLES_PER_PHASE * 2), detail: `at ${e.name}` }); if (e.kind === 'underground' || e.kind === 'pitnight') lastingWound(world, rng, L.id, `at ${e.name}`); }
+    if (!out.killed) seasoned(world, rng, L.id, false);
     tally(world, L.id, 'bouts');
   }
-  if (W) { tally(world, W.id, 'bouts'); tally(world, W.id, 'boutsWon'); }
+  if (W) { tally(world, W.id, 'bouts'); tally(world, W.id, 'boutsWon'); seasoned(world, rng, W.id, true); }
   // Meet the same face often enough and it becomes personal.
   if (L && W && L.houseId !== W.houseId) {
     shiftOpinion(world, L.id, W.id, out.killed ? -60 : -5, `beaten at ${e.name}`);
@@ -394,6 +396,14 @@ export function advanceCircuit(world: World, rng: Rng, phaseTurned: boolean, orb
           if (mine >= MAX_SENT) continue;
           for (const c of fighters(world, h)) {
             if (e.entrants.some((x) => x.id === c.id) || !keen(world, c)) continue;
+            // Pupils and aspirants are not allowed the pits; now and then one slips out anyway.
+            const st = world.ladder?.of[c.id]?.stage;
+            if (e.kind === 'underground' && (st === 'pupil' || st === 'aspirant')) {
+              if (willOf(world, c.id) < 70 || !rng.chance(0.006)) continue;
+              if (h === P) logRecord(world, { kind: 'intrigue', type: 'intrigue', severity: 2, seat: 'spymaster', text: `${displayName(c.name)}, still ${st === 'pupil' ? 'a pupil' : 'an aspirant'}, was seen slipping off to ${e.name}. They are not allowed the pits.`, who: [{ id: c.id, part: 'slipped out' }] });
+              goes(world, e, c, false);
+              break;
+            }
             if (willOf(world, c.id) < 70 || !rng.chance(e.kind === 'underground' ? 0.06 : 0.05)) continue;
             // Other houses' Marshals send their own to tourneys; a few go to the pits on their own.
             goes(world, e, c, false);

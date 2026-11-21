@@ -4,6 +4,7 @@
 // The houses fight over the battle world's locations and the prizes in them. The battles are real:
 // men die, knights are wounded and some do not come home. It costs money, supplies, a ship and people,
 // and it is one avenue among many: a house is not drawn every year.
+import { lastingWound, seasoned } from './ladder';
 import { Rng } from './rng';
 import { displayName, shortName } from './names';
 import { ageOf } from './characters';
@@ -623,7 +624,8 @@ function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[]): 
     duel = { a: x.c.id ?? x.c.name, b: y.c.id ?? y.c.name, winner: win.c.id ?? win.c.name };
     if (x.c.id) tally(w, x.c.id, 'cDuels');
     if (y.c.id) tally(w, y.c.id, 'cDuels');
-    if (win.c.id) { tally(w, win.c.id, 'cDuelsWon'); addGlory(w, win.c.id, 1); }
+    if (win.c.id) { tally(w, win.c.id, 'cDuelsWon'); addGlory(w, win.c.id, 1); seasoned(w, rng, win.c.id, true); }
+    if (lose.c.id) seasoned(w, rng, lose.c.id, false);
     if (win.c.id && lose.c.id) shiftOpinion(w, lose.c.id, win.c.id, -10, `beat them on ${BATTLE_WORLD}`);
     const keyOf = (s: typeof x) => s.c.id ?? nk(s.h, s.c.name);
     let what: Nemesis['what'] = 'beat';
@@ -631,7 +633,7 @@ function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[]): 
       const p = w.characters[lose.c.id]!;
       const roll = rng.next();
       if (roll < 0.02) { kill(w, p, w.date, `killed by ${win.c.name} on ${BATTLE_WORLD}`); fallen.push(p.id); what = 'killed'; }
-      else if (roll < 0.25) { p.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, 48) }); wounded.push(p.id); what = 'wounded'; }
+      else if (roll < 0.25) { p.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, 48) }); wounded.push(p.id); what = 'wounded'; lastingWound(w, rng, p.id, `in a champions' duel on ${BATTLE_WORLD}`); }
     } else if (rng.chance(0.02)) {
       // A guest champion can fall too; their house will find another.
       what = 'killed';
@@ -685,7 +687,8 @@ function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[]): 
       if (h === winner) { tally(w, id, 'crucibleWon'); addGlory(w, id, 1); }
       const roll = rng.next();
       if (roll < 0.006) { kill(w, p, w.date, `fell at ${loc.name} on ${BATTLE_WORLD}`); fallen.push(id); }
-      else if (roll < 0.065) { p.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, 48) }); wounded.push(id); }
+      else if (roll < 0.065) { p.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, 48) }); wounded.push(id); lastingWound(w, rng, id, `at ${loc.name} on ${BATTLE_WORLD}`); }
+      if (!fallen.includes(id)) seasoned(w, rng, id, h === winner);
     }
     if (c.championId) { tally(w, c.championId, 'crucible'); if (h === winner) tally(w, c.championId, 'crucibleWon'); }
     if (c.marshalId) { tally(w, c.marshalId, 'crucible'); if (h === winner) { tally(w, c.marshalId, 'crucibleWon'); addGlory(w, c.marshalId, 1); } }

@@ -1,4 +1,6 @@
 // Careers on screen: season lines, titles, potential diamonds, and the people the Highroy follows.
+import { STAGE_LABEL, stageOf } from '../sim/ladder';
+import { formatDate } from '../sim/time';
 import { useGame, useWorld } from './context';
 import { Panel, PersonLink } from './links';
 import { Fragment } from 'react';
@@ -26,7 +28,9 @@ export function CareerPanel({ c, className }: { c: Character; className?: string
   const t = totals(world, c.id);
   const rows = (Object.keys(STAT_LABEL) as Stat[]).filter((k) => k !== 'titles' && (t[k] ?? 0) > 0);
   return (
-    <Panel title="Record" aside={<>potential <Diamonds c={c} /></>} className={className}>
+    <Panel title="Record" aside={<>{stageLabel(world, c.id)}potential <Diamonds c={c} /></>} className={className}>
+      <DevLine id={c.id} />
+      <LadderLine id={c.id} />
       {titles.length ? <div className="body" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{titles.map((x, i) => <span key={i} className="pill" aria-pressed="true">{x.title}</span>)}</div> : null}
       {rows.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No deeds on record yet.</p> : (
         <>
@@ -38,6 +42,44 @@ export function CareerPanel({ c, className }: { c: Character; className?: string
       )}
     </Panel>
   );
+}
+
+function stageLabel(world: ReturnType<typeof useWorld>, id: string): string {
+  const s = stageOf(world, id);
+  return s ? `${s === 'knight' ? 'Knight' : STAGE_LABEL[s]} · ` : '';
+}
+
+const BARS = '▁▂▃▄▅▆▇█';
+function spark(vals: number[]): string {
+  if (!vals.length) return '';
+  const lo = Math.min(...vals);
+  const hi = Math.max(...vals);
+  return vals.map((v) => BARS[hi === lo ? 3 : Math.round(((v - lo) / (hi - lo)) * 7)]).join('');
+}
+
+/** How they have grown, Orbit by Orbit: fighting, and their best subject. */
+export function DevLine({ id }: { id: string }) {
+  const world = useWorld();
+  const line = world.ladder?.snaps[id] ?? [];
+  if (line.length < 2) return null;
+  const f = line.map((x) => x[1]);
+  const b = line.map((x) => x[2]);
+  const d = (xs: number[]) => { const v = xs[xs.length - 1]! - xs[0]!; return `${v >= 0 ? '+' : ''}${v.toFixed(1)}`; };
+  return (
+    <div className="body mono" style={{ fontSize: 12, display: 'grid', gridTemplateColumns: '90px 1fr 60px', gap: '0 8px' }}>
+      <span className="muted">Fighting</span><span style={{ letterSpacing: 1 }}>{spark(f)}</span><span>{f[f.length - 1]} <span className="muted">{d(f)}</span></span>
+      <span className="muted">Best subject</span><span style={{ letterSpacing: 1 }}>{spark(b)}</span><span>{b[b.length - 1]} <span className="muted">{d(b)}</span></span>
+      <span className="muted" style={{ gridColumn: '1 / -1', fontSize: 11 }}>{line.length} Orbits watched</span>
+    </div>
+  );
+}
+
+/** Their way up: the trials, failures, blooding. */
+function LadderLine({ id }: { id: string }) {
+  const world = useWorld();
+  const r = world.ladder?.of[id];
+  if (!r?.history.length) return null;
+  return <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{r.history.map((h) => `${formatDate(h.date).replace(/ · Cycle \d+/, '')}: ${h.what}`).join(' · ')}</p>;
 }
 
 /** On the Hall: the people the Highroy is following, with this season's line. */

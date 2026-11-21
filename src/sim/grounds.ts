@@ -12,6 +12,7 @@ import { shiftMood } from './mood';
 import { shiftRelation } from './relations';
 import { bondOf, opinion, setBond, shiftOpinion } from './relationships';
 import { kill } from './death';
+import { lastingWound, seasoned } from './ladder';
 import { addGlory } from './ambitions';
 import { award, tally } from './careers';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, dateParts, type GameDate } from './time';
@@ -62,6 +63,7 @@ export function fighters(world: World, houseId: string): Character[] {
 
 /** Of the military: knights, the champion and Grand Master, ship captains, base commanders, those of arms by trade. */
 export function isMilitary(world: World, c: Character): boolean {
+  if (c.flags.some((f) => f.id === 'retired')) return false;
   if (c.seat === 'champion' || c.seat === 'grandMaster') return true;
   if (c.flags.some((f) => f.id === 'knighted') || /knight|soldier|sergeant|marshal|captain|commander|guard|warden/i.test(c.role)) return true;
   if (Object.values(world.fleet?.ships ?? {}).some((s) => s.captainId === c.id && !s.lost)) return true;
@@ -78,7 +80,9 @@ function bout(w: World, rng: Rng, a: Character, b: Character, hurt: number, deat
   const out: Bout = { a: a.id, b: b.id, winner: win.id };
   const roll = rng.next();
   if (roll < death) { kill(w, lose, w.date, `killed by ${displayName(win.name)} ${place}`); out.killed = lose.id; }
-  else if (roll < hurt) { lose.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, CYCLES_PER_PHASE * 2), detail: place }); out.hurt = lose.id; }
+  else if (roll < hurt) { lose.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, CYCLES_PER_PHASE * 2), detail: place }); out.hurt = lose.id; if (hurt >= 0.2) lastingWound(w, rng, lose.id, place); }
+  seasoned(w, rng, win.id, true);
+  if (!out.killed) seasoned(w, rng, lose.id, false);
   // An upset stings.
   if (fightScore(lose) > fightScore(win) + 2) shiftOpinion(w, lose.id, win.id, -6, `beat them ${place}`);
   else shiftOpinion(w, lose.id, win.id, 2, `a fair bout ${place}`);

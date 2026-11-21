@@ -2,6 +2,7 @@
 // that follows the house's state, the council as a table, and the Desk, where
 // everything waiting on the Highroy lands.
 import { readyForCommand } from '../sim/missions';
+import { answerBlooding, readinessText } from '../sim/ladder';
 import { lettersFor, noteOn, REPORTER_LABEL, REPORTER_REACH, reporterOf, REPORTERS, type Reporter } from '../sim/reports';
 import { seasonLine, titlesOf, totals } from '../sim/careers';
 import { answerChallenge } from '../sim/grounds';
@@ -192,7 +193,7 @@ interface DeskItem {
 }
 
 type DeskTab = 'needs' | 'chances' | 'news';
-const NEEDS = new Set(['DECISION', 'AUDIENCE', 'PETITION', 'RAID', 'HELD', 'RANSOM', 'LOAN', 'DEFAULT', 'CAIGE', 'CRUCIBLE', 'CHALLENGE', 'INTAKE', 'PUPIL', 'INVITATION', 'WARD']);
+const NEEDS = new Set(['BLOODING', 'DECISION', 'AUDIENCE', 'PETITION', 'RAID', 'HELD', 'RANSOM', 'LOAN', 'DEFAULT', 'CAIGE', 'CRUCIBLE', 'CHALLENGE', 'INTAKE', 'PUPIL', 'INVITATION', 'WARD']);
 const tabOf = (k: string): DeskTab => (NEEDS.has(k) ? 'needs' : k === 'NEWS' ? 'news' : 'chances');
 
 function scrollTo(id: string) {
@@ -283,6 +284,17 @@ export function Desk({ className }: { className?: string }) {
   for (const e of (world.grounds?.circuit ?? []).filter((x) => !x.done && x.host !== P && (x.invited?.includes(P) || x.kind === 'public') && !x.entrants.some((y) => y.houseId === P))) {
     const inv = e.invited?.includes(P);
     items.push({ id: e.id, mark: '[»]', kind: inv ? 'INVITATION' : 'TOURNEY', text: <>{inv ? `House ${world.houses[e.host!]?.name} invites us: ` : ''}{e.name}</>, quiet: !inv, when: inCycles(world, e.held), open: () => nav.to({ kind: 'grounds' }), acts: inv ? [{ label: 'Decline', run: (w) => declineCircuit(w, e.id) }] : undefined });
+  }
+  for (const b of world.ladder?.proposals ?? []) {
+    const c = world.characters[b.aspirantId];
+    const t = b.teacherId ? world.characters[b.teacherId] : undefined;
+    if (!c) continue;
+    items.push({ id: b.id, mark: '[†]', kind: 'BLOODING', text: <>{t ? `${t.name.given} thinks ` : ''}{c.name.given} is {readinessText(b)} to be blooded</>, when: inCycles(world, b.expires), open: () => nav.to({ kind: 'character', id: c.id }), acts: [
+      { label: 'Gift · 200', primary: true, title: 'Bless the blooding with a gift: they will remember it', run: (w) => answerBlooding(w, b.id, 'gift') },
+      { label: 'Words', primary: true, title: 'Your words read out: it fires their will', run: (w) => answerBlooding(w, b.id, 'word') },
+      { label: 'High table', primary: true, title: 'A seat at the high table that night: a little glory', run: (w) => answerBlooding(w, b.id, 'seat') },
+      { label: 'Wait', title: 'Not yet', run: (w) => answerBlooding(w, b.id, 'wait') },
+    ] });
   }
   for (const c of readyForCommand(world, P).slice(0, 2)) {
     items.push({ id: `ready-${c.id}`, mark: '[*]', kind: 'READY', text: <>{c.name.given} is ready for a first command</>, quiet: true, open: () => nav.to({ kind: 'plan', mission: 'scout', leader: c.id }) });

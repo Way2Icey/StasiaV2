@@ -20,6 +20,8 @@ import { isAway } from '../sim/court';
 import { heldSectors } from '../sim/economy';
 import { buildCost, buildModule, cannotBuild, MODULE_LABEL, MODULE_NOTE, modulesOf, placeOf, reservesOf, SECTOR_KINDS, type ModuleKind } from '../sim/holdings';
 import { ageOf } from '../sim/characters';
+import { mentorOf, proofOf, sternness } from '../sim/ladder';
+import { absoluteCycle } from '../sim/time';
 import { SPECIES } from '../data/species';
 import { SEAT_TITLE } from '../sim/world';
 import type { World } from '../sim/types';
@@ -82,7 +84,8 @@ export function KnightsPage() {
   const P = world.playerHouseId;
   const ours = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full');
   const military = ours.filter((c) => isMilitary(world, c)).sort((a, b) => fightScore(b) - fightScore(a));
-  const could = ours.filter((c) => !isMilitary(world, c) && !cannotKnight(world, c.id)).sort((a, b) => fightScore(b) - fightScore(a));
+  const could = ours.filter((c) => !cannotKnight(world, c.id)).sort((a, b) => (world.ladder?.of[b.id]?.stage === 'blooded' ? 1 : 0) - (world.ladder?.of[a.id]?.stage === 'blooded' ? 1 : 0) || fightScore(b) - fightScore(a));
+  const aspirants = ours.filter((c) => world.ladder?.of[c.id]?.stage === 'aspirant').sort((a, b) => proofOf(world, b.id) - proofOf(world, a.id));
   return (
     <>
       <div className="page-title">
@@ -111,12 +114,27 @@ export function KnightsPage() {
             </table>
           </div>
         </Panel>
-        <Panel title="Could be knighted" aside="300 othes each" className="span-12">
+        <Panel title="Aspirants" aside={`${aspirants.length} proving themselves`} className="span-12">
+          {aspirants.length === 0 ? <p className="body muted" style={{ margin: 0 }}>None. Pupils sit the house trials each year from about fourteen.</p> : null}
+          {aspirants.map((c) => {
+            const t = mentorOf(world, c.id);
+            const st = sternness(t);
+            const p = proofOf(world, c.id);
+            return (
+              <div key={c.id} className="row" style={{ gap: 10 }}>
+                <span style={{ flex: 1 }}><PersonLink c={c} /> <span className="muted">· {Math.floor(ageOf(c, world.date))} · fight {fightScore(c).toFixed(1)}</span></span>
+                <span className="mono muted" style={{ fontSize: 12 }} title="Deeds since the trials, against what their teacher wants to see">proof [{'█'.repeat(Math.min(10, Math.round(p / 2)))}{'░'.repeat(Math.max(0, 10 - Math.round(p / 2)))}] {p.toFixed(0)}/{st.bar}</span>
+                <span className="muted" style={{ fontSize: 12, width: 200 }}>{t ? <>under <PersonLink c={t} /> · {st.kind}</> : 'no teacher'}</span>
+              </div>
+            );
+          })}
+        </Panel>
+        <Panel title="Could be knighted" aside="Blooded first · 300 othes each" className="span-12">
           {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
           {could.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one at court is ready.</p> : null}
           {could.slice(0, 12).map((c) => (
             <div key={c.id} className="row" style={{ gap: 10 }}>
-              <span style={{ flex: 1 }}><PersonLink c={c} /> <span className="muted">· {c.role} · {Math.floor(ageOf(c, world.date))} · fight {fightScore(c).toFixed(1)}{ageOf(c, world.date) < SPECIES[c.species].adulthood * 1.2 ? ' · young' : ''}</span></span>
+              <span style={{ flex: 1 }}><PersonLink c={c} /> <span className="muted">· {c.role} · {Math.floor(ageOf(c, world.date))} · fight {fightScore(c).toFixed(1)}{world.ladder?.of[c.id]?.stage === 'blooded' ? ` · blooded ${Math.round((absoluteCycle(world.date) - absoluteCycle(world.ladder.of[c.id]!.since)) / 80)} Orbits ago` : ''}</span></span>
               <button type="button" className="btn small primary" onClick={() => run((w) => knight(w, c.id))}>Knight them</button>
             </div>
           ))}

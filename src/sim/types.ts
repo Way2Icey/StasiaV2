@@ -433,6 +433,8 @@ export interface MarketGood {
 export interface Economy {
   houses: Record<string, HouseEconomy>;
   market: Record<GoodId, MarketGood>;
+  /** How the house pays its knights, champion and councillors. */
+  payScale?: 'meagre' | 'fair' | 'generous';
 }
 
 // ---------------------------------------------------------------- discoveries
@@ -546,4 +548,5 @@ export interface World {
   /** The year's mock war. */
   crucible: import('./crucible').CrucibleState;
   grounds: import('./grounds').GroundsState;
+  ladder: import('./ladder').LadderState;
 }

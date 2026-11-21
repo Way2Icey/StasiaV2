@@ -609,6 +609,8 @@ export { COUNCIL as AMBITION_SEATS };
 export function cannotKnight(world: World, id: string): string | null {
   const c = world.characters[id];
   if (!c?.alive || c.houseId !== world.playerHouseId) return 'Not one of ours';
+  if (world.ladder?.of[id] && world.ladder.of[id]!.stage !== 'blooded') return world.ladder.of[id]!.stage === 'pupil' ? 'Still a pupil' : 'Not yet blooded';
+  if (c.flags.some((f) => f.id === 'retired')) return 'Retired from arms';
   if (c.role === 'Knight' || c.flags.some((f) => f.id === 'knighted') || titlesOf(world, id).some((t) => t.title.startsWith('Knighted'))) return 'Already a knight';
   if (c.seat) return 'A councillor';
   if (!adult(world, c)) return 'Too young';
