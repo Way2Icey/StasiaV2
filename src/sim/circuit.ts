@@ -255,16 +255,24 @@ function resolve(world: World, rng: Rng, e: CircuitEvent) {
     if (sides[1]) shiftRelation(world, sides[0]!, sides[1], bouts.some((b) => b.killed) ? -4 : 1);
   } else {
     // A bracket of eight, blunted; locals fill the open tourneys.
-    let field = [...e.entrants].sort((a, b) => b.skill - a.skill).slice(0, 8);
-    if (e.kind === 'public' && field.length < 8) field.push(...localsFor(rng, 8 - field.length, 7, 13));
-    while (field.length > 1 && field.length & (field.length - 1)) field = field.slice(0, field.length - 1);
-    let round = rng.shuffle(field);
+    const field = [...e.entrants].sort((a, b) => b.skill - a.skill).slice(0, 8);
+    // Open tourneys fill with the undercities' best; invitationals give the top seeds byes.
+    if (e.kind === 'public' && field.length < 8) field.push(...localsFor(rng, 8 - field.length, 10, 16));
+    let size = 2;
+    while (size < field.length) size *= 2;
+    const seeded: (Entrant | null)[] = [...field, ...Array<null>(size - field.length).fill(null)];
+    // Seed 1 meets the last, 2 the second-last, and so on; byes fall to the best.
+    let round: (Entrant | null)[] = [];
+    for (let i = 0; i < size / 2; i++) round.push(seeded[i]!, seeded[size - 1 - i]!);
     while (round.length > 1) {
-      const next: Entrant[] = [];
+      const next: (Entrant | null)[] = [];
       for (let i = 0; i + 1 < round.length; i += 2) {
-        const b = boutOf(world, rng, e, round[i]!, round[i + 1]!, 0.08, 0.003);
+        const x = round[i]!;
+        const y = round[i + 1]!;
+        if (!x || !y) { next.push(x ?? y); continue; }
+        const b = boutOf(world, rng, e, x, y, 0.08, 0.003);
         bouts.push(b);
-        next.push(b.winner === (round[i]!.id ?? LOCAL + round[i]!.name) ? round[i]! : round[i + 1]!);
+        next.push(b.winner === (x.id ?? LOCAL + x.name) ? x : y);
       }
       round = next;
     }
@@ -325,6 +333,7 @@ function hear(world: World, rng: Rng, e: CircuitEvent, purse: Record<string, num
       logRecord(world, {
         kind: 'world', type: 'fight', severity: fell || champ || killed.length ? 2 : 1,
         text: fell ? `${displayName(c.name)} was killed at ${e.name} by ${N(fell.winner)}. ${x.sent ? 'We sent them.' : 'They went on their own.'}`
+          : !bs.length ? `${displayName(c.name)} comes back from ${e.name} without a bout: they did not make the draw.`
           : `${displayName(c.name)} comes back from ${e.name}: ${won}–${lost}${champ ? ', and the title' : ''}${purse[x.id!] ? `, ${fmt(purse[x.id!]!)} othes in winnings` : ''}${hurt ? `, and a wound from ${N(hurt.winner)}` : ''}.${killed.length ? ` They killed ${killed.join(' and ')}.` : ''}`,
         detail: bs.map((b) => `${N(b.winner)} beat ${N(b.winner === b.a ? b.b : b.a)}${b.hurt ? ' (hurt)' : ''}${b.killed ? ' (killed)' : ''}`).join('\n'),
         who: [{ id: c.id, part: fell ? 'killed' : champ ? 'won' : 'fought' }], placeId: e.sectorId, source: fell ? 'those who were there' : shortName(c.name),
@@ -393,10 +402,9 @@ export function advanceCircuit(world: World, rng: Rng, phaseTurned: boolean, orb
           }
         }
         // Other houses send to invitationals and public tourneys they care about.
-        if (e.kind !== 'underground') for (const h of houses.filter((x) => x !== P && x !== e.host && (e.kind === 'public' ? rng.chance(0.15) : e.invited?.includes(x)))) {
+        if (e.kind !== 'underground') for (const h of houses.filter((x) => x !== P && x !== e.host && (e.kind === 'public' ? rng.chance(0.35) : e.invited?.includes(x)))) {
           if (e.entrants.some((x) => x.houseId === h)) continue;
-          const best = fighters(world, h).sort((a, b) => fightScore(b) - fightScore(a))[0];
-          if (best && e.kind !== 'pitnight') goes(world, e, best, true);
+          if (e.kind !== 'pitnight') for (const best of fighters(world, h).sort((a, b) => fightScore(b) - fightScore(a)).slice(0, e.kind === 'invitational' ? 2 : 1 + (rng.chance(0.4) ? 1 : 0))) goes(world, e, best, true);
         }
         // The host fields its own.
         if (e.host && e.host !== P && e.kind !== 'pitnight' && !e.entrants.some((x) => x.houseId === e.host)) {

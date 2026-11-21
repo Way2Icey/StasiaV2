@@ -747,7 +747,7 @@ function playRound(w: World, rng: Rng, r: Round) {
     const nameOf = (x: string) => (w.characters[x] ? displayName(w.characters[x]!.name) : x);
     logRecord(w, {
       kind: 'world', type: 'fight', severity: ours ? 2 : b.sides.some((h) => w.houses[h]) ? 1 : 0,
-      text: `The Crucible, Orbit ${r.orbit}: ${houseLabel(w, b.winner)} took ${loc.name} from ${b.sides.filter((h) => h !== b.winner).map((h) => shortHouse(w, h)).join(' and ')}.${b.duel ? ` ${nameOf(b.duel.winner)} won the champions' duel${b.duel.rematch ? ', a rematch' : ''}.` : ''}${b.duel?.avenged && w.characters[b.duel.avenged] ? ` ${displayName(w.characters[b.duel.avenged]!.name)} is avenged.` : ''}`,
+      text: `The Crucible, Orbit ${r.orbit}: ${houseLabel(w, b.winner)} took ${loc.name} from ${b.sides.filter((h) => h !== b.winner).map((h) => shortHouse(w, h)).join(' and ')}.${b.duel ? ` ${nameOf(b.duel.winner)} won the champions' duel${b.duel.rematch ? ', a rematch' : ''}.` : ''}${b.duel?.avenged && w.characters[b.duel.avenged] ? (b.duel.winner === b.duel.avenged ? ` ${shortName(w.characters[b.duel.avenged]!.name)} settles the score.` : ` ${displayName(w.characters[b.duel.avenged]!.name)} is avenged.`) : ''}`,
       detail: b.sides.map((h) => `${shortHouse(w, h)}: ${STANCE_LABEL[r.stance[h]!]}, lost ${b.losses[h]} men`).join('\n') + (b.fallen.length ? `\nFallen: ${b.fallen.map(nameOf).join(', ')}.` : '') + (b.wounded.length ? `\nWounded: ${b.wounded.map(nameOf).join(', ')}.` : ''),
       who: [...(b.mvp && w.characters[b.mvp] ? [{ id: b.mvp, part: 'best of the field' }] : []), ...b.fallen.map((id) => ({ id, part: 'fell' })), ...b.wounded.map((id) => ({ id, part: 'wounded' }))],
       houseIds: b.sides.filter((h) => w.houses[h]), source: BATTLE_WORLD,
