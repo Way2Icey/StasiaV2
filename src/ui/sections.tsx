@@ -21,7 +21,7 @@ import { isAway } from '../sim/court';
 import { heldSectors } from '../sim/economy';
 import { buildCost, buildModule, cannotBuild, MODULE_LABEL, MODULE_NOTE, modulesOf, placeOf, reservesOf, SECTOR_KINDS, type ModuleKind } from '../sim/holdings';
 import { ageOf } from '../sim/characters';
-import { mentorOf, proofOf, sternness } from '../sim/ladder';
+import { mentorOf, pipeline, proofOf, sternness } from '../sim/ladder';
 import { absoluteCycle } from '../sim/time';
 import { SPECIES } from '../data/species';
 import { SEAT_TITLE } from '../sim/world';
@@ -117,6 +117,7 @@ export function KnightsPage() {
           </div>
         </Panel>
         <Panel title="Aspirants" aside={`${aspirants.length} proving themselves`} className="span-12">
+          {(() => { const n = pipeline(world); return <p className="body muted" style={{ margin: '0 0 6px', fontSize: 12 }}>For {n.knights} knight{n.knights === 1 ? '' : 's'} the house wants about {n.wantAspirants} aspirants and {n.wantPupils} pupils coming up; it has {n.aspirants} and {n.pupils}. {n.short > 0 ? 'Short: the academy takes new pupils, the house looks out for promising young people, the Champion scouts the rings, and the trials have places.' : 'Full: no new pupils or prospects are sought (a rare talent still gets noticed), and the trials have one place.'}</p>; })()}
           {aspirants.length === 0 ? <p className="body muted" style={{ margin: 0 }}>None. Pupils sit the house trials each year from about fourteen.</p> : null}
           {aspirants.map((c) => {
             const t = mentorOf(world, c.id);

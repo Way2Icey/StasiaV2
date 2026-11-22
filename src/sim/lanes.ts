@@ -333,7 +333,8 @@ function steward(world: World) { return seatHolder(world, world.playerHouseId, '
 function pirates(world: World, rng: Rng, c: Convoy, f: Faction, lane: Lane) {
   const P = world.playerHouseId;
   const victim = c.buyer ?? c.owner;
-  const ours = c.owner === P || c.buyer === P;
+  // It is our loss only if the goods were ours when they were taken: a sale to a partner is theirs on the road.
+  const ours = victim === P;
   const where = laneName(world, lane);
   const ship = c.escort ? world.fleet?.ships[c.escort] : undefined;
   const boss = leaderFor(f, rng);

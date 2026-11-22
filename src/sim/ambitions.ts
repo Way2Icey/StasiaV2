@@ -208,7 +208,7 @@ function satisfy(w: World, c: Character, a: Ambition, how: string) {
   c.hidden.loyalty = clamp(c.hidden.loyalty + 1, 1, 20);
   if (c.houseId === w.playerHouseId) {
     logRecord(w, {
-      kind: 'world', type: 'world', severity: 2,
+      kind: 'world', type: 'world', severity: 1,
       text: `${displayName(c.name)} has what they wanted: ${how}.`,
       detail: 'They are happier, and more loyal to the Highroy for it. In time they will want something else.',
       who: [{ id: c.id, part: 'fulfilled' }], effects: ['Mood +15', 'Loyalty +1', 'Opinion of the Highroy +20'],
@@ -389,7 +389,7 @@ function grant(w: World, rng: Rng, c: Character, a: Ambition, au: Audience) {
         const st = w.houses[P]!.standing;
         st.respect = clamp(st.respect + 1, 0, 100);
         st.dread = clamp(st.dread + 1, 0, 100);
-        logRecord(w, { kind: 'world', type: 'fight', severity: 2, text: `${displayName(c.name)} has made a name in the pits and on the corsair lanes. The house's name grows with theirs.`, who: [{ id: c.id, part: 'champion of the day' }], effects: ['Respect +1', 'Dread +1', 'Two deeds toward glory'] });
+        logRecord(w, { kind: 'world', type: 'fight', severity: 1, text: `${displayName(c.name)} has made a name in the pits and on the corsair lanes. The house's name grows with theirs.`, who: [{ id: c.id, part: 'champion of the day' }], effects: ['Respect +1', 'Dread +1', 'Two deeds toward glory'] });
         if (fulfilled(w, c, a)) satisfy(w, c, a, 'a name sung in the halls');
       }
       break;
@@ -561,7 +561,7 @@ function actAlone(w: World, rng: Rng, c: Character, a: Ambition) {
     shiftOpinion(w, b.id, c.id, -20, 'whispers against them');
     if (b.seat) shiftMood(b, -6);
     a.frustration = 70;
-    logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 2, text: `${displayName(c.name)} has begun working against ${displayName(b.name)} in the corridors. They want what ${shortName(b.name)} has.`, who: [{ id: c.id, part: 'scheming' }, { id: b.id, part: 'in the way' }] });
+    logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 1, text: `${displayName(c.name)} has begun working against ${displayName(b.name)} in the corridors. They want what ${shortName(b.name)} has.`, who: [{ id: c.id, part: 'scheming' }, { id: b.id, part: 'in the way' }] });
   } else if (r < 0.75 && c.hidden.loyalty < 12 && !c.seat) {
     // Leave for a house that will give them what they want.
     const to = Object.values(w.houses).filter((h) => h.id !== P).sort((x, y) => relation(w, y.id, P) - relation(w, x.id, P))[rng.next() < 0.5 ? 0 : Object.keys(w.houses).length - 2]!;

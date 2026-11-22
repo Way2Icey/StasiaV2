@@ -1,4 +1,5 @@
 // Training and development: a tutor for one, drill for the knights, an academy for many, and wards between houses.
+import { pipeline } from './ladder';
 import { tally } from './careers';
 import { Rng } from './rng';
 import { displayName, shortName } from './names';
@@ -469,6 +470,8 @@ const INTAKE_HOW = [
  */
 function academyDraw(world: World, rng: Rng) {
   const P = world.playerHouseId;
+  // The academy only brings forward pupils when the house is short of them.
+  if (pipeline(world).pupilGap <= 0) return;
   for (const m of modulesOf(world, P, 'academy')) {
     if (m.level < 1 || !m.sectorId) continue;
     if ((world.training.intake ?? []).some((i) => i.moduleId === m.id)) continue;
