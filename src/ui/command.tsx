@@ -60,6 +60,8 @@ const VERBS: [string, string, Route][] = [
   ['Lanes and convoys', 'lanes convoy trade shipping cargo routes', { kind: 'lanes' }],
   ['Set our customs post', 'customs strict blind eye smuggling contraband', { kind: 'lanes' }],
   ['Deal with the corsairs', 'corsairs pirates passage bounty marque privateer letters', { kind: 'lanes' }],
+  ['Propose a trade compact', 'compact trade agreement partner house', { kind: 'lanes' }],
+  ['Hunt a corsair captain', 'hunt corsair captain pirate knights company', { kind: 'lanes' }],
   ['Star map', 'map worlds planets ports raids', { kind: 'worlds' }],
   ['Our holdings', 'holdings modules', { kind: 'holdings' }],
   ['The log', 'chronicle history records', { kind: 'log' }],

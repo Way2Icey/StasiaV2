@@ -35,7 +35,7 @@ import { leadsOf } from '../sim/discovery';
 import { absoluteCycle, type GameDate } from '../sim/time';
 import { eventDef } from '../sim/events';
 import { displayName } from '../sim/names';
-import { answerCrew } from '../sim/lanes';
+import { answerCrew, answerOffer } from '../sim/lanes';
 import type { FeedEntry, World } from '../sim/types';
 
 /** Cycles from now, as the terminal shows them: "C+4". */
@@ -246,6 +246,10 @@ export function Desk({ className }: { className?: string }) {
       open: () => setOpen((o) => (o === h.id ? null : h.id)),
       detail: <span className="muted" style={{ fontSize: 12 }}>Sent up through the Steward. Pay, and they come home and the company thinks better of us. Refuse, and they are sold to the deep mines. <button type="button" className="linklike" onClick={() => nav.to({ kind: 'lanes' })}>The lanes ›</button></span>,
       acts: [{ label: `Pay · ${h.ransom.toLocaleString('en-US')}`, primary: true, run: (w) => answerCrew(w, h.id, true) }, { label: 'Refuse', run: (w) => answerCrew(w, h.id, false) }] });
+  }
+  for (const o of world.lanes?.offers ?? []) {
+    items.push({ id: o.id, mark: '[$]', kind: 'COMPACT', text: <>House {world.houses[o.from]?.name} offers a trade compact</>, when: inCycles(world, o.expires), open: () => nav.to({ kind: 'lanes' }),
+      acts: [{ label: 'Accept', primary: true, title: 'Each side buys the other\'s spare goods first, at the Exchange price without its cut', run: (w) => answerOffer(w, o.id, true) }, { label: 'Decline', run: (w) => answerOffer(w, o.id, false) }] });
   }
   for (const s of Object.values(world.ports?.ships ?? {})) {
     if (s.status === 'held') {

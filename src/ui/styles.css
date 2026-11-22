@@ -487,3 +487,9 @@ pre.ascii .inv, span.inv { background: var(--fg); color: #000; }
 .calendar { display: flex; flex-direction: column; }
 .calendar .row { font-size: 12px; gap: 10px; }
 .calendar time { width: 52px; flex-shrink: 0; color: var(--muted); font: 11px var(--mono); }
+
+/* A corsair company's window. */
+.command.company { width: min(820px, calc(100vw - 32px)); max-height: 80vh; }
+.company-head { display: flex; align-items: center; gap: 12px; padding: 10px; border-bottom: 1px solid var(--line); }
+.company-head strong { flex: 1; text-transform: uppercase; letter-spacing: 0.04em; }
+.company-body { padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }

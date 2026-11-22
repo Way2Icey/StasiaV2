@@ -7,9 +7,12 @@ import { Term } from './tip';
 import { bar } from './hall';
 import { riskWord } from './starmap';
 import {
-  BOUNTY_COST, cannotDeal, convoyLabel, CUSTOMS_LABEL, CUSTOMS_NOTE, dealsOf, endDeal, laneName, laneRisk, LANE_BY_ID, LANES, makeDeal, MARQUE_COST,
-  ourConvoys, PASSAGE, placeName, relWord, setCustoms, TEMPER_NOTE, type Customs, type DealKind,
+  answerOffer, cannotPropose, compactOf, convoyLabel, CUSTOMS_LABEL, CUSTOMS_NOTE, dealsOf, endCompact, laneName, laneRisk, LANE_BY_ID, LANES,
+  ourConvoys, placeName, proposeCompact, relWord, setCustoms, type Customs,
 } from '../sim/lanes';
+import { isHostile } from '../sim/companies';
+import { CompanyWindow } from './company';
+import { formatDate } from '../sim/time';
 import { absoluteCycle } from '../sim/time';
 import { RESOURCE_LABEL } from '../data/economy';
 import type { World } from '../sim/types';
@@ -31,16 +34,17 @@ export function LanesPage() {
   const { run, err } = usePlay();
   const P = world.playerHouseId;
   const s = world.lanes;
-  const [target, setTarget] = useState<string>(Object.keys(world.houses).find((h) => h !== P) ?? '');
+  const [open, setOpen] = useState<string | null>(null);
   if (!s) return null;
   const now = absoluteCycle(world.date);
   const mine = ourConvoys(world);
   const escorts = Object.values(world.fleet?.ships ?? {}).filter((x) => x.houseId === P && !x.lost && x.duty === 'escort');
   const cu = s.customs[P] ?? 'fair';
   const deals = dealsOf(world);
-  const lately = s.done.filter((c) => c.owner === P || (c.fate !== 'arrived' && c.owner !== 'free')).slice(0, 14);
+  const lately = s.done.filter((c) => c.owner === P || c.buyer === P || (c.fate !== 'arrived' && c.owner !== 'free')).slice(0, 14);
   return (
     <>
+      {open ? <CompanyWindow id={open} onClose={() => setOpen(null)} /> : null}
       <div className="page-title">
         <h2>Lanes &amp; corsairs</h2>
         <p>Everything the houses make, buy, sell and are granted travels: the Numarade's Navisium from the Reserve, surpluses out to the Exchange, shortfalls back. Every run crosses a lane, and the lanes have corsairs on them.</p>
@@ -74,40 +78,39 @@ export function LanesPage() {
           <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>The other houses: {Object.keys(world.houses).filter((h) => h !== P).map((h, i) => <span key={h}>{i ? ' · ' : ''}<HouseLink id={h} /> {CUSTOMS_LABEL[s.customs[h] ?? 'fair'].toLowerCase()}</span>)}</p>
         </Panel>
 
-        <Panel title="The companies" aside="corsairs of the outer lanes" className="span-12">
+        <Panel title="The companies" aside="corsairs of the outer lanes · open one for its people and history" className="span-7">
           {Object.values(s.factions).map((f) => {
             const r = f.rel[P] ?? 0;
             const ours = deals.filter((d) => d.faction === f.id);
-            const knownBounties = s.deals.filter((d) => d.faction === f.id && d.kind === 'bounty' && d.house !== P);
-            const btn = (kind: DealKind, label: string, tgt?: string) => {
-              const why = cannotDeal(world, f.id, kind, tgt);
-              return <button type="button" className={`btn small${kind === 'passage' ? ' primary' : ''}`} disabled={!!why} title={why ?? ''} onClick={() => run((w) => makeDeal(w, f.id, kind, tgt))}>{label}</button>;
-            };
+            const named = f.members.filter((m) => m.known && !m.fate).length;
             return (
-              <div key={f.id} className="stack" style={{ padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
-                <div className="row" style={{ border: 0 }}>
-                  <strong style={{ flex: 1 }}>{cap(f.name)}</strong>
-                  <span className="mono" title="Strength">{bar(f.strength / 100)} {Math.round(f.strength)}</span>
-                </div>
-                <span className="muted" style={{ fontSize: 12 }}>{TEMPER_NOTE[f.temper]} Haunts: {f.haunts.map((id) => laneName(world, LANE_BY_ID[id]!)).join(', ')}. Toward us: <strong>{relWord(r)}</strong> ({Math.round(r)}).{knownBounties.length ? ` Bounties on them: ${knownBounties.map((d) => world.houses[d.house]?.name).join(', ')}.` : ''}</span>
-                {ours.map((d) => (
-                  <div key={d.id} className="row" style={{ border: 0 }}>
-                    <span style={{ flex: 1 }}>{d.kind === 'passage' ? `We pay for safe passage: ${fmt(PASSAGE(f))} an Orbit.` : d.kind === 'bounty' ? `Our bounty stands: ${fmt(BOUNTY_COST)} an Orbit.` : <>They hold our letters against <HouseLink id={d.target!} />.</>}</span>
-                    {d.kind !== 'marque' ? <button type="button" className="btn small" onClick={() => run((w) => endDeal(w, d.id))}>End it</button> : null}
-                  </div>
-                ))}
-                <div className="actions">
-                  {btn('passage', `Buy passage · ${fmt(PASSAGE(f))}/Orbit`)}
-                  {btn('bounty', `Bounty · ${fmt(BOUNTY_COST)}/Orbit`)}
-                  <select className="text" value={target} onChange={(e) => setTarget(e.target.value)} style={{ width: 'auto' }}>
-                    {Object.keys(world.houses).filter((h) => h !== P).map((h) => <option key={h} value={h}>{world.houses[h]!.name}</option>)}
-                  </select>
-                  {btn('marque', `Letters against them · ${fmt(MARQUE_COST)}`, target)}
-                </div>
+              <div key={f.id} className="row">
+                <span style={{ flex: 1 }}>
+                  <button type="button" className="linklike" onClick={() => setOpen(f.id)}><strong>{cap(f.name)}</strong></button>
+                  <span className="muted"> · {relWord(r)} ({Math.round(r)}){isHostile(world, f) ? ' · at war with us' : ''}{ours.length ? ` · ${ours.map((d) => (d.kind === 'passage' ? 'passage paid' : d.kind === 'bounty' ? 'our bounty' : 'our letters')).join(', ')}` : ''} · {named} known by name</span>
+                </span>
+                <span className="mono" title="Strength">{bar(f.strength / 100)}</span>
+                <button type="button" className="btn small" onClick={() => setOpen(f.id)}>Open ›</button>
               </div>
             );
           })}
-          <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>Passage makes them leave our convoys be. A bounty wears them down and makes us respected, and hunted. Letters of marque turn them on another house for a year: a quarter of what they take is ours, and if it comes out our honour pays for it. They will not take letters from a house they do not trust; a blind eye at our docks and passage paid will earn that.</p>
+          <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>Pay them to leave our ships alone, post a bounty, declare them enemies, give them letters against a rival, or send our knights after their captains.</p>
+        </Panel>
+        <Panel title="Trade compacts" aside="house to house" className="span-5">
+          {Object.keys(world.houses).filter((h) => h !== P).map((h) => {
+            const cp = compactOf(world, P, h);
+            const offer = s.offers.find((o) => o.from === h);
+            const why = cannotPropose(world, h);
+            return (
+              <div key={h} className="row">
+                <span style={{ flex: 1 }}><HouseLink id={h} /> <span className="muted">· {cp ? `since ${formatDate(cp.since)}, ${fmt(cp.traded)} othes traded` : offer ? 'they have offered one' : 'none'}</span></span>
+                {cp ? <button type="button" className="btn small" onClick={() => run((w) => endCompact(w, h))}>End</button>
+                  : offer ? <><button type="button" className="btn small primary" onClick={() => run((w) => answerOffer(w, offer.id, true))}>Accept</button><button type="button" className="btn small" onClick={() => run((w) => answerOffer(w, offer.id, false))}>Decline</button></>
+                  : <button type="button" className="btn small" disabled={!!why} title={why ?? ''} onClick={() => run((w) => proposeCompact(w, h))}>Propose</button>}
+              </div>
+            );
+          })}
+          <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>Partners buy from each other first, from what the other can spare, at the Exchange price without its cut. The goods ship capital to capital, so they cross the lanes between you. The other houses make compacts among themselves too: {s.compacts.filter((c) => c.a !== P && c.b !== P).map((c) => `${world.houses[c.a]?.name}–${world.houses[c.b]?.name}`).join(', ') || 'none yet'}.</p>
         </Panel>
 
         <Panel title="The lanes" aside="danger to an unescorted run of ours" className="span-7">

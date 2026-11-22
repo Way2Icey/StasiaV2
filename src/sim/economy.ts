@@ -217,8 +217,44 @@ export function sellPrice(world: World, g: Good): number {
 }
 
 /** Buy (qty > 0) or sell (qty < 0) on a world already cloned. Returns an error or null. */
+/**
+ * A house with trade compacts buys from its partners first, from what they can spare, at the Exchange
+ * price without the Exchange's cut; the goods ship capital to capital. Returns how many it got.
+ */
+function fromPartners(world: World, houseId: string, g: Good, want: number): number {
+  let got = 0;
+  for (const cp of world.lanes?.compacts ?? []) {
+    if (got >= want) break;
+    if (cp.a !== houseId && cp.b !== houseId) continue;
+    const s = cp.a === houseId ? cp.b : cp.a;
+    const es = econ(world, s);
+    const net = netPerPhase(phaseLedger(world, s));
+    const keep = g === 'navisium' ? Math.max(150, -net[g] * 3) : Math.max(0, -net[g]) * 3 + 20;
+    const price = world.economy.market[g].price;
+    const n = Math.min(Math.floor(es.stock[g] - keep), want - got, Math.floor(econ(world, houseId).stock.othes / price));
+    if (n <= 0) continue;
+    const cost = round(n * price);
+    const gl = RESOURCE_LABEL[g].toLowerCase();
+    const name = (h: string) => `House ${world.houses[h]?.name ?? h}`;
+    record(world, s, { resource: g, amount: -n, label: `Sold to ${name(houseId)} under the compact`, kind: 'trade' });
+    record(world, s, { resource: 'othes', amount: cost, label: `${n} ${gl} to ${name(houseId)}`, kind: 'trade' });
+    record(world, houseId, { resource: 'othes', amount: -cost, label: `${n} ${gl} from ${name(s)}`, kind: 'trade' });
+    record(world, houseId, { resource: g, amount: n, label: `Bought from ${name(s)} under the compact`, kind: 'trade' });
+    cp.traded += cost;
+    (cp.orbit[s] ??= { sold: 0, bought: 0 }).sold += cost;
+    (cp.orbit[houseId] ??= { sold: 0, bought: 0 }).bought += cost;
+    world.lanes.loading.push({ owner: s, buyer: houseId, good: g, qty: n, value: cost });
+    got += n;
+  }
+  return got;
+}
+
 export function tradeInPlace(world: World, houseId: string, g: Good, qty: number): string | null {
   if (!qty) return null;
+  if (qty > 0 && world.lanes?.compacts?.length) {
+    qty -= fromPartners(world, houseId, g, qty);
+    if (qty <= 0) return null;
+  }
   const e = econ(world, houseId);
   const m = world.economy.market[g];
   if (qty > 0) {
@@ -234,6 +270,8 @@ export function tradeInPlace(world: World, houseId: string, g: Good, qty: number
     record(world, houseId, { resource: 'othes', amount: gain, label: `Sold ${n} ${RESOURCE_LABEL[g].toLowerCase()}`, kind: 'trade' });
   }
   m.pressure += qty;
+  // Every trade is a shipment: the lanes load it and send it (see lanes.ts).
+  world.lanes?.loading?.push({ owner: houseId, good: g, qty, value: qty > 0 ? round(buyPrice(world, houseId, g) * qty) : round(sellPrice(world, g) * -qty) });
   // Large trades move the price at once, a little.
   m.price = clamp(m.price * (1 + clamp(qty / DEPTH[g], -0.1, 0.1) * 0.5), BASE_PRICE[g] * 0.4, BASE_PRICE[g] * 3);
   return null;

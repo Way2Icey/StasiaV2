@@ -1,7 +1,9 @@
 import { createWorld } from './world';
 import { advanceTurn } from './tick';
 import { econ } from './economy';
-import { answerCrew, cannotDeal, factionOdds, LANE_BY_ID, laneBetween, makeDeal, setCustoms } from './lanes';
+import { answerCrew, cannotDeal, cannotPropose, factionOdds, LANE_BY_ID, laneBetween, makeDeal, proposeCompact, setCustoms } from './lanes';
+import { cannotHunt, huntersFree, huntMember, setHostile } from './companies';
+import { tradeInPlace } from './economy';
 import { deserialize, serialize } from './save';
 import type { World } from './types';
 
@@ -54,5 +56,43 @@ describe('dynamic lanes', () => {
     w = answerCrew(w, 'chx', true);
     expect(econ(w, P).stock.othes).toBe(3800);
     expect(w.lanes.held.some((h) => h.id === 'chx')).toBe(false);
+  });
+
+  it('a compact partner sells first, and the goods cross the lanes', () => {
+    let w = structuredClone(createWorld());
+    const P = w.playerHouseId;
+    const other = Object.keys(w.houses).find((h) => h !== P)!;
+    w.relations[other]![P] = 5;
+    expect(cannotPropose(w, other)).toMatch(/regard/);
+    w.relations[other]![P] = 30;
+    w = proposeCompact(w, other);
+    econ(w, other).stock.navisium = 900;
+    econ(w, P).stock.othes = 100000;
+    const before = econ(w, other).stock.othes;
+    expect(tradeInPlace(w, P, 'navisium', 200)).toBeNull();
+    expect(econ(w, other).stock.othes).toBeGreaterThan(before);
+    expect(w.lanes.loading.some((m) => m.buyer === P && m.owner === other)).toBe(true);
+    w = step(w);
+    expect(Object.values(w.lanes.convoys).some((c) => c.kind === 'compact' && c.buyer === P)).toBe(true);
+  });
+
+  it('known captains can be hunted down; enemies are declared', () => {
+    let w = structuredClone(createWorld());
+    const P = w.playerHouseId;
+    econ(w, P).stock.othes = 10000;
+    w = setHostile(w, 'tithe', true);
+    expect(w.lanes.factions.tithe!.hostile).toContain(P);
+    const f = w.lanes.factions.tithe!;
+    const cap = f.members.find((m) => m.role === 'captain')!;
+    const lead = huntersFree(w)[0]!;
+    expect(cannotHunt(w, 'tithe', cap.id, lead)).toMatch(/know/);
+    cap.known = true;
+    expect(cannotHunt(w, 'tithe', cap.id, lead)).toBeNull();
+    w = huntMember(w, 'tithe', cap.id, lead);
+    expect(w.characters[lead]!.flags.some((x) => x.id === 'hunting')).toBe(true);
+    for (let i = 0; i < 20; i++) w = step(w);
+    expect(w.lanes.hunts.length).toBe(0);
+    expect(w.characters[lead]!.flags.some((x) => x.id === 'hunting')).toBe(false);
+    expect(w.lanes.factions.tithe!.log.length).toBeGreaterThan(1);
   });
 });
