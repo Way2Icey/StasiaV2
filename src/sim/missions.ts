@@ -1,7 +1,14 @@
 // Missions: the house sends one of its people to do something somewhere.
 // Milestone 2 has two kinds: Investigate (look into a person) and Scout
 // (survey a world). Everything resolves turn by turn, deterministically.
+import { rivalsFrom } from './grounds';
+import { award, tally } from './careers';
+import { offerPupil, pupilsFor } from './training';
+import { logRecord } from './records';
+import { afterMission, kindredOf, shiftBoth, synergy } from './relationships';
+import { addGlory } from './ambitions';
 import { Rng } from './rng';
+import { isAway } from './court';
 import { ageOf } from './characters';
 import { displayName, shortName } from './names';
 import { findSector, seatHolder } from './query';
@@ -69,6 +76,22 @@ export function activeMissionOf(world: World, characterId: string): Mission | un
 
 /** Most people a leader can take along. */
 export const MAX_COMPANIONS = 2;
+/** Near-adults (this share of adulthood) may lead a first command, with someone seasoned alongside. */
+export const FIRST_COMMAND_AGE = 0.8;
+
+const isYoung = (world: World, c: Character) => ageOf(c, world.date) < SPECIES[c.species].adulthood;
+const hadFirstCommand = (world: World, c: Character) => (world.careers?.titles[c.id] ?? []).some((t) => t.title.startsWith('First command'));
+
+/** Young people our teachers think ready to lead something small. */
+export function readyForCommand(world: World, houseId: string): Character[] {
+  return Object.values(world.characters).filter((c) => {
+    if (!c.alive || c.houseId !== houseId || c.tier !== 'full' || hadFirstCommand(world, c)) return false;
+    const a = ageOf(c, world.date) / SPECIES[c.species].adulthood;
+    if (a < FIRST_COMMAND_AGE || a >= 1.2 || activeMissionOf(world, c.id)) return false;
+    const taught = Object.values(world.training?.enrolments ?? {}).some((e) => e.studentId === c.id) || Object.keys(world.careers?.of[c.id] ?? {}).length > 0;
+    return taught && (c.stats.leadership + c.stats.tactics + c.stats.perception) / 3 >= 8;
+  });
+}
 
 export function activeMissions(world: World, houseId?: string): Mission[] {
   return Object.values(world.missions)
@@ -95,7 +118,7 @@ export function availability(world: World, houseId: string, c: Character): Avail
   if (!c.alive) return no('Dead');
   if (c.houseId !== houseId) return no('Not of your house');
   if (c.tier !== 'full') return no('Not someone you can send');
-  if (ageOf(c, world.date) < SPECIES[c.species].adulthood) return no('Too young');
+  if (ageOf(c, world.date) < SPECIES[c.species].adulthood * FIRST_COMMAND_AGE) return no('Too young');
   if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing')) return no('Unaccounted for');
   if (activeMissionOf(world, c.id)) return no('Already on a mission');
   if (c.flags.some((f) => f.id === 'wounded')) return no('Wounded');
@@ -183,6 +206,10 @@ function resolveSpec(world: World, spec: MissionSpec, checkLeader = true): Resol
   }
   const companions = (spec.companions ?? []).map((id) => world.characters[id]).filter((c): c is Character => !!c);
   if (companions.length > MAX_COMPANIONS) return `At most ${MAX_COMPANIONS} can go with the leader.`;
+  if (checkLeader && isYoung(world, leader)) {
+    if (spec.kind === 'envoy') return 'Too young to speak for the house.';
+    if (!companions.some((c) => !isYoung(world, c))) return 'A first command needs someone seasoned alongside.';
+  }
   if (new Set([leader.id, ...companions.map((c) => c.id)]).size !== companions.length + 1) return 'Someone is listed twice.';
   if (checkLeader) {
     for (const c of companions) {
@@ -291,7 +318,7 @@ export function forecast(world: World, spec: MissionSpec): Forecast | { ok: fals
   const travel = travelCycles(r.leader.location.planetId, r.planetId);
   const task = TASK_CYCLES[spec.kind][spec.approach];
   const rolls = task / 2;
-  const skill = partySkill(spec.kind, r.leader, r.companions, spec.force);
+  const skill = partySkill(spec.kind, r.leader, r.companions, spec.force) * synergy(world, [r.leader.id, ...r.companions.map((c) => c.id)]);
   const diff = difficulty(world, spec.kind, r, spec.houseId);
   // The house guesses the watchers from what it knows of the target's spymaster.
   const p = spec.kind === 'envoy' ? 0 : detectionChance(world, r, spec.approach);
@@ -380,11 +407,34 @@ export function launchInPlace(world: World, spec: MissionSpec): string {
     leaderKnowsNoticed: false,
     log: [],
   };
+  // Kindred spirits seek each other out: if there is room, the leader's naturally comes along.
+  if (m.companions!.length < MAX_COMPANIONS) {
+    const inParty = new Set([...party.map((c) => c.id)]);
+    const k = kindredOf(world, r.leader.id, (c) => !inParty.has(c.id) && c.seat !== 'highroy' && !isYoung(world, c) && availability(world, spec.houseId, c).ok && !isAway(world, c.id));
+    const roll = Rng.fromSeed(`kin|${id}|${world.date.year}|${world.date.cycle}`);
+    if (k && roll.chance(0.6)) {
+      m.companions!.push(k.c.id);
+      party.push(k.c);
+      m.log.push({ date: world.date, text: `${shortName(k.c.name)} comes too, unasked: they and ${shortName(r.leader.name)} are kindred spirits (${k.why}).` });
+      shiftBoth(world, r.leader.id, k.c.id, 3, `kindred spirits: ${k.why}`);
+    }
+  }
+  if (isYoung(world, r.leader) && !hadFirstCommand(world, r.leader)) m.log.push({ date: world.date, text: `${shortName(r.leader.name)}'s first command.` });
+  // A teacher does not leave their pupils behind: their personal charges go too.
+  const pupils = pupilsFor(world, party.map((c) => c.id));
+  if (pupils.length) {
+    m.pupils = pupils;
+    m.log.push({ date: world.date, text: `${pupils.map((p) => shortName(world.characters[p]!.name)).join(' and ')} ${pupils.length > 1 ? 'come' : 'comes'} along to learn, as pupils do.` });
+  }
   const withWhom = r.companions.length ? ` with ${r.companions.map((c) => shortName(c.name)).join(' and ')}` : '';
   m.log.push({ date: world.date, text: `${shortName(r.leader.name)} sets out${withWhom} for ${where}${spec.approach === 'quick' ? ', travelling light and fast' : ''}.` });
   for (const id of forced) m.log.push({ date: world.date, text: `${shortName(world.characters[id]!.name)} goes only because the Highroy ordered it.` });
   world.missions[id] = m;
   if (m.houseId === world.playerHouseId) {
+    // The academy's head may ask that one of the pupils go along.
+    const rng = new Rng(world.rng);
+    offerPupil(world, rng, id, (c) => skillFor(m.kind, c));
+    world.rng = rng.state;
     world.feed.push({
       date: world.date,
       kind: 'mission',
@@ -394,6 +444,33 @@ export function launchInPlace(world: World, spec: MissionSpec): string {
     });
   }
   return id;
+}
+
+/** What the pupils who went along take from it: a lesson whatever happened, and sometimes a scar. */
+const LEARN_CHANCE: Record<Outcome, number> = { triumph: 0.9, success: 0.75, partial: 0.55, failure: 0.45, disaster: 0.6 };
+function pupilsLearn(world: World, rng: Rng, m: Mission, outcome: Outcome): string[] {
+  const out: string[] = [];
+  const stats: Record<MissionKind, (keyof Character['stats'])[]> = {
+    investigate: ['intrigue', 'insight', 'perception'], scout: ['perception', 'tactics', 'stealth'], envoy: ['diplomacy', 'eloquence', 'insight'],
+  } as Record<MissionKind, (keyof Character['stats'])[]>;
+  for (const id of m.pupils ?? []) {
+    const c = world.characters[id];
+    if (!c?.alive) continue;
+    c.lastMission = world.date;
+    tally(world, id, 'missions');
+    const pool = stats[m.kind] ?? ['perception'];
+    if (rng.chance(LEARN_CHANCE[outcome] * (0.6 + c.hidden.potential / 25))) {
+      const k = rng.pick(pool);
+      c.stats[k] = Math.min(20, c.stats[k] + 1);
+      out.push(`${shortName(c.name)} came back knowing more of ${String(k)} than they left with.`);
+    }
+    if (outcome === 'triumph') { addGlory(world, id, 1); shiftMood(c, 6); }
+    if (outcome === 'disaster' && rng.chance(0.25)) {
+      c.flags.push({ id: 'wounded', since: world.date, until: addCycles(world.date, CYCLES_PER_ORBIT / 2) });
+      out.push(`${shortName(c.name)} was hurt. Too young to be there, some will say.`);
+    }
+  }
+  return out;
 }
 
 /** A line in the player's Chronicle, for things the player's house would see. */
@@ -441,7 +518,7 @@ export function advanceMissions(world: World, rng: Rng): void {
       if (m.stage === 'travel') {
         m.stage = 'task';
         m.stageEnds = addCycles(m.stageEnds, m.taskCycles);
-        for (const id of partyOf(m)) { const p = world.characters[id]; if (p) p.location = { planetId: m.targetPlanetId, sectorId: m.targetSectorId }; }
+        for (const id of [...partyOf(m), ...(m.pupils ?? [])]) { const p = world.characters[id]; if (p) p.location = { planetId: m.targetPlanetId, sectorId: m.targetSectorId }; }
         m.log.push({ date: world.date, text: `Arrived at ${placeName(world, m.targetSectorId)}. Work begins.` });
         if (m.kind === 'envoy' && m.targetHouseId === world.playerHouseId && m.houseId !== world.playerHouseId) {
           learn(world, world.playerHouseId, leader.id, 20);
@@ -453,7 +530,7 @@ export function advanceMissions(world: World, rng: Rng): void {
         m.stageEnds = addCycles(m.stageEnds, m.travelCycles);
         m.log.push({ date: world.date, text: `The work is done. ${shortName(leader.name)} heads home.` });
       } else if (m.stage === 'return') {
-        for (const id of partyOf(m)) { const p = world.characters[id]; if (p?.alive && !world.captives?.[id]) p.location = { ...m.origin }; }
+        for (const id of [...partyOf(m), ...(m.pupils ?? [])]) { const p = world.characters[id]; if (p?.alive && !world.captives?.[id]) p.location = { ...m.origin }; }
         deliver(world, m, leader, rng);
       }
     }
@@ -468,7 +545,7 @@ function taskTurn(world: World, m: Mission, leader: Character, rng: Rng) {
     end(world, m, 'failure', `The trail went cold: ${r.toLowerCase()}`);
     return;
   }
-  const gain = progressRoll(rng, partySkill(m.kind, leader, r.companions, m.forced), difficulty(world, m.kind, r, null), m.approach);
+  const gain = progressRoll(rng, partySkill(m.kind, leader, r.companions, m.forced) * synergy(world, [leader.id, ...r.companions.map((c) => c.id)]), difficulty(world, m.kind, r, null), m.approach);
   m.progress += gain;
   m.rolls += 1;
   const LINES = {
@@ -547,7 +624,7 @@ function end(world: World, m: Mission, outcome: Outcome, text: string) {
   m.report = text;
   m.findings = [];
   if (m.houseId === world.playerHouseId) {
-    world.feed.push({ date: world.date, kind: 'mission', text: `${MISSION_LABEL[m.kind]} — ${OUTCOME_LABEL[outcome]}. ${text}`, characterIds: [m.leaderId], missionId: m.id });
+    logRecord(world, { kind: 'mission', type: 'mission', severity: 2, text: `${MISSION_LABEL[m.kind]} — ${OUTCOME_LABEL[outcome]}.`, detail: text, who: [{ id: m.leaderId, part: 'led the mission' }, ...(m.companions ?? []).map((id) => ({ id, part: 'went along' }))], missionId: m.id, placeId: m.targetSectorId ?? m.targetPlanetId, source: 'word from the field' });
   }
 }
 
@@ -647,6 +724,22 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
     rivalFind(world, rng, m.houseId, m.kind, { planetId: m.targetPlanetId, sectorId: m.targetSectorId }, m.targetHouseId);
   }
 
+  findings.push(...pupilsLearn(world, rng, m, outcome));
+  // A first command, remembered whatever came of it.
+  const yr = ageOf(leader, world.date);
+  if (leader.houseId === m.houseId && !hadFirstCommand(world, leader) && yr < SPECIES[leader.species].adulthood * 1.2 && m.log.some((l) => /first command/.test(l.text))) {
+    award(world, leader.id, `First command (${outcome})`);
+    if (outcome === 'triumph' || outcome === 'success') { addGlory(world, leader.id, 1); shiftMood(leader, 6); }
+    if (m.houseId === world.playerHouseId) logRecord(world, { kind: 'world', type: 'world', severity: outcome === 'triumph' ? 2 : 1, text: `${displayName(leader.name)}, ${Math.floor(yr)}, comes home from a first command: ${outcome === 'triumph' ? 'a triumph, and the court knows it' : outcome === 'success' ? 'it went well' : outcome === 'partial' ? 'half of what was hoped' : outcome === 'failure' ? 'it came to nothing, and they know it' : 'a disaster they will carry'}.`, who: [{ id: leader.id, part: 'first command' }] });
+  }
+  afterMission(world, rng, [m.leaderId, ...(m.companions ?? [])], outcome);
+  // After a failure, someone gets the blame.
+  if (outcome === 'failure' && m.companions?.length && rng.chance(0.3)) {
+    const blamer = rng.pick(m.companions.filter((x) => world.characters[x]?.alive && world.characters[x]!.houseId === leader.houseId));
+    if (blamer) rivalsFrom(world, blamer, leader.id, `blames them for how the mission went`);
+  }
+  if (outcome === 'triumph' || outcome === 'success') for (const id of [m.leaderId, ...(m.companions ?? [])]) addGlory(world, id, outcome === 'triumph' ? 2 : 1);
+  for (const id of [m.leaderId, ...(m.companions ?? [])]) { tally(world, id, 'missions'); if (outcome === 'triumph') tally(world, id, 'triumphs'); }
   m.report = report(world, m, leader, outcome, rng);
   m.findings = findings;
   m.stage = 'done';
@@ -660,12 +753,19 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
     }
     return;
   }
-  world.feed.push({
-    date: world.date,
-    kind: 'mission',
+  logRecord(world, {
+    kind: 'mission', type: 'mission',
+    severity: outcome === 'triumph' || outcome === 'failure' ? 2 : 1,
     text: `${displayName(leader.name)} returns: ${describeJob(world, m)} — ${OUTCOME_LABEL[outcome].toLowerCase()}.`,
-    characterIds: [leader.id, ...(m.targetId ? [m.targetId] : [])],
-    missionId: m.id,
+    who: [
+      { id: leader.id, part: 'led the mission' },
+      ...(m.companions ?? []).map((id) => ({ id, part: 'went along' })),
+      ...(m.targetId ? [{ id: m.targetId, part: 'the target' }] : []),
+    ],
+    missionId: m.id, placeId: m.targetSectorId ?? m.targetPlanetId,
+    detail: m.report, effects: findings.length ? findings : undefined,
+    source: `${leader.name.given}'s report`,
+    houseIds: m.targetHouseId ? [m.targetHouseId] : undefined,
   });
 }
 

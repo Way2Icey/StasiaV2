@@ -7,7 +7,7 @@ import { addCycles, dateParts, formatDate, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } 
 import { GOODS, RESOURCE_LABEL, RESOURCE_NOTE, RESOURCES, TAX, type Good, type Resource, type TaxRate } from '../data/economy';
 import type { LedgerLine, World } from '../sim/types';
 import { useGame, useWorld } from './context';
-import { Panel, PersonById, SectorLink } from './links';
+import { Go, Panel, PersonById, SectorLink } from './links';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const signed = (n: number) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `−${fmt(-n)}` : '0');
@@ -49,7 +49,7 @@ export function EconomyPage() {
     <>
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <h2>Economy</h2>
+          <h2>Ledger &amp; exchange</h2>
           <p>Standing flows settle at the start of each Phase: next on {formatDate(next.phase)}, in {next.phaseLeft} {next.phaseLeft === 1 ? "cycle" : "cycles"}. Trades, missions and ransoms settle at once.</p>
         </div>
       </div>
@@ -156,6 +156,7 @@ export function EconomyPage() {
           </div>
           <p className="body muted" style={{ margin: 0, fontSize: 11 }}>Every house trades here. What they buy and sell moves prices each Phase; prices drift back toward the usual level over time.</p>
         </Panel>
+        <Panel title="Loans" className="span-12"><p className="body" style={{ margin: 0 }}>Lending and borrowing between houses: <Go to={{ kind: 'loans' }}>Treasury › Loans ›</Go></p></Panel>
       </div>
     </>
   );

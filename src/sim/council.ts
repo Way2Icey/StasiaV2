@@ -1,11 +1,13 @@
 // The council at work: standing tasks for each seat, the Highroy's oath,
 // petitions from the council, and the house's standing and relations.
+import { tally } from './careers';
+import { addGlory } from './ambitions';
 import { Rng } from './rng';
 import { ageOf } from './characters';
 import { shortName } from './names';
 import { alive, seatHolder } from './query';
 import { knowledgeOf, learn } from './knowledge';
-import { activeMissions, cannotLead, skillFor } from './missions';
+import { activeMissions, cannotLead, launchMission, skillFor } from './missions';
 import { attitude, attitudeColor, relation, shiftRelation } from './relations';
 import { canAfford, DEVELOP_COST, pay, skimRate } from './economy';
 import { retinue, shiftMood } from './mood';
@@ -294,6 +296,30 @@ export function dismissPetition(input: World, houseId: string, petitionId: strin
   return world;
 }
 
+/** The councillor's own plan for their petition: whom they would send and how, by their temperament. */
+export function petitionPlan(world: World, p: Petition): { approach: 'careful' | 'quick'; text: string } {
+  const from = world.characters[p.fromId];
+  const leader = world.characters[p.leaderId];
+  const bold = !!from && (from.hidden.nerve >= 13 || from.traits.some((t) => t.id === 'hotBlooded'));
+  const approach = bold ? 'quick' : 'careful';
+  return { approach, text: `${from ? shortName(from.name) : 'They'} would send ${leader ? shortName(leader.name) : 'someone'}${leader && leader.id === from?.id ? ' (themselves)' : ''}, ${bold ? 'quickly, before the chance goes' : 'carefully, and take the time it needs'}.` };
+}
+
+/** The Highroy approves a petition as the councillor planned it. */
+export function approvePetition(input: World, houseId: string, petitionId: string): World {
+  const p = input.courts[houseId]?.petitions.find((x) => x.id === petitionId);
+  if (!p) throw new Error('That petition has lapsed');
+  const plan = petitionPlan(input, p);
+  const { world } = launchMission(input, {
+    kind: p.kind, houseId, leaderId: p.leaderId, approach: plan.approach, force: [p.leaderId],
+    ...(p.kind === 'investigate' ? { targetId: p.targetId } : p.kind === 'envoy' ? { targetHouseId: p.targetHouseId } : { targetPlanetId: p.targetPlanetId }),
+  });
+  closePetition(world, houseId, petitionId);
+  const from = world.characters[p.fromId];
+  if (from) shiftMood(from, 4);
+  return world;
+}
+
 /** Remove a petition once acted on (the mission was sent). */
 export function closePetition(world: World, houseId: string, petitionId: string): void {
   const court = world.courts[houseId];
@@ -520,7 +546,10 @@ function runTask(world: World, rng: Rng, houseId: string, c: Character, def: Tas
     }
     case 'pits': {
       const win = rng.chance(clamp(0.35 + (taskScore(def, c) - 10) * 0.05, 0.1, 0.9));
+      tally(world, c.id, 'bouts');
+      if (win) tally(world, c.id, 'boutsWon');
       if (win) {
+        addGlory(world, c.id, 1);
         st.respect = clamp(st.respect + 1, 0, 100);
         if (rng.chance(0.5)) st.dread = clamp(st.dread + 1, 0, 100);
         growStat(rng, c, ['duelling'], 0.4);

@@ -8,9 +8,23 @@ import { ensureGrowth } from './growth';
 import { ensurePolitics } from './politics';
 import { ensureHousehold } from './household';
 import { ensureEvents } from './events';
+import { ensurePorts } from './ports';
+import { ensureTies } from './relationships';
+import { ensureHoldings } from './holdings';
+import { ensureLoans } from './loans';
+import { ensureTraining } from './training';
+import { ensureFleet } from './fleet';
+import { ensureEmbassies } from './embassies';
+import { ensureAmbitions } from './ambitions';
+import { ensureCareers } from './careers';
+import { ensureCrucible } from './crucible';
+import { ensureGrounds } from './grounds';
+import { ensureLadder } from './ladder';
+import { ensureTreasury } from './treasury';
+import { ensureLanes } from './lanes';
 import './eventDefs';
 
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 
 export function serialize(world: World): string {
   return JSON.stringify(world);
@@ -64,7 +78,11 @@ export function deserialize(text: string): World {
   }
   // v9 -> v10: events.
   if ((w.version as number) === 9) {
-    (w as World).version = 10;
+    (w as unknown as { version: number }).version = 10;
+  }
+  // v10 -> v11: ports and raids.
+  if ((w.version as number) === 10) {
+    (w as World).version = 11;
   }
   if (w.version !== SAVE_VERSION) throw new SaveError(`Unsupported save version: ${String(w.version)}`);
   const required: (keyof World)[] = ['seed', 'date', 'rng', 'houses', 'families', 'characters', 'planets', 'feed'];
@@ -83,5 +101,19 @@ export function deserialize(text: string): World {
   ensurePolitics(world);
   ensureHousehold(world);
   ensureEvents(world);
+  ensurePorts(world);
+  ensureTies(world);
+  ensureHoldings(world);
+  ensureLoans(world);
+  ensureTraining(world);
+  ensureFleet(world);
+  ensureEmbassies(world);
+  ensureAmbitions(world);
+  ensureCareers(world);
+  ensureCrucible(world);
+  ensureGrounds(world);
+  ensureLadder(world);
+  ensureTreasury(world);
+  ensureLanes(world);
   return world;
 }

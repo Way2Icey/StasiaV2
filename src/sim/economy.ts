@@ -115,9 +115,51 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
     lines.push({ resource: r, amount: v, label: 'Holdings beyond the capital', kind: 'quarter' });
   }
   if (people) lines.push({ resource: 'provisions', amount: -round(people / PEOPLE_PER_PROVISION), label: `Feeding ${people.toLocaleString('en-US')} people`, kind: 'food' });
+  const pay = PAY_SCALE[world.economy?.payScale ?? 'fair'];
+  const mult = houseId === world.playerHouseId ? pay.mult : 1;
   const seats = alive(world).filter((c) => c.houseId === houseId && c.seat && c.seat !== 'highroy').length;
-  if (seats) lines.push({ resource: 'othes', amount: -seats * STIPEND, label: `Council stipends (${seats})`, kind: 'stipend' });
+  if (seats) lines.push({ resource: 'othes', amount: -Math.round(seats * STIPEND * mult), label: `Council stipends (${seats})`, kind: 'stipend' });
+  // Knights are paid by their fame; the blooded get an allowance.
+  const knights = alive(world).filter((c) => c.houseId === houseId && c.tier === 'full' && (c.role === 'Knight' || c.flags.some((f) => f.id === 'knighted')) && !c.flags.some((f) => f.id === 'retired'));
+  if (knights.length) lines.push({ resource: 'othes', amount: -Math.round(knights.reduce((n, k) => n + stipendOf(world, k), 0) * mult), label: `Knights' stipends (${knights.length})`, kind: 'stipend' });
+  const blooded = Object.entries(world.ladder?.of ?? {}).filter(([id, r]) => r.stage === 'blooded' && world.characters[id]?.houseId === houseId).length;
+  if (blooded) lines.push({ resource: 'othes', amount: -Math.round(blooded * 8 * mult), label: `Allowances for the blooded (${blooded})`, kind: 'stipend' });
+  // What we own costs to keep.
+  let upkeep = 0;
+  let mods = 0;
+  for (const m of Object.values(world.holdings?.modules ?? {})) if (m.houseId === houseId && m.level > 0) { upkeep += m.level * (MODULE_UPKEEP[m.kind] ?? 20); mods++; }
+  const pupils = Object.values(world.training?.enrolments ?? {}).filter((e) => e.houseId === houseId && e.program === 'academy').length;
+  upkeep += pupils * 8;
+  if (upkeep) lines.push({ resource: 'othes', amount: -upkeep, label: `Upkeep of holdings (${mods})${pupils ? ` and ${pupils} academy places` : ''}`, kind: 'stipend' });
   return lines;
+}
+
+/** Per Phase, per level. */
+export const MODULE_UPKEEP: Record<string, number> = { cells: 45, vault: 65, academy: 130, base: 170, listening: 85, shipyard: 220, hangar: 55, brig: 15 };
+export const PAY_SCALE = {
+  meagre: { mult: 0.6, label: 'Meagre', note: 'Saves money. The famous resent it, and loyalty wears.' },
+  fair: { mult: 1, label: 'Fair', note: 'What the Reaches expect.' },
+  generous: { mult: 1.5, label: 'Generous', note: 'Costly. Knights stay, and some grow more loyal.' },
+} as const;
+
+/** What a knight is paid a Phase: a base, and more for every name they have made. */
+export function stipendOf(world: World, c: Character): number {
+  const t = world.careers?.titles[c.id]?.length ?? 0;
+  const won = Object.values(world.careers?.of[c.id] ?? {}).reduce((n, s) => n + (s.boutsWon ?? 0) + (s.duelsWon ?? 0) + (s.cDuelsWon ?? 0) * 2, 0);
+  const fame = t * 2 + won / 3;
+  return Math.round((40 + Math.min(40, fame) * 4) * (c.seat === 'champion' ? 1.5 : c.seat === 'grandMaster' ? 1.3 : 1));
+}
+
+export function fameOf(world: World, c: Character): number {
+  const t = world.careers?.titles[c.id]?.length ?? 0;
+  const won = Object.values(world.careers?.of[c.id] ?? {}).reduce((n, s) => n + (s.boutsWon ?? 0) + (s.duelsWon ?? 0) + (s.cDuelsWon ?? 0) * 2, 0);
+  return t * 2 + won / 3;
+}
+
+export function setPayScale(input: World, scale: 'meagre' | 'fair' | 'generous'): World {
+  const w = structuredClone(input);
+  w.economy.payScale = scale;
+  return w;
 }
 
 export function netPerPhase(lines: LedgerLine[]): Record<Resource, number> {
@@ -136,7 +178,7 @@ export function computingOf(world: World, houseId: string): { total: number; sou
 
 // ---------------------------------------------------------------- one-off entries
 
-function record(world: World, houseId: string, line: LedgerLine) {
+export function record(world: World, houseId: string, line: LedgerLine) {
   const e = econ(world, houseId);
   e.stock[line.resource] += line.amount;
   e.recent.unshift({ ...line, date: world.date });
@@ -175,8 +217,44 @@ export function sellPrice(world: World, g: Good): number {
 }
 
 /** Buy (qty > 0) or sell (qty < 0) on a world already cloned. Returns an error or null. */
+/**
+ * A house with trade compacts buys from its partners first, from what they can spare, at the Exchange
+ * price without the Exchange's cut; the goods ship capital to capital. Returns how many it got.
+ */
+function fromPartners(world: World, houseId: string, g: Good, want: number): number {
+  let got = 0;
+  for (const cp of world.lanes?.compacts ?? []) {
+    if (got >= want) break;
+    if (cp.a !== houseId && cp.b !== houseId) continue;
+    const s = cp.a === houseId ? cp.b : cp.a;
+    const es = econ(world, s);
+    const net = netPerPhase(phaseLedger(world, s));
+    const keep = g === 'navisium' ? Math.max(150, -net[g] * 3) : Math.max(0, -net[g]) * 3 + 20;
+    const price = world.economy.market[g].price;
+    const n = Math.min(Math.floor(es.stock[g] - keep), want - got, Math.floor(econ(world, houseId).stock.othes / price));
+    if (n <= 0) continue;
+    const cost = round(n * price);
+    const gl = RESOURCE_LABEL[g].toLowerCase();
+    const name = (h: string) => `House ${world.houses[h]?.name ?? h}`;
+    record(world, s, { resource: g, amount: -n, label: `Sold to ${name(houseId)} under the compact`, kind: 'trade' });
+    record(world, s, { resource: 'othes', amount: cost, label: `${n} ${gl} to ${name(houseId)}`, kind: 'trade' });
+    record(world, houseId, { resource: 'othes', amount: -cost, label: `${n} ${gl} from ${name(s)}`, kind: 'trade' });
+    record(world, houseId, { resource: g, amount: n, label: `Bought from ${name(s)} under the compact`, kind: 'trade' });
+    cp.traded += cost;
+    (cp.orbit[s] ??= { sold: 0, bought: 0 }).sold += cost;
+    (cp.orbit[houseId] ??= { sold: 0, bought: 0 }).bought += cost;
+    world.lanes.loading.push({ owner: s, buyer: houseId, good: g, qty: n, value: cost });
+    got += n;
+  }
+  return got;
+}
+
 export function tradeInPlace(world: World, houseId: string, g: Good, qty: number): string | null {
   if (!qty) return null;
+  if (qty > 0 && world.lanes?.compacts?.length) {
+    qty -= fromPartners(world, houseId, g, qty);
+    if (qty <= 0) return null;
+  }
   const e = econ(world, houseId);
   const m = world.economy.market[g];
   if (qty > 0) {
@@ -192,6 +270,8 @@ export function tradeInPlace(world: World, houseId: string, g: Good, qty: number
     record(world, houseId, { resource: 'othes', amount: gain, label: `Sold ${n} ${RESOURCE_LABEL[g].toLowerCase()}`, kind: 'trade' });
   }
   m.pressure += qty;
+  // Every trade is a shipment: the lanes load it and send it (see lanes.ts).
+  world.lanes?.loading?.push({ owner: houseId, good: g, qty, value: qty > 0 ? round(buyPrice(world, houseId, g) * qty) : round(sellPrice(world, g) * -qty) });
   // Large trades move the price at once, a little.
   m.price = clamp(m.price * (1 + clamp(qty / DEPTH[g], -0.1, 0.1) * 0.5), BASE_PRICE[g] * 0.4, BASE_PRICE[g] * 3);
   return null;
@@ -228,10 +308,31 @@ function settleMarket(world: World, rng: Rng) {
 
 export function advanceEconomy(world: World, rng: Rng, phaseTurned: boolean, orbitTurned: boolean): void {
   if (!world.economy) return;
-  if (orbitTurned) deliverQuotas(world);
+  if (orbitTurned) { deliverQuotas(world); stewardAccounts(world); }
   if (!phaseTurned) return;
   for (const houseId of Object.keys(world.houses)) settlePhase(world, rng, houseId);
   settleMarket(world, rng);
+}
+
+/** Each Orbit the Steward sends up the accounts: what came in, what went out, and whether it can last. */
+function stewardAccounts(world: World) {
+  const P = world.playerHouseId;
+  const lines = phaseLedger(world, P).filter((l) => l.resource === 'othes');
+  const inn = lines.filter((l) => l.amount > 0).reduce((n, l) => n + l.amount, 0);
+  const out = -lines.filter((l) => l.amount < 0).reduce((n, l) => n + l.amount, 0);
+  const net = inn - out;
+  const stock = econ(world, P).stock.othes;
+  const st = alive(world).find((c) => c.houseId === P && c.seat === 'steward');
+  const biggest = lines.filter((l) => l.amount < 0).sort((a, b) => a.amount - b.amount)[0];
+  const lasts = net < 0 ? Math.floor(stock / (-net * 5)) : Infinity;
+  const fmtN = (n: number) => Math.round(n).toLocaleString('en-US');
+  world.feed.push({
+    id: `rec${world.nextId++}`, date: world.date, kind: 'world', type: 'economy', severity: net < 0 && lasts < 4 ? 2 : 1, seat: 'steward',
+    text: `The accounts for the Orbit: ${fmtN(inn)} in, ${fmtN(out)} out a Phase. ${net >= 0 ? `We put by ${fmtN(net)} a Phase.` : `We lose ${fmtN(-net)} a Phase${Number.isFinite(lasts) ? `; at this rate the coffers last about ${lasts} Orbit${lasts === 1 ? '' : 's'}` : ''}.`}`,
+    detail: biggest ? `The heaviest outgoing: ${biggest.label} (${fmtN(-biggest.amount)} a Phase).` : undefined,
+    quote: st && net < 0 ? { from: st.id, text: lasts < 4 ? 'My lord, we cannot go on like this. Something must give: the stipends, the works, or the holdings.' : 'We are spending more than we take. It can go on a while; not for ever.' } : undefined,
+    who: st ? [{ id: st.id, part: 'kept the accounts' }] : [],
+  });
 }
 
 function tell(world: World, houseId: string, text: string, ids?: string[]) {
@@ -239,6 +340,8 @@ function tell(world: World, houseId: string, text: string, ids?: string[]) {
 }
 
 function deliverQuotas(world: World) {
+  // With the lanes running, the quota travels from the Reserve and lands when it lands.
+  if (world.lanes) { if (world.playerHouseId) tell(world, world.playerHouseId, `The Numarade grants our Navisium quota for the Orbit: ${quotaFor(world, world.playerHouseId)} units, shipped from the Reserve.`); return; }
   for (const houseId of Object.keys(world.houses)) {
     const q = quotaFor(world, houseId);
     const e = econ(world, houseId);

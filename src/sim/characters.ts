@@ -26,7 +26,7 @@ import {
 // ---------------------------------------------------------------- roles
 
 /** Which stats each kind of role leans on. */
-const ROLE_FOCUS: Record<string, StatId[]> = {
+export const ROLE_FOCUS: Record<string, StatId[]> = {
   ruler: ['leadership', 'diplomacy', 'law', 'insight', 'composure'],
   grandMaster: ['tactics', 'leadership', 'logistics', 'siegecraft', 'discipline'],
   envoy: ['diplomacy', 'negotiation', 'eloquence', 'insight'],

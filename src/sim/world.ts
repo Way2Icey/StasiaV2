@@ -14,6 +14,20 @@ import { ensureGrowth } from './growth';
 import { ensurePolitics } from './politics';
 import { ensureHousehold } from './household';
 import { ensureEvents } from './events';
+import { ensurePorts } from './ports';
+import { ensureTies } from './relationships';
+import { ensureHoldings } from './holdings';
+import { ensureLoans } from './loans';
+import { ensureTraining } from './training';
+import { ensureFleet } from './fleet';
+import { ensureEmbassies } from './embassies';
+import { ensureAmbitions } from './ambitions';
+import { ensureCareers } from './careers';
+import { ensureCrucible } from './crucible';
+import { ensureGrounds } from './grounds';
+import { ensureLadder } from './ladder';
+import { ensureTreasury } from './treasury';
+import { ensureLanes } from './lanes';
 import './eventDefs';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
@@ -26,7 +40,7 @@ const familyId = (houseId: string, key: string) => `${houseId}:${key}`;
 export function createWorld(seed: string = DEFAULT_SEED): World {
   const rng = Rng.fromSeed(seed);
   const world: World = {
-    version: 10,
+    version: 11,
     seed,
     date: START_DATE,
     rng: rng.state,
@@ -50,6 +64,20 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     stances: {},
     answered: [],
     events: { pending: [], log: [], recent: [] },
+    ports: { ships: {}, ports: {}, watch: [], raids: [], alerts: 0, log: [], register: {}, posts: {} },
+    ties: undefined as unknown as World['ties'],
+    holdings: undefined as unknown as World['holdings'],
+    loans: undefined as unknown as World['loans'],
+    training: undefined as unknown as World['training'],
+    fleet: undefined as unknown as World['fleet'],
+    embassies: undefined as unknown as World['embassies'],
+    ambitions: undefined as unknown as World['ambitions'],
+    careers: undefined as unknown as World['careers'],
+    crucible: undefined as unknown as World['crucible'],
+    grounds: undefined as unknown as World['grounds'],
+    ladder: undefined as unknown as World['ladder'],
+    treasury: undefined as unknown as World['treasury'],
+    lanes: undefined as unknown as World['lanes'],
   };
 
   for (const h of SLICE_HOUSES) {
@@ -118,6 +146,20 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
   ensurePolitics(world);
   ensureHousehold(world);
   ensureEvents(world);
+  ensurePorts(world);
+  ensureTies(world);
+  ensureHoldings(world);
+  ensureLoans(world);
+  ensureTraining(world);
+  ensureFleet(world);
+  ensureEmbassies(world);
+  ensureAmbitions(world);
+  ensureCareers(world);
+  ensureCrucible(world);
+  ensureGrounds(world);
+  ensureLadder(world);
+  ensureTreasury(world);
+  ensureLanes(world);
   world.rng = rng.state;
   return world;
 }

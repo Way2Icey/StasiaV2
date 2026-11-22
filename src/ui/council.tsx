@@ -5,8 +5,7 @@ import { Term } from './tip';
 import { SEAT_TITLE } from '../sim/world';
 import {
   abandonOath, assignTask, dismissPetition, OATHS, OATHS_BY_ID, oathProgress, swearOath, TASKS_BY_ID,
-  taskFit, taskScore, tasksForSeat,
-} from '../sim/council';
+  taskFit, taskScore, tasksForSeat, approvePetition, petitionPlan } from '../sim/council';
 import { attitude, attitudeColor, relation } from '../sim/relations';
 import { activeMissionOf, MISSION_LABEL } from '../sim/missions';
 import { formatDate } from '../sim/time';
@@ -59,7 +58,7 @@ export function Regard({ v }: { v: number }) {
   return <span style={{ color: attitudeColor(v) }}>{attitude(v)} <span className="mono muted">{v > 0 ? `+${v}` : v}</span></span>;
 }
 
-function petitionTarget(world: World, p: Petition) {
+export function petitionTarget(world: World, p: Petition) {
   if (p.targetId) return <PersonById id={p.targetId} />;
   if (p.targetHouseId) return <>House <HouseLink id={p.targetHouseId} /></>;
   if (p.targetPlanetId) return <PlanetLink id={p.targetPlanetId} />;
@@ -86,10 +85,11 @@ export function Petitions({ className }: { className?: string }) {
                 {from ? <PersonLink c={from} /> : null} <span className="muted">· {from?.seat ? SEAT_TITLE[from.seat] : ''}</span>
               </span>
               <span className="quote">“{p.reason}”</span>
-              <span className="muted" style={{ fontSize: 11 }}>Target: {petitionTarget(world, p)} · Would send <PersonById id={p.leaderId} /> · Lapses {formatDate(p.expires)}</span>
+              <span className="muted" style={{ fontSize: 11 }}>Target: {petitionTarget(world, p)} · Their plan: {petitionPlan(world, p).text} · Lapses {formatDate(p.expires)}</span>
             </span>
             <span style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-              <Go className="btn small primary" to={{ kind: 'plan', mission: p.kind, target: p.targetId ?? p.targetHouseId ?? p.targetPlanetId, leader: p.leaderId, petition: p.id }}>Review</Go>
+              <button type="button" className="btn small primary" title={petitionPlan(world, p).text} onClick={() => game.update((w) => { try { return approvePetition(w, house, p.id); } catch { return w; } })}>Approve</button>
+              <Go className="btn small" to={{ kind: 'plan', mission: p.kind, target: p.targetId ?? p.targetHouseId ?? p.targetPlanetId, leader: p.leaderId, petition: p.id }}>Plan my own</Go>
               <button type="button" className="btn small" onClick={() => game.update((w) => dismissPetition(w, house, p.id))}>Dismiss</button>
             </span>
           </div>

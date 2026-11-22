@@ -47,6 +47,7 @@ describe('events', () => {
     for (const def of EVENTS) {
       for (let o = 0; o < def.options.length; o++) {
         const copy = structuredClone(w);
+        copy.events.pending = [];
         const rng = new Rng(copy.rng);
         const seed = def.trigger === 'home' ? {} : { missionId: m.id };
         const ctx = makeCtx(copy, rng, seed);
@@ -97,7 +98,7 @@ describe('events', () => {
     old.version = 9;
     delete old.events;
     const w = deserialize(JSON.stringify(old));
-    expect(w.version).toBe(10);
+    expect(w.version).toBe(11);
     expect(w.events.pending).toEqual([]);
   });
 });

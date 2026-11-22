@@ -221,12 +221,47 @@ export interface Planet {
 
 // ---------------------------------------------------------------- world
 
+/** What sort of happening a record is, for the Log page's filters. */
+export type RecordType =
+  | 'decision' | 'mission' | 'port' | 'seizure' | 'raid' | 'fight' | 'death' | 'birth' | 'intrigue'
+  | 'captive' | 'council' | 'politics' | 'discovery' | 'economy' | 'world' | 'time' | 'condition';
+
+/** 0 routine, 1 notable, 2 serious, 3 grave. */
+export type Severity = 0 | 1 | 2 | 3;
+
+/**
+ * One happening, the same shape whatever it was: the Log page, a person's
+ * record, a port's log and the Chronicle are all filtered views of these.
+ */
 export interface FeedEntry {
+  /** Set on records written since the log was unified. */
+  id?: string;
   date: GameDate;
   kind: 'time' | 'death' | 'birth' | 'flag' | 'world' | 'mission' | 'council' | 'intrigue';
+  /** The headline. */
   text: string;
   characterIds?: string[];
   missionId?: string;
+  type?: RecordType;
+  severity?: Severity;
+  /** A sector or planet id. */
+  placeId?: string;
+  /** People and the part they played. */
+  who?: { id: string; part: string }[];
+  /** A short account beyond the headline. */
+  detail?: string;
+  /** What changed, as ledger-style lines. */
+  effects?: string[];
+  /** Who told us, and how sure. */
+  source?: string;
+  shipId?: string;
+  houseIds?: string[];
+  /** The record that led to this one. */
+  causeId?: string;
+  /** Which councillor brings it to the Highroy (else worked out from what it is). */
+  seat?: import('./reports').Reporter;
+  /** The original words of a letter: who wrote it, and what they said. */
+  quote?: { from: string; text: string };
 }
 
 // ---------------------------------------------------------------- knowledge
@@ -260,6 +295,8 @@ export interface Mission {
   leadId?: string;
   /** Up to two people riding with the leader. */
   companions?: string[];
+  /** Pupils brought along to learn: a teacher's own charges, or one the academy sent. */
+  pupils?: string[];
   /** Party members the Highroy ordered to go against their wishes. */
   forced?: string[];
   targetPlanetId: string;
@@ -350,6 +387,10 @@ export interface Captive {
   interrogated: boolean;
   /** A ransom offer or demand, if one has been made. */
   ransom?: { amount: number; expires: GameDate; status: 'open' | 'refused' | 'paid' };
+  /** Which cells they are kept in. */
+  cellId?: string;
+  treatment?: import('./holdings').Treatment;
+  reason?: import('./holdings').HoldReason;
 }
 
 // ---------------------------------------------------------------- economy
@@ -362,7 +403,7 @@ export interface LedgerLine {
   /** Per Phase for standing flows; the amount for one-off entries. */
   amount: number;
   label: string;
-  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit' | 'boon' | 'court';
+  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit' | 'boon' | 'court' | 'port' | 'raid';
   sectorId?: string;
   quarterId?: string;
   characterId?: string;
@@ -392,6 +433,8 @@ export interface MarketGood {
 export interface Economy {
   houses: Record<string, HouseEconomy>;
   market: Record<GoodId, MarketGood>;
+  /** How the house pays its knights, champion and councillors. */
+  payScale?: 'meagre' | 'fair' | 'generous';
 }
 
 // ---------------------------------------------------------------- discoveries
@@ -405,7 +448,15 @@ export interface Caige {
   found: GameDate;
   foundAt: { planetId: string; sectorId: string };
   bondedTo?: string;
+  /** 0..100: how steady its navisium is while it sits in a vault. */
+  stability?: number;
+  vaultId?: string;
+  /** Put up as security for a loan from this house. */
+  pledgedTo?: string;
 }
+
+/** Who in the house wants a prospect, and what for. */
+export interface Proposal { kind: 'academy' | 'tutor' | 'retainer'; sponsorId?: string; moduleId?: string; subject: 'arms' | 'command' | 'statecraft' | 'intrigue' | 'resonance' | 'learning' }
 
 export interface Lead {
   id: string;
@@ -421,6 +472,10 @@ export interface Lead {
   targetId?: string;
   /** For a recruit: what it costs to bring them in. */
   cost?: number;
+  /** For a prospect: who in the house wants them, and for what. */
+  proposal?: Proposal;
+  /** How they came to our notice. */
+  noticedBy?: string;
   found: GameDate;
   expires: GameDate;
   sourceMissionId?: string;
@@ -436,7 +491,7 @@ export interface Boon {
 export type Stance = 'friendly' | 'neutral' | 'opposed';
 
 export interface World {
-  version: 10;
+  version: 11;
   seed: string;
   date: GameDate;
   rng: RngState;
@@ -472,4 +527,29 @@ export interface World {
   householdReady?: boolean;
   /** Decisions waiting on the Highroy, and how past ones went. */
   events: import('./events').EventState;
+  /** Ships through our ports, raids, the watchlist. */
+  ports: import('./ports').PortsState;
+  /** Who feels what about whom. */
+  ties: import('./relationships').Ties;
+  /** Cells, vaults and academies; prisoners; rescues and heists under way. */
+  holdings: import('./holdings').HoldingsState;
+  /** Money lent between houses, and requests waiting for an answer. */
+  loans: import('./loans').LoansState;
+  /** Tutoring, drill, academies and wards between houses. */
+  training: import('./training').TrainingState;
+  /** Great ships of every house. */
+  fleet: import('./fleet').FleetState;
+  /** Every house's embassy in every other house's capital. */
+  embassies: import('./embassies').EmbassiesState;
+  /** What people want, and who has come to the Highroy about it. */
+  ambitions: import('./ambitions').AmbitionsState;
+  /** Every deed counted by season, titles won, and who the Highroy follows. */
+  careers: import('./careers').CareersState;
+  /** The year's mock war. */
+  crucible: import('./crucible').CrucibleState;
+  grounds: import('./grounds').GroundsState;
+  ladder: import('./ladder').LadderState;
+  treasury: import('./treasury').TreasuryState;
+  /** Convoys on the lanes, the corsair companies, customs posts and deals. */
+  lanes: import('./lanes').LanesState;
 }

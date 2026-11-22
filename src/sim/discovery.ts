@@ -1,5 +1,6 @@
 // What missions turn up: talented nobodies who become somebodies, Caiges,
 // story leads to follow up, and developments that pay the house.
+import { placeStudent } from './training';
 import { Rng } from './rng';
 import { createCharacter } from './characters';
 import { commonerFamily } from './world';
@@ -55,7 +56,7 @@ function rollBand(rng: Rng): ResonanceBand {
   return rng.weighted<ResonanceBand>([['bluewake', 40], ['ambercore', 35], ['redline', 20], ['whitebreak', 5]]);
 }
 
-function addLead(world: World, lead: Omit<Lead, 'id' | 'found' | 'expires'>): Lead {
+export function addLead(world: World, lead: Omit<Lead, 'id' | 'found' | 'expires'>): Lead {
   const l: Lead = { ...lead, id: `l${world.nextId++}`, found: world.date, expires: addCycles(world.date, LEAD_LIFE) };
   world.leads.push(l);
   return l;
@@ -234,13 +235,14 @@ export function recruit(input: World, leadId: string): World {
   world.families[famId] = { id: famId, houseId: lead.houseId, name: oldFam?.name || c.name.family || c.name.given, species: c.species, ruling: false, high: false };
   c.houseId = lead.houseId;
   c.familyId = famId;
-  c.role = `Retainer (${c.role.toLowerCase()})`;
+  c.role = c.role === 'Youngling' ? (lead.proposal && lead.proposal.kind !== 'retainer' ? 'Pupil' : 'Retainer') : `Retainer (${c.role.toLowerCase()})`;
   const home = world.planets[world.houses[lead.houseId]!.capitalPlanetId]!;
   c.location = { planetId: home.id, sectorId: home.sectors[0]!.id };
   c.mood = 70;
   learn(world, lead.houseId, c.id, 30);
   world.leads = world.leads.filter((l) => l.id !== leadId);
-  world.feed.push({ date: world.date, kind: 'world', text: `${displayName(c.name)} joins the house as a retainer. A nobody no longer.`, characterIds: [c.id] });
+  const placed = lead.proposal ? placeStudent(world, c, lead.proposal) : null;
+  world.feed.push({ date: world.date, kind: 'world', text: placed ? `${displayName(c.name)} is taken into the house: ${placed}.` : `${displayName(c.name)} is taken into the house. A nobody no longer.`, characterIds: [c.id] });
   return world;
 }
 

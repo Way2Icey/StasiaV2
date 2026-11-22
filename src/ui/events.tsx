@@ -9,7 +9,7 @@ import { Rng } from '../sim/rng';
 import { STAT_LABEL } from './pages';
 import type { World } from '../sim/types';
 
-function Decision({ p }: { p: PendingEvent }) {
+export function Decision({ p }: { p: PendingEvent }) {
   const world = useWorld();
   const game = useGame();
   const def = eventDef(p.defId);

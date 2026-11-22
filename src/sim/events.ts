@@ -9,6 +9,7 @@ import { learn } from './knowledge';
 import { shiftRelation } from './relations';
 import { shiftMood } from './mood';
 import { econ } from './economy';
+import { logRecord } from './records';
 import { absoluteCycle, addCycles, CYCLES_PER_PHASE } from './time';
 import { RESOURCE_LABEL, type Good } from '../data/economy';
 import type { Character, Mission, Sector, StatId, World } from './types';
@@ -342,11 +343,18 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
   ev.log = ev.log.slice(0, 40);
   const m = p.missionId ? world.missions[p.missionId] : undefined;
   if (m) m.log.push({ date: world.date, text: `${def.title}: ${use.label.toLowerCase()}. ${ctx.fx.lines.join('; ')}.` });
-  world.feed.push({
-    date: world.date, kind: 'council',
-    text: `${def.title}: ${choice === null ? 'left to the council, who chose to' : 'we chose to'} ${use.label.toLowerCase()}. ${ctx.fx.lines.join('; ')}.`,
-    characterIds: ctx.person ? [ctx.person.id] : ctx.leader ? [ctx.leader.id] : undefined,
-    missionId: p.missionId,
+  const who: { id: string; part: string }[] = [];
+  if (ctx.leader) who.push({ id: ctx.leader.id, part: 'mission leader' });
+  if (ctx.person && ctx.person.id !== ctx.leader?.id) who.push({ id: ctx.person.id, part: 'at the heart of it' });
+  if (ctx.second) who.push({ id: ctx.second.id, part: 'also involved' });
+  logRecord(world, {
+    kind: 'council', type: 'decision',
+    severity: ctx.fx.lines.some((l) => l.includes('wounded')) ? 2 : 1,
+    text: `${def.title}: ${choice === null ? 'left to the council, who chose to' : 'we chose to'} ${use.label.toLowerCase()}.`,
+    detail: p.text, effects: ctx.fx.lines, who, missionId: p.missionId,
+    placeId: p.sectorId ?? (m ? m.targetSectorId ?? m.targetPlanetId : undefined),
+    houseIds: p.otherHouseId ? [p.otherHouseId] : undefined,
+    source: m ? `${ctx.leader ? ctx.leader.name.given : 'the party'}'s report` : 'the court',
   });
   return r;
 }

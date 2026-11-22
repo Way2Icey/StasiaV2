@@ -1,11 +1,20 @@
+import { CalendarPanel } from './calendar';
+import { PersonActions } from './sections';
+import { TiesPanel } from './relations';
+import { WantsPanel } from './ambitions';
+import { CareerPanel, Followed, PinButton } from './careers';
+import { CrucibleGlance } from './crucible';
+import { SectorHoldings } from './holdings';
+import { EmbassyPanel, OurCourtEmbassies } from './embassies';
 import { useMemo, useState } from 'react';
+import { RaidPanel, WatchButton } from './ports';
 import { Portrait } from './portrait';
 import { QuarterTerm, StatTerm, Term } from './tip';
 import { absoluteCycle } from '../sim/time';
 import { ageOf } from '../sim/characters';
 import { displayName } from '../sim/names';
 import { councilOf, createWorld, SEAT_TITLE } from '../sim/world';
-import { dateParts, formatDate } from '../sim/time';
+import { formatDate } from '../sim/time';
 import { deserialize, SaveError, serialize } from '../sim/save';
 import {
   alive, familyHead, familyMembers, findSector, isCommoner, peopleAt, quartersOverseenBy,
@@ -20,10 +29,10 @@ import {
 } from '../sim/types';
 import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
-import { LeadsPanel, MissionRow } from './missions';
+import { MissionRow } from './missions';
 import { moodColor, moodLabel, moodOf } from '../sim/mood';
-import { DecisionsPanel } from './events';
-import { CaptivesPanel, OathSummary, Petitions, RansomDemands, StandingPanel } from './council';
+import { CouncilTable, Desk, HallPanel } from './hall';
+import { CaptivesPanel, OathSummary, RansomDemands, StandingPanel } from './council';
 import { formatRange, KNOW, knowledgeOf, type CharacterView } from '../sim/knowledge';
 import { activeMissionOf, activeMissions, MISSION_LABEL } from '../sim/missions';
 import {
@@ -105,70 +114,36 @@ function explore(world: World, see: (c: Character) => CharacterView): { key: str
 export function ThroneRoom() {
   const world = useWorld();
   const house = world.houses[world.playerHouseId]!;
-  const council = councilOf(world, house.id);
-  const parts = dateParts(world.date);
-  const people = alive(world).filter((c) => c.houseId === house.id);
-  const feed = [...world.feed].reverse().slice(0, 30);
   const see = useSee();
   const threads = explore(world, see);
   const missions = activeMissions(world, house.id);
 
   return (
     <>
-      <Title title="The Throne Room" sub="Every name, place and label is a door. Hover a name for a preview; follow anything that catches your eye." />
+      <Title title="The Hall" sub="What needs you, what is coming, and the people you follow. Press / to find anything." />
       <div className="grid">
-        <Panel title="This Orbit" aside={`Orbit ${parts.orbit} of 10 · SY-${parts.year}`} className="span-5">
-          <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', gap: 4 }} role="img" aria-label={`Phase ${parts.phase} of 5`}>
-              {[1, 2, 3, 4, 5].map((p) => (
-                <div key={p} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ height: 6, borderRadius: 3, background: p < parts.phase ? 'var(--gold)' : p === parts.phase ? '#7a6538' : 'var(--line)' }} />
-                  <span className="eyebrow">Phase {p}</span>
-                </div>
-              ))}
-            </div>
-            <dl className="kv">
-              <dt>House</dt><dd><HouseLink id={house.id} /></dd>
-              <dt>People of the house</dt><dd className="mono">{people.length}</dd>
-              <dt>Noble families</dt><dd className="mono">{Object.values(world.families).filter((f) => f.houseId === house.id && !isCommoner(f)).length}</dd>
-              <dt>Holdings</dt><dd><PlanetLink id={house.capitalPlanetId} /></dd>
-            </dl>
-          </div>
-        </Panel>
-        <Panel title="Council of Designers" className="span-7">
-          {council.map((c) => (
-            <Row key={c.id}
-              left={<span style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}><span className="eyebrow gold" style={{ width: 110, flexShrink: 0 }}>{SEAT_TITLE[c.seat!]}</span><PersonLink c={c} /></span>}
-              right={<><SpeciesLink id={c.species} /> · {ageOf(c, world.date)}</>} />
-          ))}
-        </Panel>
-        <DecisionsPanel className="span-12" hideWhenEmpty />
-        <OathSummary className="span-6" />
-        <Petitions className="span-6" />
-        <RansomDemands className="span-12" />
-        <LeadsPanel className="span-12" />
+        <div className="span-8 stack">
+          <RaidPanel />
+          <Desk />
+        </div>
+        <div className="span-4 stack">
+          <CalendarPanel />
+          <CrucibleGlance />
+          <OathSummary />
+        </div>
+        <Followed className="span-12" />
+        <HallPanel className="span-7" />
+        <CouncilTable className="span-5" />
+        <div id="ransoms" className="span-6"><RansomDemands /></div>
         <CaptivesPanel className="span-12" hideWhenEmpty />
         <Panel title={<Term k="mission">Missions in the field</Term>} aside={<Go to={{ kind: 'missions' }}>Missions board ›</Go>} className="span-12">
           {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. Open anyone's sheet to look into them, or a world to scout it.</p> : null}
           {missions.map((m) => <MissionRow key={m.id} id={m.id} />)}
         </Panel>
-        <Panel title="Threads to follow" aside="Drawn from the world as it stands" className="span-5">
+        <Panel title="Threads to follow" aside="Drawn from the world as it stands" className="span-12">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
             {threads.map((t) => <p key={t.key} style={{ margin: 0 }}>{t.node}</p>)}
           </div>
-        </Panel>
-        <Panel title="The Chronicle" aside="Newest first" className="span-7 feed">
-          {feed.map((e, i) => (
-            <div className="row" key={`${e.date.year}-${e.date.cycle}-${i}`}>
-              <time>{formatDate(e.date)}</time>
-              <span className={`tag ${e.kind}`}>{e.kind}</span>
-              <span style={{ fontSize: 13 }}>
-                {e.text}
-                {e.characterIds?.length ? <> {e.characterIds.map((id) => <span key={id}> · <PersonById id={id} /></span>)}</> : null}
-                {e.missionId && world.missions[e.missionId] ? <> · <Go to={{ kind: 'mission', id: e.missionId }}>{world.missions[e.missionId]!.stage === 'done' ? 'Read report' : 'View mission'}</Go></> : null}
-              </span>
-            </div>
-          ))}
         </Panel>
       </div>
     </>
@@ -323,6 +298,10 @@ export function CharacterPage({ id }: { id: string }) {
               <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn primary">Investigate</Go>
             )
           ) : null}
+          {c.alive && !own ? <WatchButton id={c.id} /> : null}
+          <Go to={{ kind: 'log', person: c.id }} className="btn">Full record</Go>
+          <Go to={{ kind: 'people', focus: c.id }} className="btn">Ties</Go>
+          <PinButton id={c.id} />
           {c.alive && own && v.depth < KNOW.exact && c.seat !== 'highroy' ? (
             beingInvestigated ? null : <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn">Look into them</Go>
           ) : null}
@@ -330,7 +309,9 @@ export function CharacterPage({ id }: { id: string }) {
       </section>
 
       <div className="grid">
-        <section className="panel span-8">
+        <PersonActions id={c.id} />
+        <div className="span-8 stack">
+        <section className="panel">
           <header><h3>Attributes</h3><span className="aside">1–20 · <span className="gold">17+</span> · <span style={{ color: 'var(--blue)' }}>13–16</span> · 8–12 · <span style={{ color: 'var(--orange)' }}>≤7</span></span></header>
           <div className="stat-cols">
             {statCol('MIND', MIND_STATS)}
@@ -338,6 +319,10 @@ export function CharacterPage({ id }: { id: string }) {
             {statCol('SPIRIT', SPIRIT_STATS)}
           </div>
         </section>
+        <CareerPanel c={c} />
+        <WantsPanel id={c.id} />
+        <TiesPanel id={c.id} limit={8} />
+        </div>
         <div className="span-4 stack">
           <Panel title="Identity">
             <div className="body">
@@ -422,6 +407,7 @@ export function HousesPage() {
   return (
     <>
       <Title title="Houses" sub="The four houses of the vertical slice." />
+      <div className="actions" style={{ marginBottom: 12 }}><Go to={{ kind: 'crucible' }} className="btn primary">The Crucible ›</Go></div>
       <div className="grid">
         {Object.values(world.houses).map((h) => {
           const r = ruler(world, h.id);
@@ -466,6 +452,7 @@ export function HousePage({ id }: { id: string }) {
       <div className="grid">
         <StandingPanel houseId={h.id} className="span-6" />
         <AnnalsPanel houseId={h.id} className="span-6" />
+        <EmbassyPanel houseId={h.id} className="span-12" />
         <Panel title="Rule" className="span-5">
           <div className="body">
             <dl className="kv">
@@ -627,7 +614,8 @@ export function SectorPage({ id }: { id: string }) {
           <div className="body">
             <dl className="kv">
               <dt><Term k="heldBy">Held by</Term></dt><dd>{sector.controllerFamilyId ? <FamilyLink id={sector.controllerFamilyId} /> : 'Unclaimed'}</dd>
-              <dt><Term k="port">Port</Term></dt><dd>{cap(sector.port)}</dd>
+              <dt>Log</dt><dd><Go to={{ kind: 'log', place: sector.id }}>what happened here ›</Go></dd>
+              <dt><Term k="port">Port</Term></dt><dd>{cap(sector.port)}{world.ports?.ports[sector.id] ? <> · <Go to={{ kind: 'port', id: sector.id }}>Port authority ›</Go></> : null}</dd>
               <dt><Term k="room">Room</Term></dt><dd className="mono">{sector.roomUsed} of {sector.room} used</dd>
               <dt><Term k="population">Population</Term></dt><dd className="mono">{sector.population.toLocaleString('en-US')}</dd>
               <dt><Term k="unrest">Unrest</Term></dt><dd className="mono">{sector.controllerFamilyId ? sector.unrest : '—'}</dd>
@@ -656,6 +644,8 @@ export function SectorPage({ id }: { id: string }) {
             </table>
           </div>
         </Panel>
+        <SectorHoldings sectorId={sector.id} />
+        {Object.values(world.houses).some((x) => x.capitalPlanetId === planet.id) && planet.sectors[0]?.id === sector.id ? <CapitalEmbassies planetId={planet.id} /> : null}
         <Panel title="Who is here" aside={`${here.length} named`} className="span-12">
           <PeopleTable people={here} />
         </Panel>
@@ -874,7 +864,7 @@ function AnnalsPanel({ houseId, className }: { houseId: string; className?: stri
   const entries = (world.annals?.[houseId] ?? []).filter((e) => own || e.public || (looked && absoluteCycle(e.date) <= absoluteCycle(looked)));
   const hidden = (world.annals?.[houseId] ?? []).length - entries.length;
   return (
-    <Panel title={<Term k="annals">Annals</Term>} aside={own ? 'Our own record' : looked ? `Last good look ${formatDate(looked)}` : 'Never looked closely'} className={className}>
+    <Panel title={<Term k="annals">Annals</Term>} aside={<>{own ? 'Our own record' : looked ? `Last good look ${formatDate(looked)}` : 'Never looked closely'} · <Go to={{ kind: 'log', house: houseId }}>log ›</Go></>} className={className}>
       {entries.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing recorded yet.</p> : null}
       {entries.slice(0, 12).map((e, i) => (
         <div className="row" key={i} style={{ alignItems: 'flex-start' }}>
@@ -885,4 +875,13 @@ function AnnalsPanel({ houseId, className }: { houseId: string; className?: stri
       {!own && hidden > 0 ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>There is more we do not know. A successful scouting run, investigation or envoy to this house will tell us what they have been up to.</p> : null}
     </Panel>
   );
+}
+
+/** On a capital's first sector: the embassies housed there. */
+function CapitalEmbassies({ planetId }: { planetId: string }) {
+  const world = useWorld();
+  const host = Object.values(world.houses).find((h) => h.capitalPlanetId === planetId);
+  if (!host) return null;
+  if (host.id === world.playerHouseId) return <OurCourtEmbassies className="span-12" />;
+  return <EmbassyPanel houseId={host.id} className="span-12" />;
 }

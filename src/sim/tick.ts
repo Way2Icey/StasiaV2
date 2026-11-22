@@ -1,4 +1,20 @@
 import { advanceEvents } from './events';
+import { advancePorts } from './ports';
+import { trimFeed } from './records';
+import { advanceRelationships } from './relationships';
+import { advanceHoldings } from './holdings';
+import { advanceLoans } from './loans';
+import { advanceTraining } from './training';
+import { advanceFleet } from './fleet';
+import { advanceEmbassies } from './embassies';
+import { advanceAmbitions } from './ambitions';
+import { advanceProspects } from './prospects';
+import { advanceCrucible } from './crucible';
+import { advanceGrounds } from './grounds';
+import { advanceCircuit } from './circuit';
+import { advanceLadder } from './ladder';
+import { advanceTreasury } from './treasury';
+import { advanceLanes } from './lanes';
 import './eventDefs';
 import { displayName } from './names';
 import { Rng } from './rng';
@@ -27,8 +43,6 @@ import {
 } from './time';
 import type { World } from './types';
 
-/** Keep the feed from growing without bound. */
-const FEED_LIMIT = 400;
 
 /**
  * One press of Continue: advance the clock and resolve what happens.
@@ -70,11 +84,26 @@ function stepInPlace(world: World): void {
   advanceGrowth(world, rng, crossed.phases > 0);
   advancePolitics(world, crossed.phases > 0);
   advanceHousehold(world, crossed.phases > 0);
+  advancePorts(world, rng, crossed.phases > 0);
+  advanceRelationships(world, rng, crossed.phases > 0);
+  advanceHoldings(world, rng, crossed.phases > 0, crossed.orbits > 0);
+  advanceLoans(world, rng, crossed.phases > 0);
+  advanceTraining(world, rng, crossed.phases > 0, crossed.orbits > 0);
+  advanceFleet(world, rng, crossed.phases > 0);
+  advanceEmbassies(world, rng, crossed.phases > 0);
+  advanceAmbitions(world, rng, crossed.phases > 0);
+  advanceProspects(world, rng, crossed.orbits > 0);
+  advanceCrucible(world, rng, crossed.phases > 0);
+  advanceGrounds(world, rng, crossed.phases > 0);
+  advanceCircuit(world, rng, crossed.phases > 0, crossed.orbits > 0);
+  advanceLadder(world, rng, crossed.orbits > 0);
+  advanceTreasury(world, crossed.phases > 0);
+  advanceLanes(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceEvents(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 
   world.rng = rng.state;
-  if (world.feed.length > FEED_LIMIT) world.feed = world.feed.slice(-FEED_LIMIT);
+  trimFeed(world);
 }
 
 /** Advance several turns at once (for tests and fast-forward). */
@@ -104,7 +133,7 @@ export function advanceUntil(input: World, turns: number, stopOnEvents: boolean)
   return { world: w, ran: turns };
 }
 
-interface Attention { petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null; decisions: number }
+interface Attention { petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null; decisions: number; alerts: number }
 
 function snapshotOfAttention(w: World): Attention {
   const P = w.playerHouseId;
@@ -117,12 +146,14 @@ function snapshotOfAttention(w: World): Attention {
     last: w.feed[w.feed.length - 1],
     oath: w.courts[P]?.oath?.id ?? null,
     decisions: w.events?.pending.length ?? 0,
+    alerts: w.ports?.alerts ?? 0,
   };
 }
 
 function needsAttention(w: World, b: Attention): string | null {
   const a = snapshotOfAttention(w);
   if (a.decisions > b.decisions) return 'A decision awaits your word.';
+  if (a.alerts > b.alerts) return 'Word has come that needs you.';
   if (a.done > b.done) return 'A mission has come home.';
   if (a.demands > b.demands) return 'A ransom demand has arrived.';
   if (a.held > b.held) return 'We have caught someone.';
