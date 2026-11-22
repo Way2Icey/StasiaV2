@@ -27,6 +27,7 @@ import { ensureCrucible } from './crucible';
 import { ensureGrounds } from './grounds';
 import { ensureLadder } from './ladder';
 import { ensureTreasury } from './treasury';
+import { ensureLanes } from './lanes';
 import './eventDefs';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
@@ -76,6 +77,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
     grounds: undefined as unknown as World['grounds'],
     ladder: undefined as unknown as World['ladder'],
     treasury: undefined as unknown as World['treasury'],
+    lanes: undefined as unknown as World['lanes'],
   };
 
   for (const h of SLICE_HOUSES) {
@@ -157,6 +159,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
   ensureGrounds(world);
   ensureLadder(world);
   ensureTreasury(world);
+  ensureLanes(world);
   world.rng = rng.state;
   return world;
 }

@@ -17,12 +17,16 @@ import { absoluteCycle } from '../sim/time';
 import type { World } from '../sim/types';
 import { findSector } from '../sim/query';
 import { ShipsAt } from './fleet';
+import { LANES, laneRisk, OFFMAP, ourConvoys } from '../sim/lanes';
 import { shipSeen } from '../sim/holdings';
 
 const W = 96;
 const H = 30;
 
 /** Where each world sits on the map (column, row). */
+/** Where the Reserve, the Exchange Docks and the Outer Reach sit. */
+export const OFF_POS: Record<string, [number, number]> = { reserve: [8, 3], exchange: [40, 13], reach: [92, 19] };
+
 export const MAP_POS: Record<string, [number, number]> = {
   'alerion-prime': [20, 20],
   'serath-reach': [56, 7],
@@ -45,17 +49,36 @@ function layout(world: World, selected: string, pick: (id: string) => void) {
   // A fixed sky, the same every time.
   let seed = 7;
   const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
-  for (let i = 0; i < 110; i++) put(Math.floor(rnd() * H), Math.floor(rnd() * W), '·····.:*+'[Math.floor(rnd() * 9)]!);
+  for (let i = 0; i < 70; i++) put(Math.floor(rnd() * H), Math.floor(rnd() * W), "....'*"[Math.floor(rnd() * 6)]!);
   const ids = Object.keys(world.planets).filter((id) => MAP_POS[id]);
   const point = (a: [number, number], b: [number, number], t: number): [number, number] =>
     [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t)];
-  // Lanes.
-  for (let i = 0; i < ids.length; i++) {
-    for (let j = i + 1; j < ids.length; j++) {
-      const a = MAP_POS[ids[i]!]!, b = MAP_POS[ids[j]!]!;
-      const n = Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]) * 2);
-      for (let k = 0; k <= n; k += 2) { const [c, r] = point(a, b, k / n); put(r, c, '·'); }
-    }
+  // Lanes, dotted by how dangerous they are for us: · quiet, + risky, × dangerous.
+  const at = (id: string) => MAP_POS[id] ?? OFF_POS[id];
+  for (const l of LANES) {
+    const a = at(l.a), b = at(l.b);
+    if (!a || !b) continue;
+    const risk = laneRisk(world, l);
+    const ch = risk < 0.08 ? '·' : risk < 0.16 ? '+' : '×';
+    const n = Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]) * 2);
+    for (let k = 0; k <= n; k += 2) { const [c, r] = point(a, b, k / n); put(r, c, ch); }
+  }
+  // The places off the house worlds.
+  for (const [id, [c, r]] of Object.entries(OFF_POS)) {
+    put(r, c, '◇');
+    const label = ` ${OFFMAP[id]!.name.replace(/^the /, '').toUpperCase()} `;
+    const col = c + label.length + 2 > W ? c - label.length - 1 : c + 2;
+    spans.push({ r, c: col, len: label.length, node: <Go key={`o-${id}`} to={{ kind: 'lanes' }}><span className="muted">{label}</span></Go> });
+  }
+  // Our convoys under way.
+  const nowC = absoluteCycle(world.date);
+  for (const cv of ourConvoys(world)) {
+    const a = at(cv.from), b = at(cv.to);
+    if (!a || !b) continue;
+    const total = Math.max(1, absoluteCycle(cv.arrives) - absoluteCycle(cv.left));
+    const t = 0.15 + 0.7 * Math.max(0, Math.min(1, 1 - (absoluteCycle(cv.arrives) - nowC) / total));
+    const [c, r] = point(a, b, t);
+    put(r, c, '●');
   }
   // Worlds.
   const home = world.houses[P]!.capitalPlanetId;
@@ -165,7 +188,7 @@ export function StarMapPage() {
       <div className="grid">
         <Panel title="The Reaches" aside={`${Object.keys(world.planets).length} worlds · ${activeMissions(world, P).length} of ours in flight`} className="major span-8">
           <div className="body map-wrap"><MapText world={world} selected={selected} pick={setSelected} /></div>
-          <div className="map-legend"><span>· · jump lane</span><span>► ours outbound</span><span>◆ at work</span><span>◄ coming home</span><span>┌ ┐ home world</span><span>▲ our great ship</span><span>△ theirs (where we can see)</span></div>
+          <div className="map-legend"><span>· · quiet lane</span><span>+ + risky</span><span>× × dangerous</span><span>● our convoy</span><span>◇ Reserve, Exchange, Reach</span><span>► ours outbound</span><span>◆ at work</span><span>◄ coming home</span><span>┌ ┐ home world</span><span>▲ our great ship</span><span>△ theirs (where we can see)</span></div>
         </Panel>
         <div className="span-4 stack">
           <Panel title={p.name} aside={isHome ? 'home' : `${travelCycles(home, selected)} cycles out`} className="major">

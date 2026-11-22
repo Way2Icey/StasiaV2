@@ -35,7 +35,7 @@ export const DUTY_NOTE: Record<Duty, string> = {
   patrol: 'Watches one of our sectors: raiders think twice, and if they come the ship fights.',
   show: 'Takes station over another house\'s world. Our dread rises; their regard falls, unless they are friends.',
   blockade: 'Stops ships at another house\'s main port. Their trade suffers and they hate us for it; warships may come out to test us.',
-  escort: 'Guards merchant convoys. Brings in othes and keeps the crew busy.',
+  escort: 'Guards our convoys on the lanes, two runs at a time: corsairs think twice, and if they come the ship fights. Convoy fees from others bring in othes.',
 };
 
 export interface CapitalShip {
@@ -319,10 +319,12 @@ function crewLife(w: World, rng: Rng, s: CapitalShip) {
     // New hands sign on at home.
     s.crew = Math.min(CAPITAL_CLASSES[s.cls].crew, s.crew + Math.round(CAPITAL_CLASSES[s.cls].crew * 0.05));
   }
+  else if (s.duty === 'escort' && !s.arrives) s.condition = clamp(s.condition + 2, 0, 100); // refits at home between runs
   else s.condition = clamp(s.condition - 0.6, 0, 100);
   if (s.duty === 'escort') d += 0.5;
   const out = s.deployed ? (absoluteCycle(w.date) - absoluteCycle(s.deployed)) / CYCLES_PER_ORBIT : 0;
-  if (out > 2) d -= (out - 2);
+  // Escorts come home between runs; it is the long stations away that wear a crew down.
+  if (out > 2 && s.duty !== 'escort') d -= (out - 2);
   // Pulled toward a middling mood.
   d += (55 - s.crewMood) * 0.05;
   s.crewMood = clamp(Math.round((s.crewMood + d) * 10) / 10, 0, 100);

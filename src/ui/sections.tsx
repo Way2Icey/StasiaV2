@@ -59,6 +59,7 @@ export function railCount(world: World, s: Section): { gold?: number; plain?: nu
       + (g?.challenges.length ?? 0) + (world.training?.intake?.length ?? 0) + (world.training?.pupilOffers?.length ?? 0)
       + (g?.circuit.filter((e) => !e.done && e.invited?.includes(P) && !e.entrants.some((x) => x.houseId === P)).length ?? 0)
       + (world.ports?.raids.filter((r) => r.status === 'revealed' && !r.answer).length ?? 0)
+      + (world.lanes?.held.filter((h) => h.owner === P).length ?? 0)
       + (world.crucible?.stage === 'drawn' && world.crucible.entrants.includes(P) && !world.crucible.contingents[P] ? 1 : 0)
       + (world.crucible?.stage === 'campaign' && world.crucible.contingents[P] && !world.crucible.contingents[P]!.out && currentRound(world) && !currentRound(world)!.stance[P] ? 1 : 0)
       + (world.loans?.asks.filter((a) => a.to === P).length ?? 0)

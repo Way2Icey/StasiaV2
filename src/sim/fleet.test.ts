@@ -60,7 +60,7 @@ describe('great ships', () => {
     const s = shipsOf(w, P)[0]!;
     w.fleet.ships[s.id]!.crewMood = 12;
     w.fleet.ships[s.id]!.captainId = null;
-    for (let i = 0; i < 60; i++) { econ(w, P).stock.othes = 0; w = advanceTurn(w); w.events.pending = []; }
+    for (let i = 0; i < 160; i++) { econ(w, P).stock.othes = 0; w = advanceTurn(w); w.events.pending = []; }
     const after = w.fleet.ships[s.id]!;
     expect(after.lost || after.crew < s.crew || after.crewMood > 12).toBeTruthy();
     expect(deserialize(serialize(w)).fleet).toEqual(w.fleet);

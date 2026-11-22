@@ -302,6 +302,8 @@ function tell(world: World, houseId: string, text: string, ids?: string[]) {
 }
 
 function deliverQuotas(world: World) {
+  // With the lanes running, the quota travels from the Reserve and lands when it lands.
+  if (world.lanes) { if (world.playerHouseId) tell(world, world.playerHouseId, `The Numarade grants our Navisium quota for the Orbit: ${quotaFor(world, world.playerHouseId)} units, shipped from the Reserve.`); return; }
   for (const houseId of Object.keys(world.houses)) {
     const q = quotaFor(world, houseId);
     const e = econ(world, houseId);

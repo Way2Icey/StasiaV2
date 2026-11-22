@@ -14,6 +14,7 @@ import { advanceGrounds } from './grounds';
 import { advanceCircuit } from './circuit';
 import { advanceLadder } from './ladder';
 import { advanceTreasury } from './treasury';
+import { advanceLanes } from './lanes';
 import './eventDefs';
 import { displayName } from './names';
 import { Rng } from './rng';
@@ -97,6 +98,7 @@ function stepInPlace(world: World): void {
   advanceCircuit(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceLadder(world, rng, crossed.orbits > 0);
   advanceTreasury(world, crossed.phases > 0);
+  advanceLanes(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceEvents(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 

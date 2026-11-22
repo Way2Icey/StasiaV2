@@ -550,4 +550,6 @@ export interface World {
   grounds: import('./grounds').GroundsState;
   ladder: import('./ladder').LadderState;
   treasury: import('./treasury').TreasuryState;
+  /** Convoys on the lanes, the corsair companies, customs posts and deals. */
+  lanes: import('./lanes').LanesState;
 }

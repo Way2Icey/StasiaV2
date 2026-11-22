@@ -35,6 +35,7 @@ import { leadsOf } from '../sim/discovery';
 import { absoluteCycle, type GameDate } from '../sim/time';
 import { eventDef } from '../sim/events';
 import { displayName } from '../sim/names';
+import { answerCrew } from '../sim/lanes';
 import type { FeedEntry, World } from '../sim/types';
 
 /** Cycles from now, as the terminal shows them: "C+4". */
@@ -200,7 +201,7 @@ interface DeskItem {
 }
 
 type DeskTab = 'needs' | 'chances' | 'news';
-const NEEDS = new Set(['BLOODING', 'DECISION', 'AUDIENCE', 'PETITION', 'RAID', 'RANSOM', 'LOAN', 'DEFAULT', 'CAIGE', 'CRUCIBLE', 'CHALLENGE', 'INTAKE', 'PUPIL', 'INVITATION', 'WARD']);
+const NEEDS = new Set(['CREW', 'BLOODING', 'DECISION', 'AUDIENCE', 'PETITION', 'RAID', 'RANSOM', 'LOAN', 'DEFAULT', 'CAIGE', 'CRUCIBLE', 'CHALLENGE', 'INTAKE', 'PUPIL', 'INVITATION', 'WARD']);
 const tabOf = (k: string): DeskTab => (NEEDS.has(k) ? 'needs' : k === 'NEWS' ? 'news' : 'chances');
 
 function scrollTo(id: string) {
@@ -238,6 +239,13 @@ export function Desk({ className }: { className?: string }) {
     if (r.status !== 'revealed' || r.answer) continue;
     const s = findSector(world, r.sectorId)?.sector;
     items.push({ id: r.id, mark: '[⚠]', kind: 'RAID', text: <>Corsairs bound for {s?.name}</>, when: inCycles(world, r.arrives), open: () => nav.to({ kind: 'port', id: r.sectorId }) });
+  }
+  for (const h of (world.lanes?.held ?? []).filter((x) => x.owner === P)) {
+    const f = world.lanes.factions[h.faction];
+    items.push({ id: h.id, mark: '[$]', kind: 'CREW', text: <>{f ? f.name[0]!.toUpperCase() + f.name.slice(1) : 'Corsairs'} hold the {h.crew} crew of {h.what} · {h.ransom.toLocaleString('en-US')}</>, when: inCycles(world, h.expires),
+      open: () => setOpen((o) => (o === h.id ? null : h.id)),
+      detail: <span className="muted" style={{ fontSize: 12 }}>Sent up through the Steward. Pay, and they come home and the company thinks better of us. Refuse, and they are sold to the deep mines. <button type="button" className="linklike" onClick={() => nav.to({ kind: 'lanes' })}>The lanes ›</button></span>,
+      acts: [{ label: `Pay · ${h.ransom.toLocaleString('en-US')}`, primary: true, run: (w) => answerCrew(w, h.id, true) }, { label: 'Refuse', run: (w) => answerCrew(w, h.id, false) }] });
   }
   for (const s of Object.values(world.ports?.ships ?? {})) {
     if (s.status === 'held') {

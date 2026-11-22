@@ -2,6 +2,7 @@
 // comes from something the world is doing (trade, a rival's mission, a
 // smuggler's run, raiders scouting a target) and the house sees only what its
 // harbourmaster, customs and agents find out.
+import { raidOdds } from './lanes';
 import { noticeYouth } from './prospects';
 import { baseStrength, imprison, listeningOn } from './holdings';
 import { fleetDefence } from './fleet';
@@ -943,7 +944,7 @@ export function advancePorts(world: World, rng: Rng, phaseTurned: boolean): void
   if (phaseTurned) {
     if (!ps.raids.some((r) => r.status !== 'over')) {
       const patrol = world.courts[world.playerHouseId]?.tasks.grandMaster?.task === 'patrol';
-      if (rng.chance(patrol ? 0.06 : 0.12)) newRaid(world, rng);
+      if (rng.chance((patrol ? 0.06 : 0.12) * raidOdds(world))) newRaid(world, rng);
     }
     for (const port of Object.values(ps.ports)) { port.last = port.tally; port.tally = emptyTally(); }
     tendPosts(world, rng);
