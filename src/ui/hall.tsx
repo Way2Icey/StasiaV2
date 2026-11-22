@@ -326,7 +326,7 @@ export function Desk({ className }: { className?: string }) {
   }
   for (const l of leadsOf(world, P)) {
     const who = l.proposal?.sponsorId ? world.characters[l.proposal.sponsorId] : undefined;
-    items.push({ id: l.id, mark: l.proposal ? '[*]' : '[i]', kind: l.proposal ? 'PROSPECT' : 'LEAD', text: l.proposal ? <>{who ? `${who.name.given} wants ` : 'Noticed: '}{l.title}</> : l.title, quiet: !l.proposal, when: inCycles(world, l.expires), open: () => scrollTo('leads'),
+    items.push({ id: l.id, mark: l.proposal ? '[*]' : '[i]', kind: l.proposal ? 'PROSPECT' : 'LEAD', text: l.proposal ? <>{who ? `${who.name.given} wants ` : 'Noticed: '}{l.title}</> : l.title, quiet: !l.proposal, when: inCycles(world, l.expires), open: () => nav.to({ kind: 'missions' }),
       acts: l.kind === 'recruit' ? [{ label: `Take in · ${(l.cost ?? 0).toLocaleString('en-US')}`, primary: true, run: (w) => recruit(w, l.id) }, { label: 'Let go', run: (w) => dismissLead(w, l.id) }] : undefined });
   }
   const recent = world.feed.slice(-40).reverse().filter((e) => e.kind === 'mission' && e.missionId && world.missions[e.missionId]?.stage === 'done').slice(0, 2);

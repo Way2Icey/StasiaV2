@@ -31,7 +31,6 @@ export function GroundsPage() {
         <p>Where reputations are made before anyone is a knight. The circuit runs all year across the Reaches: underground pits in the undercities, public tourneys any house may hold, invitationals and pit nights for invitees only. Our people go on their own when their blood is up; we can send them where we are welcome, and host. Challenges between soldiers come to the Highroy. Less sanctioned than the Crucible, and closer to home.</p>
       </div>
       <div className="grid">
-        <Challenges className="span-12" />
         <Upcoming className="span-12" />
         <Tourney className="span-6" />
         <Host className="span-6" />

@@ -39,7 +39,7 @@ export type Route =
   | { kind: 'embassies' }
   | { kind: 'loans' }
   | { kind: 'vaults' }
-  | { kind: 'build' }
+  | { kind: 'build'; what?: string }
   | { kind: 'spend' }
   | { kind: 'ship'; id: string }
   | { kind: 'log'; person?: string; place?: string; house?: string; open?: string };

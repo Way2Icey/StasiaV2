@@ -230,12 +230,12 @@ export function VaultsPage() {
 // ---------------------------------------------------------------- Realm: build
 
 /** Everything we could build, and everywhere we could build it. */
-export function BuildPage() {
+export function BuildPage({ what }: { what?: string }) {
   const world = useWorld();
   const { run, err } = usePlay();
   const P = world.playerHouseId;
   const sectors = heldSectors(world, P);
-  const [kind, setKind] = useState<ModuleKind>('academy');
+  const [kind, setKind] = useState<ModuleKind>((SECTOR_KINDS as string[]).includes(what ?? '') ? (what as ModuleKind) : 'academy');
   const places = sectors.map((s) => ({ s, why: cannotBuild(world, kind, s.id) }));
   const ok = places.filter((x) => !x.why);
   const have = modulesOf(world, P, kind);

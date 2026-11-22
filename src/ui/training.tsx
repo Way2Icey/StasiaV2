@@ -38,7 +38,7 @@ export function TrainingPage({ id }: { id?: string }) {
   return (
     <>
       <div className="page-title">
-        <h2>Training</h2>
+        <h2>Training &amp; academy</h2>
         <p>Make the house's people better: a tutor for one, drill for the knights, an academy for many. Wards pass between houses as pledges, honours and, sometimes, hostages.</p>
       </div>
       <div className="grid">

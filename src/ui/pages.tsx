@@ -29,7 +29,7 @@ import {
 } from '../sim/types';
 import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
-import { LeadsPanel, MissionRow } from './missions';
+import { MissionRow } from './missions';
 import { moodColor, moodLabel, moodOf } from '../sim/mood';
 import { CouncilTable, Desk, HallPanel } from './hall';
 import { CaptivesPanel, OathSummary, RansomDemands, StandingPanel } from './council';
@@ -114,7 +114,6 @@ function explore(world: World, see: (c: Character) => CharacterView): { key: str
 export function ThroneRoom() {
   const world = useWorld();
   const house = world.houses[world.playerHouseId]!;
-  const feed = [...world.feed].reverse().slice(0, 30);
   const see = useSee();
   const threads = explore(world, see);
   const missions = activeMissions(world, house.id);
@@ -136,29 +135,15 @@ export function ThroneRoom() {
         <HallPanel className="span-7" />
         <CouncilTable className="span-5" />
         <div id="ransoms" className="span-6"><RansomDemands /></div>
-        <div id="leads" className="span-12"><LeadsPanel /></div>
         <CaptivesPanel className="span-12" hideWhenEmpty />
         <Panel title={<Term k="mission">Missions in the field</Term>} aside={<Go to={{ kind: 'missions' }}>Missions board ›</Go>} className="span-12">
           {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. Open anyone's sheet to look into them, or a world to scout it.</p> : null}
           {missions.map((m) => <MissionRow key={m.id} id={m.id} />)}
         </Panel>
-        <Panel title="Threads to follow" aside="Drawn from the world as it stands" className="span-5">
+        <Panel title="Threads to follow" aside="Drawn from the world as it stands" className="span-12">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
             {threads.map((t) => <p key={t.key} style={{ margin: 0 }}>{t.node}</p>)}
           </div>
-        </Panel>
-        <Panel title="The Chronicle" aside="Newest first" className="span-7 feed">
-          {feed.map((e, i) => (
-            <div className="row" key={`${e.date.year}-${e.date.cycle}-${i}`}>
-              <time>{formatDate(e.date)}</time>
-              <span className={`tag ${e.kind}`}>{e.kind}</span>
-              <span style={{ fontSize: 13 }}>
-                {e.text}
-                {e.characterIds?.length ? <> {e.characterIds.map((id) => <span key={id}> · <PersonById id={id} /></span>)}</> : null}
-                {e.missionId && world.missions[e.missionId] ? <> · <Go to={{ kind: 'mission', id: e.missionId }}>{world.missions[e.missionId]!.stage === 'done' ? 'Read report' : 'View mission'}</Go></> : null}
-              </span>
-            </div>
-          ))}
         </Panel>
       </div>
     </>

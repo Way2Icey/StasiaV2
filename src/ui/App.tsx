@@ -230,7 +230,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'embassies': return <EmbassiesPage />;
     case 'loans': return <LoansPage />;
     case 'vaults': return <VaultsPage />;
-    case 'build': return <BuildPage />;
+    case 'build': return <BuildPage key={route.what ?? ''} what={route.what} />;
     case 'spend': return <SpendPage />;
     case 'ship': return <ShipPage key={route.id} id={route.id} />;
   }

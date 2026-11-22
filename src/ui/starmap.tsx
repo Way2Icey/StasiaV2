@@ -16,8 +16,7 @@ import { knowledgeOf } from '../sim/knowledge';
 import { absoluteCycle } from '../sim/time';
 import type { World } from '../sim/types';
 import { findSector } from '../sim/query';
-import { FleetPanel, ShipsAt } from './fleet';
-import { HoldingsOverview } from './holdings';
+import { ShipsAt } from './fleet';
 import { shipSeen } from '../sim/holdings';
 
 const W = 96;
@@ -209,8 +208,9 @@ export function StarMapPage() {
               <button type="button" className="btn small" onClick={() => nav.to({ kind: 'planet', id: p.id })}>Open world</button>
             </div>
           </Panel>
-          <FleetPanel />
-          <HoldingsOverview />
+          <Panel title="Ours across the Reaches">
+            <div className="body actions"><Go to={{ kind: 'fleet' }} className="btn small">Fleet ›</Go><Go to={{ kind: 'holdings' }} className="btn small">Holdings ›</Go><Go to={{ kind: 'build' }} className="btn small">Build ›</Go></div>
+          </Panel>
           <Panel title={<Term k="holdings">All worlds</Term>}>
             {Object.values(world.planets).map((w) => (
               <div key={w.id} className="row">

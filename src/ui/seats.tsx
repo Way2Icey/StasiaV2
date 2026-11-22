@@ -115,6 +115,11 @@ export function SeatPage({ seat }: { seat: CouncilSeat }) {
           <p>{SEAT_BLURB[seat]}</p>
         </div>
       </div>
+      <div className="subtabs" style={{ marginBottom: 10 }}>
+        {(['grandMaster', 'champion', 'spymaster', 'envoy', 'steward', 'physician', 'elder', 'masterOfRites'] as CouncilSeat[]).map((s2) => (
+          <Go key={s2} to={{ kind: 'seat', id: s2 }} className="subtab" aria-current={s2 === seat ? 'page' : undefined}>{SEAT_TITLE[s2]}</Go>
+        ))}
+      </div>
       <div className="grid">
         <Panel title="The seat" className="span-12">
           <div className="body seat-head">
