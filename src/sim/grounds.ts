@@ -232,8 +232,8 @@ export function advanceGrounds(world: World, rng: Rng, phaseTurned: boolean): vo
       const last = g.lastChallenge?.[a.id];
       if (last && now - absoluteCycle(last) < CYCLES_PER_ORBIT * 2) continue;
       // Fire in the blood: the proud and the bold throw down first.
-      const heat = (a.stats.valor + a.hidden.ambition) / 40 + (cause === 'an old feud' ? 0.15 : 0) + (cause === 'wounded pride' ? 0.6 : 0);
-      if (!rng.chance(0.07 * heat)) continue;
+      const heat = (a.stats.valor + a.hidden.ambition) / 40 + (cause === 'an old feud' ? 0.15 : 0) + (cause === 'wounded pride' ? 0.2 : 0);
+      if (!rng.chance(0.045 * heat)) continue;
       g.challenges.push({ id: `ch${world.nextId++}`, challenger: a.id, challenged: b.id, cause, foreign, expires: addCycles(world.date, CYCLES_PER_PHASE) });
       g.lastChallenge![a.id] = world.date;
       if (world.ports) world.ports.alerts += 1;

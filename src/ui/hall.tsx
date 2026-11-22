@@ -200,7 +200,7 @@ interface DeskItem {
 }
 
 type DeskTab = 'needs' | 'chances' | 'news';
-const NEEDS = new Set(['BLOODING', 'DECISION', 'AUDIENCE', 'PETITION', 'RAID', 'HELD', 'RANSOM', 'LOAN', 'DEFAULT', 'CAIGE', 'CRUCIBLE', 'CHALLENGE', 'INTAKE', 'PUPIL', 'INVITATION', 'WARD']);
+const NEEDS = new Set(['BLOODING', 'DECISION', 'AUDIENCE', 'PETITION', 'RAID', 'RANSOM', 'LOAN', 'DEFAULT', 'CAIGE', 'CRUCIBLE', 'CHALLENGE', 'INTAKE', 'PUPIL', 'INVITATION', 'WARD']);
 const tabOf = (k: string): DeskTab => (NEEDS.has(k) ? 'needs' : k === 'NEWS' ? 'news' : 'chances');
 
 function scrollTo(id: string) {

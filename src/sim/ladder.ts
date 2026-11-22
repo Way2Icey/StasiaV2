@@ -197,6 +197,8 @@ export function answerBlooding(input: World, id: string, choice: 'gift' | 'word'
     nc.birth = { year: w.date.year - Math.round(SPECIES[nc.species].adulthood * 1.15), cycle: 0 } as GameDate;
     for (const k of ['duelling', 'agility', 'reflexes', 'valor', 'endurance', 'strength'] as StatId[]) nc.stats[k] = clamp(Math.round(b.local.skill + (k === 'duelling' ? 1 : -1)), 4, 20);
     takeIntoHouse(w, nc, 'Blooded');
+    const cap = w.planets[w.houses[w.playerHouseId]!.capitalPlanetId]!;
+    nc.location = { planetId: cap.id, sectorId: cap.sectors[0]!.id };
     b.aspirantId = nc.id;
   }
   const c = w.characters[b.aspirantId];
@@ -251,7 +253,7 @@ function bloodIn(w: World, c: Character, r: Rung, t: Character | undefined, choi
   if (P !== w.playerHouseId) return;
   logRecord(w, {
     kind: 'world', type: 'world', severity: 2, seat: 'grandMaster',
-    text: `${displayName(c.name)} is blooded at ${sector}, before ${came.length} of the house${t ? `; ${shortName(t.name)} stood for them` : ''}.${choice === 'gift' ? ' The Highroy sent a gift.' : choice === 'word' ? ' The Highroy\'s words were read out.' : choice === 'seat' ? ' They sat at the high table that night.' : ''}${stayed.length ? ` ${stayed.map((x) => shortName(x.name)).join(' and ')} stayed away.` : ''}`,
+    text: `${displayName(c.name)} is blooded at ${sector}, ${came.length ? `before ${came.length} of the house` : 'with no one of the house there to see it'}${t ? `; ${shortName(t.name)} stood for them` : ''}.${choice === 'gift' ? ' The Highroy sent a gift.' : choice === 'word' ? ' The Highroy\'s words were read out.' : choice === 'seat' ? ' They sat at the high table that night.' : ''}${stayed.length ? ` ${stayed.map((x) => shortName(x.name)).join(' and ')} stayed away.` : ''}`,
     quote: t && words ? { from: t.id, text: words } : undefined,
     detail: came.length ? `There: ${came.slice(0, 12).map((x) => shortName(x.name)).join(', ')}${came.length > 12 ? '…' : ''}` : undefined,
     who: [{ id: c.id, part: 'blooded' }, ...(t ? [{ id: t.id, part: 'stood for them' }] : []), ...stayed.map((x) => ({ id: x.id, part: 'stayed away' }))],

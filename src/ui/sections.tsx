@@ -63,7 +63,7 @@ export function railCount(world: World, s: Section): { gold?: number; plain?: nu
       + (world.crucible?.stage === 'campaign' && world.crucible.contingents[P] && !world.crucible.contingents[P]!.out && currentRound(world) && !currentRound(world)!.stance[P] ? 1 : 0)
       + (world.loans?.asks.filter((a) => a.to === P).length ?? 0)
       + (world.training?.offers.filter((o) => o.to === P).length ?? 0)
-      + Object.values(world.ports?.ships ?? {}).filter((x) => x.status === 'held').length;
+      + (world.ladder?.proposals.length ?? 0);
     return { gold: n };
   }
   if (s === 'court') return { gold: (world.courts[P]?.petitions.length ?? 0) + (world.ambitions?.audiences.length ?? 0) };

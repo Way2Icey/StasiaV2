@@ -143,6 +143,7 @@ export function cannotEnter(world: World, eventId: string, ids: string[]): strin
   const ours = e.entrants.filter((x) => x.houseId === P).length;
   if (ids.length < 1 || ours + ids.length > MAX_SENT) return `At most ${MAX_SENT} of ours`;
   const ok = new Set(fighters(world, P).map((c) => c.id));
+  if (ids.some((id) => world.ladder?.of[id]?.stage === 'pupil')) return 'Pupils are not sent to fight';
   if (ids.some((id) => !ok.has(id))) return 'Someone named cannot go';
   return null;
 }
@@ -229,7 +230,7 @@ function boutOf(world: World, rng: Rng, e: CircuitEvent, a: Entrant, b: Entrant,
     if (met >= 2 && !bondOf(world, L.id, W.id) && rng.chance(0.4)) setBond(world, L.id, W.id, 'rival', 'rival', 'kept meeting on the circuit');
   }
   if (W && out.killed && L) setBond(world, W.id, L.id, undefined, 'feud', 'a death on the circuit');
-  if (W && L?.alive && !out.killed && L.houseId !== W.houseId && isMilitary(world, L) && rng.chance(0.15)) sting(world, L.id, W.id, `beaten in front of a crowd at ${e.name}`);
+  if (W && L?.alive && !out.killed && L.houseId !== W.houseId && isMilitary(world, L) && rng.chance(0.08)) sting(world, L.id, W.id, `beaten in front of a crowd at ${e.name}`);
   return out;
 }
 
@@ -432,6 +433,7 @@ export function advanceCircuit(world: World, rng: Rng, phaseTurned: boolean, orb
           if (mine >= MAX_SENT) continue;
           for (const c of fighters(world, h)) {
             if (e.entrants.some((x) => x.id === c.id) || !keen(world, c)) continue;
+            if (world.ladder?.of[c.id]?.stage === 'pupil' && e.kind !== 'underground') continue;
             // Pupils and aspirants are not allowed the pits; now and then one slips out anyway.
             const st = world.ladder?.of[c.id]?.stage;
             if (e.kind === 'underground' && (st === 'pupil' || st === 'aspirant')) {

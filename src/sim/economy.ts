@@ -270,10 +270,31 @@ function settleMarket(world: World, rng: Rng) {
 
 export function advanceEconomy(world: World, rng: Rng, phaseTurned: boolean, orbitTurned: boolean): void {
   if (!world.economy) return;
-  if (orbitTurned) deliverQuotas(world);
+  if (orbitTurned) { deliverQuotas(world); stewardAccounts(world); }
   if (!phaseTurned) return;
   for (const houseId of Object.keys(world.houses)) settlePhase(world, rng, houseId);
   settleMarket(world, rng);
+}
+
+/** Each Orbit the Steward sends up the accounts: what came in, what went out, and whether it can last. */
+function stewardAccounts(world: World) {
+  const P = world.playerHouseId;
+  const lines = phaseLedger(world, P).filter((l) => l.resource === 'othes');
+  const inn = lines.filter((l) => l.amount > 0).reduce((n, l) => n + l.amount, 0);
+  const out = -lines.filter((l) => l.amount < 0).reduce((n, l) => n + l.amount, 0);
+  const net = inn - out;
+  const stock = econ(world, P).stock.othes;
+  const st = alive(world).find((c) => c.houseId === P && c.seat === 'steward');
+  const biggest = lines.filter((l) => l.amount < 0).sort((a, b) => a.amount - b.amount)[0];
+  const lasts = net < 0 ? Math.floor(stock / (-net * 5)) : Infinity;
+  const fmtN = (n: number) => Math.round(n).toLocaleString('en-US');
+  world.feed.push({
+    id: `rec${world.nextId++}`, date: world.date, kind: 'world', type: 'economy', severity: net < 0 && lasts < 4 ? 2 : 1, seat: 'steward',
+    text: `The accounts for the Orbit: ${fmtN(inn)} in, ${fmtN(out)} out a Phase. ${net >= 0 ? `We put by ${fmtN(net)} a Phase.` : `We lose ${fmtN(-net)} a Phase${Number.isFinite(lasts) ? `; at this rate the coffers last about ${lasts} Orbit${lasts === 1 ? '' : 's'}` : ''}.`}`,
+    detail: biggest ? `The heaviest outgoing: ${biggest.label} (${fmtN(-biggest.amount)} a Phase).` : undefined,
+    quote: st && net < 0 ? { from: st.id, text: lasts < 4 ? 'My lord, we cannot go on like this. Something must give: the stipends, the works, or the holdings.' : 'We are spending more than we take. It can go on a while; not for ever.' } : undefined,
+    who: st ? [{ id: st.id, part: 'kept the accounts' }] : [],
+  });
 }
 
 function tell(world: World, houseId: string, text: string, ids?: string[]) {

@@ -640,12 +640,11 @@ export function knight(input: World, id: string): World {
   if (a?.kind === 'knight') satisfy(w, c, a, 'knighted in the hall');
   logRecord(w, { kind: 'world', type: 'world', severity: 2, seat: 'grandMaster', text: `${displayName(c.name)} kneels in the hall and rises a knight of the house.`, who: [{ id: c.id, part: 'knighted' }, ...(lord ? [{ id: lord, part: 'gave the accolade' }] : [])], effects: ['−300 othes'] });
   // Those who waited longer feel passed over.
-  for (const [oid, r] of Object.entries(w.ladder?.of ?? {})) {
-    if (oid === c.id || r.stage !== 'blooded' || w.characters[oid]?.houseId !== w.playerHouseId) continue;
-    const mine = w.ladder.of[c.id];
-    if (mine && absoluteCycle(r.since) >= absoluteCycle(mine.since)) continue;
-    if (Math.abs(hashOf(oid + c.id)) % 2 === 0) { rivalsFrom(w, oid, c.id, `passed over for a knighthood that went to ${shortName(c.name)}`, 2); sting(w, oid, c.id, 'passed over'); }
-  }
+  const mine = w.ladder?.of[c.id];
+  const waited = Object.entries(w.ladder?.of ?? {})
+    .filter(([oid, r]) => oid !== c.id && r.stage === 'blooded' && w.characters[oid]?.alive && w.characters[oid]!.houseId === w.playerHouseId && (!mine || absoluteCycle(r.since) < absoluteCycle(mine.since)))
+    .sort((a, b) => absoluteCycle(a[1].since) - absoluteCycle(b[1].since))[0];
+  if (waited && Math.abs(hashOf(waited[0] + c.id)) % 3 !== 0) { rivalsFrom(w, waited[0], c.id, `passed over for a knighthood that went to ${shortName(c.name)}`, 2); sting(w, waited[0], c.id, 'passed over'); }
   // A few days later, their letter: thanks, and what they mean to do.
   logRecord(w, { kind: 'world', type: 'world', severity: 2, seat: 'grandMaster', text: `A letter from ${displayName(c.name)}, newly knighted.`, quote: { from: c.id, text: oathOf(w, c) }, who: [{ id: c.id, part: 'wrote' }] });
   return w;
