@@ -328,7 +328,7 @@ function stewardAccounts(world: World) {
   const fmtN = (n: number) => Math.round(n).toLocaleString('en-US');
   world.feed.push({
     id: `rec${world.nextId++}`, date: world.date, kind: 'world', type: 'economy', severity: net < 0 && lasts < 4 ? 2 : 1, seat: 'steward',
-    text: `The accounts for the Orbit: ${fmtN(inn)} in, ${fmtN(out)} out a Phase. ${net >= 0 ? `We put by ${fmtN(net)} a Phase.` : `We lose ${fmtN(-net)} a Phase${Number.isFinite(lasts) ? `; at this rate the coffers last about ${lasts} Orbit${lasts === 1 ? '' : 's'}` : ''}.`}`,
+    text: `The accounts for the Orbit: ${fmtN(inn)} in, ${fmtN(out)} out a Phase. ${net >= 0 ? `We put by ${fmtN(net)} a Phase.` : stock <= 0 ? `We lose ${fmtN(-net)} a Phase, and the coffers are already empty: we are living on our name.` : `We lose ${fmtN(-net)} a Phase${Number.isFinite(lasts) ? (lasts < 1 ? '; the coffers will be empty within the Orbit' : `; at this rate the coffers last about ${lasts} Orbit${lasts === 1 ? '' : 's'}`) : ''}.`}`,
     detail: biggest ? `The heaviest outgoing: ${biggest.label} (${fmtN(-biggest.amount)} a Phase).` : undefined,
     quote: st && net < 0 ? { from: st.id, text: lasts < 4 ? 'My lord, we cannot go on like this. Something must give: the stipends, the works, or the holdings.' : 'We are spending more than we take. It can go on a while; not for ever.' } : undefined,
     who: st ? [{ id: st.id, part: 'kept the accounts' }] : [],

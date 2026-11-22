@@ -14,7 +14,7 @@ import { relation, shiftRelation } from './relations';
 import { seatHolder } from './query';
 import { powerOf, type CapitalShip } from './fleet';
 import { competence } from './reports';
-import { advanceHunts, chronicle, isHostile, leaderFor, replenish, reveal, seedMembers, type CompanyLine, type Hunt, type Member } from './companies';
+import { advanceHunts, chronicle, isHostile, leaderFor, piracyXp, replenish, reveal, seedMembers, HULL, type CompanyLine, type Hunt, type Member } from './companies';
 import { tally } from './careers';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, CYCLES_PER_YEAR } from './time';
 import { GOODS, RESOURCE_LABEL, type Good } from '../data/economy';
@@ -344,12 +344,13 @@ function pirates(world: World, rng: Rng, c: Convoy, f: Faction, lane: Lane) {
     return boss.known ? `, led by ${boss.name}${boss.ship ? ` of the ${boss.ship}` : ''}` : '';
   };
   if (ship && !ship.lost) {
-    const force = f.strength * 0.5 + (boss ? (boss.skill - 12) * 0.8 : 0) + rng.gauss() * 8;
+    const force = f.strength * 0.4 + (boss ? (boss.skill - 12) * 0.5 + ((boss.tactics ?? 10) - 10) * 0.5 + (boss.crew ?? 40) / 10 + HULL[boss.hull ?? 'raider'].power / 2 : 0) + rng.gauss() * 8;
     const ours2 = powerOf(world, ship) * (isHostile(world, f, ship.houseId) ? 1.25 : 1) + rng.gauss() * 6;
     ship.condition = clamp(ship.condition - rng.int(4, 14), 5, 100);
     if (ours2 >= force) {
       f.strength = clamp(f.strength - 3, 10, 95);
       f.rel[c.owner] = clamp((f.rel[c.owner] ?? 0) - 4, -100, 100);
+      piracyXp(rng, boss, false);
       const cap = ship.captainId ? world.characters[ship.captainId] : undefined;
       if (ours) {
         const by = named(`Beat off by the ${ship.name} on the ${where} lane.`);
@@ -365,7 +366,7 @@ function pirates(world: World, rng: Rng, c: Convoy, f: Faction, lane: Lane) {
     ship.crewMood = clamp(ship.crewMood - 8, 0, 100);
   }
   // Taken.
-  if (boss) boss.takes++;
+  if (boss) { boss.takes++; piracyXp(rng, boss, true); }
   f.hauls += c.value;
   f.strength = clamp(f.strength + 1 + c.value / 6000, 10, 95);
   const label = `Taken by ${f.name} on the ${where} lane`;

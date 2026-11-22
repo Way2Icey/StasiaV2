@@ -642,7 +642,7 @@ export function knight(input: World, id: string): World {
   // Those who waited longer feel passed over.
   const mine = w.ladder?.of[c.id];
   const waited = Object.entries(w.ladder?.of ?? {})
-    .filter(([oid, r]) => oid !== c.id && r.stage === 'blooded' && w.characters[oid]?.alive && w.characters[oid]!.houseId === w.playerHouseId && (!mine || absoluteCycle(r.since) < absoluteCycle(mine.since)))
+    .filter(([oid, r]) => oid !== c.id && r.stage === 'blooded' && w.characters[oid]?.alive && w.characters[oid]!.houseId === w.playerHouseId && w.characters[oid]!.role !== 'Knight' && !w.characters[oid]!.flags.some((f) => f.id === 'knighted' || f.id === 'retired') && (!mine || absoluteCycle(r.since) < absoluteCycle(mine.since)))
     .sort((a, b) => absoluteCycle(a[1].since) - absoluteCycle(b[1].since))[0];
   if (waited && Math.abs(hashOf(waited[0] + c.id)) % 3 !== 0) { rivalsFrom(w, waited[0], c.id, `passed over for a knighthood that went to ${shortName(c.name)}`, 2); sting(w, waited[0], c.id, 'passed over'); }
   // A few days later, their letter: thanks, and what they mean to do.

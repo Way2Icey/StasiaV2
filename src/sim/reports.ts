@@ -114,20 +114,38 @@ export function noteOn(world: World, e: FeedEntry): { by?: string; text: string 
   return { by: c.id, text };
 }
 
+/** How many routine letters a seat passes on each Orbit. */
+export const LETTER_CAP = (world: World, r: Reporter) => (r === 'heralds' ? 2 : 1 + Math.floor(competence(world, r) / 7));
+
 /** What the council has to tell the Highroy: unread letters of the last Orbit or so. */
 export function lettersFor(world: World): FeedEntry[] {
   const P = world.playerHouseId;
   const seen = new Set(world.ambitions?.seen ?? []);
   const since = absoluteCycle(world.date) - 120;
-  return world.feed.filter((e) => {
-    if (!e.id || seen.has(e.id) || absoluteCycle(e.date) < since) return false;
+  const pool = world.feed.filter((e) => {
+    if (!e.id || absoluteCycle(e.date) < since) return false;
     if (e.type === 'decision' || e.type === 'time' || e.type === 'port' || e.type === 'seizure' || e.kind === 'time') return false;
     const sev = classify(world, e).severity;
     const ours = (e.who ?? []).some((x) => world.characters[x.id]?.houseId === P) || (e.characterIds ?? []).some((id) => world.characters[id]?.houseId === P) || !!e.houseIds?.includes(P) || !!e.quote;
     const followed = (e.who ?? []).some((x) => world.careers?.pinned.includes(x.id));
-    if (!ours && !followed && sev < 1) return false;
+    // Routine things (a lesson learned, a friendship) go in the log, not on the desk, unless it is someone we follow.
+    if (sev < 1 && !followed && !e.quote) return false;
     if (!ours && !followed && reporterOf(world, e) !== 'heralds' && reporterOf(world, e) !== 'spymaster') return false;
     return reaches(world, e, sev);
   }).reverse();
+  // A councillor brings the few things that matter most: grave news and letters always, then the newest of the
+  // rest, as many as they can keep straight (a sharp one more than a dull one). The rest stay in the log.
+  // Counted per Orbit, read or not, so reading them does not make room for more.
+  const per: Record<string, number> = {};
+  const keep = new Set<string>();
+  for (const e of [...pool].reverse()) {
+    const sev = classify(world, e).severity;
+    if (sev >= 2 || e.quote || (e.who ?? []).some((x) => world.careers?.pinned.includes(x.id))) { keep.add(e.id!); continue; }
+    const r = reporterOf(world, e);
+    const k = `${r}|${e.date.year}|${Math.floor(e.date.cycle / 80)}`;
+    per[k] = (per[k] ?? 0) + 1;
+    if (per[k] <= LETTER_CAP(world, r)) keep.add(e.id!);
+  }
+  return pool.filter((e) => keep.has(e.id!) && !seen.has(e.id!));
 }
 
