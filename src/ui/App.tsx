@@ -42,6 +42,12 @@ import {
   SavePage, SearchPage, SectorPage, SpeciesPage, ThroneRoom, TraitPage,
 } from './pages';
 
+import { FrontierPage, HistoryPage, NewGamePage, NumaradePage } from './archon';
+import { WarPage } from './war';
+
+/** A first visit (nothing saved) opens on choosing a house. */
+const firstVisit = !storage.get(AUTOSAVE);
+
 function initialWorld(): World {
   const saved = storage.get(AUTOSAVE);
   if (saved) {
@@ -56,7 +62,7 @@ interface History { stack: Route[]; index: number }
 
 export function App() {
   const [world, setWorld] = useState<World>(initialWorld);
-  const [history, setHistory] = useState<History>({ stack: [{ kind: 'throne' }], index: 0 });
+  const [history, setHistory] = useState<History>({ stack: [firstVisit ? { kind: 'newgame' } : { kind: 'throne' }], index: 0 });
   const [query, setQuery] = useState('');
   const [command, setCommand] = useState(false);
   const [reveal, setReveal] = useState(false);
@@ -261,6 +267,11 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'build': return <BuildPage key={route.what ?? ''} what={route.what} />;
     case 'spend': return <SpendPage />;
     case 'lanes': return <LanesPage />;
+    case 'numarade': return <NumaradePage />;
+    case 'history': return <HistoryPage />;
+    case 'frontier': return <FrontierPage />;
+    case 'newgame': return <NewGamePage setWorld={setWorld} />;
+    case 'war': return <WarPage />;
     case 'ship': return <ShipPage key={route.id} id={route.id} />;
   }
 }

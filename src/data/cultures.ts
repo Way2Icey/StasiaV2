@@ -99,6 +99,107 @@ export const CULTURES: Record<SpeciesId, Culture> = {
     },
     familyNames: ['Mirewood', 'the Fen Vault', 'Sporehall', 'Deepmoss', 'the Quiet Grove', 'Lantern Marsh'],
   },
+  // Humans of the Archon (Lumen, Myr, and the human micro-houses): old court names.
+  human: {
+    species: 'human',
+    given: {
+      starts: ['A', 'Ca', 'E', 'Ze', 'So', 'Ma', 'Al', 'Re', 'Ju', 'Le', 'Hel', 'Ad', 'Ro', 'Is', 'Ve', 'Da', 'Ni', 'Ma'],
+      mids: ['r', 'l', 'n', 'ri', 'le', 'tr', 'd', 'v'],
+      ends: ['ea', 'in', 'is', 'en', 'ra', 'ius', 'ei', 'an', 'el', 'a', 'on', 'eth', 'ine'],
+      midChance: 0.45,
+    },
+    familyNames: ['Castellan', 'Ardent', 'Morrow', 'Hale', 'Corwin', 'Vance', 'Ashgrove', 'Thorne', 'Wrenfield', 'Sallow', 'Brightwater', 'Kell'],
+    knightTitle: { f: 'Dame', m: 'Ser' },
+  },
+  // Varn'Gotha: low, echoic Gorhan; bloodlines of the Sharded.
+  varngotha: {
+    species: 'varngotha',
+    given: {
+      starts: ['Gor', 'Vurn', 'Aath', 'Morg', 'Oth', 'Hral', 'Dhur', 'Uur', 'Khol', 'Varn', 'Bhel', 'Thurg'],
+      mids: ['a', 'o', 'ra', 'u'],
+      ends: ['ath', 'oth', 'um', 'gar', 'ond', 'uun', 'esh', 'ath', 'orr'],
+      midChance: 0.3,
+    },
+    familyNames: ['the Glass Seam', 'the Iron Vein', 'the Stone Crest', 'the Ash Brand', 'the Black Weld', 'the Pale Seam'],
+  },
+  // Azurians: measured, liquid, lawyerly.
+  azurian: {
+    species: 'azurian',
+    given: {
+      starts: ['Ae', 'Sol', 'Ilu', 'Ce', 'Ora', 'Lys', 'Va', 'Eli', 'Sev', 'Ama', 'Que', 'Ri'],
+      mids: ['l', 'v', 'r', 'n', 'lu'],
+      ends: ['an', 'ine', 'is', 'ael', 'ora', 'eus', 'iel', 'ane', 'yr'],
+      midChance: 0.5,
+    },
+    familyNames: ['Azure', 'Cerulon', 'Solenne', 'Ilvaren', 'Quessane', 'Aumery', 'Valcrest'],
+    knightTitle: { f: 'Dame', m: 'Ser' },
+  },
+  // Myrelic (Myrai): scholarly, soft.
+  myrelic: {
+    species: 'myrelic',
+    given: {
+      starts: ['My', 'Ne', 'Ila', 'Tho', 'Sae', 'Pe', 'Lu', 'Ore', 'Vy', 'Ka', 'Ei'],
+      mids: ['r', 'l', 'th', 'n', 'ri'],
+      ends: ['a', 'en', 'ia', 'is', 'el', 'on', 'eth', 'ra'],
+      midChance: 0.45,
+    },
+    familyNames: ['Myrai', 'Lumeth', 'Orrisel', 'Sethany', 'Vellum', 'Quarrel', 'Ithe'],
+  },
+  // Velarai (Vahler): harmonic, long vowels, layered names.
+  velarai: {
+    species: 'velarai',
+    given: {
+      starts: ['Re', 'Vo', 'Ae', 'Ly', 'Se', 'Ila', 'Mi', 'Ora', 'Vel', 'Thi'],
+      mids: ['x', 'll', 'ri', 'v', 'l', 'mi'],
+      ends: ['iah', 'ian', 'ael', 'ora', 'ys', 'ielle', 'een', 'ar'],
+      midChance: 0.55,
+    },
+    familyNames: ['Vahler', 'Voxillian', 'Aeloren', 'Lyssande', 'Serethiel', 'Mirevale'],
+  },
+  // Tavari (Tavareen): airy, rising.
+  tavari: {
+    species: 'tavari',
+    given: {
+      starts: ['Ta', 'Ze', 'Ei', 'Lo', 'Ya', 'Ve', 'Sio', 'Na', 'Ri', 'Ae'],
+      mids: ['v', 'r', 'th', 'l', 'n'],
+      ends: ['ri', 'en', 'ail', 'ia', 'ea', 'is', 'ani', 'ue'],
+      midChance: 0.5,
+    },
+    familyNames: ['Tavareen', 'Zenthi', 'Aerovel', 'Lithane', 'Sioren', 'Nalatha'],
+  },
+  // Ko'renites (Koren): clipped, glottal, apostrophes.
+  korenite: {
+    species: 'korenite',
+    given: {
+      starts: ["Ko'", "Ta'", "Ve'", "Kr", "Zha", "Ik'", "Ro", "Tek", "Vak", "Sk"],
+      mids: [],
+      ends: ['ren', 'th', 'ax', 'zek', 'tal', 'rik', 'ass', 'ok', 'reth'],
+      midChance: 0,
+    },
+    familyNames: ['Koren', 'the Third Forge', 'the Hull Line', "Ke'tar", 'the Anvil Brood', "Ro'zhek"],
+  },
+  // Murnath: clicked syllables, woven names.
+  murnath: {
+    species: 'murnath',
+    given: {
+      starts: ['Mur', 'Ith', 'Ske', 'Tal', 'Vrii', 'Nash', 'Ol', 'Kitt', 'Sil'],
+      mids: ['k', 'th', 'r', 'x'],
+      ends: ['ath', 'enn', 'ix', 'ari', 'oth', 'ik', 'ess'],
+      midChance: 0.35,
+    },
+    familyNames: ['Murnath', 'the High Loom', 'Silkspire', 'the Woven Tower', 'Threadwall', 'the Ninth Spire'],
+  },
+  // Draychi: clicking Drask; clan and totem.
+  draychi: {
+    species: 'draychi',
+    given: {
+      starts: ['Dra', 'Kk', 'Tok', 'Shel', 'Bru', 'Kas', 'Rrk', 'Ott', 'Gul'],
+      mids: [],
+      ends: ['ask', 'ik', 'ot', 'uk', 'ek', 'esh', 'al'],
+      midChance: 0,
+    },
+    familyNames: ['the Trench Clan', 'the Kelp Totem', 'the Brass Shell', 'the Deep Wrench', 'the Vent Clan'],
+  },
 };
 
 /** Torvann scar-names, earned through deeds (become the epithet). */
@@ -114,4 +215,4 @@ export const SERATHI_CALLSIGNS = [
 ];
 
 /** Cultures that write the family part as "of …". */
-export const OF_STYLE: SpeciesId[] = ['torvann', 'gholari'];
+export const OF_STYLE: SpeciesId[] = ['torvann', 'gholari', 'varngotha', 'draychi', 'korenite', 'murnath'];

@@ -30,6 +30,12 @@ import { ensureTreasury } from './treasury';
 import { ensureLanes } from './lanes';
 import { ensureRealm } from './houses';
 import { ensureStory } from './storystate';
+import { ensureArchon } from './archon';
+import { ensureWar } from './war';
+import './arcs_war';
+import { displayName } from './names';
+import { writeHistory } from './history';
+import './arcs_numarade';
 import './eventDefs';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
@@ -39,14 +45,23 @@ export const START_DATE = makeDate(412, 3, 14);
 const familyId = (houseId: string, key: string) => `${houseId}:${key}`;
 
 /** Build a new world from a seed. The same seed always gives the same world. */
-export function createWorld(seed: string = DEFAULT_SEED): World {
+export interface NewGame {
+  /** The house the player rules (one of the simulated houses). */
+  house?: string;
+}
+
+/** The houses that can be played now. */
+export const PLAYABLE_HOUSES = ['alerion', 'torvann', 'serath', 'shaaliin'];
+
+export function createWorld(seed: string = DEFAULT_SEED, opts: NewGame = {}): World {
   const rng = Rng.fromSeed(seed);
+  const player = opts.house && PLAYABLE_HOUSES.includes(opts.house) ? opts.house : 'alerion';
   const world: World = {
     version: 11,
     seed,
     date: START_DATE,
     rng: rng.state,
-    playerHouseId: 'alerion',
+    playerHouseId: player,
     nextId: 1,
     houses: {},
     families: {},
@@ -135,10 +150,12 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
   for (const id of ['torvann', 'serath', 'shaaliin']) populateRivalHouse(world, rng, id);
   for (const p of SLICE_PLANETS) populatePlanet(world, rng, p.id);
 
+  const ph = world.houses[player]!;
+  const pr = ph.rulerId ? world.characters[ph.rulerId] : undefined;
   world.feed.push({
     date: world.date,
     kind: 'world',
-    text: `The Chronicle opens. Aurel Vanthos rules House Alerion from the Vanthos Citadel.`,
+    text: player === 'alerion' ? `The Chronicle opens. Aurel Vanthos rules House Alerion from the Vanthos Citadel.` : `The Chronicle opens. ${pr ? displayName(pr.name) : 'A new Highroy'} rules House ${ph.name} from ${world.planets[ph.capitalPlanetId]?.name ?? 'the capital'}.`,
   });
   ensureKnowledge(world);
   ensureCouncil(world);
@@ -165,6 +182,8 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
   ensureLanes(world);
   ensureRealm(world);
   ensureStory(world);
+  if (ensureArchon(world)) writeHistory(world, true);
+  ensureWar(world);
   world.rng = rng.state;
   return world;
 }

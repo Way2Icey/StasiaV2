@@ -97,6 +97,8 @@ export interface Next { next: string; after: number; cast?: ArcRun['cast']; data
 
 export interface EventOption {
   label: string;
+  /** A label that depends on the situation (a candidate's name, say); falls back to `label`. */
+  labelFor?: (c: Ctx) => string;
   hint?: string;
   check?: Check;
   /** Why this option can't be taken, or null. */
@@ -276,6 +278,11 @@ export function oddsWord(p: number): string {
 
 // ---------------------------------------------------------------- context
 
+/** What an option says, here and now. */
+export function optionLabel(o: EventOption, c: Ctx): string {
+  try { return o.labelFor?.(c) || o.label; } catch { return o.label; }
+}
+
 export function ensureEvents(world: World): void {
   world.events ??= { pending: [], log: [], recent: [] };
 }
@@ -437,7 +444,8 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
   const ctx = makeCtx(world, rng, p);
   const opt = def.options[idx] ?? def.options[def.fallback]!;
   const why = opt.available?.(ctx);
-  const use = why ? def.options[def.fallback]! : opt;
+  const use0 = why ? def.options[def.fallback]! : opt;
+  const use = { ...use0, label: optionLabel(use0, ctx) };
   let passed = true;
   if (use.check) {
     const who = use.check.who(ctx);

@@ -10,7 +10,17 @@ export type SpeciesId =
   | 'serathi'
   | 'shaaliin'
   | 'doven'
-  | 'gholari';
+  | 'gholari'
+  // 6.0: the peoples of the other canon houses.
+  | 'human'
+  | 'varngotha'
+  | 'azurian'
+  | 'myrelic'
+  | 'velarai'
+  | 'tavari'
+  | 'korenite'
+  | 'murnath'
+  | 'draychi';
 
 // ---------------------------------------------------------------- stats
 
@@ -545,6 +555,10 @@ export interface World {
   ambitions: import('./ambitions').AmbitionsState;
   /** Every deed counted by season, titles won, and who the Highroy follows. */
   careers: import('./careers').CareersState;
+  /** Every house of the Archon on the register, the Numarade, the history and the frontier. */
+  archon?: import('./archon').ArchonState;
+  /** Forces, wars, tribute, hostages and fealty. */
+  war?: import('./war').WarState;
   /** The year's mock war. */
   crucible: import('./crucible').CrucibleState;
   grounds: import('./grounds').GroundsState;

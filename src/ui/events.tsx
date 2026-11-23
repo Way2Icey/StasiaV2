@@ -3,7 +3,7 @@ import { useGame, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, SectorLink } from './links';
 import { Term } from './tip';
 import { formatDate } from '../sim/time';
-import { answerEvent, checkBand, checkChance, eventDef, makeCtx, oddsWord, type Check, type Ctx, type PendingEvent } from '../sim/events';
+import { answerEvent, checkBand, checkChance, eventDef, makeCtx, oddsWord, optionLabel, type Check, type Ctx, type PendingEvent } from '../sim/events';
 import { useSee } from './fog';
 import { shortName } from '../sim/names';
 import '../sim/eventDefs';
@@ -58,7 +58,7 @@ export function Decision({ p }: { p: PendingEvent }) {
               <button key={i} type="button" className={`btn small option${i === def.fallback ? ' fallback' : ''}`} disabled={!!why}
                 title={why ?? (o.check ? `${tester ? tester.name.given : 'Our people'}: ${o.check.stats.map((s) => STAT_LABEL[s]).join(' + ')}` : undefined)}
                 onClick={() => game.update((w) => answerEvent(w, p.id, i))}>
-                <span>{o.label}</span>
+                <span>{optionLabel(o, ctx)}</span>
                 {o.hint || chance !== null || why ? (
                   <span className="opt-sub">
                     {why ?? [o.hint, foe && tester ? `${shortName(tester.name)} vs ${shortName(foe.name)}` : null, band ? `${oddsWord(chance!)} · ${band[1] - band[0] < 0.04 ? `${Math.round(chance! * 100)}%` : `${Math.round(band[0] * 100)}–${Math.round(band[1] * 100)}%`}` : null].filter(Boolean).join(' · ')}
@@ -69,7 +69,7 @@ export function Decision({ p }: { p: PendingEvent }) {
           })}
         </span>
         <span className="muted" style={{ fontSize: 11 }}>
-          Lapses {formatDate(p.expires)}. If you say nothing, the council will <em>{def.options[def.fallback]!.label.toLowerCase()}</em>.
+          Lapses {formatDate(p.expires)}. If you say nothing, the council will <em>{optionLabel(def.options[def.fallback]!, ctx).toLowerCase()}</em>.
         </span>
       </span>
     </div>

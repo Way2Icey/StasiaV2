@@ -34,6 +34,16 @@ export const MAP_POS: Record<string, [number, number]> = {
   'torvann-ashfall': [70, 25],
 };
 
+/** Worlds taken or founded in play sit in the spare places of the map. */
+const SPARE: [number, number][] = [[6, 26], [36, 25], [44, 17], [86, 4], [82, 23], [30, 3], [58, 24], [8, 10], [92, 26], [72, 3]];
+export function posOf(id: string): [number, number] | undefined {
+  if (MAP_POS[id]) return MAP_POS[id];
+  if (!/-\d+$/.test(id)) return undefined;
+  let h = 0;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return SPARE[h % SPARE.length];
+}
+
 const BIG = ['  .-~~-.  ', ' /░░▒▒▓▓\\ ', '|░░▒▒▓▓▓▓|', ' \\░▒▒▓▓▓/ ', "  '-~~-'  "];
 const SMALL = [' .-. ', '(▒▒▓)', " '-' "];
 
@@ -50,11 +60,11 @@ function layout(world: World, selected: string, pick: (id: string) => void) {
   let seed = 7;
   const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
   for (let i = 0; i < 70; i++) put(Math.floor(rnd() * H), Math.floor(rnd() * W), "....'*"[Math.floor(rnd() * 6)]!);
-  const ids = Object.keys(world.planets).filter((id) => MAP_POS[id]);
+  const ids = Object.keys(world.planets).filter((id) => posOf(id));
   const point = (a: [number, number], b: [number, number], t: number): [number, number] =>
     [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t)];
   // Lanes, dotted by how dangerous they are for us: · quiet, + risky, × dangerous.
-  const at = (id: string) => MAP_POS[id] ?? OFF_POS[id];
+  const at = (id: string) => posOf(id) ?? OFF_POS[id];
   for (const l of LANES) {
     const a = at(l.a), b = at(l.b);
     if (!a || !b) continue;
@@ -83,7 +93,7 @@ function layout(world: World, selected: string, pick: (id: string) => void) {
   // Worlds.
   const home = world.houses[P]!.capitalPlanetId;
   for (const id of ids) {
-    const [c, r] = MAP_POS[id]!;
+    const [c, r] = posOf(id)!;
     const art = id === home ? BIG : SMALL;
     art.forEach((s, i) => put(r - Math.floor(art.length / 2) + i, c - Math.floor(s.length / 2), s));
     if (id === home) { put(r - 3, c - 6, '┌'); put(r - 3, c + 5, '┐'); put(r + 3, c - 6, '└'); put(r + 3, c + 5, '┘'); }
@@ -91,7 +101,7 @@ function layout(world: World, selected: string, pick: (id: string) => void) {
   // Our missions in flight.
   const now = absoluteCycle(world.date);
   for (const m of activeMissions(world, P)) {
-    const a = MAP_POS[home], b = MAP_POS[m.targetPlanetId];
+    const a = posOf(home), b = posOf(m.targetPlanetId);
     if (!a || !b || m.targetPlanetId === home) continue;
     const left = Math.max(0, absoluteCycle(m.stageEnds) - now);
     const f = m.stage === 'travel' ? 1 - left / Math.max(1, m.travelCycles) : m.stage === 'return' ? left / Math.max(1, m.travelCycles) : 1;
@@ -106,11 +116,11 @@ function layout(world: World, selected: string, pick: (id: string) => void) {
   for (const sh of Object.values(world.fleet?.ships ?? {})) {
     if (sh.lost || sh.ready || !shipSeen(world, P, sh)) continue;
     const to = findSector(world, sh.sectorId)?.planet.id;
-    const b = to ? MAP_POS[to] : undefined;
+    const b = to ? posOf(to) : undefined;
     if (!b) continue;
     if (sh.arrives && sh.from && sh.left) {
       const fromP = findSector(world, sh.from)?.planet.id;
-      const a = fromP ? MAP_POS[fromP] : undefined;
+      const a = fromP ? posOf(fromP) : undefined;
       if (a && fromP !== to) {
         const total = Math.max(1, absoluteCycle(sh.arrives) - absoluteCycle(sh.left));
         const t = 0.15 + 0.7 * Math.max(0, Math.min(1, 1 - (absoluteCycle(sh.arrives) - now) / total));
@@ -124,7 +134,7 @@ function layout(world: World, selected: string, pick: (id: string) => void) {
   for (const sh of Object.values(world.fleet?.ships ?? {})) {
     if (sh.lost || sh.ready || sh.arrives || !shipSeen(world, P, sh)) continue;
     const to = findSector(world, sh.sectorId)?.planet.id;
-    const b = to ? MAP_POS[to] : undefined;
+    const b = to ? posOf(to) : undefined;
     if (!to || !b) continue;
     const n = anchored.get(to) ?? 0;
     anchored.set(to, n + 1);
@@ -133,7 +143,7 @@ function layout(world: World, selected: string, pick: (id: string) => void) {
   // Labels as buttons.
   for (const id of ids) {
     const p = world.planets[id]!;
-    const [c, r] = MAP_POS[id]!;
+    const [c, r] = posOf(id)!;
     const right = id === home ? 7 : 4;
     const leftSide = c + right + 20 > W;
     const name = ` ${p.name.toUpperCase()} `;

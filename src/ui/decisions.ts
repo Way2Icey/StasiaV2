@@ -24,6 +24,9 @@ import { SEAT_TITLE } from '../sim/world';
 import { shortName } from '../sim/names';
 import { openStruggles } from '../sim/storystate';
 import { cannotJoin, joinStruggle, leaveStruggle } from '../sim/story';
+import { cannotFound, grantFounding } from '../sim/war';
+import { openWilds } from '../sim/archon';
+import { worthOf, wildLabel } from '../sim/frontier';
 
 export type Group = 'Court' | 'Arms' | 'Missions' | 'Learning' | 'Intrigue' | 'Sheet';
 export const GROUPS: Group[] = ['Court', 'Arms', 'Missions', 'Learning', 'Intrigue', 'Sheet'];
@@ -176,6 +179,13 @@ export function decisionsFor(world: World, id: string): Decision[] {
         const adv = caigeAdvice(world, cg.id).filter((a) => a.forId === id).map((a) => (a.seat === 'champion' ? 'Champion' : 'Grand Master'));
         return { key: `caige:${cg.id}`, group: 'Arms' as Group, label: cg.name, note: `${cg.band} · ${cg.type}${adv.length ? ` · the ${adv.join(' and ')}'s pick` : ''}`, primary: adv.length > 0, run: (w: World) => bondCaige(w, cg.id, id) };
       }).concat([{ key: 'caige:advice', group: 'Arms', label: 'Hear the council on it', note: 'Champion and Grand Master', to: { kind: 'seat', id: 'grandMaster' } }]),
+    });
+  }
+  if (c.flags.some((f) => f.id === 'knighted') && !c.flags.some((f) => f.id === 'retired') && c.role !== 'Heir') {
+    const wilds = openWilds(world).sort((x, y) => worthOf(y) - worthOf(x)).slice(0, 5);
+    if (wilds.length) out.push({
+      key: 'found', group: 'Arms', label: 'Give them leave to found a house', note: '5,000 othes · sworn to us',
+      sub: wilds.map((wd): Decision => ({ key: `found:${wd.id}`, group: 'Arms', label: wildLabel(wd), note: `${wd.region} · worth ${Math.round(worthOf(wd) * 100)}`, why: cannotFound(world, id, wd.id), run: (w) => grantFounding(w, id, wd.id) })),
     });
   }
   if (isVeteran(c)) {

@@ -42,6 +42,11 @@ export type Route =
   | { kind: 'build'; what?: string }
   | { kind: 'spend' }
   | { kind: 'lanes' }
+  | { kind: 'numarade' }
+  | { kind: 'history' }
+  | { kind: 'frontier' }
+  | { kind: 'newgame' }
+  | { kind: 'war' }
   | { kind: 'ship'; id: string }
   | { kind: 'log'; person?: string; place?: string; house?: string; open?: string };
 
@@ -54,12 +59,12 @@ export function sectionOf(r: Route): Section | null {
     case 'council': case 'seat': return 'court';
     case 'people': return r.view === 'ambitions' ? 'court' : 'people';
     case 'training': case 'character': case 'trait': case 'flag': case 'species': case 'band': case 'family': return 'people';
-    case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': return 'arms';
-    case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'houses': case 'house': case 'embassies': case 'lanes': return 'realm';
+    case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': case 'war': return 'arms';
+    case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'houses': case 'house': case 'embassies': case 'lanes': case 'numarade': case 'history': case 'frontier': return 'realm';
     case 'economy': case 'loans': case 'vaults': case 'spend': return 'treasury';
     case 'missions': case 'mission': case 'plan': return 'missions';
     case 'log': return 'log';
-    case 'save': return 'save';
+    case 'save': case 'newgame': return 'save';
     case 'glossary': return 'glossary';
     default: return null;
   }
@@ -98,6 +103,7 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'Everyone', to: { kind: 'people', view: 'everyone' }, on: (r) => r.kind === 'people' && r.view === 'everyone' },
   ],
   arms: [
+    { label: 'War', to: { kind: 'war' }, on: is('war') },
     { label: 'The Crucible', to: { kind: 'crucible' }, on: is('crucible') },
     { label: 'Circuit & tourneys', to: { kind: 'grounds' }, on: is('grounds') },
     { label: 'Knights & challenges', to: { kind: 'knights' }, on: is('knights') },
@@ -108,6 +114,8 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'Holdings', to: { kind: 'holdings' }, on: is('holdings') },
     { label: 'Build', to: { kind: 'build' }, on: is('build') },
     { label: 'Houses', to: { kind: 'houses' }, on: (r) => r.kind === 'houses' || r.kind === 'house' },
+    { label: 'Numarade', to: { kind: 'numarade' }, on: is('numarade') },
+    { label: 'Annals & frontier', to: { kind: 'history' }, on: (r) => r.kind === 'history' || r.kind === 'frontier' },
     { label: 'Embassies', to: { kind: 'embassies' }, on: is('embassies') },
     { label: 'Lanes & corsairs', to: { kind: 'lanes' }, on: is('lanes') },
   ],
@@ -154,7 +162,7 @@ export function routeLabel(world: World, r: Route): string {
     }
     case 'plan': return r.mission === 'investigate' ? 'Plan an investigation' : r.mission === 'envoy' ? 'Send an envoy' : 'Plan a scouting run';
     case 'character': { const c = world.characters[r.id]; return c ? displayName(c.name) : 'Unknown'; }
-    case 'house': return `House ${world.houses[r.id]?.name ?? r.id}`;
+    case 'house': return `House ${world.houses[r.id]?.name ?? world.archon?.houses[r.id]?.name ?? r.id}`;
     case 'family': return `Family ${world.families[r.id]?.name ?? r.id}`;
     case 'planet': return world.planets[r.id]?.name ?? r.id;
     case 'sector': return findSector(world, r.id)?.sector.name ?? r.id;
@@ -176,6 +184,11 @@ export function routeLabel(world: World, r: Route): string {
     case 'build': return 'Build';
     case 'spend': return 'Pay & great works';
     case 'lanes': return 'Lanes & corsairs';
+    case 'numarade': return 'The Numarade';
+    case 'history': return 'Annals of the Archon';
+    case 'frontier': return 'The frontier';
+    case 'newgame': return 'New game';
+    case 'war': return 'War';
     case 'ship': return (world as unknown as { fleet?: { ships: Record<string, { name: string }> } }).fleet?.ships[r.id]?.name ?? 'Ship';
   }
 }

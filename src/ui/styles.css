@@ -582,3 +582,35 @@ pre.ascii .inv, span.inv { background: var(--fg); color: #000; }
 .orders { display: grid; gap: 6px; }
 .caige { font-size: 11px; }
 @media (max-width: 900px) { .bgrid { grid-template-columns: 1fr; } .feed { height: 220px; } }
+
+/* 6.0: the Archon — register, outlook, Numarade, new game */
+table.list tr.ours td { color: var(--gold); }
+.tag.good { color: var(--green); }
+.tag.bad { color: var(--orange); }
+.views { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.view-row { display: grid; grid-template-columns: 150px 34px 1fr auto; gap: 8px; align-items: baseline; }
+.view-topic { color: var(--fg-2); }
+.view-mark { color: var(--gold); }
+.house-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
+.house-pick { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; color: var(--fg); cursor: pointer; font: inherit; text-align: left; }
+.house-pick:hover { border-color: var(--fg-2); }
+.house-pick.on { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+.house-pick.later strong { color: var(--fg-2); }
+.house-pick .muted { font-size: 11px; }
+.start-pick { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.start-pick.later { opacity: 0.55; cursor: default; }
+@media (max-width: 640px) { .view-row { grid-template-columns: 110px 30px 1fr; } .view-row > :nth-child(4) { display: none; } }
+
+/* 6.1: war */
+.formation { display: flex; flex-direction: column; gap: 4px; padding-bottom: 10px; border-bottom: 1px solid var(--line-soft); }
+.formation:last-of-type { border-bottom: 0; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 0 4px 0 6px; border: 1px solid var(--line); border-radius: 3px; }
+.btn.tiny { padding: 0 4px; font-size: 11px; line-height: 16px; min-height: 0; }
+.tug { font-size: 12px; white-space: nowrap; }
+.fronts { display: flex; flex-direction: column; gap: 8px; }
+.front { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border: 1px solid var(--line-soft); border-radius: 3px; }
+.warlog { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--fg-2); }
+.warlog .big { color: var(--fg); }
+@media (max-width: 640px) { .tug { font-size: 10px; } }
+.fline2 { display: flex; flex-wrap: wrap; }
+.formation .select { padding-top: 2px; padding-bottom: 2px; }
