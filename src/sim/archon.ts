@@ -424,7 +424,7 @@ export function aiVote(w: World, voter: string, m: Motion): Vote | number {
 }
 
 /** How strongly a seat holds its vote (for our Speaker turning waverers). */
-function conviction(w: World, voter: string, m: Motion): number {
+export function conviction(w: World, voter: string, m: Motion): number {
   if (voter === m.target || voter === m.second || voter === m.by) return 99;
   return Math.abs(m.target ? regardOf(w, voter, m.target) : 0) + Math.abs(affinity(w, voter, m.target ?? voter) * 20);
 }
@@ -434,7 +434,7 @@ export function tally(m: Motion): { aye: number; nay: number; abstain: number } 
   return { aye: vs.filter((x) => x === 'aye').length, nay: vs.filter((x) => x === 'nay').length, abstain: vs.filter((x) => x === 'abstain').length };
 }
 
-function closeMotion(w: World, rng: Rng, m: Motion): void {
+export function closeMotion(w: World, rng: Rng, m: Motion): void {
   const a = w.archon!;
   const P = w.playerHouseId;
   const year = dateParts(w.date).year;
@@ -731,7 +731,7 @@ export function advanceArchon(w: World, rng: Rng, t: ArchonTick): void {
   for (const m of a.numarade.motions.filter((x) => x.status === 'open' && x.closes <= now)) {
     // Ours still waiting: give the council its due first (the event layer settles it).
     // Ours still to answer: the question waits its turn (one is put to us at a time), then the council's due.
-    if (m.ask && m.votes[w.playerHouseId] === undefined && (!m.asked || w.events.pending.some((p) => p.defId.startsWith('num:') && p.defId !== 'num:capanna'))) continue;
+    if (m.ask && m.votes[w.playerHouseId] === undefined && (!m.asked || w.events.pending.some((p) => p.defId.startsWith('num:') && p.defId !== 'num:capanna') || (w.scenes?.list ?? []).some((x) => x.status !== 'over' && x.data.motionId === m.id))) continue;
     closeMotion(w, rng, m);
   }
   if (t.orbit) orbitly(w, rng);
@@ -747,6 +747,8 @@ function askUs(w: World, rng: Rng): void {
   const m = a.numarade.motions.find((x) => x.status === 'open' && x.ask && !x.asked && x.votes[P] === undefined);
   if (m) {
     m.asked = true;
+    // Votes and elections are sat through live, in the chamber.
+    if (m.kind !== 'seats' && sessionHook?.(w, m)) { m.closes += CYCLES_PER_PHASE; return; }
     const def = m.kind === 'elect' ? 'num:elect' : m.kind === 'seats' ? 'num:seats' : 'num:vote';
     if (!fireStage(w, rng, def, { ...(m.target ? { otherHouseId: m.target } : {}) })) m.ask = false;
     return;
@@ -756,6 +758,10 @@ function askUs(w: World, rng: Rng): void {
     fireStage(w, rng, 'num:capanna', { ...(a.numarade.exarchon ? { otherHouseId: a.numarade.exarchon.houseId } : {}) });
   }
 }
+
+let sessionHook: ((w: World, m: Motion) => boolean) | null = null;
+/** The scenes module opens a live session of the Numarade through this. */
+export function onSession(fn: (w: World, m: Motion) => boolean): void { sessionHook = fn; }
 
 /** The motion our seat is being asked about. */
 export const askedMotion = (w: World) => w.archon?.numarade.motions.find((x) => x.status === 'open' && x.ask && x.asked && x.votes[w.playerHouseId] === undefined);

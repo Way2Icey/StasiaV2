@@ -770,7 +770,7 @@ export const hunterOf = (w: World, personId: string) => (w.war?.named ?? []).fil
 
 // ---------------------------------------------------------------- ending
 
-export function endWar(w: World, rng: Rng, war: War, winner: 'attackers' | 'defenders' | 'none', why: string): void {
+export function endWar(w: World, rng: Rng, war: War, winner: 'attackers' | 'defenders' | 'none', why: string, settled?: WarGoal): void {
   if (war.status !== 'active') return;
   war.status = 'ended';
   const P = w.playerHouseId;
@@ -787,6 +787,8 @@ export function endWar(w: World, rng: Rng, war: War, winner: 'attackers' | 'defe
   w.archon?.history.push({ year, kind: 'war', text: `${cap(war.name)} ended: ${why}${terms ? ` Terms: ${GOAL_LABEL[terms].toLowerCase()}.` : ''}`, houses: [war.attacker, war.defender] });
   logRecord(w, { kind: 'world', type: 'fight', severity: ours ? 3 : 1, text: `${cap(war.name)} is over. ${why}`, houseIds: [war.attacker, war.defender].filter((x) => isSim(w, x)), source: 'the Numarade' });
   if (!winnerHouse) return;
+  // Already agreed at the table.
+  if (settled) { applyTerms(w, rng, war, settled); return; }
   // Ours to choose: the terms come to us.
   if (winnerHouse === P) { war.asking = true; fireStage(w, rng, 'war:terms', { otherHouseId: loserHouse }); return; }
   applyTerms(w, rng, war, terms!);

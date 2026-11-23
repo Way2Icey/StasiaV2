@@ -463,6 +463,14 @@ export interface Caige {
   vaultId?: string;
   /** Put up as security for a loan from this house. */
   pledgedTo?: string;
+  /** The souls held in it (canon: their will against the wielder's). */
+  souls?: import('./scenes_power').Soul[];
+  /** Caige Density Index once bonded: 0..1, never 1. */
+  cdi?: number;
+  /** The shape it takes in the bearer's hand. */
+  form?: string;
+  /** How many transmuted states it allows (rarely two). */
+  forms?: number;
 }
 
 /** Who in the house wants a prospect, and what for. */
@@ -559,6 +567,8 @@ export interface World {
   archon?: import('./archon').ArchonState;
   /** Forces, wars, tribute, hostages and fealty. */
   war?: import('./war').WarState;
+  /** Live scenes: sessions, negotiations, rituals, infiltrations, audiences, ceremonies, crises, the chronicle. */
+  scenes?: import('./scene').ScenesState;
   /** The year's mock war. */
   crucible: import('./crucible').CrucibleState;
   grounds: import('./grounds').GroundsState;

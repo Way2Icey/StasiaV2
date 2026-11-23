@@ -11,6 +11,7 @@ import {
   grievances, joinWar, shipsWithFleet, offerPeace, partiesOf, peaceOdds, setCommander, setKnight, sideOf, sidePower, UNIT_LABEL, warsOf, type Formation, type Front, type Rung, type War, type WarGoal,
 } from '../sim/war';
 import { formatDate } from '../sim/time';
+import { beginPeaceTalks, beginSabotage, whyNoAgent } from '../sim/scenes_api';
 import { econ } from '../sim/economy';
 import type { World } from '../sim/types';
 
@@ -110,6 +111,7 @@ function FrontRow({ war, fr }: { war: War; fr: Front }) {
         <span className="muted">{fr.where}</span>
         {fr.ended ? <span className="tag">{fr.winner === ours ? 'won' : fr.winner ? 'lost' : 'closed'}</span> : null}
         {fr.battle ? <span className="tag">battle now</span> : null}
+        {ours && !fr.ended ? <SabotageButton frontId={fr.id} /> : null}
       </div>
       <Tug v={fr.meter * flip} left={ours ? 'them' : houseName(world, war.defender)} right={ours ? 'us' : houseName(world, war.attacker)} />
       {!fr.ended ? (
@@ -120,6 +122,13 @@ function FrontRow({ war, fr }: { war: War; fr: Front }) {
       ) : null}
     </div>
   );
+}
+
+function SabotageButton({ frontId }: { frontId: string }) {
+  const world = useWorld();
+  const { run } = usePlay();
+  const why = whyNoAgent(world);
+  return <button type="button" className="btn tiny" style={{ marginLeft: 'auto' }} disabled={!!why} title={why ?? 'A live infiltration: burn their depots behind the line'} onClick={() => run((w) => beginSabotage(w, frontId))}>Send someone behind the lines</button>;
 }
 
 function WarCard({ war }: { war: War }) {
@@ -150,6 +159,7 @@ function WarCard({ war }: { war: War }) {
         <div className="fronts">{war.fronts.filter((f) => !f.ended).map((fr) => <FrontRow key={fr.id} war={war} fr={fr} />)}</div>
         <div className="actions">
           {war.rung === 'clashes' && war.attacker === P ? <button type="button" className="btn" onClick={() => run((w) => escalate(w, war.id))} title="The fleets go for the space over their world">Make it open war</button> : null}
+          {principal ? <button type="button" className="btn primary" onClick={() => run((w) => beginPeaceTalks(w, war.id))} title="Sit down with their envoys: a live negotiation">Open talks</button> : null}
           {principal ? <button type="button" className="btn" onClick={() => run((w) => offerPeace(w, war.id, 'white'))}>Offer an even peace <span className="muted">· {Math.round(peaceOdds(world, war, 'white') * 100)}%</span></button> : null}
           {principal ? <button type="button" className="btn" onClick={() => run((w) => offerPeace(w, war.id, 'yield'))} title="They get what they came for">Yield</button> : <button type="button" className="btn" onClick={() => run((w) => offerPeace(w, war.id, 'white'))}>Leave the war</button>}
           <button type="button" className="btn small" onClick={() => setOpen(!open)}>{open ? 'Hide the record' : `The record (${war.log.length})`}</button>

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createWorld } from './world';
 import { advanceUntil } from './tick';
-import { answerEvent, eventDef, settle } from './events';
+import { answerEvent, eventDef, fireStage, settle } from './events';
+import { autoScene } from './scene';
 import { Rng } from './rng';
 import { deserialize, serialize } from './save';
 import {
@@ -128,16 +129,19 @@ describe('the Archon', () => {
     base.events.pending = [];
     table(base, 'censure', 'lumen', 'myr');
     let w = advanceUntil(base, 2, false).world;
-    const ask = w.events.pending.find((p) => p.defId === 'num:vote');
+    // Asked in the chamber, live.
+    const sess = w.scenes!.list.find((x) => x.kind === 'session');
+    expect(sess).toBeTruthy();
+    // The event form of the question still works (it is the fallback when no session can open).
+    const m = w.archon!.numarade.motions.find((x) => x.kind === 'censure')!;
+    const ask = fireStage(w, new Rng(w.rng), 'num:vote', { otherHouseId: 'myr' })!;
     expect(ask).toBeTruthy();
     for (let i = 0; i < eventDef('num:vote')!.options.length; i++) {
-      const after = answerEvent(w, ask!.id, i);
-      const m = after.archon!.numarade.motions.find((x) => x.kind === 'censure')!;
-      expect(m.votes.torvann).toBeDefined();
+      const after = answerEvent(w, ask.id, i);
+      expect(after.archon!.numarade.motions.find((x) => x.id === m.id)!.votes.torvann).toBeDefined();
     }
-    w = answerEvent(w, ask!.id, 1);
-    w = run(w, 20);
-    expect(w.archon!.numarade.motions.find((x) => x.kind === 'censure')!.status).not.toBe('open');
+    w = autoScene(w, sess!.id);
+    expect(w.archon!.numarade.motions.find((x) => x.id === m.id)!.status).not.toBe('open');
   });
 
   it('we can bring a motion through a friendly seat or our own', () => {

@@ -1,5 +1,6 @@
 import { HouseDealings, HousesOverview, PoachPanel } from './realm';
 import { ArchonHousePage, ArchonPanel, RegisterPanel } from './archon';
+import { beginHeist, beginPact, whyNoAgent } from '../sim/scenes_api';
 import { CalendarPanel } from './calendar';
 import { DecisionsPanel } from './sections';
 import { StoriesPanel, ThreadsPanel } from './stories';
@@ -455,6 +456,20 @@ export function HousesPage() {
   );
 }
 
+function SceneButtons({ houseId }: { houseId: string }) {
+  const game = useGame();
+  const world = useWorld();
+  const [err, setErr] = useState<string | null>(null);
+  const run = (fn: (w: World) => World) => game.update((w) => { try { setErr(null); return fn(w); } catch (e) { setErr((e as Error).message); return w; } });
+  return (
+    <>
+      <button type="button" className="btn" onClick={() => run((w) => beginPact(w, houseId))} title="A live negotiation">Propose a pact</button>
+      <button type="button" className="btn" disabled={!!whyNoAgent(world)} onClick={() => run((w) => beginHeist(w, houseId))} title="A live infiltration of their vault">Steal a Caige from their vault</button>
+      {err ? <span className="error" style={{ fontSize: 12 }}>{err}</span> : null}
+    </>
+  );
+}
+
 export function HousePage({ id }: { id: string }) {
   const world = useWorld();
   const h = world.houses[id];
@@ -472,6 +487,7 @@ export function HousePage({ id }: { id: string }) {
         <div className="actions">
           <Go to={{ kind: 'plan', mission: 'envoy', target: h.id }} className="btn primary">Send an envoy</Go>
           <Go to={{ kind: 'plan', mission: 'scout', target: h.capitalPlanetId }} className="btn">Scout their capital</Go>
+          <SceneButtons houseId={h.id} />
         </div>
       ) : null}
       <div className="grid">

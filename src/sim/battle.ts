@@ -4,6 +4,7 @@
 // given and how well they are carried out, and through the fighters, who may not obey. Orders change which
 // fights happen; the people in them decide who wins. Key moments stop the battle and ask.
 import { Rng } from './rng';
+import { caigeEdge } from './scenes_power';
 import type { Character, ResonanceBand, ResonanceType, StatId, World } from './types';
 import { barsOf } from './relationships';
 import { shortName } from './names';
@@ -174,7 +175,7 @@ export function createBattle(world: World, spec: { kind: BattleKind; title: stri
     const bonded = c ? c.flags.some((x) => x.id === 'caigeBonded') : !!f.caige;
     return {
       key: f.key ?? f.id ?? `npc${side}-${i}`, id: c?.id, name: c ? shortName(c.name) : f.name ?? 'a fighter', side,
-      power: f.power ?? (c ? fighterPower(c, th) : 10),
+      power: f.power ?? (c ? fighterPower(c, th) * caigeEdge(world, c) : 10),
       res: c?.resonance && c.resonance.band !== 'frostpoint' ? { type: c.resonance.type, band: c.resonance.band } : f.res,
       caige: bonded, sync: c ? c.stats.caigeSync : f.sync ?? 8, control: c ? c.stats.resonanceControl : f.control ?? 8,
       discipline: c ? c.stats.discipline : f.discipline ?? 10, agility: c ? (c.stats.agility + c.stats.stealth) / 2 : f.agility ?? 10,

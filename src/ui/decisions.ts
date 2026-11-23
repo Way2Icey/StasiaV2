@@ -5,7 +5,7 @@ import type { Character, CouncilSeat, World } from '../sim/types';
 import { ageOf } from '../sim/characters';
 import { SPECIES } from '../data/species';
 import { cannotHoldAudience, cannotKnight, holdAudience, knight, appointToSeat } from '../sim/ambitions';
-import { bondCaige, caigeAdvice, caigesOf, cannotGrant } from '../sim/discovery';
+import { caigeAdvice, caigesOf, cannotGrant } from '../sim/discovery';
 import { cannotCounsel, isAgent, isHouseholdNoble, occupationOf, OCCUPATION_LABEL, OCCUPATION_NOTE, recruitAgent, releaseAgent, seekWisdom, setOccupation, agentsOf, maxAgents } from '../sim/household';
 import { appointAmbassador, cannotAppoint, embassy } from '../sim/embassies';
 import { isVeteran, hasPost, letRest, postsFor } from '../sim/veterans';
@@ -25,6 +25,8 @@ import { shortName } from '../sim/names';
 import { openStruggles } from '../sim/storystate';
 import { cannotJoin, joinStruggle, leaveStruggle } from '../sim/story';
 import { cannotFound, grantFounding } from '../sim/war';
+import { cdiWord } from '../sim/scenes_power';
+import { beginAudience, beginAwakening, beginBonding, beginRescue, cannotAwaken, startCeremony, whyNoAgent } from '../sim/scenes_api';
 import { openWilds } from '../sim/archon';
 import { worthOf, wildLabel } from '../sim/frontier';
 
@@ -97,7 +99,10 @@ export function decisionsFor(world: World, id: string): Decision[] {
 
   // ---- someone else's
   if (c.houseId !== P) {
-    if (world.captives?.[id]?.heldBy === P) out.push({ key: 'fate', group: 'Intrigue', label: 'Decide their fate', primary: true, to: { kind: 'council' } });
+    if (world.captives?.[id]?.heldBy === P) {
+      out.push({ key: 'question', group: 'Intrigue', label: 'Question them yourself', note: 'a live interrogation', primary: true, run: (w) => beginAudience(w, id, 'captive') });
+      out.push({ key: 'fate', group: 'Intrigue', label: 'Decide their fate', to: { kind: 'council' } });
+    }
     const inq = activeMissions(world, P).find((m) => m.targetId === id);
     out.push(inq
       ? { key: 'inv', group: 'Intrigue', label: 'Investigation under way', to: { kind: 'mission', id: inq.id } }
@@ -163,21 +168,28 @@ export function decisionsFor(world: World, id: string): Decision[] {
     sub: strs.map((s): Decision => ({ key: `str:${s.id}`, group: 'Court', label: s.title, note: `${Math.round(s.meter) >= 0 ? '+' : ''}${Math.round(s.meter)}`, why: cannotJoin(world, s, id), run: (w) => joinStruggle(w, s.id, id) })),
   });
 
+  // ---- live scenes with our own
+  const cap = world.captives?.[id];
+  if (cap && cap.heldBy !== P) out.push({ key: 'rescue', group: 'Intrigue', label: 'Send someone to get them out', note: 'a live infiltration', primary: true, why: whyNoAgent(world), run: (w) => beginRescue(w, id) });
+  if (!cap) out.push({ key: 'private', group: 'Court', label: 'Speak with them in private', note: 'what they want, what they carry', run: (w) => beginAudience(w, id, 'private') });
+  if (c.resonance && (c.resonance.band === 'bluewake' || c.resonance.band === 'ambercore')) out.push({ key: 'awaken', group: 'Learning', label: 'Guide an awakening', note: `${c.resonance.band}: push it further`, why: cannotAwaken(world, c), run: (w) => beginAwakening(w, id) });
+
   // ---- Arms
   const kn = cannotKnight(world, id);
   if (!kn || !['Already a knight', 'A councillor', 'Retired from arms', 'Never blooded', 'Not one of ours'].includes(kn)) {
-    out.push({ key: 'knight', group: 'Arms', label: 'Knight them', note: '300 othes', primary: !kn, why: kn, run: (w) => knight(w, id) });
+    out.push({ key: 'knight', group: 'Arms', label: 'Knight them', note: '300 othes', primary: !kn, why: kn, run: (w) => { const x = knight(w, id); startCeremony(x, 'knighting', id); return x; } });
   }
   const free = caigesOf(world, P).filter((g) => !g.bondedTo && !g.pledgedTo);
   const bonded = c.flags.find((f) => f.id === 'caigeBonded');
-  if (bonded) out.push({ key: 'caige', group: 'Arms', label: `Carries the Caige ${(bonded.detail ?? '').split(',')[0]}`.trim(), info: true, note: `since SY-${bonded.since.year}` });
+  const held = Object.values(world.armoury).find((g) => g.bondedTo === id);
+  if (bonded) out.push({ key: 'caige', group: 'Arms', label: `Carries the Caige ${(bonded.detail ?? '').split(',')[0]}`.trim(), info: true, note: `since SY-${bonded.since.year}${held?.cdi !== undefined ? ` · ${held.form ?? ''} · CDI ${held.cdi.toFixed(3)} (${cdiWord(held.cdi)})${(held.forms ?? 1) > 1 ? ' · two forms' : ''} · ${held.souls?.length ?? 0} souls` : ''}` });
   else if (free.length) {
     const g = cannotGrant(world, c);
     out.push({
       key: 'caige', group: 'Arms', label: 'Grant a Caige', why: g,
       sub: free.map((cg): Decision => {
         const adv = caigeAdvice(world, cg.id).filter((a) => a.forId === id).map((a) => (a.seat === 'champion' ? 'Champion' : 'Grand Master'));
-        return { key: `caige:${cg.id}`, group: 'Arms' as Group, label: cg.name, note: `${cg.band} · ${cg.type}${adv.length ? ` · the ${adv.join(' and ')}'s pick` : ''}`, primary: adv.length > 0, run: (w: World) => bondCaige(w, cg.id, id) };
+        return { key: `caige:${cg.id}`, group: 'Arms' as Group, label: cg.name, note: `${cg.band} · ${cg.type}${adv.length ? ` · the ${adv.join(' and ')}'s pick` : ''}`, primary: adv.length > 0, run: (w: World) => beginBonding(w, cg.id, id) };
       }).concat([{ key: 'caige:advice', group: 'Arms', label: 'Hear the council on it', note: 'Champion and Grand Master', to: { kind: 'seat', id: 'grandMaster' } }]),
     });
   }

@@ -35,6 +35,8 @@ export const FLAGS: FlagDef[] = [
   { id: 'logician', label: 'Logician', kind: 'credential', visibility: 'all', endsBy: 'Permanent' },
   { id: 'knighted', label: 'Knighted', kind: 'credential', visibility: 'all', endsBy: 'Stripped for disgrace' },
   { id: 'blooded', label: 'Blooded', kind: 'credential', visibility: 'all', endsBy: 'Never' },
+  { id: 'awakened', label: 'Awakened', kind: 'condition', visibility: 'all', endsBy: 'Never' },
+  { id: 'strained', label: 'Strained resonance', kind: 'condition', visibility: 'all', endsBy: 'Time' },
   { id: 'retired', label: 'Retired from arms', kind: 'condition', visibility: 'all', endsBy: 'Never' },
   { id: 'triedCaige', label: 'Sought a Caige on the black market', kind: 'condition', visibility: 'secret', endsBy: 'Never' },
   { id: 'watch', label: 'Holding a lane', kind: 'condition', visibility: 'all', endsBy: 'The lane watch ends' },

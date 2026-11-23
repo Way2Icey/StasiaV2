@@ -26,6 +26,8 @@ import { ensureRealm } from './houses';
 import { ensureStory } from './storystate';
 import { ensureArchon } from './archon';
 import { ensureWar } from './war';
+import { ensureScenes } from './scene';
+import { ensureCaigeDepth } from './scenes_api';
 import './arcs_war';
 import { writeHistory } from './history';
 import './arcs_numarade';
@@ -126,5 +128,7 @@ export function deserialize(text: string): World {
   ensureStory(world);
   if (ensureArchon(world)) writeHistory(world, false);
   ensureWar(world);
+  ensureScenes(world);
+  ensureCaigeDepth(world);
   return world;
 }

@@ -8,6 +8,7 @@ import { createWorld } from '../sim/world';
 import { ClockControl, useClock } from './clock';
 import { MomentWindow } from './moments';
 import { BattleWindow } from './battle';
+import { SceneWindow } from './scene';
 import { dateParts, formatDate } from '../sim/time';
 import { deserialize, serialize } from '../sim/save';
 import { ageOf } from '../sim/characters';
@@ -134,9 +135,16 @@ export function App() {
   // Moments: decisions that froze the clock, shown over whatever page you are on.
   const [moments, setMoments] = useState<{ ids: string[]; reason: string; resume: boolean; battle?: string } | null>(null);
   const [battle, setBattle] = useState<string | null>(null);
-  const onFreeze = useCallback((ids: string[], reason: string, battleId?: string) => { setMoments((m) => ({ ids: [...(m?.ids ?? []), ...ids.filter((x) => !m?.ids.includes(x))], reason, resume: true, battle: battleId ?? m?.battle })); }, []);
+  const [scene, setScene] = useState<string | null>(null);
+  const onFreeze = useCallback((ids: string[], reason: string, battleId?: string, sceneId?: string) => { if (sceneId && !ids.length && !battleId) { setScene(sceneId); return; } setMoments((m) => ({ ids: [...(m?.ids ?? []), ...ids.filter((x) => !m?.ids.includes(x))], reason, resume: true, battle: battleId ?? m?.battle })); }, []);
   const onNotice = useCallback((msg: string) => done(msg), [done]);
-  const clock = useClock(world, setWorld, onFreeze, onNotice, !!moments || !!battle);
+  const clock = useClock(world, setWorld, onFreeze, onNotice, !!moments || !!battle || !!scene);
+  // A scene started from the page (a bonding, a talk, a rescue) opens at once.
+  useEffect(() => {
+    if (scene || battle || moments) return;
+    const s = world.scenes?.list.find((x) => x.status !== 'over' && !x.prompted);
+    if (s) { setScene(s.id); clock.setRunning(false); }
+  }, [world, scene, battle, moments, clock]);
   const game: Game = useMemo(() => ({ update: (fn) => setWorld((w) => fn(w)), reveal, setReveal }), [reveal]);
 
   const parts = dateParts(world.date);
@@ -218,6 +226,7 @@ export function App() {
             {toast ? <Toast msg={toast} /> : null}
             {moments && !battle ? <MomentWindow ids={moments.ids} reason={moments.reason} battle={moments.battle} onCommand={(id) => { setMoments(null); setBattle(id); }} onClose={(resume) => { setMoments(null); if (resume && moments.resume) clock.setRunning(true); }} /> : null}
             {battle ? <BattleWindow id={battle} onClose={() => { setBattle(null); clock.setRunning(true); }} /> : null}
+            {scene && !battle ? <SceneWindow id={scene} onClose={() => { setWorld((w) => { const x = w.scenes?.list.find((y) => y.id === scene); if (x && !x.prompted) { const c = structuredClone(w); c.scenes!.list.find((y) => y.id === scene)!.prompted = true; return c; } return w; }); setScene(null); }} /> : null}
             {hovered && !menu ? <HoverCard id={hovered.id} x={hovered.x} y={hovered.y} above={hovered.above} reveal={reveal} keep={() => window.clearTimeout(hideTimer.current)} leave={hover.hide} /> : null}
           </div>
           </GameContext.Provider>
