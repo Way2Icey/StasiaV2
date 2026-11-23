@@ -175,7 +175,7 @@ const knightsOf = (w: World, h: string) => Object.values(w.characters).filter((c
 
 const LEGION_A = ['Ashen', 'Iron', 'Grey', 'Long', 'Silent', 'Red', 'Glass', 'Third', 'Ember', 'Black', 'White', 'Salt', 'Storm', 'Hollow', 'Bright'];
 const LEGION_B = ['Legion', 'Host', 'Spear', 'Wall', 'Line', 'Shield', 'March'];
-const FLEET_B = ['Wake', 'Watch', 'Squadron', 'Tide', 'Wing', 'Lance'];
+const FLEET_B = ['Wake', 'Watch', 'Squadron', 'Vanguard', 'Wing', 'Lance'];
 const COMPANY_B = ['Company', 'Blades', 'Oathsworn', 'Hand', 'Lances'];
 
 function forceName(rng: Rng, used: Set<string>, nouns: string[]): string {
@@ -553,8 +553,9 @@ function phaseOf(w: World, rng: Rng, war: War): void {
   for (const h of [...partiesOf(war, 'attackers'), ...partiesOf(war, 'defenders')]) {
     const lost = war.losses[h] ?? 0;
     const strength = formationsOf(w, h).reduce((t, f) => t + f.max * (f.kind === 'legion' ? 1 : f.kind === 'fleet' ? 1000 : 2), 0) || 1;
-    war.exhaustion[h] = clamp((war.exhaustion[h] ?? 0) + 0.6 + (war.rung === 'war' ? 0.5 : 0) + (lost / strength) * 4, 0, 100);
-    if (h === P) econ(w, P).stock.othes -= war.rung === 'war' ? 300 : 120;
+    // An empty treasury wears a house out faster than its losses do.
+    const broke = isSim(w, h) && econ(w, h).stock.othes < 0 ? 1.2 : 0;
+    war.exhaustion[h] = clamp((war.exhaustion[h] ?? 0) + 0.6 + (war.rung === 'war' ? 0.5 : 0) + (lost / strength) * 4 + broke, 0, 100);
   }
   if (war.ceasefire !== undefined && absoluteCycle(w.date) >= war.ceasefire && war.status === 'active') {
     if (!war.defied) endWar(w, rng, war, 'none', 'The Numarade\'s ceasefire holds.');
@@ -970,7 +971,9 @@ function yearly(w: World, rng: Rng): void {
   }
   s.tributes = s.tributes.filter((t) => t.until >= year);
   // Vassals pay their liege and vote with them.
+  const excused = (s as WarState & { excused?: Record<string, number> }).excused ?? {};
   for (const [v, l] of Object.entries(s.liege)) {
+    if (excused[v] === year) continue;
     const amount = rnd(1000 + (w.archon?.houses[v]?.might ?? 1) * 1500);
     if (isSim(w, v)) econ(w, v).stock.othes -= amount;
     if (isSim(w, l)) econ(w, l).stock.othes += amount;

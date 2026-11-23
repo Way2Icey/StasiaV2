@@ -91,7 +91,7 @@ export const QUARTER_ECONOMY: Record<string, QuarterEconomy> = {
  * mines. What one lacks another has, so they trade, and what they ship can be taken.
  */
 export const ESTATES: Record<string, Flow> = {
-  torvann: { othes: 1300, metals: 240, provisions: 120, fuel: -40, navisium: -20, components: -8 },
+  torvann: { othes: 1900, metals: 240, provisions: 120, fuel: -40, navisium: -20, components: -8 },
   serath: { othes: 1400, provisions: 60, fuel: -60, components: 8, navisium: -15, metals: -40 },
   shaaliin: { othes: 900, provisions: 420, components: 12, metals: -60, fuel: -15, navisium: -10 },
 };

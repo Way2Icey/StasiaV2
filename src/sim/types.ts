@@ -413,7 +413,7 @@ export interface LedgerLine {
   /** Per Phase for standing flows; the amount for one-off entries. */
   amount: number;
   label: string;
-  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit' | 'boon' | 'court' | 'port' | 'raid';
+  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit' | 'boon' | 'court' | 'port' | 'raid' | 'forces' | 'war';
   sectorId?: string;
   quarterId?: string;
   characterId?: string;
@@ -445,6 +445,10 @@ export interface Economy {
   market: Record<GoodId, MarketGood>;
   /** How the house pays its knights, champion and councillors. */
   payScale?: 'meagre' | 'fair' | 'generous';
+  /** Events out in the Archon pulling prices away from the usual. */
+  shocks?: import('./arcs_economy').Shock[];
+  /** The last Exchange crash, and how far along it is. */
+  crash?: { at: number; stage: 0 | 1 | 2 | 3; asker?: string };
 }
 
 // ---------------------------------------------------------------- discoveries

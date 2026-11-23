@@ -3,7 +3,8 @@ import { QuarterTerm, Term } from './tip';
 import {
   buyPrice, computingOf, credibilityMarkup, econ, netPerPhase, phaseLedger, quotaFor, sellPrice, setTax, tradeInPlace,
 } from '../sim/economy';
-import { addCycles, dateParts, formatDate, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from '../sim/time';
+import { absoluteCycle, addCycles, dateParts, formatDate, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from '../sim/time';
+import { shocksOf } from '../sim/arcs_economy';
 import { GOODS, RESOURCE_LABEL, RESOURCE_NOTE, RESOURCES, TAX, type Good, type Resource, type TaxRate } from '../data/economy';
 import type { LedgerLine, World } from '../sim/types';
 import { useGame, useWorld } from './context';
@@ -154,7 +155,20 @@ export function EconomyPage() {
               </tbody>
             </table>
           </div>
-          <p className="body muted" style={{ margin: 0, fontSize: 11 }}>Every house trades here. What they buy and sell moves prices each Phase; prices drift back toward the usual level over time.</p>
+          {(() => {
+            const now = absoluteCycle(world.date);
+            const live = shocksOf(world).filter((x) => x.until > now);
+            const crash = world.economy.crash && world.economy.crash.stage < 3;
+            return live.length || crash ? (
+              <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 12 }}>
+                {crash ? <strong className="down">The Exchange is in a crash. Creditors are calling in loans; prices will climb back when it finds its floor.</strong> : null}
+                {live.filter((x) => x.cause !== 'the crash' && x.cause !== 'the crash, deepening').map((x, i) => (
+                  <span key={i}><strong className={x.mult > 1 ? 'up' : 'down'}>{RESOURCE_LABEL[x.good]} {x.mult > 1 ? '▲' : '▼'}</strong> on {x.cause}: pulled toward {Math.round(x.mult * 100)}% of the usual price for about {Math.max(1, Math.round((x.until - now) / CYCLES_PER_ORBIT))} Orbit{Math.round((x.until - now) / CYCLES_PER_ORBIT) === 1 ? '' : 's'} more.</span>
+                ))}
+              </div>
+            ) : null;
+          })()}
+          <p className="body muted" style={{ margin: 0, fontSize: 11 }}>Every house trades here. What they buy and sell moves prices each Phase; prices drift back toward the usual level, or toward where news out in the Archon is pulling them.</p>
         </Panel>
         <Panel title="Loans" className="span-12"><p className="body" style={{ margin: 0 }}>Lending and borrowing between houses: <Go to={{ kind: 'loans' }}>Treasury › Loans ›</Go></p></Panel>
       </div>
@@ -165,7 +179,7 @@ export function EconomyPage() {
 function LedgerRow({ l }: { l: LedgerLine }) {
   return (
     <tr className={l.kind === 'skim' ? 'skim' : undefined}>
-      <td>{l.kind === 'skim' ? <Term k="skim">{l.label}</Term> : l.kind === 'stipend' ? <Term k="stipend">{l.label}</Term> : l.kind === 'quarter' && l.quarterId ? <QuarterTerm name={l.label} /> : l.kind === 'boon' ? <Term k="boon">{l.label}</Term> : l.label}{l.kind === 'skim' && !l.characterId ? <span className="muted" style={{ fontSize: 11 }}> · cause unknown; an audit may find it</span> : null}</td>
+      <td>{l.kind === 'skim' ? <Term k="skim">{l.label}</Term> : l.kind === 'stipend' ? <Term k="stipend">{l.label}</Term> : l.kind === 'quarter' && l.quarterId ? <QuarterTerm name={l.label} /> : l.kind === 'boon' ? <Term k="boon">{l.label}</Term> : l.kind === 'forces' || l.kind === 'war' ? <Term k="warcost">{l.label}</Term> : l.label}{l.kind === 'skim' && !l.characterId ? <span className="muted" style={{ fontSize: 11 }}> · cause unknown; an audit may find it</span> : null}</td>
       <td>{l.sectorId ? <SectorLink id={l.sectorId} /> : <span className="muted">—</span>}</td>
       <td>{l.characterId ? <PersonById id={l.characterId} /> : <span className="muted">—</span>}</td>
       <td className={`mono ${l.amount >= 0 ? 'up' : 'down'}`} style={{ textAlign: 'right' }}>{signed(l.amount)}</td>

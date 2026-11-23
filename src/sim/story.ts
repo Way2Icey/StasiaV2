@@ -28,6 +28,7 @@ export const STRUGGLE: Record<StruggleKind, { label: string; stats: StatId[]; no
   hunted: { label: 'The hunted child', stats: ['perception', 'stealth', 'duelling'], note: 'Perception, stealth and blades keep the child safe.', ours: 'the hunters give up', theirs: 'the child is taken' },
   glass: { label: 'Glass in the barracks', stats: ['law', 'insight', 'leadership'], note: 'Law, insight and leadership clean the order.', ours: 'the dealer is taken', theirs: 'the order is rotten with it' },
   campaign: { label: 'The campaign', stats: ['diplomacy', 'eloquence', 'negotiation'], note: 'Diplomacy, eloquence and negotiation win votes.', ours: 'the seat is ours', theirs: 'the rival takes the seat' },
+  debt: { label: 'The debt spiral', stats: ['stewardship', 'negotiation', 'law'], note: 'Stewardship, negotiation and law dig us out.', ours: 'clear of it', theirs: 'a sector signed away' },
   drift: { label: 'The Drift opens', stats: ['resonanceControl', 'intellect', 'willpower'], note: 'Control, learning and will hold the rift.', ours: 'sealed', theirs: 'the Drift seeps in' },
 };
 
@@ -213,6 +214,6 @@ export function advanceStory(world: World, rng: Rng, phaseTurned: boolean): void
 /** Who the house would put on a struggle first: the seat that suits it. */
 export function naturalFor(world: World, kind: StruggleKind): Character | undefined {
   const P = world.playerHouseId;
-  const seat = ({ plot: 'spymaster', ring: 'steward', madness: 'physician', feud: 'envoy', succession: 'elder', plague: 'physician', uprising: 'steward', hunted: 'champion', glass: 'grandMaster', campaign: 'envoy', drift: 'elder' } as const)[kind];
+  const seat = ({ plot: 'spymaster', ring: 'steward', madness: 'physician', feud: 'envoy', succession: 'elder', plague: 'physician', uprising: 'steward', hunted: 'champion', glass: 'grandMaster', campaign: 'envoy', drift: 'elder', debt: 'steward' } as const)[kind];
   return seatHolder(world, P, seat);
 }

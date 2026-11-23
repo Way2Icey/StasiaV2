@@ -1,5 +1,6 @@
 import { advanceEvents } from './events';
 import { advanceStory } from './story';
+import { advanceCrash, checkDebt, marketShocks, maybeCrash } from './arcs_economy';
 import './arcs';
 import './arcs_resonance';
 import './arcs_threads';
@@ -33,6 +34,8 @@ import { ceremoniesDue, crisesDue, startChronicle, ensureCaigeDepth } from './sc
 import './arcs_war';
 import './arcs_numarade';
 import './eventDefs';
+import './variants';
+import { yearlyStories } from './arcs_systems';
 import { displayName } from './names';
 import { Rng } from './rng';
 import { ageOf } from './characters';
@@ -91,6 +94,9 @@ function stepInPlace(world: World): void {
   expireFlags(world, to);
   advanceMissions(world, rng);
   advanceEconomy(world, rng, crossed.phases > 0, crossed.orbits > 0);
+  if (crossed.orbits > 0) marketShocks(world, rng);
+  if (crossed.phases > 0) advanceCrash(world, rng);
+  if (crossed.years > 0) { maybeCrash(world, rng); checkDebt(world); yearlyStories(world, rng); }
   lapseRansoms(world);
   advanceCouncil(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceRivals(world, rng, crossed.phases > 0);

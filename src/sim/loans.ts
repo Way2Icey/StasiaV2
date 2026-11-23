@@ -138,7 +138,7 @@ function wardCandidate(world: World, houseId: string): string | undefined {
 
 // ---------------------------------------------------------------- making a loan
 
-function open(world: World, a: { lender: string; borrower: string; amount: number; rate: number; orbits: number; collateral: Collateral; spend?: string }): Loan | null {
+export function openLoan(world: World, a: { lender: string; borrower: string; amount: number; rate: number; orbits: number; collateral: Collateral; spend?: string }): Loan | null {
   const e = econ(world, a.lender);
   if (e.stock.othes < a.amount) return null;
   const id = `loan${world.nextId++}`;
@@ -204,7 +204,7 @@ export function borrow(input: World, lender: string, amount: number, orbits: num
   ensureLoans(w);
   const q = quoteFor(w, lender, amount, orbits);
   if ('no' in q) throw new Error(q.no);
-  const l = open(w, { lender, borrower: w.playerHouseId, amount, rate: q.rate, orbits, collateral: q.collateral });
+  const l = openLoan(w, { lender, borrower: w.playerHouseId, amount, rate: q.rate, orbits, collateral: q.collateral });
   if (!l) throw new Error('They cannot lend that now.');
   return w;
 }
@@ -221,8 +221,8 @@ export function answerAsk(input: World, askId: string, yes: boolean): World {
     return w;
   }
   const l = a.kind === 'ask'
-    ? open(w, { lender: a.to, borrower: a.from, amount: a.amount, rate: a.rate, orbits: a.orbits, collateral: a.collateral, spend: a.reason })
-    : open(w, { lender: a.from, borrower: a.to, amount: a.amount, rate: a.rate, orbits: a.orbits, collateral: a.collateral });
+    ? openLoan(w, { lender: a.to, borrower: a.from, amount: a.amount, rate: a.rate, orbits: a.orbits, collateral: a.collateral, spend: a.reason })
+    : openLoan(w, { lender: a.from, borrower: a.to, amount: a.amount, rate: a.rate, orbits: a.orbits, collateral: a.collateral });
   if (!l) throw new Error('Not enough othes.');
   return w;
 }
@@ -248,7 +248,7 @@ export function settleDefault(input: World, loanId: string, how: 'seize' | 'forg
   const w = structuredClone(input);
   const l = w.loans.loans[loanId];
   if (!l || l.lender !== w.playerHouseId || !l.overdue) return w;
-  settleInPlace(w, l, how);
+  settleLoanInPlace(w, l, how);
   return w;
 }
 
@@ -287,7 +287,7 @@ function close(w: World, l: Loan, status: Loan['status']) {
   }
 }
 
-function settleInPlace(w: World, l: Loan, how: 'seize' | 'forgive' | 'extend') {
+export function settleLoanInPlace(w: World, l: Loan, how: 'seize' | 'forgive' | 'extend') {
   const P = w.playerHouseId;
   const ours = l.lender === P || l.borrower === P;
   if (how === 'extend') {
@@ -364,7 +364,7 @@ function defaultLoan(w: World, rng: Rng, l: Loan) {
   if (l.lender !== P) {
     const p = w.houses[l.lender]!.personality;
     const how = rng.chance(p.aggression * 0.7 + p.greed * 0.3) ? 'seize' : l.status === 'extended' ? 'seize' : rng.chance(p.honour * 0.3) ? 'forgive' : 'extend';
-    settleInPlace(w, l, how);
+    settleLoanInPlace(w, l, how);
   }
 }
 
@@ -401,7 +401,7 @@ function aiAsks(w: World, rng: Rng) {
     } else {
       // Between other houses: the lender decides.
       const yes = creditworthiness(w, h.id, to.id) > 0.3 && rng.chance(0.4 + to.personality.greed * 0.4);
-      if (yes) open(w, { lender: to.id, borrower: h.id, amount, rate: rateFor(w, to.id, h.id), orbits: ask.orbits, collateral, spend: ask.reason });
+      if (yes) openLoan(w, { lender: to.id, borrower: h.id, amount, rate: rateFor(w, to.id, h.id), orbits: ask.orbits, collateral, spend: ask.reason });
     }
   }
 }

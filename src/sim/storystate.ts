@@ -34,7 +34,7 @@ export const THREAD_LABEL: Record<ThreadKind, string> = { grudge: 'Grudge', debt
 /** Something left hanging on a person that a later story can pick up. */
 export interface Thread { id: string; personId: string; kind: ThreadKind; text: string; since: GameDate; about?: string; closed?: GameDate }
 
-export type StruggleKind = 'plot' | 'ring' | 'madness' | 'feud' | 'succession' | 'plague' | 'uprising' | 'hunted' | 'glass' | 'campaign' | 'drift';
+export type StruggleKind = 'plot' | 'ring' | 'madness' | 'feud' | 'succession' | 'plague' | 'uprising' | 'hunted' | 'glass' | 'campaign' | 'drift' | 'debt';
 
 /** A long contest: a meter both sides push on, with turning points along the way. */
 export interface Struggle {
