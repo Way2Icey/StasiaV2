@@ -36,6 +36,8 @@ import './arcs_numarade';
 import './eventDefs';
 import './variants';
 import { yearlyStories } from './arcs_systems';
+import { advanceLegacy } from './legacy';
+import { legacyStories } from './arcs_legacy';
 import { displayName } from './names';
 import { Rng } from './rng';
 import { ageOf } from './characters';
@@ -97,6 +99,7 @@ function stepInPlace(world: World): void {
   if (crossed.orbits > 0) marketShocks(world, rng);
   if (crossed.phases > 0) advanceCrash(world, rng);
   if (crossed.years > 0) { maybeCrash(world, rng); checkDebt(world); yearlyStories(world, rng); }
+  { const promoted = advanceLegacy(world, rng, crossed); if (crossed.years > 0) legacyStories(world, rng, promoted); }
   lapseRansoms(world);
   advanceCouncil(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceRivals(world, rng, crossed.phases > 0);

@@ -527,10 +527,12 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
     passed = checkValue(who, use.check.stats) + rng.gauss() * SPREAD >= bar;
     ctx.fx.say(`${who ? shortName(who.name) : 'Our people'} ${passed ? (vs ? `get the better of ${shortName(vs.name)}` : 'succeed') : (vs ? `are bested by ${shortName(vs.name)}` : 'fail')}`);
   }
-  use.resolve(ctx, passed);
+  // A broken resolve must never stop the clock: what it managed stands, and the game goes on.
+  try { use.resolve(ctx, passed); } catch (e) { console.error(`event ${def.id}: ${(e as Error).message}`); ctx.fx.say('It came to nothing'); }
   // The story goes on, or ends here.
   let run = ctx.arc ?? (p.arcId ? world.story?.arcs.find((a) => a.id === p.arcId) : undefined);
-  const nx = use.then?.(ctx, passed) ?? null;
+  let nx: ReturnType<NonNullable<EventOption['then']>> = null;
+  try { nx = use.then?.(ctx, passed) ?? null; } catch (e) { console.error(`event ${def.id} then: ${(e as Error).message}`); }
   // An event that leads somewhere becomes an arc the moment it does.
   if (!run && nx) run = startArc(world, p, def.arc ?? title);
   if (run) {

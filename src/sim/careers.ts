@@ -1,3 +1,4 @@
+import { titleAsDeed } from './legacy';
 // Careers: every deed counted, season by season; potential as diamonds; prospects worth finding young.
 import { ageOf } from './characters';
 import { SPECIES } from '../data/species';
@@ -77,6 +78,7 @@ export function award(world: World, id: string, title: string): void {
   const year = dateParts(world.date).year;
   (world.careers.titles[id] ??= []).push({ title, year });
   tally(world, id, 'titles');
+  titleAsDeed(world, id, title);
 }
 
 export function titlesOf(world: World, id: string): { title: string; year: number }[] {

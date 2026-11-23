@@ -103,7 +103,9 @@ function explore(world: World, see: (c: Character) => CharacterView): { key: str
   if (strongest) threads.push({ key: 'res', node: <>The strongest resonance on record belongs to <PersonLink c={strongest} />: <BandLink c={strongest} />.</> });
   const oldest = [...alive(world)].sort((a, b) => ageOf(b, world.date) - ageOf(a, world.date))[0];
   if (oldest) threads.push({ key: 'old', node: <>The oldest living person is <PersonLink c={oldest} />, a <SpeciesLink id={oldest.species} /> of {ageOf(oldest, world.date)}.</> });
-  const scarred = people.find((c) => c.name.epithet);
+  const named = people.find((c) => c.name.epithet && !c.traits.some((t) => t.id === 'scarName'));
+  if (named) threads.push({ key: 'named', node: <><PersonLink c={named} /> is called {named.name.epithet}, a name earned by deeds.</> });
+  const scarred = people.find((c) => c.traits.some((t) => t.id === 'scarName'));
   if (scarred) threads.push({ key: 'scar', node: <><PersonLink c={scarred} /> earned the scar-name <TraitText t={scarred.traits.find((t) => t.id === 'scarName')!} />.</> });
   const decorated = [...people].sort((a, b) => see(b).traits.length - see(a).traits.length)[0];
   if (decorated) threads.push({ key: 'dec', node: <><PersonLink c={decorated} /> carries more known traits than anyone: {see(decorated).traits.map((t, i) => <span key={t.id}>{i ? ', ' : ''}<TraitText t={t} /></span>)}.</> });

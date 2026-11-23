@@ -1,3 +1,4 @@
+import { onLegacyDeath } from './legacy';
 import { displayName } from './names';
 import { logRecord } from './records';
 import { onDeath } from './relationships';
@@ -14,6 +15,7 @@ export function kill(world: World, c: Character, now: GameDate, cause: string) {
   c.death = { date: now, cause };
   onDeath(world, c.id);
   const seat = c.seat;
+  onLegacyDeath(world, c, cause, seat);
   c.seat = undefined;
   if (c.tier === 'full') {
     logRecord(world, {

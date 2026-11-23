@@ -29,6 +29,7 @@ import { ensureLadder } from './ladder';
 import { ensureTreasury } from './treasury';
 import { ensureLanes } from './lanes';
 import { ensureExchange } from './exchange';
+import { ensureLegacy } from './legacy';
 import { ensureRealm } from './houses';
 import { ensureStory } from './storystate';
 import { ensureArchon } from './archon';
@@ -184,6 +185,7 @@ export function createWorld(seed: string = DEFAULT_SEED, opts: NewGame = {}): Wo
   ensureTreasury(world);
   ensureLanes(world);
   ensureExchange(world);
+  ensureLegacy(world);
   ensureRealm(world);
   ensureStory(world);
   if (ensureArchon(world)) writeHistory(world, true);

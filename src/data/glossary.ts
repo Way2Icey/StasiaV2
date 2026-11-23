@@ -1,7 +1,7 @@
 // Hover definitions: what each word on screen means and why it matters.
 // Kept short: one line on what it is, one on what it does in play.
 
-export type GlossaryGroup = 'Time' | 'Houses' | 'Holdings' | 'Economy' | 'People' | 'Attributes' | 'Hidden' | 'Council' | 'Missions' | 'Intrigue';
+export type GlossaryGroup = 'Time' | 'Houses' | 'Holdings' | 'Economy' | 'People' | 'Attributes' | 'Hidden' | 'Council' | 'Missions' | 'Intrigue' | 'Legacy';
 
 export interface GlossaryEntry {
   term: string;
@@ -197,6 +197,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   intake: { term: 'Academy intake', group: 'Missions', text: 'Each Orbit the academy brings forward a few ordinary children and younglings of our worlds. Educate them (learning) or train them (arms) for an academy place, or send them home. The extraordinary ones come another way: through what happens in the world.' },
   materialize: { term: 'Materialized', group: 'People', text: 'A nobody who became a somebody: someone a mission found, now a full named person with a record of their own.' },
   armoury: { term: 'Caige armoury', group: 'People', text: 'Caiges the house holds. Bonding one to someone raises their Caige Sync and their mood: a statement of trust.' },
+  hall: { term: 'The Hall', group: 'Legacy', text: 'Where the house keeps its honoured dead: the people whose deeds, rank, seat or name made them worth remembering. Heirs stand in front of it and measure themselves against it.' },
+  houseAnnals: { term: 'Annals of the house', group: 'Legacy', text: 'What the house has done across generations, written down as it happens. They never close. Some are hidden until earned, and some can only be earned by losing something first.' },
+  reliquary: { term: 'Reliquary', group: 'Legacy', text: 'The house\'s relics. Memory Steels: Echo Coins that hold a moment, Keepring Blades that carry the dead down the line, Shardsaints of collapsed navisium that hold a whole death. Navisigns that tie a Caige to the blood. Banners of lost legions, crusade writs, war-navisium, station logs from the Silence, and things marked CLRCH that no one understands. A full Reliquary is standing in the Archon.' },
+  archive: { term: 'Archive', group: 'Legacy', text: 'Fragments of the past: the war, Vaelor Primus, the Rend, the Silence, the disputed text On the Weight of Will, and stranger things. Every fragment came from someone with a side; some contradict each other. Some threads never close.' },
+  drift: { term: 'The Drift', group: 'Legacy', text: 'Something moves through navisium, more in some ages than others: Caiges change their weight, bearers dream the same dream, some move in step with strangers. Nobody at court has a name for it. The chroniclers name the ages after what it does.' },
   markets: { term: 'Markets', group: 'Economy', text: 'Each house\'s capital is a market for that house\'s needs, the Exchange Docks carry the rest of the Archon, and the Outer Reach buys fuel and food dear and sells ore cheap. A good is worth what a buyer there will pay for it: a house that is short pays more the shorter it is, a house with enough only buys cheap. Hauling goods between markets costs freight, more to or from a house at war. Under everything, the Imperial Exchange buys at a low floor and sells at a high ceiling, a limited amount each Phase.' },
   sellstance: { term: 'Steward sells', group: 'Economy', text: 'What the Steward does with what we have beyond the reserve. Hold: nothing. Fair: puts the surplus up at what last Phase\'s buyers paid, half at a time, all at once in a glut. Quick: sells the lot at whatever clears. Orders placed by hand come first and stand until filled or cancelled.' },
   warcost: { term: 'The cost of arms', group: 'Economy', text: 'Every legion, fleet and company costs to keep, a little at home. Sent to a front while the house is at war, it costs six times as much (two and a half in border clashes), and war chokes the trade our takings come from: a quarter less in open war, more again if the enemy holds our sky, and half the merchant ships stop calling at our ports. A long war empties the coffers, and a house with empty coffers tires of a war faster.' },
@@ -215,4 +220,4 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   embezzler: { term: 'Embezzler', group: 'Intrigue', text: 'An overseer caught skimming the takings.' },
 };
 
-export const GLOSSARY_GROUPS: GlossaryGroup[] = ['Time', 'Houses', 'Holdings', 'Economy', 'People', 'Attributes', 'Hidden', 'Council', 'Missions', 'Intrigue'];
+export const GLOSSARY_GROUPS: GlossaryGroup[] = ['Time', 'Houses', 'Holdings', 'Economy', 'People', 'Attributes', 'Hidden', 'Council', 'Missions', 'Intrigue', 'Legacy'];
