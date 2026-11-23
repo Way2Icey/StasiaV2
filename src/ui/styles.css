@@ -504,3 +504,37 @@ pre.ascii .inv, span.inv { background: var(--fg); color: #000; }
   content: attr(title); display: block; font-size: 11px; line-height: 1.35; text-transform: none; letter-spacing: 0;
   font-weight: 400; color: var(--muted); max-width: 320px; white-space: normal;
 }
+
+/* ---------------- 4.1: the person menu */
+.person-menu {
+  position: fixed; z-index: 80; width: 300px; max-height: calc(100vh - 16px); overflow-y: auto; box-sizing: border-box;
+  background: #000; border: 1px solid var(--fg); box-shadow: 4px 4px 0 #262626; padding: 4px 0; font-family: var(--mono);
+}
+.pm-head { display: grid; gap: 2px; padding: 8px 12px 8px; border-bottom: 1px solid var(--line-soft); font-size: 12px; }
+.pm-head strong { font-size: 13px; }
+.pm-group { padding: 8px 12px 2px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.pm-item {
+  display: grid; gap: 1px; width: 100%; text-align: left; background: none; border: 0; color: var(--fg);
+  padding: 5px 12px; font: 13px var(--mono); cursor: pointer;
+}
+.pm-item.inner { padding-left: 26px; }
+.pm-item.primary .pm-label { font-weight: 700; }
+.pm-item:not(:disabled):hover, .pm-item:not(:disabled):focus-visible { background: var(--fg); color: #000; outline: none; }
+.pm-item:not(:disabled):hover .pm-note, .pm-item:not(:disabled):focus-visible .pm-note { color: #333; }
+.pm-item:disabled { cursor: default; color: var(--muted); }
+.pm-note, .pm-why { font-size: 11px; color: var(--muted); }
+.pm-why::before { content: '× '; }
+.pm-err { margin: 6px 12px; font-size: 12px; color: var(--fg); border-left: 2px solid var(--fg); padding-left: 8px; }
+.toast { position: fixed; z-index: 90; left: 50%; bottom: 64px; transform: translateX(-50%); background: var(--fg); color: #000; padding: 8px 14px; font: 13px var(--mono); box-shadow: 4px 4px 0 #262626; }
+/* Decisions on a sheet */
+.decisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 22px; align-items: start; }
+.dec-col { display: flex; flex-direction: column; min-width: 0; }
+.decisions .pm-group { padding: 0 0 4px 8px; border-bottom: 1px solid var(--line-soft); margin-bottom: 2px; }
+.decisions .pm-item { padding: 4px 8px; }
+.decisions .pm-item.inner { padding-left: 20px; }
+.pm-item.info:disabled { color: var(--fg-2); }
+.pm-item.info .pm-label::before { content: '◆ '; }
+@media (max-width: 640px) {
+  .person-menu { left: 8px !important; right: 8px; top: auto !important; bottom: 8px; width: auto; max-height: 72vh; }
+  .pm-item { padding: 9px 14px; }
+}

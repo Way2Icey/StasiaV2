@@ -1,6 +1,7 @@
+import { PersonMenuLayer, Toast } from './personmenu';
 import { RenownPage } from './realm';
 import { VERSION } from '../version';
-import { useEffect, useMemo, useRef, useState , Fragment } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { Term } from './tip';
 import { GlossaryPage } from './glossary';
 import { createWorld } from '../sim/world';
@@ -13,7 +14,7 @@ import { superiorOf } from '../sim/query';
 import { SPECIES } from '../data/species';
 import { traitLabel } from '../data/traits';
 import type { World } from '../sim/types';
-import { GameContext, HoverContext, NavContext, WorldContext, type Game, type Hover, type Nav } from './context';
+import { GameContext, HoverContext, PersonMenuContext, NavContext, WorldContext, type Game, type Hover, type Nav } from './context';
 import { seenBy } from './fog';
 import { MissionPage, MissionsPage, PlanPage } from './missions';
 import { CouncilPage } from './council';
@@ -116,6 +117,12 @@ export function App() {
     },
   }), []);
 
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<number>(0);
+  const personMenu = useMemo(() => ({ open: (id: string, x: number, y: number) => { setHovered(null); setMenu({ id, x, y }); } }), []);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const done = useCallback((m: string) => { setToast(m); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(null), 2600); }, []);
   const game: Game = useMemo(() => ({ update: (fn) => setWorld((w) => fn(w)), reveal, setReveal }), [reveal]);
 
   const parts = dateParts(world.date);
@@ -133,6 +140,7 @@ export function App() {
     <WorldContext.Provider value={world}>
       <NavContext.Provider value={nav}>
         <HoverContext.Provider value={hover}>
+        <PersonMenuContext.Provider value={personMenu}>
           <GameContext.Provider value={game}>
           <div className="app">
             <header className="topbar">
@@ -177,7 +185,7 @@ export function App() {
                 })}
                 <button type="button" className="utility" onClick={() => setCommand(true)} title="Find anything, do anything"><span className="key" aria-hidden="true">[/]</span>COMMAND</button>
               </nav>
-              <main className="main" ref={mainRef} onScroll={() => setHovered(null)}>
+              <main className="main" ref={mainRef} onScroll={() => { setHovered(null); setMenu(null); }}>
                 <nav className="trail" aria-label="Where you are">
                   {crumbs.filter((c) => c.label !== here).map((c, i) => (
                     <span key={i}>
@@ -192,9 +200,12 @@ export function App() {
               </main>
             </div>
             {command ? <CommandBar onClose={() => setCommand(false)} /> : null}
-            {hovered ? <HoverCard id={hovered.id} x={hovered.x} y={hovered.y} above={hovered.above} reveal={reveal} keep={() => window.clearTimeout(hideTimer.current)} leave={hover.hide} /> : null}
+            {menu ? <PersonMenuLayer key={`${menu.id}-${menu.x}-${menu.y}`} id={menu.id} x={menu.x} y={menu.y} onClose={closeMenu} onDone={done} /> : null}
+            {toast ? <Toast msg={toast} /> : null}
+            {hovered && !menu ? <HoverCard id={hovered.id} x={hovered.x} y={hovered.y} above={hovered.above} reveal={reveal} keep={() => window.clearTimeout(hideTimer.current)} leave={hover.hide} /> : null}
           </div>
           </GameContext.Provider>
+        </PersonMenuContext.Provider>
         </HoverContext.Provider>
       </NavContext.Provider>
     </WorldContext.Provider>

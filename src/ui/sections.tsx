@@ -1,7 +1,8 @@
 // The rail's sections and their hub pages: a strip of tabs under each section, and the pages that
 // gather features which used to live wherever they were first attached.
 import { VeteransPanel } from './realm';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
+import { decisionsFor, GROUPS, tryRun, type Decision } from './decisions';
 import { useGame, useNav, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonLink } from './links';
 import { Term } from './tip';
@@ -14,7 +15,7 @@ import { Challenges } from './grounds';
 import { CouncilViews } from './hall';
 import { PinButton } from './careers';
 import { isMilitary, fightScore } from '../sim/grounds';
-import { cannotHoldAudience, cannotKnight, holdAudience, knight } from '../sim/ambitions';
+import { cannotKnight, knight } from '../sim/ambitions';
 import { seasonLine, titlesOf, totals } from '../sim/careers';
 import { activeMissions } from '../sim/missions';
 import { currentRound } from '../sim/crucible';
@@ -24,7 +25,6 @@ import { buildCost, buildModule, cannotBuild, MODULE_LABEL, MODULE_NOTE, modules
 import { ageOf } from '../sim/characters';
 import { mentorOf, pipeline, proofOf, sternness } from '../sim/ladder';
 import { absoluteCycle } from '../sim/time';
-import { SPECIES } from '../data/species';
 import { SEAT_TITLE } from '../sim/world';
 import type { World } from '../sim/types';
 
@@ -286,34 +286,57 @@ export function BuildPage({ what }: { what?: string }) {
 
 // ---------------------------------------------------------------- what you can do with a person
 
-/** Everything the Highroy can do with one of ours, in one place on their sheet. */
-export function PersonActions({ id }: { id: string }) {
+/** Every decision about this person, grouped, with the reason when one can't be made. The same list as the right-click menu. */
+export function DecisionsPanel({ id }: { id: string }) {
   const world = useWorld();
+  const game = useGame();
   const nav = useNav();
-  const { run, err } = usePlay();
-  const c = world.characters[id];
-  if (!c || !c.alive || c.houseId !== world.playerHouseId || c.seat === 'highroy') return null;
-  const young = ageOf(c, world.date) < SPECIES[c.species].adulthood;
   const [ask, setAsk] = useState(false);
-  const kn = cannotKnight(world, id);
-  const aud = cannotHoldAudience(world, id);
-  const B = ({ label, to, title }: { label: string; to: Route; title?: string }) => <button type="button" className="btn small" title={title} onClick={() => nav.to(to)}>{label}</button>;
+  const [openSub, setOpenSub] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const c = world.characters[id];
+  if (!c) return null;
+  const all = decisionsFor(world, id).filter((d) => !d.menuOnly);
+  const own = c.alive && c.houseId === world.playerHouseId && c.seat !== 'highroy';
+  const act = (d: Decision, parent?: Decision) => {
+    if (d.why || d.info) return;
+    if (d.sub) { setOpenSub(openSub === d.key ? null : d.key); return; }
+    if (d.to) { nav.to(d.to); return; }
+    const r = tryRun(world, d);
+    if (r.error) { setErr(r.error); setDone(null); return; }
+    setErr(null); setDone(`${parent ? `${parent.label}: ` : ''}${d.label}`); setOpenSub(null);
+    game.update((w) => { try { return d.run!(w); } catch { return w; } });
+  };
+  const item = (d: Decision, parent?: Decision): React.ReactNode => {
+    const inner = !!parent;
+    return (
+    <Fragment key={d.key}>
+      <button type="button" className={`pm-item${d.info ? ' info' : ''}${inner ? ' inner' : ''}${d.primary && !d.why ? ' primary' : ''}`} disabled={!!d.why || d.info} aria-expanded={d.sub ? openSub === d.key : undefined} onClick={() => act(d, parent)}>
+        <span className="pm-label">{d.label}{d.sub ? (openSub === d.key ? ' ▾' : ' ▸') : d.to ? ' ›' : ''}</span>
+        {d.why ? <span className="pm-why">{d.why}</span> : d.note ? <span className="pm-note">{d.note}</span> : null}
+      </button>
+      {d.sub && openSub === d.key ? d.sub.map((s) => item(s, d)) : null}
+    </Fragment>
+  );
+  };
   return (
-    <Panel title={`What you can do with ${c.name.given}`} className="span-12">
-      <div className="body actions" style={{ flexWrap: 'wrap' }}>
-        <B label="Send on an inquiry ›" to={{ kind: 'plan', mission: 'investigate', leader: id }} />
-        <B label="Send scouting ›" to={{ kind: 'plan', mission: 'scout', leader: id }} />
-        {young || ageOf(c, world.date) < SPECIES[c.species].adulthood * 1.6 ? <B label="Teach them ›" to={{ kind: 'training', id }} title="A tutor, or the academy" /> : null}
-        {!kn ? <button type="button" className="btn small primary" onClick={() => run((w) => knight(w, id))}>Knight them · 300</button> : null}
-        {!aud ? <button type="button" className="btn small" onClick={() => run((w) => holdAudience(w, id))}>Call to an audience</button> : null}
-        {!young ? <B label="Name to the council ›" to={{ kind: 'council' }} /> : null}
-        {!young ? <B label="Make ambassador ›" to={{ kind: 'embassies' }} /> : null}
-        {isMilitary(world, c) || fightScore(c) >= 10 ? <B label="Enter in a tourney ›" to={{ kind: 'grounds' }} /> : null}
-        {isMilitary(world, c) ? <B label="Knights & challenges ›" to={{ kind: 'knights' }} /> : null}
-        <button type="button" className="btn small" aria-pressed={ask} onClick={() => setAsk(!ask)}>Ask the council</button>
+    <Panel title="Decisions" aside="right-click any name for these" className="span-12">
+      <div className="body decisions">
+        {GROUPS.map((g) => {
+          const items = all.filter((d) => d.group === g);
+          if (!items.length) return null;
+          return (
+            <div key={g} className="dec-col">
+              <div className="pm-group">{g === 'Sheet' ? 'Their sheet' : g}</div>
+              {items.map((d) => item(d))}
+              {g === 'Court' && own ? <button type="button" className="pm-item" aria-expanded={ask} onClick={() => setAsk(!ask)}><span className="pm-label">Ask the council {ask ? '▾' : '▸'}</span><span className="pm-note">what each seat thinks of them</span></button> : null}
+            </div>
+          );
+        })}
       </div>
       {ask ? <div className="body" style={{ paddingTop: 0 }}><CouncilViews id={id} /></div> : null}
-      {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
+      {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : done ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>✓ {done}</p> : null}
     </Panel>
   );
 }
