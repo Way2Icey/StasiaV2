@@ -5,6 +5,7 @@ import { Rng } from './rng';
 import { addEvents, fireStage, type Ctx, type EventDef } from './events';
 import { econ, netPerPhase, phaseLedger, sellPrice, tradeInPlace, record } from './economy';
 import { debtOf, loansOf, openLoan, settleLoanInPlace } from './loans';
+import { nudgePrices } from './exchange';
 import { startStruggle, pushStruggle, endStruggle } from './story';
 import { openStruggles } from './storystate';
 import { logRecord } from './records';
@@ -80,7 +81,7 @@ export function maybeCrash(w: World, rng: Rng): void {
   if (!rng.chance(0.06)) return;
   e.crash = { at: now, stage: 1 };
   for (const g of GOODS) addShock(w, { good: g, mult: 0.7, until: now + CYCLES_PER_ORBIT * 4, cause: 'the crash' });
-  for (const g of GOODS) w.economy.market[g].price = Math.round(w.economy.market[g].price * 0.75 * 100) / 100;
+  nudgePrices(w, 0.75);
   fireStage(w, rng, 'x5:floor', {});
 }
 
@@ -91,7 +92,7 @@ export function advanceCrash(w: World, rng: Rng): void {
   const now = absoluteCycle(w.date);
   if (c.stage === 1 && now - c.at >= CYCLES_PER_PHASE * 2) {
     c.stage = 2;
-    for (const g of GOODS) { addShock(w, { good: g, mult: 0.65, until: now + CYCLES_PER_ORBIT * 2, cause: 'the crash, deepening' }); w.economy.market[g].price = Math.round(w.economy.market[g].price * 0.8 * 100) / 100; }
+    for (const g of GOODS) { addShock(w, { good: g, mult: 0.65, until: now + CYCLES_PER_ORBIT * 2, cause: 'the crash, deepening' }); nudgePrices(w, 0.8, g); }
     // Creditors call in their loans, ours and everyone's.
     for (const l of Object.values(w.loans.loans)) if (l.status === 'active' || l.status === 'extended') { const soon = addCycles(w.date, CYCLES_PER_ORBIT); if (absoluteCycle(soon) < absoluteCycle(l.due)) l.due = soon; }
     const asker = Object.values(w.houses).filter((h) => h.id !== w.playerHouseId).sort((a, b) => econ(w, a.id).stock.othes - econ(w, b.id).stock.othes)[0];
@@ -114,7 +115,7 @@ const crashDefs: EventDef[] = [
       { label: 'Sell what we can before it falls further', hint: 'cash now; buy back later', resolve: (c) => { let got = 0; for (const g of GOODS) { const n = Math.floor(econ(c.world, c.house).stock[g] * 0.6); if (n > 0) { got += sellPrice(c.world, g) * n; tradeInPlace(c.world, c.house, g, -n); } } c.fx.say(`We sell into the fall for ${fmt(got)} othes`); } },
       { label: 'Hold and wait', resolve: (c) => c.fx.say('We sit on our stores') },
       { label: 'Buy the ruin cheap', hint: 'a third of the coffers into goods', check: { who: (c) => seat(c, 'steward'), stats: ['stewardship', 'intellect'], dc: 12 },
-        resolve: (c, ok) => { const budget = econ(c.world, c.house).stock.othes / 3; const pick: Good[] = ok ? ['navisium', 'components'] : ['provisions', 'metals']; for (const g of pick) { const n = Math.floor(budget / 2 / c.world.economy.market[g].price); if (n > 0) tradeInPlace(c.world, c.house, g, n); } c.fx.say(ok ? 'The Steward buys what will come back hardest' : 'The Steward buys, but not wisely'); } },
+        resolve: (c, ok) => { const budget = econ(c.world, c.house).stock.othes / 3; const pick: Good[] = ok ? ['navisium', 'components'] : ['provisions', 'metals']; for (const g of pick) { const n = Math.floor(budget / 2 / c.world.economy.market[g].price); if (n > 0) tradeInPlace(c.world, c.house, g, n, true); } c.fx.say(ok ? 'The Steward buys what will come back hardest' : 'The Steward buys, but not wisely'); } },
     ],
     fallback: 1,
   },

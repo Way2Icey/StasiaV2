@@ -449,6 +449,8 @@ export interface Economy {
   shocks?: import('./arcs_economy').Shock[];
   /** The last Exchange crash, and how far along it is. */
   crash?: { at: number; stage: 0 | 1 | 2 | 3; asker?: string };
+  /** The regional markets, the orders on them, and the Steward's standing orders (exchange.ts). */
+  exchange?: import('./exchange').ExchangeState;
 }
 
 // ---------------------------------------------------------------- discoveries

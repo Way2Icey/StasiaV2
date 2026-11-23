@@ -52,7 +52,7 @@ export const QUARTER_ECONOMY: Record<string, QuarterEconomy> = {
   'The Unbroken Vault': { flow: { othes: -150 } },
   'Embassy Row': { flow: { othes: -120 } },
   'Citadel Garrison': { flow: { othes: -600, provisions: -60 } },
-  'Starport Nine': { flow: { othes: 2100, fuel: -5 }, takings: true },
+  'Starport Nine': { flow: { othes: 1300, fuel: -5 }, takings: true },
   'The Cargo Yards': { flow: { othes: 500 }, takings: true },
   'Ninth Market': { flow: { othes: 600 }, takings: true },
   'Shipwright Annex': { flow: { othes: -150, metals: -20 } },
@@ -91,7 +91,7 @@ export const QUARTER_ECONOMY: Record<string, QuarterEconomy> = {
  * mines. What one lacks another has, so they trade, and what they ship can be taken.
  */
 export const ESTATES: Record<string, Flow> = {
-  torvann: { othes: 1900, metals: 240, provisions: 120, fuel: -40, navisium: -20, components: -8 },
+  torvann: { othes: 1900, metals: 240, provisions: 220, fuel: 0, navisium: -20, components: -8 },
   serath: { othes: 1400, provisions: 60, fuel: -60, components: 8, navisium: -15, metals: -40 },
   shaaliin: { othes: 900, provisions: 420, components: 12, metals: -60, fuel: -15, navisium: -10 },
 };

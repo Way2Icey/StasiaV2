@@ -1027,7 +1027,7 @@ function fineInPlace(w: World, ship: Ship, byCouncil = false, onTheSpot = false)
   const found = contraband(ship).filter((c) => c.found);
   const P = w.playerHouseId;
   const value = found.reduce((s, c) => s + (c.good ? c.qty * BASE_PRICE[c.good] : 150), 0);
-  const fine = Math.max(100, Math.round(value * 0.6));
+  const fine = Math.max(100, Math.round(value * 0.35));
   record(w, P, { resource: 'othes', amount: fine, label: `Fine: ${ship.name}`, kind: 'port', sectorId: ship.sectorId });
   for (const c of found) if (c.good) { record(w, P, { resource: c.good, amount: c.qty, label: `Seized from ${ship.name}`, kind: 'port', sectorId: ship.sectorId }); c.qty = 0; }
   if (!found.length && w.houses[ship.flag]) shiftRelation(w, ship.flag, P, -4);

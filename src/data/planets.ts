@@ -60,7 +60,7 @@ export const SLICE_PLANETS: PlanetSeed[] = [
         peoples: { doven: 38, gholari: 22, fokari: 15, serathi: 10, thessari: 8, shaaliin: 7 },
         description: 'Alerion’s busiest port and its poorest district. Most of the house’s trade passes through here, and so do most of its smugglers.',
         quarters: [
-          { name: 'Starport Nine', kind: 'Trade', gives: '+2,100 othes per Phase · 4 heavy berths', overseerRole: 'Harbourmaster' },
+          { name: 'Starport Nine', kind: 'Trade', gives: '+1,300 othes per Phase · 4 heavy berths', overseerRole: 'Harbourmaster' },
           { name: 'The Cargo Yards', kind: 'Logistics', gives: 'Trade throughput +30%', overseerRole: 'Yard Foreman' },
           { name: 'The Stacks', kind: 'Housing', gives: '120,000 residents' },
           { name: 'Ninth Market', kind: 'Commerce', gives: '+600 othes per Phase · black market suspected' },
