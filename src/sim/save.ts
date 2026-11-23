@@ -22,6 +22,7 @@ import { ensureGrounds } from './grounds';
 import { ensureLadder } from './ladder';
 import { ensureTreasury } from './treasury';
 import { ensureLanes } from './lanes';
+import { ensureRealm } from './houses';
 import './eventDefs';
 
 export const SAVE_VERSION = 11;
@@ -115,5 +116,6 @@ export function deserialize(text: string): World {
   ensureLadder(world);
   ensureTreasury(world);
   ensureLanes(world);
+  ensureRealm(world);
   return world;
 }

@@ -1,13 +1,16 @@
+import { HouseDealings, HousesOverview, PoachPanel } from './realm';
 import { CalendarPanel } from './calendar';
-import { PersonActions } from './sections';
+import { DecisionsPanel } from './sections';
+import { doingNow } from './decisions';
+import { barsOf, DISLIKE_TIERS, LIKE_TIERS, tierOf } from '../sim/relationships';
 import { TiesPanel } from './relations';
 import { WantsPanel } from './ambitions';
-import { CareerPanel, Followed, PinButton } from './careers';
+import { CareerPanel, Followed } from './careers';
 import { CrucibleGlance } from './crucible';
 import { SectorHoldings } from './holdings';
 import { EmbassyPanel, OurCourtEmbassies } from './embassies';
 import { useMemo, useState } from 'react';
-import { RaidPanel, WatchButton } from './ports';
+import { RaidPanel } from './ports';
 import { Portrait } from './portrait';
 import { QuarterTerm, StatTerm, Term } from './tip';
 import { absoluteCycle } from '../sim/time';
@@ -230,6 +233,16 @@ export function CharacterPage({ id }: { id: string }) {
   const entry = knowledgeOf(world, world.playerHouseId, c.id);
   const trueNameKnown = reveal || c.flags.some((f) => f.id === 'trueNameKnown' && f.knownBy?.includes(world.playerHouseId));
   const res = v.resonance;
+  const now = doingNow(world, c);
+  const lordId = world.houses[world.playerHouseId]?.rulerId;
+  const toward = (() => {
+    if (!c.alive || !lordId || c.id === lordId || (!own && v.depth < KNOW.exact / 2)) return null;
+    const b = barsOf(world, c.id, lordId);
+    const like = tierOf(b.like, LIKE_TIERS);
+    const dis = tierOf(b.dislike, DISLIKE_TIERS);
+    if (!like && !dis) return own ? 'no strong feeling' : null;
+    return `${[like, dis].filter(Boolean).join(', but ').toLowerCase()} · like ${Math.round(b.like)}, dislike ${Math.round(b.dislike)}`;
+  })();
 
   const statCell = (r: [number, number]) => {
     const mid = (r[0] + r[1]) / 2;
@@ -256,6 +269,13 @@ export function CharacterPage({ id }: { id: string }) {
               House <HouseLink id={c.houseId} /> · <SpeciesLink id={c.species} /> · age {ageOf(c, world.date)} · {family.ruling ? 'ruling ' : family.high ? 'high ' : ''}family <FamilyLink id={family.id} />
               {c.tier === 'minor' ? ' · minor named' : ''}
             </span>
+            {now || toward ? (
+              <span style={{ fontSize: 12 }}>
+                {now ? <><span className="eyebrow" style={{ marginRight: 8 }}>Now</span>{now}</> : null}
+                {now && toward ? <span className="muted"> · </span> : null}
+                {toward ? <><span className="eyebrow" style={{ marginRight: 8 }}>Toward you</span>{toward}</> : null}
+              </span>
+            ) : null}
             <div className="chips">
               {v.traits.length === 0 && v.hiddenTraits === 0 ? <span className="muted" style={{ fontSize: 12 }}>No notable traits</span> : null}
               {v.traits.map((t, i) => <TraitChip key={t.id + i} t={t} />)}
@@ -275,6 +295,7 @@ export function CharacterPage({ id }: { id: string }) {
           </div>
         </section>
       ) : null}
+      {own && v.depth >= KNOW.exact && !beingInvestigated ? null : (
       <section className="panel knowledge">
         <div className="body" style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180, flex: 1 }}>
@@ -298,18 +319,15 @@ export function CharacterPage({ id }: { id: string }) {
               <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn primary">Investigate</Go>
             )
           ) : null}
-          {c.alive && !own ? <WatchButton id={c.id} /> : null}
-          <Go to={{ kind: 'log', person: c.id }} className="btn">Full record</Go>
-          <Go to={{ kind: 'people', focus: c.id }} className="btn">Ties</Go>
-          <PinButton id={c.id} />
           {c.alive && own && v.depth < KNOW.exact && c.seat !== 'highroy' ? (
             beingInvestigated ? null : <Go to={{ kind: 'plan', mission: 'investigate', target: c.id }} className="btn">Look into them</Go>
           ) : null}
         </div>
       </section>
+      )}
 
       <div className="grid">
-        <PersonActions id={c.id} />
+        <DecisionsPanel id={c.id} />
         <div className="span-8 stack">
         <section className="panel">
           <header><h3>Attributes</h3><span className="aside">1–20 · <span className="gold">17+</span> · <span style={{ color: 'var(--blue)' }}>13–16</span> · 8–12 · <span style={{ color: 'var(--orange)' }}>≤7</span></span></header>
@@ -409,6 +427,7 @@ export function HousesPage() {
       <Title title="Houses" sub="The four houses of the vertical slice." />
       <div className="actions" style={{ marginBottom: 12 }}><Go to={{ kind: 'crucible' }} className="btn primary">The Crucible ›</Go></div>
       <div className="grid">
+        <HousesOverview className="span-12" />
         {Object.values(world.houses).map((h) => {
           const r = ruler(world, h.id);
           return (
@@ -425,6 +444,7 @@ export function HousesPage() {
             </Panel>
           );
         })}
+        <PoachPanel className="span-12" />
       </div>
     </>
   );
@@ -450,6 +470,7 @@ export function HousePage({ id }: { id: string }) {
         </div>
       ) : null}
       <div className="grid">
+        <HouseDealings id={h.id} className="span-12" />
         <StandingPanel houseId={h.id} className="span-6" />
         <AnnalsPanel houseId={h.id} className="span-6" />
         <EmbassyPanel houseId={h.id} className="span-12" />

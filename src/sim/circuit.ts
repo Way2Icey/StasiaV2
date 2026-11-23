@@ -10,7 +10,7 @@ import { econ, record } from './economy';
 import { logRecord } from './records';
 import { shiftMood } from './mood';
 import { shiftRelation } from './relations';
-import { bondOf, opinion, setBond, shiftOpinion, tieOf } from './relationships';
+import { bondOf, meet, opinion, setBond, shiftOpinion, tieOf } from './relationships';
 import { kill } from './death';
 import { addGlory, willOf } from './ambitions';
 import { award, tally, titlesOf } from './careers';
@@ -338,6 +338,11 @@ function resolve(world: World, rng: Rng, e: CircuitEvent) {
     const k = x.id!;
     const share = e.kind === 'underground' ? Math.round(e.purse * (winsBy[k] ?? 0) / total) : e.winner === k ? e.purse : 0;
     if (share && x.houseId && world.houses[x.houseId]) { record(world, x.houseId, { resource: 'othes', amount: share, label: `Winnings at ${e.name}`, kind: 'court' }); purse[k] = share; }
+  }
+  // The house's fighters on the same card: the road together makes friends, or does not.
+  for (const h of new Set(e.entrants.map((x) => x.houseId).filter((h): h is string => !!h))) {
+    const ours = e.entrants.filter((x) => x.houseId === h && x.id).map((x) => x.id!);
+    if (ours.length >= 2) meet(world, rng, ours, `the ${e.kind === 'underground' ? 'pits' : 'circuit'}`, ours.includes(e.winner ?? '') ? 0.5 : 0, 0.8);
   }
   // Home again.
   for (const x of e.entrants) { const c = x.id ? world.characters[x.id] : undefined; if (c) c.flags = c.flags.filter((f) => f.id !== 'circuit'); }

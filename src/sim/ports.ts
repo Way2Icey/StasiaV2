@@ -2,6 +2,7 @@
 // comes from something the world is doing (trade, a rival's mission, a
 // smuggler's run, raiders scouting a target) and the house sees only what its
 // harbourmaster, customs and agents find out.
+import { meet } from './relationships';
 import { raidOdds } from './lanes';
 import { noticeYouth } from './prospects';
 import { baseStrength, imprison, listeningOn } from './holdings';
@@ -866,14 +867,15 @@ function strike(world: World, rng: Rng, raid: Raid) {
     tell(world, 'world', `The corsairs took their tribute and passed ${s?.name} by.`, undefined, { type: 'raid', severity: 1, placeId: raid.sectorId, effects: [`Tribute ${tributeFor(raid).toLocaleString('en-US')} othes`, 'Respect −2'] });
     return;
   }
-  const defence = (raid.answer === 'muster' ? defenceOf(world, raid.sectorId) : Math.round(defenceOf(world) * 0.35) + fleetDefence(world, raid.sectorId)) + baseStrength(world, raid.sectorId);
+  // Every sector keeps a watch of its own (15); mustered knights fight in full, otherwise about half turn out.
+  const defence = 15 + (raid.answer === 'muster' ? defenceOf(world, raid.sectorId) : Math.round(defenceOf(world) * 0.5) + fleetDefence(world, raid.sectorId)) + baseStrength(world, raid.sectorId);
   const roll = defence + rng.gauss() * 8 - raid.strength;
   const knights = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.role === 'Knight' && !isAway(world, c.id));
   if (roll >= 0) {
     house.standing.dread = Math.min(100, house.standing.dread + 3);
     if (raid.answer === 'muster') house.standing.honour = Math.min(100, house.standing.honour + 1);
     for (const k of knights) shiftMood(k, 3);
-    if (raid.answer === 'muster') for (const k of knights) tally(world, k.id, 'raidsRepelled');
+    if (raid.answer === 'muster') { for (const k of knights) tally(world, k.id, 'raidsRepelled'); meet(world, rng, rng.shuffle([...knights]).slice(0, 6).map((k) => k.id), 'holding the walls', 0.7); }
     raid.result = `Driven off at ${s?.name}. Dread +3.`;
     tell(world, 'world', `The corsairs struck ${s?.name} and were driven off${raid.answer === 'muster' ? ' by the mustered knights' : ' by the sector watch'}.`, undefined, {
       type: 'fight', severity: 2, placeId: raid.sectorId, who: knights.map((k) => ({ id: k.id, part: raid.answer === 'muster' ? 'fought' : 'at home' })),
@@ -882,9 +884,9 @@ function strike(world: World, rng: Rng, raid: Raid) {
     // In the thick of it, someone young may have shown what they are.
     if (s && rng.chance(0.3)) { const pl = Object.values(world.planets).find((x) => x.sectors.some((y) => y.id === raid.sectorId)); if (pl) noticeYouth(world, rng, pl.id, raid.sectorId, 'raid'); }
   } else {
-    const loss = Math.min(econ(world, P).stock.othes, raid.strength * 60);
+    const loss = Math.max(0, Math.min(econ(world, P).stock.othes, raid.strength * 60));
     record(world, P, { resource: 'othes', amount: -loss, label: `Raid on ${s?.name ?? 'a sector'}`, kind: 'raid', sectorId: raid.sectorId });
-    const food = Math.min(econ(world, P).stock.provisions, raid.strength * 4);
+    const food = Math.max(0, Math.min(econ(world, P).stock.provisions, raid.strength * 4));
     record(world, P, { resource: 'provisions', amount: -food, label: `Raid on ${s?.name ?? 'a sector'}`, kind: 'raid', sectorId: raid.sectorId });
     if (s) { s.unrest = Math.min(100, s.unrest + 10); s.population = Math.max(0, s.population - raid.strength * 30); }
     house.standing.respect = Math.max(0, house.standing.respect - 2);
@@ -944,7 +946,7 @@ export function advancePorts(world: World, rng: Rng, phaseTurned: boolean): void
   if (phaseTurned) {
     if (!ps.raids.some((r) => r.status !== 'over')) {
       const patrol = world.courts[world.playerHouseId]?.tasks.grandMaster?.task === 'patrol';
-      if (rng.chance((patrol ? 0.06 : 0.12) * raidOdds(world))) newRaid(world, rng);
+      if (rng.chance((patrol ? 0.03 : 0.06) * raidOdds(world))) newRaid(world, rng);
     }
     for (const port of Object.values(ps.ports)) { port.last = port.tally; port.tally = emptyTally(); }
     tendPosts(world, rng);

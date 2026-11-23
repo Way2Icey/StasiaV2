@@ -2,6 +2,7 @@
 // the Reaches (a raid, a resonance storm, a reactor venting, a riot), somebody young does something
 // remarkable in it, and if the house has eyes there, someone of ours sees it and comes asking.
 // Real promise makes a youngster likelier to be in the middle of such a thing, and to be seen.
+import { pipeline } from './ladder';
 import { Rng } from './rng';
 import { displayName, shortName } from './names';
 import { SPECIES } from '../data/species';
@@ -136,6 +137,8 @@ export function noticeYouth(world: World, rng: Rng, planetId: string, sectorId: 
   // Promise first: most of those caught up in it are nobody in particular.
   const potential = clamp(Math.round(6 + rng.next() * 9 + rng.next() * 6), 1, 20);
   if (!rng.chance((potential / 20) ** 3)) return null;
+  // The house only goes looking when it is short of young people coming up; a rare talent is noticed anyway.
+  if (pipeline(world).short <= 0 && potential < 17) return null;
   const eyes = eyesOn(world, rng, planetId, sectorId);
   if (!eyes) return null;
   const c = materialize(world, rng, planetId, sectorId);

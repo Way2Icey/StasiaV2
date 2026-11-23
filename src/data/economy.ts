@@ -84,13 +84,16 @@ export const QUARTER_ECONOMY: Record<string, QuarterEconomy> = {
 };
 
 /**
- * Rival houses own more than their capital, but only capitals are modelled in
- * the slice. Their other holdings send this much home each Phase.
+ * Rival houses own more than their capital, but only capitals are modelled in the slice. Their other
+ * holdings make and use this much each Phase, and each house has its own shape: Torvann is a forge
+ * that cannot feed its monks and soldiers; Serath is a fleet of fast ships always short of fuel and
+ * metal, though its sensor works turn out fine components; Shaaliin's gardens feed half the Reaches and its workshops make fine components, but it has no
+ * mines. What one lacks another has, so they trade, and what they ship can be taken.
  */
 export const ESTATES: Record<string, Flow> = {
-  torvann: { othes: 1500, provisions: 300, metals: 60 },
-  serath: { othes: 700, provisions: 150 },
-  shaaliin: { othes: 800, provisions: 150 },
+  torvann: { othes: 1300, metals: 240, provisions: 120, fuel: -40, navisium: -20, components: -8 },
+  serath: { othes: 1400, provisions: 60, fuel: -60, components: 8, navisium: -15, metals: -40 },
+  shaaliin: { othes: 900, provisions: 420, components: 12, metals: -60, fuel: -15, navisium: -10 },
 };
 
 /** Othes per person per Phase at the normal tax rate. */

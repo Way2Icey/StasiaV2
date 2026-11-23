@@ -10,7 +10,7 @@ import { logRecord } from './records';
 import { isAway } from './court';
 import { shiftMood } from './mood';
 import { shiftRelation } from './relations';
-import { bondOf, opinion, setBond, shiftOpinion } from './relationships';
+import { barsOf, bondOf, opinion, setBond, shiftOpinion } from './relationships';
 import { kill } from './death';
 import { lastingWound, seasoned } from './ladder';
 import { addGlory } from './ambitions';
@@ -209,7 +209,7 @@ function grudges(world: World): [Character, Character, string, boolean][] {
       if (b.houseId !== P && bondOf(world, a.id, b.id) !== 'rival' && bondOf(world, a.id, b.id) !== 'feud' && stungBy(a) !== b.id) continue;
       const bond = bondOf(world, a.id, b.id);
       const o = opinion(world, a.id, b.id);
-      const cause = bond === 'feud' ? 'an old feud' : bond === 'rival' ? 'their rivalry' : stungBy(a) === b.id ? 'wounded pride' : o <= -55 ? 'an insult that will not be let go' : '';
+      const cause = bond === 'feud' ? 'an old feud' : bond === 'rival' ? 'their rivalry' : stungBy(a) === b.id ? 'wounded pride' : barsOf(world, a.id, b.id).dislike >= 75 ? 'pure hatred' : o <= -55 ? 'an insult that will not be let go' : '';
       if (cause) out.push([a, b, cause, b.houseId !== P]);
     }
   }
@@ -232,7 +232,7 @@ export function advanceGrounds(world: World, rng: Rng, phaseTurned: boolean): vo
       const last = g.lastChallenge?.[a.id];
       if (last && now - absoluteCycle(last) < CYCLES_PER_ORBIT * 2) continue;
       // Fire in the blood: the proud and the bold throw down first.
-      const heat = (a.stats.valor + a.hidden.ambition) / 40 + (cause === 'an old feud' ? 0.15 : 0) + (cause === 'wounded pride' ? 0.2 : 0);
+      const heat = (a.stats.valor + a.hidden.ambition) / 40 + (cause === 'an old feud' ? 0.15 : 0) + (cause === 'wounded pride' ? 0.2 : 0) + (cause === 'pure hatred' ? 0.25 : 0);
       if (!rng.chance(0.045 * heat)) continue;
       g.challenges.push({ id: `ch${world.nextId++}`, challenger: a.id, challenged: b.id, cause, foreign, expires: addCycles(world.date, CYCLES_PER_PHASE) });
       g.lastChallenge![a.id] = world.date;

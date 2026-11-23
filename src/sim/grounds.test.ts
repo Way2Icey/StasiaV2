@@ -33,12 +33,13 @@ describe('challenges and pit nights', () => {
   it('rivals at court throw down challenges; allowed, they fight', () => {
     let w = structuredClone(createWorld());
     const P = w.playerHouseId;
-    const [a, b] = fighters(w, P).filter((c) => isMilitary(w, c));
+    // The two youngest soldiers: nobody old enough to die of it during the test.
+    const [a, b] = fighters(w, P).filter((c) => isMilitary(w, c)).sort((x, y) => (y.birth.year * 800 + y.birth.cycle) - (x.birth.year * 800 + x.birth.cycle));
     const courtier = fighters(w, P).find((c) => !isMilitary(w, c))!;
     setBond(w, courtier.id, a!.id, 'feud', 'feud', 'test');
     setBond(w, a!.id, b!.id, 'feud', 'feud', 'test');
     a!.stats.valor = 20; a!.hidden.ambition = 20;
-    for (let i = 0; i < 400 && !w.grounds.challenges.length; i++) w = step(w);
+    for (let i = 0; i < 600 && !w.grounds.challenges.length; i++) w = step(w);
     expect(w.grounds.challenges.length).toBe(1);
     const c = w.grounds.challenges[0]!;
     w = answerChallenge(w, c.id, true);

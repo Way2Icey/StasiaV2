@@ -14,8 +14,11 @@ import { relation, shiftRelation } from './relations';
 import { seatHolder } from './query';
 import { powerOf, type CapitalShip } from './fleet';
 import { competence } from './reports';
-import { advanceHunts, chronicle, isHostile, leaderFor, replenish, reveal, seedMembers, type CompanyLine, type Hunt, type Member } from './companies';
+import { advanceHunts, informants, chronicle, isHostile, leaderFor, piracyXp, replenish, reveal, seedMembers, HULL, type CompanyLine, type Hunt, type Member } from './companies';
 import { tally } from './careers';
+import { advanceLaneWatch, blockadeStops, noticeConvoy, tipPaid, watchFactor } from './lanewatch';
+import { inspect, runDone, startRuns } from './smuggling';
+import { aimBias, allied, shiftFavour } from './houses';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, CYCLES_PER_YEAR } from './time';
 import { GOODS, RESOURCE_LABEL, type Good } from '../data/economy';
 import type { World } from './types';
@@ -82,6 +85,8 @@ export interface Faction {
   log: CompanyLine[];
   /** Houses that have declared them enemies. */
   hostile: string[];
+  /** Houses whose dealings go through the company's fixer. */
+  goBetween?: string[];
 }
 export const TEMPER_NOTE: Record<Temper, string> = {
   cruel: 'Takes everything and leaves no one. Will not bargain for crews.',
@@ -102,11 +107,23 @@ export interface Deal { id: string; faction: string; house: string; kind: DealKi
 export const PASSAGE = (f: Faction) => Math.round(200 + f.strength * 8);
 export const MARQUE_COST = 2500;
 export const BOUNTY_COST = 1000;
+/** What a dealing costs this house: a fixer working for us takes a third off passage and letters. */
+export function dealCost(world: World, f: Faction, kind: DealKind, house = world.playerHouseId): number {
+  const base = kind === 'passage' ? PASSAGE(f) : kind === 'bounty' ? BOUNTY_COST : MARQUE_COST;
+  return Math.round(base * (kind !== 'bounty' && f.goBetween?.includes(house) ? 0.7 : 1));
+}
 
 export interface Convoy {
   id: string;
   owner: string;
-  kind: 'quota' | 'export' | 'import' | 'ore' | 'compact';
+  kind: 'quota' | 'export' | 'import' | 'ore' | 'compact' | 'smuggle';
+  /** Our people know this rival run is on the lanes. */
+  known?: boolean;
+  /** A company was told where to find it, and by whom. */
+  tipped?: string;
+  tippedBy?: string;
+  /** A smuggler's run: who, what and why. */
+  smuggle?: import('./smuggling').SmuggleRun;
   /** For a run between houses: who bought it (the owner is the seller). */
   buyer?: string;
   good: Good;
@@ -147,6 +164,9 @@ export interface LanesState {
   /** Compacts another house has offered us. */
   offers: CompactOffer[];
   hunts: Hunt[];
+  watches: import('./lanewatch').Watch[];
+  embargoes: import('./lanewatch').Embargo[];
+  smuggleNotes?: import('./smuggling').SmuggleNote[];
 }
 
 export interface Manifest { owner: string; good: Good; qty: number; value: number; /** A sale to a compact partner: they bought it. */ buyer?: string }
@@ -165,10 +185,10 @@ function aiCustoms(world: World, houseId: string): Customs {
 }
 
 export function ensureLanes(world: World): void {
-  world.lanes ??= { convoys: {}, done: [], factions: {}, customs: {}, deals: [], held: [], tally: {}, scars: {}, loading: [], compacts: [], offers: [], hunts: [] };
+  world.lanes ??= { convoys: {}, done: [], factions: {}, customs: {}, deals: [], held: [], tally: {}, scars: {}, loading: [], compacts: [], offers: [], hunts: [], watches: [], embargoes: [] };
   const s = world.lanes;
   s.convoys ??= {}; s.done ??= []; s.factions ??= {}; s.customs ??= {}; s.deals ??= []; s.held ??= []; s.tally ??= {}; s.scars ??= {};
-  s.loading ??= []; s.compacts ??= []; s.offers ??= []; s.hunts ??= [];
+  s.loading ??= []; s.compacts ??= []; s.offers ??= []; s.hunts ??= []; s.watches ??= []; s.embargoes ??= []; s.smuggleNotes ??= [];
   for (const f of FACTIONS) s.factions[f.id] ??= { ...f, haunts: [...f.haunts], rel: {}, members: [], log: [], hostile: [] };
   for (const f of Object.values(s.factions)) { f.log ??= []; f.hostile ??= []; f.members ??= []; seedMembers(world, f); }
   for (const id of Object.keys(world.houses)) {
@@ -199,6 +219,7 @@ export function factionOdds(world: World, f: Faction, lane: Lane, owner: string,
     if (isHostile(world, f, owner)) p *= 1.15;
   }
   p *= Math.pow(0.7, Math.min(3, patrolsOn(world, lane)));
+  p *= watchFactor(world, lane, owner);
   if (quota) p *= 0.5;
   if (escorted) p *= 0.5;
   return p;
@@ -216,18 +237,20 @@ function escortFor(world: World, owner: string): CapitalShip | undefined {
   const busy = new Map<string, number>();
   for (const c of Object.values(world.lanes.convoys)) if (c.escort) busy.set(c.escort, (busy.get(c.escort) ?? 0) + 1);
   return Object.values(world.fleet?.ships ?? {})
-    .filter((s) => s.houseId === owner && s.duty === 'escort' && !s.lost && !s.arrives && !s.ready && !s.crucible && (busy.get(s.id) ?? 0) < 2)
+    .filter((s) => (s.houseId === owner || allied(world, s.houseId, owner)) && s.duty === 'escort' && !s.lost && !s.arrives && !s.ready && !s.crucible && !s.watch && (busy.get(s.id) ?? 0) < 2)
+    .sort((a, b) => (a.houseId === owner ? 0 : 1) - (b.houseId === owner ? 0 : 1))
     .sort((a, b) => (busy.get(a.id) ?? 0) - (busy.get(b.id) ?? 0))[0];
 }
 
-function launch(world: World, rng: Rng, c: Omit<Convoy, 'id' | 'lane' | 'left' | 'arrives' | 'value' | 'escort'> & { value?: number }): Convoy | undefined {
+export function launch(world: World, rng: Rng, c: Omit<Convoy, 'id' | 'lane' | 'left' | 'arrives' | 'value' | 'escort'> & { value?: number }): Convoy | undefined {
   const lane = laneBetween(c.from, c.to);
   if (!lane || c.qty <= 0) return undefined;
   const price = world.economy?.market[c.good]?.price ?? 10;
   const cv: Convoy = { ...c, id: `cv${world.nextId++}`, lane: lane.id, left: world.date, arrives: addCycles(world.date, lane.cycles + rng.int(0, 2) * 2), value: Math.round(c.value ?? c.qty * price) };
   const esc = escortFor(world, c.owner);
-  if (esc) cv.escort = esc.id;
+  if (esc && cv.kind !== 'smuggle') cv.escort = esc.id;
   world.lanes.convoys[cv.id] = cv;
+  noticeConvoy(world, rng, cv);
   return cv;
 }
 
@@ -298,6 +321,7 @@ export function convoyLabel(world: World, c: Convoy): string {
 
 function finish(world: World, c: Convoy, fate: NonNullable<Convoy['fate']>, by?: string, note?: string) {
   c.fate = fate; c.by = by; c.note = note;
+  if (c.smuggle) runDone(world, new Rng(world.rng), c, fate === 'saved' ? 'arrived' : fate, by);
   delete world.lanes.convoys[c.id];
   world.lanes.done.unshift(c);
   world.lanes.done = world.lanes.done.slice(0, 60);
@@ -333,7 +357,8 @@ function steward(world: World) { return seatHolder(world, world.playerHouseId, '
 function pirates(world: World, rng: Rng, c: Convoy, f: Faction, lane: Lane) {
   const P = world.playerHouseId;
   const victim = c.buyer ?? c.owner;
-  const ours = c.owner === P || c.buyer === P;
+  // It is our loss only if the goods were ours when they were taken: a sale to a partner is theirs on the road.
+  const ours = victim === P;
   const where = laneName(world, lane);
   const ship = c.escort ? world.fleet?.ships[c.escort] : undefined;
   const boss = leaderFor(f, rng);
@@ -344,12 +369,13 @@ function pirates(world: World, rng: Rng, c: Convoy, f: Faction, lane: Lane) {
     return boss.known ? `, led by ${boss.name}${boss.ship ? ` of the ${boss.ship}` : ''}` : '';
   };
   if (ship && !ship.lost) {
-    const force = f.strength * 0.5 + (boss ? (boss.skill - 12) * 0.8 : 0) + rng.gauss() * 8;
+    const force = f.strength * 0.4 + (boss ? (boss.skill - 12) * 0.5 + ((boss.tactics ?? 10) - 10) * 0.5 + (boss.crew ?? 40) / 10 + HULL[boss.hull ?? 'raider'].power / 2 : 0) + rng.gauss() * 8;
     const ours2 = powerOf(world, ship) * (isHostile(world, f, ship.houseId) ? 1.25 : 1) + rng.gauss() * 6;
     ship.condition = clamp(ship.condition - rng.int(4, 14), 5, 100);
     if (ours2 >= force) {
       f.strength = clamp(f.strength - 3, 10, 95);
       f.rel[c.owner] = clamp((f.rel[c.owner] ?? 0) - 4, -100, 100);
+      piracyXp(rng, boss, false);
       const cap = ship.captainId ? world.characters[ship.captainId] : undefined;
       if (ours) {
         const by = named(`Beat off by the ${ship.name} on the ${where} lane.`);
@@ -365,7 +391,8 @@ function pirates(world: World, rng: Rng, c: Convoy, f: Faction, lane: Lane) {
     ship.crewMood = clamp(ship.crewMood - 8, 0, 100);
   }
   // Taken.
-  if (boss) boss.takes++;
+  if (boss) { boss.takes++; piracyXp(rng, boss, true); }
+  tipPaid(world, rng, c, f);
   f.hauls += c.value;
   f.strength = clamp(f.strength + 1 + c.value / 6000, 10, 95);
   const label = `Taken by ${f.name} on the ${where} lane`;
@@ -426,6 +453,7 @@ function exposure(world: World, rng: Rng, d: Deal, victim: string) {
   const sharp = victim === P ? competence(world, 'spymaster') : 10;
   if (!rng.chance(0.06 + sharp * 0.006)) return;
   const st = world.houses[d.house]!.standing;
+  shiftFavour(world, d.house, -8);
   st.honour = clamp(st.honour - 4, 0, 100);
   st.respect = clamp(st.respect - 2, 0, 100);
   shiftRelation(world, victim, d.house, -25);
@@ -483,13 +511,20 @@ function arrive(world: World, rng: Rng, c: Convoy) {
     finish(world, c, 'lost', undefined, 'no word');
     return;
   }
-  // Corsairs.
+  // A blockade on the lane.
+  if (blockadeStops(world, rng, c, lane)) return;
+  // Corsairs (a company told where to look is far likelier to find it).
   const factions = Object.values(world.lanes.factions);
-  const odds = factions.map((f) => [f, factionOdds(world, f, lane, c.owner, c.kind === 'quota', !!c.escort)] as const);
+  const odds = factions.map((f) => [f, factionOdds(world, f, lane, c.owner, c.kind === 'quota', !!c.escort) * (c.tipped === f.id ? 4 : 1)] as const);
   const any = 1 - odds.reduce((q, [, p]) => q * (1 - p), 1);
   if (rng.chance(any)) {
     const f = rng.weighted(odds.map(([f, p]) => [f, p] as const));
     pirates(world, rng, c, f, lane);
+    return;
+  }
+  if (c.kind === 'smuggle') {
+    if (inspect(world, rng, c, (h) => world.lanes.customs[h] ?? 'fair')) { finish(world, c, 'seized', world.planets[c.to]?.houseId, 'caught by customs'); return; }
+    finish(world, c, 'arrived');
     return;
   }
   if (customsAt(world, rng, c)) return;
@@ -529,7 +564,7 @@ function compactsOrbit(world: World, rng: Rng) {
   for (let i = 0; i < hs.length; i++) for (let j = i + 1; j < hs.length; j++) {
     const a = hs[i]!, b = hs[j]!;
     if (a === P || b === P || compactOf(world, a, b)) continue;
-    if (relation(world, a, b) >= 20 && relation(world, b, a) >= 20 && rng.chance(0.15)) signCompact(world, a, b, '');
+    if (relation(world, a, b) >= 20 && relation(world, b, a) >= 20 && !world.lanes.embargoes?.some((e) => (e.by === a && e.against === b) || (e.by === b && e.against === a)) && rng.chance(0.15 * Math.max(aimBias(world, a, 'wealth'), aimBias(world, a, 'alliance', b)))) signCompact(world, a, b, '');
   }
   // Someone who thinks well of us may offer.
   s.offers = s.offers.filter((o) => absoluteCycle(o.expires) > absoluteCycle(world.date));
@@ -546,6 +581,7 @@ export function cannotPropose(world: World, h: string): string | null {
   const P = world.playerHouseId;
   if (!world.houses[h] || h === P) return 'Choose a house.';
   if (compactOf(world, P, h)) return 'We already have one.';
+  if (world.lanes.embargoes?.some((e) => (e.by === P && e.against === h) || (e.by === h && e.against === P))) return 'Not while an embargo stands between us.';
   const r = relation(world, h, P);
   if (r < 10) return `They will not: their regard for us is too low (${Math.round(r)}; they want 10).`;
   return null;
@@ -598,7 +634,7 @@ function orbitly(world: World, rng: Rng) {
   for (const d of [...s.deals]) {
     const f = s.factions[d.faction]!;
     if (d.kind === 'passage' || d.kind === 'bounty') {
-      const cost = d.kind === 'passage' ? PASSAGE(f) : BOUNTY_COST;
+      const cost = dealCost(world, f, d.kind, d.house);
       const e = econ(world, d.house);
       if (e.stock.othes < cost) {
         s.deals = s.deals.filter((x) => x !== d);
@@ -626,12 +662,14 @@ function orbitly(world: World, rng: Rng) {
     if (cu === 'blind' && rng.chance(0.06)) {
       const st = world.houses[h]!.standing;
       st.honour = clamp(st.honour - 2, 0, 100);
-      if (h === P) logRecord(world, { kind: 'world', type: 'politics', severity: 1, seat: 'envoy', houseIds: [P], text: 'Talk in the Numarade: corsair cargo is being sold on our docks. They are not wrong.', effects: ['Honour −2'] });
+      shiftFavour(world, h, -4);
+      if (h === P) logRecord(world, { kind: 'world', type: 'politics', severity: 1, seat: 'envoy', houseIds: [P], text: 'Talk in the Numarade: corsair cargo is being sold on our docks. They are not wrong.', effects: ['Honour −2', 'The Numarade\'s favour falls'] });
     }
     if (cu === 'strict' && rng.chance(0.08)) world.houses[h]!.standing.honour = clamp(world.houses[h]!.standing.honour + 1, 0, 100);
   }
   aiLanes(world, rng);
   companyWord(world, rng);
+  informants(world, rng);
 }
 
 /** The other houses answer their losses: buy passage, put up a bounty, or turn the companies on their enemies. */
@@ -652,7 +690,7 @@ function aiLanes(world: World, rng: Rng) {
     }
     // Letters against an enemy, now and then.
     const enemies = Object.keys(world.houses).filter((o) => o !== h.id && relation(world, h.id, o) < -50);
-    if (enemies.length && h.personality.aggression + h.personality.intrigue > 1 && e.stock.othes > MARQUE_COST * 3 && rng.chance(0.04)) {
+    if (enemies.length && h.personality.aggression + h.personality.intrigue > 1 && e.stock.othes > MARQUE_COST * 3 && rng.chance(0.04 * aimBias(world, h.id, 'revenge'))) {
       const target = rng.pick(enemies);
       const f = Object.values(s.factions).filter((x) => (x.rel[h.id] ?? 0) > -20).sort((a, b) => b.strength - a.strength)[0];
       if (f && !s.deals.some((d) => d.kind === 'marque' && d.house === h.id && d.target === target)) {
@@ -728,7 +766,8 @@ export function advanceLanes(world: World, rng: Rng, phaseTurned: boolean, orbit
   ensureLanes(world);
   const now = absoluteCycle(world.date);
   for (const c of Object.values(world.lanes.convoys)) if (absoluteCycle(c.arrives) <= now) arrive(world, rng, c);
-  if (orbitTurned) { shipQuotas(world, rng); orbitly(world, rng); compactsOrbit(world, rng); for (const f of Object.values(world.lanes.factions)) replenish(world, rng, f); }
+  if (orbitTurned) { shipQuotas(world, rng); orbitly(world, rng); compactsOrbit(world, rng); for (const f of Object.values(world.lanes.factions)) replenish(world, rng, f); startRuns(world, rng, (c) => launch(world, rng, c)); }
+  advanceLaneWatch(world, rng, phaseTurned, orbitTurned);
   if (phaseTurned) { generate(world, rng); aiRansoms(world, rng); }
   ship(world, rng);
   advanceHunts(world, rng);
@@ -741,7 +780,8 @@ export function raidOdds(world: World): number {
   const fs = Object.values(world.lanes?.factions ?? {});
   if (!fs.length) return 1;
   const avg = fs.reduce((n, f) => n + (f.rel[P] ?? 0), 0) / fs.length;
-  return avg >= 40 ? 0.6 : avg >= 15 ? 0.85 : avg <= -40 ? 1.4 : avg <= -15 ? 1.15 : 1;
+  const watched = (world.lanes?.watches ?? []).some((w) => w.house === P);
+  return (avg >= 40 ? 0.6 : avg >= 15 ? 0.85 : avg <= -40 ? 1.4 : avg <= -15 ? 1.15 : 1) * (watched ? 0.8 : 1);
 }
 
 // ---------------------------------------------------------------- the Highroy's hand
@@ -764,7 +804,7 @@ export function cannotDeal(world: World, factionId: string, kind: DealKind, targ
   const f = world.lanes?.factions[factionId];
   if (!f) return 'No such company.';
   const othes = econ(world, P).stock.othes;
-  const cost = kind === 'passage' ? PASSAGE(f) : kind === 'bounty' ? BOUNTY_COST : MARQUE_COST;
+  const cost = dealCost(world, f, kind);
   if (othes < cost) return `Needs ${fmt(cost)} othes.`;
   if (kind !== 'marque' && dealOf(world, factionId, P, kind)) return 'Already in place.';
   if (kind === 'passage' && dealOf(world, factionId, P, 'bounty')) return 'Not while we have a bounty on them.';
@@ -784,7 +824,7 @@ export function makeDeal(input: World, factionId: string, kind: DealKind, target
   return act(input, (w) => {
     const P = w.playerHouseId;
     const f = w.lanes.factions[factionId]!;
-    const cost = kind === 'passage' ? PASSAGE(f) : kind === 'bounty' ? BOUNTY_COST : MARQUE_COST;
+    const cost = dealCost(w, f, kind);
     record(w, P, { resource: 'othes', amount: -cost, label: kind === 'passage' ? `Passage money: ${f.name}` : kind === 'bounty' ? `Bounty on ${f.name}` : `Letters to ${f.name}`, kind: 'raid' });
     w.lanes.deals.push({ id: `dl${w.nextId++}`, faction: factionId, house: P, kind, target, since: w.date });
     f.rel[P] = clamp((f.rel[P] ?? 0) + (kind === 'passage' ? 5 : kind === 'marque' ? 8 : -20), -100, 100);

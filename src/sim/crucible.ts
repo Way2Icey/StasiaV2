@@ -4,6 +4,7 @@
 // The houses fight over the battle world's locations and the prizes in them. The battles are real:
 // men die, knights are wounded and some do not come home. It costs money, supplies, a ship and people,
 // and it is one avenue among many: a house is not drawn every year.
+import { shiftFavour } from './houses';
 import { lastingWound, seasoned } from './ladder';
 import { fundedEdge } from './treasury';
 import { Rng } from './rng';
@@ -15,7 +16,7 @@ import { logRecord } from './records';
 import { isAway } from './court';
 import { shiftMood } from './mood';
 import { shiftRelation } from './relations';
-import { shiftBoth, shiftOpinion } from './relationships';
+import { meet, shiftBoth, shiftOpinion } from './relationships';
 import { kill } from './death';
 import { addGlory } from './ambitions';
 import { award, tally } from './careers';
@@ -805,6 +806,7 @@ function finish(w: World, rng: Rng) {
   }
   const winC = cr.contingents[champ];
   const year = cr.year;
+  if (w.houses[champ]) shiftFavour(w, champ, 6);
   let heroId: string | undefined;
   let heroName: string | undefined;
   if (winC && !winC.skill) {
@@ -822,9 +824,10 @@ function finish(w: World, rng: Rng) {
     detail: order.map((h, i) => `${i + 1}. ${shortHouse(w, h)}: ${cr.table[h]!.held} held, ${cr.table[h]!.won}–${cr.table[h]!.lost}, ${cr.table[h]!.menLost} men lost`).join('\n'),
     houseIds: cr.entrants.filter((h) => w.houses[h]), who: heroId ? [{ id: heroId, part: 'Hero of the Crucible' }] : [],
   });
-  // Everyone comes home.
+  // Everyone comes home, closer or further apart for the campaign.
   for (const h of cr.entrants) {
     const c = cr.contingents[h];
+    if (h === w.playerHouseId) meet(w, rng, contingentPeople(c), 'the Crucible campaign', order[0] === h ? 1 : order.indexOf(h) < order.length / 2 ? 0.3 : -0.4, 1.2);
     for (const id of contingentPeople(c)) { const p = w.characters[id]; if (p) p.flags = p.flags.filter((f) => f.id !== 'crucible'); }
     const s = c?.shipId ? w.fleet?.ships[c.shipId] : undefined;
     if (s) { delete s.crucible; s.condition = Math.max(30, s.condition - 10); }

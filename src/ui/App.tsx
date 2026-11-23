@@ -1,5 +1,7 @@
+import { PersonMenuLayer, Toast } from './personmenu';
+import { RenownPage } from './realm';
 import { VERSION } from '../version';
-import { useEffect, useMemo, useRef, useState , Fragment } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { Term } from './tip';
 import { GlossaryPage } from './glossary';
 import { createWorld } from '../sim/world';
@@ -12,7 +14,7 @@ import { superiorOf } from '../sim/query';
 import { SPECIES } from '../data/species';
 import { traitLabel } from '../data/traits';
 import type { World } from '../sim/types';
-import { GameContext, HoverContext, NavContext, WorldContext, type Game, type Hover, type Nav } from './context';
+import { GameContext, HoverContext, PersonMenuContext, NavContext, WorldContext, type Game, type Hover, type Nav } from './context';
 import { seenBy } from './fog';
 import { MissionPage, MissionsPage, PlanPage } from './missions';
 import { CouncilPage } from './council';
@@ -31,7 +33,7 @@ import { LanesPage } from './lanes';
 import { BuildPage, EmbassiesPage, FleetPage, KnightsPage, LoansPage, railCount, SubTabs, VaultsPage } from './sections';
 import { CommandBar } from './command';
 import { ShipPage } from './fleet';
-import { routeLabel, sameRoute, sectionOf, SECTIONS, type Route } from './router';
+import { routeLabel, sameRoute, sectionOf, SECTIONS, SUBTABS, type Route } from './router';
 import { AUTOSAVE, storage } from './storage';
 import {
   BandPage, CharacterPage, FamilyPage, FlagPage, HousePage, HousesPage, PlanetPage,
@@ -115,17 +117,30 @@ export function App() {
     },
   }), []);
 
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<number>(0);
+  const personMenu = useMemo(() => ({ open: (id: string, x: number, y: number) => { setHovered(null); setMenu({ id, x, y }); } }), []);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const done = useCallback((m: string) => { setToast(m); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(null), 2600); }, []);
   const game: Game = useMemo(() => ({ update: (fn) => setWorld((w) => fn(w)), reveal, setReveal }), [reveal]);
 
   const parts = dateParts(world.date);
   const house = world.houses[world.playerHouseId]!;
   const section = sectionOf(current);
-  const trail = history.stack.slice(Math.max(0, history.index - 4), history.index);
+  // Where you are, not where you have been: section › page › the thing you are looking at.
+  const secDef = SECTIONS.find((x) => x.id === section);
+  const tab = section ? SUBTABS[section]?.find((t) => t.on(current)) : undefined;
+  const here = routeLabel(world, current);
+  const crumbs: { label: string; to?: Route }[] = [];
+  if (secDef) crumbs.push({ label: secDef.label.charAt(0) + secDef.label.slice(1).toLowerCase(), to: secDef.home });
+  if (tab && tab.label !== here) crumbs.push({ label: tab.label, to: tab.to });
 
   return (
     <WorldContext.Provider value={world}>
       <NavContext.Provider value={nav}>
         <HoverContext.Provider value={hover}>
+        <PersonMenuContext.Provider value={personMenu}>
           <GameContext.Provider value={game}>
           <div className="app">
             <header className="topbar">
@@ -170,26 +185,27 @@ export function App() {
                 })}
                 <button type="button" className="utility" onClick={() => setCommand(true)} title="Find anything, do anything"><span className="key" aria-hidden="true">[/]</span>COMMAND</button>
               </nav>
-              <main className="main" ref={mainRef} onScroll={() => setHovered(null)}>
-                {trail.length > 0 ? (
-                  <nav className="trail" aria-label="Recently viewed">
-                    {trail.map((r, i) => (
-                      <span key={i}>
-                        <button type="button" className="linklike" onClick={() => setHistory((h) => ({ ...h, index: h.index - (trail.length - i) }))}>{routeLabel(world, r)}</button>
-                        <span className="sep" aria-hidden="true">›</span>
-                      </span>
-                    ))}
-                    <span className="here">{routeLabel(world, current)}</span>
-                  </nav>
-                ) : null}
+              <main className="main" ref={mainRef} onScroll={() => { setHovered(null); setMenu(null); }}>
+                <nav className="trail" aria-label="Where you are">
+                  {crumbs.filter((c) => c.label !== here).map((c, i) => (
+                    <span key={i}>
+                      <button type="button" className="linklike" onClick={() => c.to && nav.to(c.to)}>{c.label}</button>
+                      <span className="sep" aria-hidden="true">›</span>
+                    </span>
+                  ))}
+                  <span className="here">{here}</span>
+                </nav>
                 <SubTabs section={section} current={current} />
                 <Page route={current} setWorld={setWorld} />
               </main>
             </div>
             {command ? <CommandBar onClose={() => setCommand(false)} /> : null}
-            {hovered ? <HoverCard id={hovered.id} x={hovered.x} y={hovered.y} above={hovered.above} reveal={reveal} keep={() => window.clearTimeout(hideTimer.current)} leave={hover.hide} /> : null}
+            {menu ? <PersonMenuLayer key={`${menu.id}-${menu.x}-${menu.y}`} id={menu.id} x={menu.x} y={menu.y} onClose={closeMenu} onDone={done} /> : null}
+            {toast ? <Toast msg={toast} /> : null}
+            {hovered && !menu ? <HoverCard id={hovered.id} x={hovered.x} y={hovered.y} above={hovered.above} reveal={reveal} keep={() => window.clearTimeout(hideTimer.current)} leave={hover.hide} /> : null}
           </div>
           </GameContext.Provider>
+        </PersonMenuContext.Provider>
         </HoverContext.Provider>
       </NavContext.Provider>
     </WorldContext.Provider>
@@ -199,7 +215,8 @@ export function App() {
 function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void }) {
   switch (route.kind) {
     case 'throne': return <ThroneRoom />;
-    case 'people': return <RelationsPage key={route.view ?? 'web'} focus={route.focus} view={route.view} />;
+    case 'people': if (route.view === 'renown') return <RenownPage />;
+      return <RelationsPage key={route.view ?? 'web'} focus={route.focus} view={route.view} />;
     case 'houses': return <HousesPage />;
     case 'worlds': return <StarMapPage />;
     case 'save': return <SavePage setWorld={setWorld} />;

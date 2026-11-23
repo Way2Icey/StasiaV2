@@ -28,7 +28,7 @@ export function EmbassyPanel({ houseId, className }: { houseId: string; classNam
   const them = theirs?.ambassadorId ? world.characters[theirs.ambassadorId] : undefined;
   const people = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full' && !c.seat && !isAway(world, c.id))
     .sort((a, b) => b.stats.diplomacy + b.stats.eloquence - a.stats.diplomacy - a.stats.eloquence);
-  const why = pick ? cannotAppoint(world, houseId, pick) : 'Pick someone';
+  const why = pick ? cannotAppoint(world, houseId, pick) : 'Choose who to send first';
   return (
     <Panel title="Embassies" aside={`regard ${relation(world, houseId, P)}`} className={className}>
       <p className="body muted" style={{ margin: 0 }}>Every house keeps an embassy in every other capital. An ambassador learns about the host's council each Phase and, if they have the tongue for it, warms the host toward their house. A clumsy one does the opposite. Embassies empty themselves when regard falls below −60.</p>

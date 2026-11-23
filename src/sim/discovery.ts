@@ -1,5 +1,7 @@
 // What missions turn up: talented nobodies who become somebodies, Caiges,
 // story leads to follow up, and developments that pay the house.
+import { shiftOpinion } from './relationships';
+import { seatHolder } from './query';
 import { placeStudent } from './training';
 import { Rng } from './rng';
 import { createCharacter } from './characters';
@@ -262,13 +264,60 @@ export function cannotBond(c: Character): string | null {
   return null;
 }
 
+/** Whether this person has earned a Caige: in our house only the blooded, knights and the council carry one. */
+export function cannotGrant(world: World, c: Character): string | null {
+  const why = cannotBond(c);
+  if (why) return why;
+  if (c.houseId === world.playerHouseId && !c.seat && !c.flags.some((f) => f.id === 'blooded' || f.id === 'knighted') && c.role !== 'Knight') return 'Not blooded: a Caige is for the blooded and knights';
+  return null;
+}
+
+export interface CaigeAdvice { seat: 'champion' | 'grandMaster'; adviserId: string; forId: string; why: string; quote: string }
+
+/**
+ * The Champion and the Grand Master each say who should carry a Caige. The Champion wants the best fighter
+ * who can hold it; the Grand Master wants the steadiest and most loyal, and minds who has waited longest.
+ * The Highroy decides.
+ */
+export function caigeAdvice(world: World, caigeId: string): CaigeAdvice[] {
+  const P = world.playerHouseId;
+  const cg = world.armoury[caigeId];
+  if (!cg) return [];
+  const pool = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && !cannotGrant(world, c));
+  if (!pool.length) return [];
+  const out: CaigeAdvice[] = [];
+  const champ = seatHolder(world, P, 'champion');
+  if (champ) {
+    const best = [...pool].sort((a, b) => (b.stats.caigeSync * 2 + b.stats.resonanceControl + b.stats.duelling) - (a.stats.caigeSync * 2 + a.stats.resonanceControl + a.stats.duelling))[0]!;
+    out.push({ seat: 'champion', adviserId: champ.id, forId: best.id, why: `sync ${best.stats.caigeSync}, control ${best.stats.resonanceControl}, blade ${best.stats.duelling}`, quote: best.id === champ.id ? 'Give it to me. I will not pretend otherwise.' : `${best.name.given}. Nobody else here would get half of what it has.` });
+  }
+  const gm = seatHolder(world, P, 'grandMaster');
+  if (gm) {
+    const since = (c: Character) => { const f = c.flags.find((x) => x.id === 'knighted' || x.id === 'blooded'); return f ? f.since.year * 800 + f.since.cycle : 1e9; };
+    const best = [...pool].sort((a, b) => (b.hidden.loyalty + b.stats.discipline + b.stats.caigeSync - since(b) / 800) - (a.hidden.loyalty + a.stats.discipline + a.stats.caigeSync - since(a) / 800))[0]!;
+    out.push({ seat: 'grandMaster', adviserId: gm.id, forId: best.id, why: `loyal, disciplined, and has served since ${since(best) < 1e9 ? Math.floor(since(best) / 800) : 'long ago'}`, quote: best.id === gm.id ? 'I have earned it, if you want my honest view.' : `${best.name.given} has waited and never complained. A Caige is a trust before it is a weapon.` });
+  }
+  return out;
+}
+
 export function bondCaige(input: World, caigeId: string, characterId: string): World {
   const world = structuredClone(input);
   const caige = world.armoury[caigeId];
   const c = world.characters[characterId];
   if (!caige || caige.bondedTo || !c) throw new Error('Cannot bond.');
-  const why = cannotBond(c);
+  const why = cannotGrant(world, c);
   if (why) throw new Error(why);
+  // Those the council put forward and did not get it remember; an adviser who was passed over minds it.
+  if (c.houseId === world.playerHouseId) for (const a of caigeAdvice(input, caigeId)) {
+    if (a.forId !== c.id) {
+      shiftOpinion(world, a.forId, c.id, -8, `got the Caige ${caige.name} instead of them`);
+      const adv = world.characters[a.adviserId];
+      if (adv) shiftMood(adv, -3);
+    } else {
+      const adv = world.characters[a.adviserId];
+      if (adv) { shiftMood(adv, 3); shiftOpinion(world, c.id, adv.id, 6, `spoke for them for a Caige`); }
+    }
+  }
   caige.bondedTo = c.id;
   c.flags.push({ id: 'caigeBonded', since: world.date, detail: `"${caige.name}"` });
   c.stats.caigeSync = clamp(c.stats.caigeSync + 2, 1, 20);

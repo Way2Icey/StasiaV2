@@ -3,7 +3,7 @@ import { advanceTurns } from './tick';
 import { deserialize, serialize } from './save';
 import { fieldSlots, moodOf, retinue, unwilling } from './mood';
 import { cannotLead, forecast, launchMission } from './missions';
-import { bondCaige, cannotBond, discover, materialize, recruit } from './discovery';
+import { bondCaige, discover, materialize, recruit, cannotGrant } from './discovery';
 import { seatHolder } from './query';
 import { Rng } from './rng';
 import type { Mission, World } from './types';
@@ -85,7 +85,7 @@ describe('discoveries', () => {
   it('a Caige can be bonded once', () => {
     const w = structuredClone(base);
     w.armoury.cg1 = { id: 'cg1', name: 'Vigil', type: 'gravitic', band: 'redline', houseId: P, found: w.date, foundAt: { planetId: 'serath-reach', sectorId: 'x' } };
-    const who = Object.values(w.characters).find((c) => c.houseId === P && !cannotBond(c))!;
+    const who = Object.values(w.characters).find((c) => c.houseId === P && !cannotGrant(w, c))!;
     const mood = moodOf(who);
     const after = bondCaige(w, 'cg1', who.id);
     expect(after.armoury.cg1!.bondedTo).toBe(who.id);

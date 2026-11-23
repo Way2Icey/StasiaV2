@@ -1,5 +1,7 @@
 // Lanes & corsairs: our convoys under way, the danger on every lane, our customs post, and what we
 // have to do with the corsair companies.
+import { KnownConvoysPanel, TradeTermsPanel, WatchPanel } from './realm';
+import { watchOf } from '../sim/lanewatch';
 import { useState } from 'react';
 import { useGame, useWorld } from './context';
 import { Go, HouseLink, Panel } from './links';
@@ -35,6 +37,8 @@ export function LanesPage() {
   const P = world.playerHouseId;
   const s = world.lanes;
   const [open, setOpen] = useState<string | null>(null);
+  const [view, setView] = useState<'trade' | 'corsairs' | 'lanes'>(() => { try { return (sessionStorage.getItem('stasia.lanesView') as 'trade') || 'trade'; } catch { return 'trade'; } });
+  const pick = (v: 'trade' | 'corsairs' | 'lanes') => { setView(v); try { sessionStorage.setItem('stasia.lanesView', v); } catch { /* none */ } };
   if (!s) return null;
   const now = absoluteCycle(world.date);
   const mine = ourConvoys(world);
@@ -50,6 +54,12 @@ export function LanesPage() {
         <p>Everything the houses make, buy, sell and are granted travels: the Numarade's Navisium from the Reserve, surpluses out to the Exchange, shortfalls back. Every run crosses a lane, and the lanes have corsairs on them.</p>
       </div>
       {err ? <p className="body error">{err}</p> : null}
+      <div className="subtabs" style={{ marginBottom: 12 }}>
+        {(['trade', 'corsairs', 'lanes'] as const).map((v) => (
+          <button key={v} type="button" className="subtab" aria-current={view === v ? 'page' : undefined} onClick={() => pick(v)}>{v === 'trade' ? `Trade & convoys (${mine.length})` : v === 'corsairs' ? 'Corsair companies' : `Lanes & watches${watchOf(world).length ? ` (${watchOf(world).length})` : ''}`}</button>
+        ))}
+      </div>
+      {view === 'trade' ? (
       <div className="grid">
         <Panel title="Our convoys under way" aside={`${mine.length}`} className="span-7">
           {mine.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing of ours is on the lanes just now.</p> : null}
@@ -78,6 +88,28 @@ export function LanesPage() {
           <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>The other houses: {Object.keys(world.houses).filter((h) => h !== P).map((h, i) => <span key={h}>{i ? ' · ' : ''}<HouseLink id={h} /> {CUSTOMS_LABEL[s.customs[h] ?? 'fair'].toLowerCase()}</span>)}</p>
         </Panel>
 
+        <Panel title="Trade compacts" aside="house to house" className="span-6">
+          {Object.keys(world.houses).filter((h) => h !== P).map((h) => {
+            const cp = compactOf(world, P, h);
+            const offer = s.offers.find((o) => o.from === h);
+            const why = cannotPropose(world, h);
+            return (
+              <div key={h} className="row">
+                <span style={{ flex: 1 }}><HouseLink id={h} /> <span className="muted">· {cp ? `since ${formatDate(cp.since)}, ${fmt(cp.traded)} othes traded` : offer ? 'they have offered one' : 'none'}</span></span>
+                {cp ? <button type="button" className="btn small" onClick={() => run((w) => endCompact(w, h))}>End</button>
+                  : offer ? <><button type="button" className="btn small primary" onClick={() => run((w) => answerOffer(w, offer.id, true))}>Accept</button><button type="button" className="btn small" onClick={() => run((w) => answerOffer(w, offer.id, false))}>Decline</button></>
+                  : <button type="button" className="btn small" disabled={!!why} title={why ?? ''} onClick={() => run((w) => proposeCompact(w, h))}>Propose</button>}
+              </div>
+            );
+          })}
+          <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>Partners buy from each other first, from what the other can spare, at the Exchange price without its cut. The goods ship capital to capital, so they cross the lanes between you. The other houses make compacts among themselves too: {s.compacts.filter((c) => c.a !== P && c.b !== P).map((c) => `${world.houses[c.a]?.name}–${world.houses[c.b]?.name}`).join(', ') || 'none yet'}.</p>
+        </Panel>
+
+        <KnownConvoysPanel className="span-6" />
+        <TradeTermsPanel className="span-12" />
+      </div>
+      ) : view === 'corsairs' ? (
+      <div className="grid">
         <Panel title="The companies" aside="corsairs of the outer lanes · open one for its people and history" className="span-7">
           {Object.values(s.factions).map((f) => {
             const r = f.rel[P] ?? 0;
@@ -96,23 +128,20 @@ export function LanesPage() {
           })}
           <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>Pay them to leave our ships alone, post a bounty, declare them enemies, give them letters against a rival, or send our knights after their captains.</p>
         </Panel>
-        <Panel title="Trade compacts" aside="house to house" className="span-5">
-          {Object.keys(world.houses).filter((h) => h !== P).map((h) => {
-            const cp = compactOf(world, P, h);
-            const offer = s.offers.find((o) => o.from === h);
-            const why = cannotPropose(world, h);
-            return (
-              <div key={h} className="row">
-                <span style={{ flex: 1 }}><HouseLink id={h} /> <span className="muted">· {cp ? `since ${formatDate(cp.since)}, ${fmt(cp.traded)} othes traded` : offer ? 'they have offered one' : 'none'}</span></span>
-                {cp ? <button type="button" className="btn small" onClick={() => run((w) => endCompact(w, h))}>End</button>
-                  : offer ? <><button type="button" className="btn small primary" onClick={() => run((w) => answerOffer(w, offer.id, true))}>Accept</button><button type="button" className="btn small" onClick={() => run((w) => answerOffer(w, offer.id, false))}>Decline</button></>
-                  : <button type="button" className="btn small" disabled={!!why} title={why ?? ''} onClick={() => run((w) => proposeCompact(w, h))}>Propose</button>}
-              </div>
-            );
-          })}
-          <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>Partners buy from each other first, from what the other can spare, at the Exchange price without its cut. The goods ship capital to capital, so they cross the lanes between you. The other houses make compacts among themselves too: {s.compacts.filter((c) => c.a !== P && c.b !== P).map((c) => `${world.houses[c.a]?.name}–${world.houses[c.b]?.name}`).join(', ') || 'none yet'}.</p>
+        <Panel title="Lately on the lanes" aside="ours, and what we heard of others" className="span-5">
+          {lately.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet.</p> : null}
+          {lately.map((c) => (
+            <div key={c.id} className="row">
+              <span style={{ flex: 1 }}>{cap(convoyLabel(world, c))} <span className="muted">· {laneName(world, LANE_BY_ID[c.lane]!)}</span></span>
+              <span className={c.fate === 'arrived' || c.fate === 'saved' ? 'muted' : ''} style={{ fontSize: 12 }} title={c.note}>{FATE[c.fate ?? 'arrived']}{c.by && s.factions[c.by] ? ` · ${s.factions[c.by]!.name.replace(/^the /, '')}` : c.by && world.houses[c.by] ? ` · ${world.houses[c.by]!.name} customs` : ''}</span>
+            </div>
+          ))}
+          <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>See also <Term k="raid">raids</Term> on our ports, on the <Go to={{ kind: 'worlds' }}>star map</Go>.</p>
         </Panel>
-
+      </div>
+      ) : (
+      <div className="grid">
+        <WatchPanel className="span-5" />
         <Panel title="The lanes" aside="danger to an unescorted run of ours" className="span-7">
           {LANES.map((l) => {
             const t = s.tally[l.id];
@@ -126,17 +155,8 @@ export function LanesPage() {
             );
           })}
         </Panel>
-        <Panel title="Lately on the lanes" aside="ours, and what we heard of others" className="span-5">
-          {lately.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet.</p> : null}
-          {lately.map((c) => (
-            <div key={c.id} className="row">
-              <span style={{ flex: 1 }}>{cap(convoyLabel(world, c))} <span className="muted">· {laneName(world, LANE_BY_ID[c.lane]!)}</span></span>
-              <span className={c.fate === 'arrived' || c.fate === 'saved' ? 'muted' : ''} style={{ fontSize: 12 }} title={c.note}>{FATE[c.fate ?? 'arrived']}{c.by && s.factions[c.by] ? ` · ${s.factions[c.by]!.name.replace(/^the /, '')}` : c.by && world.houses[c.by] ? ` · ${world.houses[c.by]!.name} customs` : ''}</span>
-            </div>
-          ))}
-          <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>See also <Term k="raid">raids</Term> on our ports, on the <Go to={{ kind: 'worlds' }}>star map</Go>.</p>
-        </Panel>
       </div>
+      )}
     </>
   );
 }

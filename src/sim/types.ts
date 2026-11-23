@@ -552,4 +552,8 @@ export interface World {
   treasury: import('./treasury').TreasuryState;
   /** Convoys on the lanes, the corsair companies, customs posts and deals. */
   lanes: import('./lanes').LanesState;
+  /** The renown tier each person last reached (for news when it rises). */
+  renown?: Record<string, string>;
+  /** Aims, alliances, feuds and the Numarade's favour. */
+  realm: import('./houses').RealmState;
 }

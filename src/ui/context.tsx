@@ -48,3 +48,12 @@ export const GameContext = createContext<Game>({ update: () => {}, reveal: false
 export function useGame(): Game {
   return useContext(GameContext);
 }
+
+/** The right-click menu of decisions on a person. */
+export interface PersonMenu {
+  open: (characterId: string, x: number, y: number) => void;
+}
+export const PersonMenuContext = createContext<PersonMenu>({ open: () => {} });
+export function usePersonMenu(): PersonMenu {
+  return useContext(PersonMenuContext);
+}

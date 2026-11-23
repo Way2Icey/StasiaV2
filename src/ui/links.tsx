@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { ReactNode } from 'react';
 import { displayName } from '../sim/names';
 import { ageOf } from '../sim/characters';
@@ -6,7 +7,7 @@ import { TRAITS_BY_ID, traitLabel } from '../data/traits';
 import { FLAGS_BY_ID } from '../data/flags';
 import { SPECIES } from '../data/species';
 import type { Character, FlagInstance, TraitInstance } from '../sim/types';
-import { useHover, useNav, useWorld } from './context';
+import { useHover, useNav, usePersonMenu, useWorld } from './context';
 import type { Route } from './router';
 import { useSee } from './fog';
 
@@ -29,11 +30,22 @@ export function Go({ to, children, className, title }: { to: Route; children: Re
 export function PersonLink({ c, short }: { c: Character; short?: boolean }) {
   const nav = useNav();
   const hover = useHover();
+  const menu = usePersonMenu();
+  // Long-press on a touch screen opens the same menu (iOS never sends a context-menu event).
+  const press = useRef<{ t: number; fired: boolean }>({ t: 0, fired: false });
+  const endPress = () => window.clearTimeout(press.current.t);
   return (
     <button
       type="button"
       className={`linklike${c.alive ? '' : ' dead'}`}
-      onClick={() => { hover.hide(); nav.to({ kind: 'character', id: c.id }); }}
+      aria-haspopup="menu"
+      title="Right-click for decisions"
+      onContextMenu={(e) => { e.preventDefault(); hover.hide(); menu.open(c.id, e.clientX, e.clientY); }}
+      onKeyDown={(e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); hover.hide(); menu.open(c.id, r.left, r.bottom + 4); } }}
+      onClick={() => { if (press.current.fired) { press.current.fired = false; return; } hover.hide(); nav.to({ kind: 'character', id: c.id }); }}
+      onTouchStart={(e) => { const t = e.touches[0]; if (!t) return; const x = t.clientX; const y = t.clientY; press.current.fired = false; endPress(); press.current.t = window.setTimeout(() => { press.current.fired = true; hover.hide(); menu.open(c.id, x, y); }, 480); }}
+      onTouchEnd={(e) => { endPress(); if (press.current.fired) e.preventDefault(); }}
+      onTouchMove={endPress}
       onMouseEnter={(e) => hover.show(c.id, e.currentTarget)}
       onMouseLeave={hover.hide}
       onFocus={(e) => hover.show(c.id, e.currentTarget)}

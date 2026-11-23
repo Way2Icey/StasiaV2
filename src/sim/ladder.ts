@@ -13,7 +13,7 @@ import { isAway } from './court';
 import { shiftMood } from './mood';
 import { seatHolder } from './query';
 import { shiftRelation } from './relations';
-import { bondOf, opinion, shiftOpinion } from './relationships';
+import { barsOf, bondOf, opinion, shiftOpinion } from './relationships';
 import { addGlory } from './ambitions';
 import { award, titlesOf, totals, type Season } from './careers';
 import { competence } from './reports';
@@ -130,6 +130,27 @@ function note(r: Rung, world: World, what: string) {
 
 // ---------------------------------------------------------------- the trials
 
+/**
+ * What the house needs coming up behind its knights. Aspirants can outnumber the knights; the house wants a
+ * few more than it could ever knight, and pupils enough to feed them. Recruiting, scouting, the academy's
+ * intake and the trials all answer to this: when the pipeline is full, the house stops looking.
+ */
+export function pipeline(world: World, houseId = world.playerHouseId) {
+  let pupils = 0, aspirants = 0;
+  for (const [id, r] of Object.entries(world.ladder?.of ?? {})) {
+    const c = world.characters[id];
+    if (!c?.alive || c.houseId !== houseId) continue;
+    if (r.stage === 'pupil') pupils++;
+    else if (r.stage === 'aspirant') aspirants++;
+  }
+  const knights = Object.values(world.characters).filter((c) => c.alive && c.houseId === houseId && (c.role === 'Knight' || c.flags.some((f) => f.id === 'knighted')) && !c.flags.some((f) => f.id === 'retired')).length;
+  const wantAspirants = Math.max(4, Math.ceil(knights * 0.6) + 2);
+  const wantPupils = Math.max(4, Math.ceil(wantAspirants * 0.75));
+  const pupilGap = Math.max(0, wantPupils - pupils);
+  const aspirantGap = Math.max(0, wantAspirants - aspirants);
+  return { pupils, aspirants, knights, wantPupils, wantAspirants, pupilGap, aspirantGap, short: pupilGap + aspirantGap };
+}
+
 function holdTrials(world: World, rng: Rng) {
   const P = world.playerHouseId;
   const sitting = Object.entries(world.ladder.of).filter(([id, r]) => {
@@ -137,6 +158,11 @@ function holdTrials(world: World, rng: Rng) {
     return r.stage === 'pupil' && c?.alive && c.houseId === P && ageOf(c, world.date) >= trialAge(c) && !isAway(world, id);
   });
   if (!sitting.length) return;
+  // Only as many sit as there are places among the aspirants; the strongest first. The rest wait a year.
+  const places = Math.max(1, pipeline(world).aspirantGap);
+  sitting.sort((a, b) => bestSubject(world.characters[b[0]]!).value + b[1].failed - (bestSubject(world.characters[a[0]]!).value + a[1].failed));
+  const waiting = sitting.splice(places);
+  for (const [, r] of waiting) note(r, world, 'waited a year for a place at the trials');
   const passed: string[] = [];
   const failed: string[] = [];
   const lines: string[] = [];
@@ -172,7 +198,7 @@ function holdTrials(world: World, rng: Rng) {
   }
   logRecord(world, {
     kind: 'world', type: 'world', severity: 2, seat: 'elder',
-    text: `The house trials: ${passed.length} of ${sitting.length} passed.${failed.length ? ` ${failed.map((id) => shortName(world.characters[id]!.name)).join(', ')} will sit them again next year.` : ''}`,
+    text: `The house trials: ${passed.length} of ${sitting.length} passed.${failed.length ? ` ${failed.map((id) => shortName(world.characters[id]!.name)).join(', ')} will sit them again next year.` : ''}${waiting.length ? ` ${waiting.length} more were ready but there were no places; they wait for next year.` : ''}`,
     detail: lines.join('\n'),
     who: [...passed.map((id) => ({ id, part: 'passed' })), ...failed.map((id) => ({ id, part: 'failed' }))],
   });
@@ -231,7 +257,7 @@ function bloodIn(w: World, c: Character, r: Rung, t: Character | undefined, choi
   const came = here.filter((x) => opinion(w, x.id, c.id) >= -10 && (!t || opinion(w, x.id, t.id) >= -25) && ageOf(x, w.date) >= SPECIES[x.species].adulthood);
   const stayed = here.filter((x) => !came.includes(x) && (bondOf(w, x.id, c.id) === 'rival' || bondOf(w, x.id, c.id) === 'feud' || opinion(w, x.id, c.id) < -25));
   const sector = w.planets[c.location.planetId]?.sectors.find((s) => s.id === c.location.sectorId)?.name ?? w.planets[c.location.planetId]?.name ?? 'home';
-  for (const x of came) { shiftMood(x, 2); shiftOpinion(w, c.id, x.id, 3, 'came to their blooding'); }
+  for (const x of came) { shiftMood(x, 2); shiftOpinion(w, c.id, x.id, 3, 'came to their blooding'); shiftOpinion(w, x.id, c.id, 2, 'saw them blooded'); }
   if (t) { shiftOpinion(w, c.id, t.id, 10, 'stood for them at their blooding'); shiftOpinion(w, t.id, c.id, 8, 'blooded under their eye'); }
   const lord = w.houses[P]?.rulerId;
   if (choice === 'gift' && lord) shiftOpinion(w, c.id, lord, 12, 'a gift at their blooding');
@@ -280,7 +306,8 @@ function scoutRings(world: World, rng: Rng) {
     logRecord(world, { kind: 'world', type: 'world', severity: 2, seat: 'champion', text: `The Champion has been watching ${displayName(ours[0].name)} in the rings.`, quote: { from: champ.id, text: `${n} wins and never blooded. Either we blood ${shortName(ours[0].name)} or someone else will take them.` }, who: [{ id: ours[0].id, part: 'watched' }] });
     return;
   }
-  // A local fighter, seen on a card we heard about.
+  // A local fighter, seen on a card we heard about: only when the house is short of people coming up.
+  if (pipeline(world).aspirantGap <= 0) return;
   const since = absoluteCycle(world.date) - CYCLES_PER_ORBIT * 2;
   for (const e of [...(world.grounds?.circuit ?? [])].reverse()) {
     if (!e.done || !e.heard || absoluteCycle(e.held) < since || !e.bouts) continue;
@@ -348,6 +375,7 @@ function pullOf(world: World, c: Character): { house: string; pull: number; why:
     if (!o?.alive || o.houseId === c.houseId || !world.houses[o.houseId]) continue;
     const e = (byHouse[o.houseId] ??= { pull: 0, why: [] });
     if (t.bond === 'lover' || t.bond === 'spouse') { e.pull += 2; e.why.push(`${shortName(o.name)}, who has their heart`); }
+    else if (barsOf(world, c.id, oid).like >= 75) { e.pull += 2; e.why.push(`${shortName(o.name)}, whom they are devoted to`); }
     else if (t.bond === 'friend' || t.bond === 'sworn' || opinion(world, c.id, oid) >= 50) { e.pull += 1; e.why.push(`a friend in ${shortName(o.name)}`); }
   }
   for (const h of Object.values(world.houses)) {
@@ -422,23 +450,34 @@ export function advanceLadder(world: World, rng: Rng, orbitTurned: boolean): voi
   const now = absoluteCycle(world.date);
   L.proposals = L.proposals.filter((b) => absoluteCycle(b.expires) > now && (b.local || world.characters[b.aspirantId]?.alive));
   if (!orbitTurned) return;
-  // Everyone young of the house is on the ladder.
-  for (const c of Object.values(world.characters)) {
-    if (!c.alive || c.houseId !== P || c.tier !== 'full' || L.of[c.id]) continue;
-    if (c.flags.some((f) => f.id === 'knighted') || c.seat) continue;
+  // The young of the house come onto the ladder as the house needs them, the most promising first.
+  // Grown fighters are counted as they are; the rest of the young are simply children of the house.
+  const need = pipeline(world);
+  let pupilRoom = need.pupilGap;
+  let aspirantRoom = need.aspirantGap;
+  const young = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full' && !L.of[c.id] && !c.flags.some((f) => f.id === 'knighted') && !c.seat)
+    .sort((a, b) => fightOf(b) - fightOf(a));
+  for (const c of young) {
     const a = ageOf(c, world.date);
-    if (a < trialAge(c)) L.of[c.id] = { stage: 'pupil', since: world.date, failed: 0, history: [] };
-    else if (a < SPECIES[c.species].adulthood * 1.3) {
+    if (a < trialAge(c)) {
+      if (pupilRoom <= 0 || a < trialAge(c) * 0.5) continue;
+      pupilRoom--;
+      L.of[c.id] = { stage: 'pupil', since: world.date, failed: 0, history: [{ date: world.date, what: 'taken on as a pupil' }] };
+    } else if (a < SPECIES[c.species].adulthood * 1.3) {
+      const fighter = a >= SPECIES[c.species].adulthood && fightOf(c) >= 10;
+      if (!fighter && aspirantRoom <= 0) continue;
+      if (!fighter) aspirantRoom--;
       // Grown already and handy with a blade: blooded before our time.
       const blooded = a >= SPECIES[c.species].adulthood && fightOf(c) >= 10;
       L.of[c.id] = { stage: blooded ? 'blooded' : 'aspirant', since: world.date, failed: 0, base: totals(world, c.id), history: [{ date: world.date, what: blooded ? 'already blooded' : 'counted among the aspirants' }] };
       if (blooded && !c.flags.some((f) => f.id === 'blooded')) c.flags.push({ id: 'blooded', since: world.date });
     }
   }
-  // How they are growing.
+  // How they are growing. A pupil grown past the age for it, never given a place, goes to other work.
   for (const id of Object.keys(L.of)) {
     const c = world.characters[id];
     if (!c?.alive) { delete L.of[id]; continue; }
+    if (L.of[id]!.stage === 'pupil' && ageOf(c, world.date) >= SPECIES[c.species].adulthood * 1.3) { delete L.of[id]; continue; }
     const line = (L.snaps[id] ??= []);
     line.push([now, Math.round(fightOf(c) * 10) / 10, Math.round(bestSubject(c).value * 10) / 10]);
     if (line.length > 60) line.splice(0, line.length - 60);

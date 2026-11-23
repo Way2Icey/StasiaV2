@@ -1,6 +1,9 @@
 // The economy: othes and five resources. Standing flows (quarters, taxes,
 // food, stipends) settle once a Phase; trades, missions and ransoms settle at
 // once. Prices on the Imperial Exchange move with what the houses buy and sell.
+import { embargoMarkup } from './lanewatch';
+import { favourQuota, privilegeOf } from './houses';
+import { renownOf } from './renown';
 import { Rng } from './rng';
 import { alive, findSector } from './query';
 import { shiftMood } from './mood';
@@ -67,7 +70,7 @@ function efficiency(c: Character | undefined): number {
 
 export function quotaFor(world: World, houseId: string): number {
   const h = world.houses[houseId]!;
-  return round(QUOTA_BASE[h.tier] * (0.8 + h.standing.respect / 250));
+  return round(QUOTA_BASE[h.tier] * (0.8 + h.standing.respect / 250) * favourQuota(world, houseId));
 }
 
 /**
@@ -112,7 +115,7 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
     for (const [r, v] of Object.entries(b.flow) as [Resource, number][]) lines.push({ resource: r, amount: v, label: b.label, kind: 'boon' });
   }
   for (const [r, v] of Object.entries(ESTATES[houseId] ?? {}) as [Resource, number][]) {
-    lines.push({ resource: r, amount: v, label: 'Holdings beyond the capital', kind: 'quarter' });
+    lines.push({ resource: r, amount: v, label: v >= 0 ? 'Holdings beyond the capital' : 'What the holdings beyond the capital use', kind: 'quarter' });
   }
   if (people) lines.push({ resource: 'provisions', amount: -round(people / PEOPLE_PER_PROVISION), label: `Feeding ${people.toLocaleString('en-US')} people`, kind: 'food' });
   const pay = PAY_SCALE[world.economy?.payScale ?? 'fair'];
@@ -150,10 +153,9 @@ export function stipendOf(world: World, c: Character): number {
   return Math.round((40 + Math.min(40, fame) * 4) * (c.seat === 'champion' ? 1.5 : c.seat === 'grandMaster' ? 1.3 : 1));
 }
 
+/** Fame for pay: a knight's renown, in the stipend's terms. */
 export function fameOf(world: World, c: Character): number {
-  const t = world.careers?.titles[c.id]?.length ?? 0;
-  const won = Object.values(world.careers?.of[c.id] ?? {}).reduce((n, s) => n + (s.boutsWon ?? 0) + (s.duelsWon ?? 0) + (s.cDuelsWon ?? 0) * 2, 0);
-  return t * 2 + won / 3;
+  return renownOf(world, c) / 1.5;
 }
 
 export function setPayScale(input: World, scale: 'meagre' | 'fair' | 'generous'): World {
@@ -209,7 +211,8 @@ export function credibilityMarkup(world: World, houseId: string): number {
 }
 
 export function buyPrice(world: World, houseId: string, g: Good): number {
-  return world.economy.market[g].price * (1 + credibilityMarkup(world, houseId));
+  // An embargo makes every purchase dearer; the Numarade's privilege makes it cheaper.
+  return world.economy.market[g].price * (1 + credibilityMarkup(world, houseId)) * embargoMarkup(world, houseId) * (privilegeOf(world, houseId) === 'privilege' ? 0.95 : 1);
 }
 
 export function sellPrice(world: World, g: Good): number {
@@ -290,9 +293,13 @@ export function setTax(input: World, houseId: string, tax: HouseEconomy['tax']):
   return w;
 }
 
+/** What the Reaches beyond the houses bring to the Exchange each Phase (positive) or take from it (negative): free traders, the Reach, the far worlds. */
+const OUTSIDE: Record<Good, number> = { navisium: -10, metals: -150, provisions: 150, fuel: 140, components: -10 };
+
 function settleMarket(world: World, rng: Rng) {
   for (const g of GOODS) {
     const m = world.economy.market[g];
+    m.pressure -= OUTSIDE[g];
     const base = BASE_PRICE[g];
     let p = m.price * (1 + clamp(m.pressure / DEPTH[g], -0.15, 0.15) * 0.5);
     p += (base - p) * 0.1; // drifts back toward the usual price
@@ -328,7 +335,7 @@ function stewardAccounts(world: World) {
   const fmtN = (n: number) => Math.round(n).toLocaleString('en-US');
   world.feed.push({
     id: `rec${world.nextId++}`, date: world.date, kind: 'world', type: 'economy', severity: net < 0 && lasts < 4 ? 2 : 1, seat: 'steward',
-    text: `The accounts for the Orbit: ${fmtN(inn)} in, ${fmtN(out)} out a Phase. ${net >= 0 ? `We put by ${fmtN(net)} a Phase.` : `We lose ${fmtN(-net)} a Phase${Number.isFinite(lasts) ? `; at this rate the coffers last about ${lasts} Orbit${lasts === 1 ? '' : 's'}` : ''}.`}`,
+    text: `The accounts for the Orbit: ${fmtN(inn)} in, ${fmtN(out)} out a Phase. ${net >= 0 ? `We put by ${fmtN(net)} a Phase.` : stock <= 0 ? `We lose ${fmtN(-net)} a Phase, and the coffers are already empty: we are living on our name.` : `We lose ${fmtN(-net)} a Phase${Number.isFinite(lasts) ? (lasts < 1 ? '; the coffers will be empty within the Orbit' : `; at this rate the coffers last about ${lasts} Orbit${lasts === 1 ? '' : 's'}`) : ''}.`}`,
     detail: biggest ? `The heaviest outgoing: ${biggest.label} (${fmtN(-biggest.amount)} a Phase).` : undefined,
     quote: st && net < 0 ? { from: st.id, text: lasts < 4 ? 'My lord, we cannot go on like this. Something must give: the stipends, the works, or the holdings.' : 'We are spending more than we take. It can go on a while; not for ever.' } : undefined,
     who: st ? [{ id: st.id, part: 'kept the accounts' }] : [],
@@ -375,6 +382,7 @@ function settlePhase(world: World, rng: Rng, houseId: string) {
       tell(world, houseId, `${st ? shortName(st.name) : 'The Steward'} bought ${need} ${RESOURCE_LABEL[g].toLowerCase()} at the Exchange to cover a shortfall.`, st ? [st.id] : undefined);
     } else {
       e.stock[g] = 0;
+      if (!isPlayer) rivalShort(world, houseId, g);
       if (g === 'provisions') {
         for (const s of heldSectors(world, houseId)) s.unrest = clamp(s.unrest + 3, 0, 100);
         tell(world, houseId, 'Food shortage: the stores ran dry and we could not buy enough. Unrest rises in every sector.');
@@ -391,6 +399,22 @@ function settlePhase(world: World, rng: Rng, houseId: string) {
     tell(world, houseId, `We are in debt (${round(e.stock.othes).toLocaleString('en-US')} othes). Our word is worth less: honour −1.`);
   }
   void rng;
+}
+
+/** A rival running dry is news, and it hurts them: hunger in their sectors, their works idle. */
+function rivalShort(world: World, houseId: string, g: Good) {
+  const h = world.houses[houseId]!;
+  if (g === 'provisions') for (const s of heldSectors(world, houseId)) s.unrest = clamp(s.unrest + 3, 0, 100);
+  else h.standing.respect = clamp(h.standing.respect - 1, 0, 100);
+  const key = `short:${houseId}:${g}`;
+  const cd = (world.holdings?.cooldown ?? {})[key];
+  if (cd && absoluteCycle(world.date) - absoluteCycle(cd) < CYCLES_PER_PHASE * 5) return;
+  if (world.holdings) (world.holdings.cooldown ??= {})[key] = world.date;
+  world.feed.push({
+    id: `rec${world.nextId++}`, date: world.date, kind: 'world', type: 'economy', severity: 1, seat: 'spymaster', houseIds: [houseId],
+    text: g === 'provisions' ? `House ${h.name}'s granaries are empty and the Exchange would not sell them enough. There is hunger in their sectors.` : `House ${h.name} has run out of ${RESOURCE_LABEL[g].toLowerCase()} and cannot buy more; their works stand idle.`,
+    source: 'our agents',
+  });
 }
 
 /** Rivals keep a couple of Phases of what they use, and sell what piles up. */
