@@ -148,6 +148,7 @@ export function ArchonHousePage({ id }: { id: string }) {
       <div className="actions">
         <button type="button" className="btn primary" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => courtHouse(w, id))}>Court them ({COURT_COST.toLocaleString('en-US')} othes)</button>
         <Go to={{ kind: 'numarade' }} className="btn">The Numarade ›</Go>
+        <Go to={{ kind: 'war' }} className="btn">War ›</Go>
       </div>
       <div className="grid">
         <Panel title="The house" className="span-6">

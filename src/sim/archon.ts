@@ -12,6 +12,7 @@ import { buildWord } from './names';
 import { relation, shiftRelation } from './relations';
 import { logRecord } from './records';
 import { fireStage } from './events';
+import { ceasefireMotionFor, orderCeasefire } from './war';
 import { addThread } from './storystate';
 import { absoluteCycle, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, dateParts } from './time';
 import { CULTURES } from '../data/cultures';
@@ -64,7 +65,7 @@ export interface ArchonHouse {
 export interface Exarchon { name: string; houseId: string; personId?: string; since: number; born: number; species: SpeciesId }
 export interface CapannaSeat { name: string; houseId: string; role: string; personId?: string }
 
-export type MotionKind = 'censure' | 'commend' | 'mediate' | 'raise' | 'remove' | 'elect' | 'seats';
+export type MotionKind = 'censure' | 'commend' | 'mediate' | 'raise' | 'remove' | 'elect' | 'seats' | 'ceasefire';
 export type Vote = 'aye' | 'nay' | 'abstain';
 export interface Candidate { houseId: string; name: string; personId?: string; born?: number; species?: SpeciesId }
 
@@ -94,6 +95,8 @@ export interface Motion {
   result?: string;
   /** For seat elections: the houses chosen. */
   chosen?: string[];
+  /** For a ceasefire: the war. */
+  warId?: string;
 }
 
 export interface NumaradeState {
@@ -350,6 +353,7 @@ export function motionTitle(w: World, kind: MotionKind, target?: string, second?
     case 'remove': return `That the Exarchon be removed`;
     case 'elect': return 'The election of an Exarchon';
     case 'seats': return 'The election of the four Minor seats';
+    case 'ceasefire': return `That the war between ${H(target)} and ${H(second)} stop`;
   }
 }
 
@@ -372,6 +376,8 @@ export function table(w: World, kind: MotionKind, by: string, target?: string, s
 
 /** How a seat votes, from what it thinks of the houses involved and what it believes. */
 export function aiVote(w: World, voter: string, m: Motion): Vote | number {
+  const liege = w.war?.liege[voter];
+  if (liege && liege !== m.target && liege !== m.second && w.archon?.numarade.seats.includes(liege) && voter !== w.playerHouseId) return aiVote(w, liege, m);
   const v = viewsOf(w, voter);
   const by = m.by ? regardOf(w, voter, m.by) * 0.25 : 0;
   const ex = w.archon?.numarade.exarchon;
@@ -384,6 +390,11 @@ export function aiVote(w: World, voter: string, m: Motion): Vote | number {
       return best;
     }
     case 'seats': return 'abstain';
+    case 'ceasefire':
+      if (voter === m.target) s = -20 + v.numarade * 6;
+      else if (voter === m.second) s = 10 + v.numarade * 4;
+      else s = 8 + v.numarade * 6 + v.honour * 2 - v.crucible * 3 + by - (regardOf(w, voter, m.target!) - regardOf(w, voter, m.second!)) * 0.1;
+      break;
     case 'censure':
       if (voter === m.target) return 'nay';
       if (voter === m.by) return 'aye';
@@ -483,6 +494,7 @@ function applyMotion(w: World, rng: Rng, m: Motion, year: number): void {
       break;
     }
     case 'raise': raise(w, m.target!, m.second!, year, 'by a vote of the Numarade'); break;
+    case 'ceasefire': if (m.warId) orderCeasefire(w, m.warId); break;
     case 'remove': {
       const ex = a.numarade.exarchon;
       if (ex) { a.history.push({ year, kind: 'exarchon', text: `The Numarade removed the Exarchon ${ex.name} of House ${houseName(w, ex.houseId)}.`, houses: [ex.houseId] }); shiftPrestige(w, ex.houseId, -10); }
@@ -789,6 +801,11 @@ function aiMotion(w: World, rng: Rng): void {
   for (const [x, y] of feuds) {
     const peacemaker = n.seats.filter((s) => s !== x && s !== y).sort((p, q) => viewsOf(w, q).numarade + viewsOf(w, q).honour - viewsOf(w, p).numarade - viewsOf(w, p).honour)[0];
     if (peacemaker && !recent('mediate', x)) opts.push([() => table(w, 'mediate', peacemaker, x, y), 0.5]);
+  }
+  const cf = ceasefireMotionFor(w);
+  if (cf && !n.motions.some((m) => m.status === 'open' && m.kind === 'ceasefire')) {
+    const war = w.war!.wars.find((x) => x.id === cf.warId)!;
+    opts.push([() => table(w, 'ceasefire', cf.by, war.attacker, war.defender, { warId: war.id }), 1.5]);
   }
   const ex = n.exarchon;
   if (ex) {

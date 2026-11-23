@@ -31,6 +31,8 @@ import { ensureLanes } from './lanes';
 import { ensureRealm } from './houses';
 import { ensureStory } from './storystate';
 import { ensureArchon } from './archon';
+import { ensureWar } from './war';
+import './arcs_war';
 import { displayName } from './names';
 import { writeHistory } from './history';
 import './arcs_numarade';
@@ -181,6 +183,7 @@ export function createWorld(seed: string = DEFAULT_SEED, opts: NewGame = {}): Wo
   ensureRealm(world);
   ensureStory(world);
   if (ensureArchon(world)) writeHistory(world, true);
+  ensureWar(world);
   world.rng = rng.state;
   return world;
 }

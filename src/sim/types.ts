@@ -557,6 +557,8 @@ export interface World {
   careers: import('./careers').CareersState;
   /** Every house of the Archon on the register, the Numarade, the history and the frontier. */
   archon?: import('./archon').ArchonState;
+  /** Forces, wars, tribute, hostages and fealty. */
+  war?: import('./war').WarState;
   /** The year's mock war. */
   crucible: import('./crucible').CrucibleState;
   grounds: import('./grounds').GroundsState;
