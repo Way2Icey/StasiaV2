@@ -1,4 +1,5 @@
 import { HouseDealings, HousesOverview, PoachPanel } from './realm';
+import { ArchonHousePage, ArchonPanel, RegisterPanel } from './archon';
 import { CalendarPanel } from './calendar';
 import { DecisionsPanel } from './sections';
 import { StoriesPanel, ThreadsPanel } from './stories';
@@ -427,9 +428,10 @@ export function HousesPage() {
   const world = useWorld();
   return (
     <>
-      <Title title="Houses" sub="The four houses of the vertical slice." />
-      <div className="actions" style={{ marginBottom: 12 }}><Go to={{ kind: 'crucible' }} className="btn primary">The Crucible ›</Go></div>
+      <Title title="Houses" sub="Eighteen houses of the Archon. Four are simulated in full; the rest are on the register and act on their own." />
+      <div className="actions" style={{ marginBottom: 12 }}><Go to={{ kind: 'numarade' }} className="btn primary">The Numarade ›</Go><Go to={{ kind: 'history' }} className="btn">Annals ›</Go><Go to={{ kind: 'crucible' }} className="btn">The Crucible ›</Go></div>
       <div className="grid">
+        <RegisterPanel className="span-12" />
         <HousesOverview className="span-12" />
         {Object.values(world.houses).map((h) => {
           const r = ruler(world, h.id);
@@ -456,7 +458,7 @@ export function HousesPage() {
 export function HousePage({ id }: { id: string }) {
   const world = useWorld();
   const h = world.houses[id];
-  if (!h) return <p className="error">No such house.</p>;
+  if (!h) return <ArchonHousePage id={id} />;
   const r = ruler(world, h.id);
   const council = councilOf(world, h.id);
   const fams = Object.values(world.families).filter((f) => f.houseId === h.id && !isCommoner(f));
@@ -475,7 +477,8 @@ export function HousePage({ id }: { id: string }) {
       <div className="grid">
         <HouseDealings id={h.id} className="span-12" />
         <StandingPanel houseId={h.id} className="span-6" />
-        <AnnalsPanel houseId={h.id} className="span-6" />
+        <ArchonPanel id={h.id} className="span-6" />
+        <AnnalsPanel houseId={h.id} className="span-12" />
         <EmbassyPanel houseId={h.id} className="span-12" />
         <Panel title="Rule" className="span-5">
           <div className="body">
@@ -832,7 +835,8 @@ export function SavePage({ setWorld }: { setWorld: (w: World) => void }) {
           <div className="body" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <label htmlFor="seed" className="eyebrow">Seed</label>
             <input id="seed" className="text" value={seed} onChange={(e) => setSeed(e.target.value)} />
-            <button type="button" className="btn" onClick={() => { setWorld(createWorld(seed.trim() || 'stasia')); nav.to({ kind: 'throne' }); }}>Start new world</button>
+            <button type="button" className="btn" onClick={() => { setWorld(createWorld(seed.trim() || 'stasia', { house: world.playerHouseId })); nav.to({ kind: 'throne' }); }}>Restart with this seed</button>
+            <Go to={{ kind: 'newgame' }} className="btn primary">Choose a house…</Go>
             <span className="muted" style={{ fontSize: 11, flexBasis: '100%' }}>The same seed always builds the same world. Current seed: <span className="mono">{world.seed}</span></span>
           </div>
         </Panel>

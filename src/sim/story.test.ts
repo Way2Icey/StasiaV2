@@ -38,9 +38,10 @@ describe('arcs', () => {
     let w = structuredClone(createWorld());
     const [a, b] = ours(w);
     const rng = Rng.fromSeed('7');
+    const before = new Set(openThreads(w, undefined, 'grudge').map((t) => t.id));
     const ev = fireStage(w, rng, 'blades', { personId: a!.id, secondId: b!.id })!;
     w = answerEvent(w, ev.id, 1);
-    const grudges = openThreads(w, undefined, 'grudge');
+    const grudges = openThreads(w, undefined, 'grudge').filter((t) => !before.has(t.id));
     expect(grudges.length).toBe(1);
     const arc = w.story!.arcs.find((x) => x.stages[0]?.title === 'Blades at dawn');
     if (arc?.next) expect(arc.cast.secondId).toBe(grudges[0]!.personId);

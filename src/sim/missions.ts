@@ -794,7 +794,7 @@ function diffViews(before: CharacterView, after: CharacterView): string[] {
 }
 
 // Each species reports in its own voice.
-const VOICE: Record<SpeciesId, { open: Record<Exclude<Outcome, 'disaster'>, string[]>; close: string[] }> = {
+const VOICE: Partial<Record<SpeciesId, { open: Record<Exclude<Outcome, 'disaster'>, string[]>; close: string[] }>> = {
   fokari: {
     open: {
       triumph: ['It is all here, set down in order.', 'The record is complete.'],
@@ -861,7 +861,7 @@ const VOICE: Record<SpeciesId, { open: Record<Exclude<Outcome, 'disaster'>, stri
 };
 
 function report(world: World, m: Mission, leader: Character, outcome: Exclude<Outcome, 'disaster'>, rng: Rng): string {
-  const v = VOICE[leader.species];
+  const v = VOICE[leader.species] ?? VOICE.doven!;
   const subject = m.kind === 'investigate' && m.targetId ? shortName(world.characters[m.targetId]!.name)
     : m.kind === 'envoy' ? `House ${world.houses[m.targetHouseId ?? '']?.name ?? ''}`
     : world.planets[m.targetPlanetId]?.name ?? '';

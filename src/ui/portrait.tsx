@@ -52,10 +52,19 @@ const SKIN: Record<SpeciesId, string[]> = {
   shaaliin: [],
   doven: ['#a9745b', '#956650', '#ba836a', '#8a5d48'],
   gholari: ['#a090b4', '#8aa4a9', '#a897a7', '#9a9fbf'],
+  human: ['#e8c8a8', '#c99a74', '#a8744e', '#7a5236', '#f0d6bc'],
+  varngotha: ['#ece8df', '#e2ddd2', '#f2efe8'],
+  azurian: ['#9fc0e0', '#8fb2d6', '#a9c8e6'],
+  myrelic: ['#e0c4aa', '#cfae92', '#d8bca0'],
+  velarai: ['#d8d0e8', '#c8d6e0', '#e0d4dc'],
+  tavari: ['#e8e0f0', '#dce8ec', '#ece4e0'],
+  korenite: ['#5a6a5a', '#4e5e62', '#6a5e4e'],
+  murnath: ['#8a7a9a', '#7a8a8a', '#9a8a7a'],
+  draychi: ['#6a7a4a', '#7a4a4a', '#5a6a7a'],
 };
 const HAIR = ['#1c1a1e', '#3a2a20', '#5a3a24', '#7a4a2a', '#8e5a2e', '#b8894a', '#d4b56a', '#6b2a22'];
 /** Each house's colour, for clothes and backdrop. */
-const HOUSE_HUE: Record<string, number> = { alerion: 218, torvann: 18, serath: 150, shaaliin: 285 };
+const HOUSE_HUE: Record<string, number> = { alerion: 218, torvann: 18, serath: 150, shaaliin: 285, lumen: 48, varngotha: 0, theaszar: 8, mull: 95, doven: 30, myr: 195, endama: 345, gholari: 120, koren: 70, tavareen: 260, vahler: 300, murnath: 170, myrai: 230, azure: 205 };
 const EYES = ['#2a5a8a', '#3a6a3a', '#5a3a1e', '#2a2a2a', '#6a6a7a', '#7a5a1a'];
 
 interface Look {

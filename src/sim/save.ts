@@ -24,6 +24,9 @@ import { ensureTreasury } from './treasury';
 import { ensureLanes } from './lanes';
 import { ensureRealm } from './houses';
 import { ensureStory } from './storystate';
+import { ensureArchon } from './archon';
+import { writeHistory } from './history';
+import './arcs_numarade';
 import './eventDefs';
 
 export const SAVE_VERSION = 11;
@@ -119,5 +122,6 @@ export function deserialize(text: string): World {
   ensureLanes(world);
   ensureRealm(world);
   ensureStory(world);
+  if (ensureArchon(world)) writeHistory(world, false);
   return world;
 }

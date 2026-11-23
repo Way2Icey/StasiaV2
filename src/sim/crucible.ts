@@ -22,7 +22,9 @@ import { addGlory } from './ambitions';
 import { award, tally } from './careers';
 import { storeInVault } from './holdings';
 import { addCycles, dateParts } from './time';
-import type { Character, World } from './types';
+import type { Character, SpeciesId, World } from './types';
+import { personName } from './archon';
+import type { CanonNotable } from '../data/canon';
 import { createBattle, battleOf, runOut, outcomes, type FighterSpec } from './battle';
 import { absoluteCycle } from './time';
 
@@ -55,10 +57,7 @@ export const STANCE_NOTE: Record<Stance, string> = {
 };
 const BEATS: Record<Stance, Stance> = { bold: 'cunning', measured: 'bold', cunning: 'measured' };
 
-/**
- * Houses of Archon outside our corner of the Reaches: they come to the Crucible but are not
- * simulated in full. Names other than Lumen are placeholders until the canon list is in.
- */
+/** Houses from before the canon list was in (kept so old saves still name them). */
 export const GUEST_HOUSES: { id: string; name: string; might: number }[] = [
   { id: 'g-lumen', name: 'Lumen', might: 1.25 },
   { id: 'g-veyr', name: 'Veyr', might: 1.0 },
@@ -67,6 +66,13 @@ export const GUEST_HOUSES: { id: string; name: string; might: number }[] = [
   { id: 'g-mhoro', name: 'Mhoro', might: 0.9 },
   { id: 'g-ilthane', name: 'Ilthane', might: 1.1 },
 ];
+
+/** A house that comes to the Crucible without being simulated in full: any house on the register. */
+export function guestOf(w: World, id: string): { id: string; name: string; might: number; species?: SpeciesId; notables?: CanonNotable[] } | undefined {
+  const a = w.archon?.houses[id];
+  if (a && !w.houses[id]) return { id, name: a.name, might: a.might, species: a.species, notables: a.notables };
+  return GUEST_HOUSES.find((g) => g.id === id);
+}
 
 // ---------------------------------------------------------------- doctrines
 
@@ -94,6 +100,20 @@ export const DOCTRINES: Record<string, Doctrine> = {
   torvann: { name: 'The Iron Tide', text: 'Everything forward at once, knights at the front. Their champions want the duel more than the site.', stance: { bold: 6, measured: 2, cunning: 2 }, knights: [6, 10], aim: 'bleed', edge: 'duel' },
   serath: { name: 'The Wolf Run', text: 'Fast and everywhere: they take what is left unguarded and are gone before the line forms.', stance: { bold: 2, measured: 1, cunning: 6 }, knights: [1, 4], aim: 'riches', edge: 'raid' },
   shaaliin: { name: 'The Choir', text: 'They choose a ground and sing it closed. Hard to move once they are dug in.', stance: { bold: 1, measured: 6, cunning: 3 }, knights: [2, 5], aim: 'hold', edge: 'defend' },
+  lumen: { name: 'The Bright Hand', text: 'Old money and the best-drilled host in the Archon: rich, confident, and usually first to the treasury.', stance: { bold: 4, measured: 4, cunning: 2 }, knights: [4, 8], aim: 'riches', edge: 'duel' },
+  varngotha: { name: 'The Ordeal', text: 'Titans who walk into the fire on purpose. They want the hardest fight on the field, and they hold whatever they stand on.', stance: { bold: 5, measured: 4, cunning: 1 }, knights: [3, 6], aim: 'hold', edge: 'duel' },
+  theaszar: { name: 'The Academy Line', text: 'Textbook and nearly flawless: every knight drilled in the same doctrine, every duel fought by the book.', stance: { bold: 3, measured: 5, cunning: 2 }, knights: [6, 10], aim: 'bleed', edge: 'duel' },
+  mull: { name: 'The Quiet Host', text: 'Little is known of how they fight, which may be the point.', stance: { bold: 3, measured: 4, cunning: 3 }, knights: [3, 7], aim: 'riches' },
+  doven: { name: 'The Guild Wall', text: 'Engineers first: they fortify a site in a day and make you pay for every yard of it.', stance: { bold: 1, measured: 6, cunning: 3 }, knights: [3, 7], aim: 'hold', edge: 'defend' },
+  myr: { name: 'The Proud Tide', text: 'Caige-wielders up front and Draychi engineers under the water; they press hard and argue the result afterwards.', stance: { bold: 5, measured: 2, cunning: 3 }, knights: [4, 8], aim: 'bleed', edge: 'duel' },
+  endama: { name: 'The Sacred Siege', text: 'Battle as prayer: overwhelming numbers, shields locked, and no retreat they will admit to.', stance: { bold: 5, measured: 4, cunning: 1 }, knights: [6, 10], aim: 'hold', edge: 'defend' },
+  gholari: { name: 'The Patient Net', text: 'They take prisoners rather than sites, and they always seem to know who is afraid.', stance: { bold: 1, measured: 5, cunning: 4 }, knights: [1, 4], aim: 'hold', edge: 'defend' },
+  koren: { name: 'The Forge Lance', text: 'Precision strikes behind armour they built themselves.', stance: { bold: 4, measured: 3, cunning: 3 }, knights: [3, 7], aim: 'riches', edge: 'raid' },
+  tavareen: { name: 'The Weightless Step', text: 'They come from above and leave the same way, and seldom stay to fight a line.', stance: { bold: 2, measured: 2, cunning: 6 }, knights: [1, 4], aim: 'riches', edge: 'raid' },
+  vahler: { name: 'The Reluctant Guard', text: 'They come because they must and fight to lose nobody, not to win.', stance: { bold: 1, measured: 7, cunning: 2 }, knights: [0, 3], aim: 'hold', edge: 'defend' },
+  murnath: { name: 'The Woven Keep', text: 'Silk walls up in an hour; they turn any site they take into a fortress.', stance: { bold: 1, measured: 6, cunning: 3 }, knights: [2, 5], aim: 'hold', edge: 'defend' },
+  myrai: { name: 'The Long Study', text: 'They watch the first rounds and then fight exactly the battle the others have shown them.', stance: { bold: 2, measured: 3, cunning: 5 }, knights: [1, 4], aim: 'riches' },
+  azure: { name: 'The Treaty', text: 'They would rather settle a site than fight for it, and often do.', stance: { bold: 1, measured: 5, cunning: 4 }, knights: [1, 4], aim: 'hold', edge: 'defend' },
   'g-lumen': { name: 'The Bright Hand', text: 'Old money and the best-drilled host in the Archon: rich, confident, and usually first to the treasury.', stance: { bold: 4, measured: 4, cunning: 2 }, knights: [4, 8], aim: 'riches', edge: 'duel' },
   'g-veyr': { name: 'The Knife Wind', text: 'Feints, false retreats and night marches.', stance: { bold: 2, measured: 2, cunning: 6 }, knights: [2, 5], aim: 'bleed', edge: 'raid' },
   'g-ostrava': { name: 'The Anvil', text: 'Slow, heavy and hard to kill.', stance: { bold: 2, measured: 6, cunning: 2 }, knights: [5, 9], aim: 'hold', edge: 'defend' },
@@ -183,11 +203,11 @@ export function ensureCrucible(world: World): void {
 }
 
 export function houseLabel(world: World, id: string): string {
-  return `House ${world.houses[id]?.name ?? GUEST_HOUSES.find((g) => g.id === id)?.name ?? id}`;
+  return `House ${world.houses[id]?.name ?? guestOf(world, id)?.name ?? id}`;
 }
 
 export function shortHouse(world: World, id: string): string {
-  return world.houses[id]?.name ?? GUEST_HOUSES.find((g) => g.id === id)?.name ?? id;
+  return world.houses[id]?.name ?? guestOf(world, id)?.name ?? id;
 }
 
 /** Troops a house can raise: its garrisons, less what it has lost and not replaced. */
@@ -323,11 +343,18 @@ function draw(w: World, rng: Rng) {
   const P = w.playerHouseId;
   const real = Object.keys(w.houses).filter((h) => rng.chance(h === P ? 0.7 : 0.75) || (h === P && w.treasury?.bribed === year));
   const n = 5 + Math.floor(rng.next() * 4);
-  const guests = rng.shuffle([...GUEST_HOUSES]).slice(0, Math.max(0, n - real.length)).map((g) => g.id);
+  // The rest come from the register: the Great Houses most years, the Minor when they can.
+  const pool = Object.values(w.archon?.houses ?? {}).filter((h) => !h.ended && !w.houses[h.id]);
+  const guests: string[] = [];
+  while (guests.length < Math.max(0, n - real.length) && pool.length) {
+    const g = rng.weighted(pool.map((h) => [h, h.might * (h.tier === 'great' ? 2 : 1)] as const));
+    pool.splice(pool.indexOf(g), 1);
+    guests.push(g.id);
+  }
   const entrants = [...real, ...guests].slice(0, 8);
   const depleted = w.crucible.depleted;
   w.crucible = { ...w.crucible, year, stage: 'drawn', entrants, contingents: {}, locations: [], rounds: [], table: {}, drawnUs: entrants.includes(P), depleted, plan: undefined, agents: [] };
-  for (const g of entrants) if (GUEST_HOUSES.some((x) => x.id === g)) rosterOf(w, rng, g);
+  for (const g of entrants) if (!w.houses[g] && guestOf(w, g)) rosterOf(w, rng, g);
   // The battle world's sites: two more than there are houses.
   const sites = rng.shuffle([...SITES]).slice(0, Math.min(SITES.length, entrants.length + 2));
   w.crucible.locations = sites.map(([name, prize, glyph], i) => ({
@@ -362,17 +389,22 @@ const nk = (gid: string, name: string) => `g:${gid}:${name}`;
 export function rosterOf(w: World, rng: Rng, gid: string): Roster {
   const cr = w.crucible;
   cr.rosters ??= {};
-  const guest = GUEST_HOUSES.find((g) => g.id === gid)!;
+  const guest = guestOf(w, gid) ?? { id: gid, name: gid, might: 1 };
   const year = dateParts(w.date).year;
   const used = new Set(Object.values(cr.rosters).flatMap((r) => [r.marshal.name, r.champion.name]));
-  const fresh = (base: number, spread: number): Named => {
-    let name = '';
-    for (let i = 0; i < 20 && (!name || used.has(name)); i++) name = displayName({ given: rng.pick(GIVEN), family: guest.name } as never);
+  const fam = w.archon?.houses[gid]?.families ?? [guest.name];
+  const fresh = (base: number, spread: number, canon?: 'marshal' | 'champion'): Named => {
+    // Canon people take the field first, while they can.
+    const known = canon ? guest.notables?.find((n) => n.crucible === canon && !used.has(n.name)) : undefined;
+    let name = known?.name ?? '';
+    for (let i = 0; i < 20 && (!name || used.has(name)); i++) {
+      name = guest.species ? personName(rng, rng.chance(0.85) ? guest.species : (w.archon?.houses[gid]?.vassals?.[0] ?? guest.species), rng.pick(fam)) : displayName({ given: rng.pick(GIVEN), family: guest.name } as never);
+    }
     used.add(name);
-    return { key: nk(gid, name), name, skill: (base + rng.next() * spread) * guest.might, duels: 0, won: 0, kills: 0, since: year };
+    return { key: nk(gid, name), name, skill: (base + (known ? 3 : 0) + rng.next() * spread) * guest.might, duels: 0, won: 0, kills: 0, since: year };
   };
   let r = cr.rosters[gid];
-  if (!r) { r = { marshal: fresh(9, 6), champion: fresh(9, 7), knight: (9 + rng.next() * 5) * guest.might, checked: year }; cr.rosters[gid] = r; return r; }
+  if (!r) { r = { marshal: fresh(9, 6, 'marshal'), champion: fresh(9, 7, 'champion'), knight: (9 + rng.next() * 5) * guest.might, checked: year }; cr.rosters[gid] = r; return r; }
   if (r.checked === year) return r;
   r.checked = year;
   if (r.champion.since < 0) r.champion = fresh(9, 7); // fell last year
@@ -510,7 +542,7 @@ function plannedStance(w: World, rng: Rng, foe: string | undefined): Stance {
 }
 
 function aiContingent(w: World, rng: Rng, houseId: string): Contingent {
-  const guest = GUEST_HOUSES.find((g) => g.id === houseId);
+  const guest = w.houses[houseId] ? undefined : guestOf(w, houseId);
   const d = doctrineOf(houseId);
   const want = d.knights[0] + Math.floor(rng.next() * (d.knights[1] - d.knights[0] + 1));
   if (guest) {

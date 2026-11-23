@@ -65,7 +65,7 @@ export function PersonById({ id }: { id: string | null | undefined }) {
 
 export function HouseLink({ id }: { id: string }) {
   const world = useWorld();
-  return <Go to={{ kind: 'house', id }}>{world.houses[id]?.name ?? id}</Go>;
+  return <Go to={{ kind: 'house', id }}>{world.houses[id]?.name ?? world.archon?.houses[id]?.name ?? id}</Go>;
 }
 
 export function FamilyLink({ id, prefix }: { id: string; prefix?: boolean }) {

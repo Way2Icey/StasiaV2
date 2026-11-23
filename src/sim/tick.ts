@@ -26,6 +26,8 @@ import { advanceTreasury } from './treasury';
 import { advanceLanes } from './lanes';
 import { advanceRenown } from './renown';
 import { advanceRealm } from './houses';
+import { advanceArchon } from './archon';
+import './arcs_numarade';
 import './eventDefs';
 import { displayName } from './names';
 import { Rng } from './rng';
@@ -112,6 +114,7 @@ function stepInPlace(world: World): void {
   advanceLanes(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceRenown(world, crossed.orbits > 0);
   advanceRealm(world, rng, crossed.orbits > 0);
+  advanceArchon(world, rng, { phase: crossed.phases > 0, orbit: crossed.orbits > 0, year: crossed.years > 0 });
   advanceEvents(world, rng, crossed.phases > 0);
   advanceStory(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
