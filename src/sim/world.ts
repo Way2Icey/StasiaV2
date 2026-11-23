@@ -28,10 +28,13 @@ import { ensureGrounds } from './grounds';
 import { ensureLadder } from './ladder';
 import { ensureTreasury } from './treasury';
 import { ensureLanes } from './lanes';
+import { ensureExchange } from './exchange';
 import { ensureRealm } from './houses';
 import { ensureStory } from './storystate';
 import { ensureArchon } from './archon';
 import { ensureWar } from './war';
+import { ensureScenes } from './scene';
+import { ensureCaigeDepth } from './scenes_api';
 import './arcs_war';
 import { displayName } from './names';
 import { writeHistory } from './history';
@@ -180,10 +183,13 @@ export function createWorld(seed: string = DEFAULT_SEED, opts: NewGame = {}): Wo
   ensureLadder(world);
   ensureTreasury(world);
   ensureLanes(world);
+  ensureExchange(world);
   ensureRealm(world);
   ensureStory(world);
   if (ensureArchon(world)) writeHistory(world, true);
   ensureWar(world);
+  ensureScenes(world);
+  ensureCaigeDepth(world);
   world.rng = rng.state;
   return world;
 }

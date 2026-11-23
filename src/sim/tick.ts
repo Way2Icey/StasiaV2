@@ -1,5 +1,6 @@
 import { advanceEvents } from './events';
 import { advanceStory } from './story';
+import { advanceCrash, checkDebt, marketShocks, maybeCrash } from './arcs_economy';
 import './arcs';
 import './arcs_resonance';
 import './arcs_threads';
@@ -28,9 +29,13 @@ import { advanceRenown } from './renown';
 import { advanceRealm } from './houses';
 import { advanceArchon } from './archon';
 import { advanceWar } from './war';
+import { advanceScenes, ensureScenes, once } from './scene';
+import { ceremoniesDue, crisesDue, startChronicle, ensureCaigeDepth } from './scenes_api';
 import './arcs_war';
 import './arcs_numarade';
 import './eventDefs';
+import './variants';
+import { yearlyStories } from './arcs_systems';
 import { displayName } from './names';
 import { Rng } from './rng';
 import { ageOf } from './characters';
@@ -89,6 +94,9 @@ function stepInPlace(world: World): void {
   expireFlags(world, to);
   advanceMissions(world, rng);
   advanceEconomy(world, rng, crossed.phases > 0, crossed.orbits > 0);
+  if (crossed.orbits > 0) marketShocks(world, rng);
+  if (crossed.phases > 0) advanceCrash(world, rng);
+  if (crossed.years > 0) { maybeCrash(world, rng); checkDebt(world); yearlyStories(world, rng); }
   lapseRansoms(world);
   advanceCouncil(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceRivals(world, rng, crossed.phases > 0);
@@ -118,6 +126,11 @@ function stepInPlace(world: World): void {
   advanceRealm(world, rng, crossed.orbits > 0);
   advanceArchon(world, rng, { phase: crossed.phases > 0, orbit: crossed.orbits > 0, year: crossed.years > 0 });
   advanceWar(world, rng, { phase: crossed.phases > 0, orbit: crossed.orbits > 0, year: crossed.years > 0 });
+  ensureScenes(world);
+  advanceScenes(world, rng);
+  if (crossed.phases > 0) { ensureCaigeDepth(world); ceremoniesDue(world); }
+  if (crossed.orbits > 0) crisesDue(world, rng);
+  if (crossed.years > 0 && once(world, `chronicle:${parts.year - 1}`)) startChronicle(world, parts.year - 1);
   advanceEvents(world, rng, crossed.phases > 0);
   advanceStory(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
@@ -154,7 +167,7 @@ export function advanceUntil(input: World, turns: number, stopOnEvents: boolean)
 }
 
 /** What one tick of the running clock produced: a moment that freezes it, or news that doesn't. */
-export interface ClockStep { world: World; freeze?: { reason: string; events: string[]; battle?: string }; notice?: string }
+export interface ClockStep { world: World; freeze?: { reason: string; events: string[]; battle?: string; scene?: string }; notice?: string }
 
 /**
  * One tick of the real-time clock. Decisions freeze it (as events do in CK); urgent ones always do.
@@ -168,6 +181,8 @@ export function stepClock(input: World, pauseOnDecisions = true): ClockStep {
   stepInPlace(w);
   // A battle of ours has begun: everything stops for it.
   void fought;
+  const scene = (w.scenes?.list ?? []).find((x) => x.status === 'ready' && !x.prompted);
+  if (scene) { scene.prompted = true; return { world: w, freeze: { reason: `${scene.eyebrow}: ${scene.title}.`, events: [], scene: scene.id } }; }
   const battle = (w.battles?.list ?? []).find((b) => b.status === 'ready' && !b.prompted);
   if (battle) battle.prompted = true;
   if (battle) return { world: w, freeze: { reason: `Battle: ${battle.title}.`, events: [], battle: battle.id } };

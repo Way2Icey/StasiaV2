@@ -175,7 +175,7 @@ const knightsOf = (w: World, h: string) => Object.values(w.characters).filter((c
 
 const LEGION_A = ['Ashen', 'Iron', 'Grey', 'Long', 'Silent', 'Red', 'Glass', 'Third', 'Ember', 'Black', 'White', 'Salt', 'Storm', 'Hollow', 'Bright'];
 const LEGION_B = ['Legion', 'Host', 'Spear', 'Wall', 'Line', 'Shield', 'March'];
-const FLEET_B = ['Wake', 'Watch', 'Squadron', 'Tide', 'Wing', 'Lance'];
+const FLEET_B = ['Wake', 'Watch', 'Squadron', 'Vanguard', 'Wing', 'Lance'];
 const COMPANY_B = ['Company', 'Blades', 'Oathsworn', 'Hand', 'Lances'];
 
 function forceName(rng: Rng, used: Set<string>, nouns: string[]): string {
@@ -553,8 +553,9 @@ function phaseOf(w: World, rng: Rng, war: War): void {
   for (const h of [...partiesOf(war, 'attackers'), ...partiesOf(war, 'defenders')]) {
     const lost = war.losses[h] ?? 0;
     const strength = formationsOf(w, h).reduce((t, f) => t + f.max * (f.kind === 'legion' ? 1 : f.kind === 'fleet' ? 1000 : 2), 0) || 1;
-    war.exhaustion[h] = clamp((war.exhaustion[h] ?? 0) + 0.6 + (war.rung === 'war' ? 0.5 : 0) + (lost / strength) * 4, 0, 100);
-    if (h === P) econ(w, P).stock.othes -= war.rung === 'war' ? 300 : 120;
+    // An empty treasury wears a house out faster than its losses do.
+    const broke = isSim(w, h) && econ(w, h).stock.othes < 0 ? 1.2 : 0;
+    war.exhaustion[h] = clamp((war.exhaustion[h] ?? 0) + 0.6 + (war.rung === 'war' ? 0.5 : 0) + (lost / strength) * 4 + broke, 0, 100);
   }
   if (war.ceasefire !== undefined && absoluteCycle(w.date) >= war.ceasefire && war.status === 'active') {
     if (!war.defied) endWar(w, rng, war, 'none', 'The Numarade\'s ceasefire holds.');
@@ -698,8 +699,8 @@ function settleBattle(w: World, rng: Rng, war: War, fr: Front): void {
       if (sh.condition <= 0) {
         sh.lost = { date: w.date, how: `lost in ${b.title}` };
         const cap0 = sh.captainId ? w.characters[sh.captainId] : undefined;
-        if (cap0?.alive && rng.chance(0.5)) kill(w, cap0, w.date, `went down with the ${sh.name} in ${b.title}`);
-        say(w, war, `The ${sh.name} of House ${houseName(w, sh.houseId)} is lost.`, true);
+        if (cap0?.alive && rng.chance(0.5)) kill(w, cap0, w.date, `died aboard the ${sh.name} when she broke apart in ${b.title}`);
+        say(w, war, `The ${sh.name} of House ${houseName(w, sh.houseId)} breaks apart and is lost.`, true);
         logRecord(w, { kind: 'world', type: 'fight', severity: sh.houseId === P ? 3 : 1, text: `The great ship ${sh.name} of House ${houseName(w, sh.houseId)} is lost in ${b.title}.`, houseIds: [sh.houseId].filter((x) => isSim(w, x)) });
       } else if (sh.houseId === P) say(w, war, `The ${sh.name} is hurt: hull at ${Math.round(sh.condition)}.`);
     }
@@ -770,7 +771,7 @@ export const hunterOf = (w: World, personId: string) => (w.war?.named ?? []).fil
 
 // ---------------------------------------------------------------- ending
 
-export function endWar(w: World, rng: Rng, war: War, winner: 'attackers' | 'defenders' | 'none', why: string): void {
+export function endWar(w: World, rng: Rng, war: War, winner: 'attackers' | 'defenders' | 'none', why: string, settled?: WarGoal): void {
   if (war.status !== 'active') return;
   war.status = 'ended';
   const P = w.playerHouseId;
@@ -787,6 +788,8 @@ export function endWar(w: World, rng: Rng, war: War, winner: 'attackers' | 'defe
   w.archon?.history.push({ year, kind: 'war', text: `${cap(war.name)} ended: ${why}${terms ? ` Terms: ${GOAL_LABEL[terms].toLowerCase()}.` : ''}`, houses: [war.attacker, war.defender] });
   logRecord(w, { kind: 'world', type: 'fight', severity: ours ? 3 : 1, text: `${cap(war.name)} is over. ${why}`, houseIds: [war.attacker, war.defender].filter((x) => isSim(w, x)), source: 'the Numarade' });
   if (!winnerHouse) return;
+  // Already agreed at the table.
+  if (settled) { applyTerms(w, rng, war, settled); return; }
   // Ours to choose: the terms come to us.
   if (winnerHouse === P) { war.asking = true; fireStage(w, rng, 'war:terms', { otherHouseId: loserHouse }); return; }
   applyTerms(w, rng, war, terms!);
@@ -968,7 +971,9 @@ function yearly(w: World, rng: Rng): void {
   }
   s.tributes = s.tributes.filter((t) => t.until >= year);
   // Vassals pay their liege and vote with them.
+  const excused = (s as WarState & { excused?: Record<string, number> }).excused ?? {};
   for (const [v, l] of Object.entries(s.liege)) {
+    if (excused[v] === year) continue;
     const amount = rnd(1000 + (w.archon?.houses[v]?.might ?? 1) * 1500);
     if (isSim(w, v)) econ(w, v).stock.othes -= amount;
     if (isSim(w, l)) econ(w, l).stock.othes += amount;

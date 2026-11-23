@@ -11,7 +11,8 @@ import {
   grievances, joinWar, shipsWithFleet, offerPeace, partiesOf, peaceOdds, setCommander, setKnight, sideOf, sidePower, UNIT_LABEL, warsOf, type Formation, type Front, type Rung, type War, type WarGoal,
 } from '../sim/war';
 import { formatDate } from '../sim/time';
-import { econ } from '../sim/economy';
+import { beginPeaceTalks, beginSabotage, whyNoAgent } from '../sim/scenes_api';
+import { econ, netPerPhase, phaseLedger } from '../sim/economy';
 import type { World } from '../sim/types';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
@@ -110,6 +111,7 @@ function FrontRow({ war, fr }: { war: War; fr: Front }) {
         <span className="muted">{fr.where}</span>
         {fr.ended ? <span className="tag">{fr.winner === ours ? 'won' : fr.winner ? 'lost' : 'closed'}</span> : null}
         {fr.battle ? <span className="tag">battle now</span> : null}
+        {ours && !fr.ended ? <SabotageButton frontId={fr.id} /> : null}
       </div>
       <Tug v={fr.meter * flip} left={ours ? 'them' : houseName(world, war.defender)} right={ours ? 'us' : houseName(world, war.attacker)} />
       {!fr.ended ? (
@@ -120,6 +122,13 @@ function FrontRow({ war, fr }: { war: War; fr: Front }) {
       ) : null}
     </div>
   );
+}
+
+function SabotageButton({ frontId }: { frontId: string }) {
+  const world = useWorld();
+  const { run } = usePlay();
+  const why = whyNoAgent(world);
+  return <button type="button" className="btn tiny" style={{ marginLeft: 'auto' }} disabled={!!why} title={why ?? 'A live infiltration: burn their depots behind the line'} onClick={() => run((w) => beginSabotage(w, frontId))}>Send someone behind the lines</button>;
 }
 
 function WarCard({ war }: { war: War }) {
@@ -147,9 +156,11 @@ function WarCard({ war }: { war: War }) {
           Weariness: us {bar((war.exhaustion[P] ?? 0) / 100, 10)} {Math.round(war.exhaustion[P] ?? 0)} · them {bar((war.exhaustion[foe] ?? 0) / 100, 10)} {Math.round(war.exhaustion[foe] ?? 0)}
           <span className="muted"> · dead: ours {fmt(war.losses[P] ?? 0)}, theirs {fmt(war.losses[foe] ?? 0)}</span>
         </div>
+        {(() => { const cost = -phaseLedger(world, P).filter((l) => l.kind === 'war').reduce((t, l) => t + l.amount, 0); const net = netPerPhase(phaseLedger(world, P)).othes; return cost > 0 ? <div style={{ fontSize: 12 }}><Term k="warcost">The war costs us</Term> <strong className="down">{fmt(cost)}</strong> a Phase{net < 0 ? <span className="down"> · we lose {fmt(-net)} a Phase all told{econ(world, P).stock.othes > 0 ? `; the coffers last about ${Math.max(0, Math.floor(econ(world, P).stock.othes / -net / 5))} Orbits` : '; the coffers are empty'}</span> : null}</div> : null; })()}
         <div className="fronts">{war.fronts.filter((f) => !f.ended).map((fr) => <FrontRow key={fr.id} war={war} fr={fr} />)}</div>
         <div className="actions">
           {war.rung === 'clashes' && war.attacker === P ? <button type="button" className="btn" onClick={() => run((w) => escalate(w, war.id))} title="The fleets go for the space over their world">Make it open war</button> : null}
+          {principal ? <button type="button" className="btn primary" onClick={() => run((w) => beginPeaceTalks(w, war.id))} title="Sit down with their envoys: a live negotiation">Open talks</button> : null}
           {principal ? <button type="button" className="btn" onClick={() => run((w) => offerPeace(w, war.id, 'white'))}>Offer an even peace <span className="muted">· {Math.round(peaceOdds(world, war, 'white') * 100)}%</span></button> : null}
           {principal ? <button type="button" className="btn" onClick={() => run((w) => offerPeace(w, war.id, 'yield'))} title="They get what they came for">Yield</button> : <button type="button" className="btn" onClick={() => run((w) => offerPeace(w, war.id, 'white'))}>Leave the war</button>}
           <button type="button" className="btn small" onClick={() => setOpen(!open)}>{open ? 'Hide the record' : `The record (${war.log.length})`}</button>

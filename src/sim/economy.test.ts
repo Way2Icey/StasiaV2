@@ -1,3 +1,4 @@
+import { setPolicy } from './exchange';
 import { createWorld } from './world';
 import { advanceTurns } from './tick';
 import { deserialize, serialize } from './save';
@@ -22,13 +23,14 @@ describe('economy', () => {
   });
 
   it('settles a Phase exactly as the ledger forecast', () => {
-    const before = econ(base, P).stock;
-    const net = netPerPhase(phaseLedger(base, P));
+    // The Steward holds metals rather than selling the surplus, so they move exactly by the forecast.
+    let w = setPolicy(base, 'metals', { sell: 'hold' });
+    const before = econ(w, P).stock;
+    const net = netPerPhase(phaseLedger(w, P));
     // Advance to just past the next Phase boundary.
-    let w = base;
     while (w.economy.houses[P]!.lastPhase.length === 0) w = advanceTurns(w, 1);
     const after = econ(w, P).stock;
-    // Metals are never bought automatically, so they move exactly by the forecast.
+    // Metals are never bought here (we make more than we use), so they move exactly by the forecast.
     expect(after.metals - before.metals).toBe(net.metals);
   });
 
@@ -39,7 +41,9 @@ describe('economy', () => {
     expect(econ(bought, P).stock.othes).toBeLessThan(othes);
     const sold = trade(bought, P, 'metals', -100);
     expect(econ(sold, P).stock.othes).toBeGreaterThan(econ(bought, P).stock.othes);
-    expect(() => trade(base, P, 'components', 100000)).toThrow(/othes/);
+    expect(() => trade(base, P, 'components', 100000)).toThrow(/othes|on offer/);
+    const poor = structuredClone(base); econ(poor, P).stock.othes = 5;
+    expect(() => trade(poor, P, 'components', 5)).toThrow(/othes/);
   });
 
   it('missions cost othes', () => {

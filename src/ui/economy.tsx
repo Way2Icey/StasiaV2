@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { QuarterTerm, Term } from './tip';
 import {
-  buyPrice, computingOf, credibilityMarkup, econ, netPerPhase, phaseLedger, quotaFor, sellPrice, setTax, tradeInPlace,
+  computingOf, credibilityMarkup, econ, netPerPhase, phaseLedger, quotaFor, setTax,
 } from '../sim/economy';
-import { addCycles, dateParts, formatDate, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from '../sim/time';
-import { GOODS, RESOURCE_LABEL, RESOURCE_NOTE, RESOURCES, TAX, type Good, type Resource, type TaxRate } from '../data/economy';
+import { absoluteCycle, addCycles, dateParts, formatDate, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from '../sim/time';
+import { shocksOf } from '../sim/arcs_economy';
+import { RESOURCE_LABEL, RESOURCE_NOTE, RESOURCES, TAX, type Resource, type TaxRate } from '../data/economy';
 import type { LedgerLine, World } from '../sim/types';
 import { useGame, useWorld } from './context';
 import { Go, Panel, PersonById, SectorLink } from './links';
+import { ExchangePanels } from './exchange';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const signed = (n: number) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `−${fmt(-n)}` : '0');
@@ -27,20 +29,10 @@ export function EconomyPage() {
   const lines = phaseLedger(world, house);
   const net = netPerPhase(lines);
   const [sel, setSel] = useState<Resource>('othes');
-  const [error, setError] = useState<string | null>(null);
   const next = nextSettlement(world);
   const computing = computingOf(world, house);
   const markup = credibilityMarkup(world, house);
 
-  const doTrade = (g: Good, qty: number) => {
-    let err: string | null = null;
-    game.update((w) => {
-      const copy = structuredClone(w);
-      err = tradeInPlace(copy, house, g, qty);
-      return err ? w : copy;
-    });
-    setError(err);
-  };
 
   const shown = lines.filter((l) => l.resource === sel).sort((a, b) => b.amount - a.amount);
   const recent = e.recent.filter((l) => l.resource === sel);
@@ -131,30 +123,22 @@ export function EconomyPage() {
           </Panel>
         </div>
 
-        <Panel title={<Term k="exchange">Imperial Exchange</Term>} aside="Prices in othes · last 12 Phases" className="span-12">
-          {error ? <p className="body error" style={{ margin: 0 }}>{error}</p> : null}
-          <div className="table-wrap">
-            <table className="list market">
-              <thead><tr><th>Good</th><th style={{ textAlign: 'right' }}>In store</th><th>Trend</th><th style={{ textAlign: 'right' }}>We buy at</th><th style={{ textAlign: 'right' }}>We sell at</th><th>Buy</th><th>Sell</th></tr></thead>
-              <tbody>
-                {GOODS.map((g) => {
-                  const m = world.economy.market[g];
-                  return (
-                    <tr key={g}>
-                      <td>{RESOURCE_LABEL[g]}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{fmt(e.stock[g])}</td>
-                      <td><Spark values={m.history} /></td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{buyPrice(world, house, g).toFixed(1)}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{sellPrice(world, g).toFixed(1)}</td>
-                      <td><span className="trade">{[10, 100].map((q) => <button key={q} type="button" className="btn small" onClick={() => doTrade(g, q)}>+{q}</button>)}</span></td>
-                      <td><span className="trade">{[10, 100].map((q) => <button key={q} type="button" className="btn small" disabled={e.stock[g] < q} onClick={() => doTrade(g, -q)}>−{q}</button>)}</span></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <p className="body muted" style={{ margin: 0, fontSize: 11 }}>Every house trades here. What they buy and sell moves prices each Phase; prices drift back toward the usual level over time.</p>
+        <ExchangePanels />
+        <Panel title="News on the Exchange" className="span-12">
+          {(() => {
+            const now = absoluteCycle(world.date);
+            const live = shocksOf(world).filter((x) => x.until > now);
+            const crash = world.economy.crash && world.economy.crash.stage < 3;
+            return live.length || crash ? (
+              <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 12 }}>
+                {crash ? <strong className="down">The Exchange is in a crash. Creditors are calling in loans; prices will climb back when it finds its floor.</strong> : null}
+                {live.filter((x) => x.cause !== 'the crash' && x.cause !== 'the crash, deepening').map((x, i) => (
+                  <span key={i}><strong className={x.mult > 1 ? 'up' : 'down'}>{RESOURCE_LABEL[x.good]} {x.mult > 1 ? '▲' : '▼'}</strong> on {x.cause}: {x.mult > 1 ? 'the far worlds want more and have less to sell' : 'the far worlds want less and have more to sell'} for about {Math.max(1, Math.round((x.until - now) / CYCLES_PER_ORBIT))} Orbit{Math.round((x.until - now) / CYCLES_PER_ORBIT) === 1 ? '' : 's'} more.</span>
+                ))}
+              </div>
+            ) : <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Nothing out of the ordinary.</p>;
+          })()}
+          <p className="body muted" style={{ margin: 0, fontSize: 11 }}>News out in the Archon moves what the world beyond the houses wants and has to sell: a shortage there is a seller's market here.</p>
         </Panel>
         <Panel title="Loans" className="span-12"><p className="body" style={{ margin: 0 }}>Lending and borrowing between houses: <Go to={{ kind: 'loans' }}>Treasury › Loans ›</Go></p></Panel>
       </div>
@@ -165,7 +149,7 @@ export function EconomyPage() {
 function LedgerRow({ l }: { l: LedgerLine }) {
   return (
     <tr className={l.kind === 'skim' ? 'skim' : undefined}>
-      <td>{l.kind === 'skim' ? <Term k="skim">{l.label}</Term> : l.kind === 'stipend' ? <Term k="stipend">{l.label}</Term> : l.kind === 'quarter' && l.quarterId ? <QuarterTerm name={l.label} /> : l.kind === 'boon' ? <Term k="boon">{l.label}</Term> : l.label}{l.kind === 'skim' && !l.characterId ? <span className="muted" style={{ fontSize: 11 }}> · cause unknown; an audit may find it</span> : null}</td>
+      <td>{l.kind === 'skim' ? <Term k="skim">{l.label}</Term> : l.kind === 'stipend' ? <Term k="stipend">{l.label}</Term> : l.kind === 'quarter' && l.quarterId ? <QuarterTerm name={l.label} /> : l.kind === 'boon' ? <Term k="boon">{l.label}</Term> : l.kind === 'forces' || l.kind === 'war' ? <Term k="warcost">{l.label}</Term> : l.label}{l.kind === 'skim' && !l.characterId ? <span className="muted" style={{ fontSize: 11 }}> · cause unknown; an audit may find it</span> : null}</td>
       <td>{l.sectorId ? <SectorLink id={l.sectorId} /> : <span className="muted">—</span>}</td>
       <td>{l.characterId ? <PersonById id={l.characterId} /> : <span className="muted">—</span>}</td>
       <td className={`mono ${l.amount >= 0 ? 'up' : 'down'}`} style={{ textAlign: 'right' }}>{signed(l.amount)}</td>
@@ -173,21 +157,6 @@ function LedgerRow({ l }: { l: LedgerLine }) {
   );
 }
 
-function Spark({ values }: { values: number[] }) {
-  if (values.length < 2) return <span className="muted">—</span>;
-  const w = 90;
-  const h = 22;
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  const span = hi - lo || 1;
-  const pts = values.map((v, i) => `${(i / (values.length - 1)) * w},${h - 2 - ((v - lo) / span) * (h - 4)}`).join(' ');
-  const up = values[values.length - 1]! >= values[0]!;
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} role="img" aria-label={`From ${values[0]!.toFixed(1)} to ${values[values.length - 1]!.toFixed(1)}`}>
-      <polyline points={pts} fill="none" stroke={up ? 'var(--orange)' : 'var(--green)'} strokeWidth="1.5" />
-    </svg>
-  );
-}
 
 /** One line for the top bar: othes in the coffers. */
 export function Coffers() {

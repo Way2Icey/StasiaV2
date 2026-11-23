@@ -3,6 +3,7 @@
 // once. Prices on the Imperial Exchange move with what the houses buy and sell.
 import { embargoMarkup } from './lanewatch';
 import { favourQuota, privilegeOf } from './houses';
+import { bestBuy, bestSell, clearExchange, marketOrder } from './exchange';
 import { renownOf } from './renown';
 import { Rng } from './rng';
 import { alive, findSector } from './query';
@@ -20,7 +21,6 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 const round = (v: number) => Math.round(v);
 
 /** How strongly a unit of trade moves each good's price. */
-const DEPTH: Record<Good, number> = { navisium: 300, metals: 1500, provisions: 8000, fuel: 600, components: 150 };
 
 // ---------------------------------------------------------------- setup
 
@@ -127,6 +127,15 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
   if (knights.length) lines.push({ resource: 'othes', amount: -Math.round(knights.reduce((n, k) => n + stipendOf(world, k), 0) * mult), label: `Knights' stipends (${knights.length})`, kind: 'stipend' });
   const blooded = Object.entries(world.ladder?.of ?? {}).filter(([id, r]) => r.stage === 'blooded' && world.characters[id]?.houseId === houseId).length;
   if (blooded) lines.push({ resource: 'othes', amount: -Math.round(blooded * 8 * mult), label: `Allowances for the blooded (${blooded})`, kind: 'stipend' });
+  // The house's forces cost to keep; in the field, at war, far more, and war chokes the trade that pays for them.
+  const { home, field, rung, blockaded } = forcesCost(world, houseId);
+  if (home) lines.push({ resource: 'othes', amount: -home, label: 'Standing forces', kind: 'forces' });
+  if (field) lines.push({ resource: 'othes', amount: -field, label: 'The host in the field', kind: 'war' });
+  if (rung) {
+    const takings = lines.filter((l) => l.resource === 'othes' && l.amount > 0 && (l.kind === 'quarter' || l.kind === 'tax')).reduce((t, l) => t + l.amount, 0);
+    const cut = round(takings * ((rung === 'war' ? 0.25 : 0.08) + (blockaded ? 0.15 : 0)));
+    if (cut) lines.push({ resource: 'othes', amount: -cut, label: blockaded ? 'Trade lost to the war, and the blockade' : 'Trade lost to the war', kind: 'war' });
+  }
   // What we own costs to keep.
   let upkeep = 0;
   let mods = 0;
@@ -135,6 +144,26 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
   upkeep += pupils * 8;
   if (upkeep) lines.push({ resource: 'othes', amount: -upkeep, label: `Upkeep of holdings (${mods})${pupils ? ` and ${pupils} academy places` : ''}`, kind: 'stipend' });
   return lines;
+}
+
+/** Per Phase: what a soldier, a ship or a sworn blade costs to keep at home. In the field at war it is six times that. */
+export const FORCE_UPKEEP = { legion: 0.003, fleet: 6, company: 0.15 } as const;
+export const FIELD_MULT = { war: 6, clashes: 2.5 } as const;
+
+/** What a house's forces cost it this Phase, at home and in the field. */
+export function forcesCost(world: World, houseId: string): { home: number; field: number; rung: 'war' | 'clashes' | null; blockaded: boolean } {
+  const s = world.war;
+  if (!s) return { home: 0, field: 0, rung: null, blockaded: false };
+  const wars = s.wars.filter((x) => x.status === 'active' && (x.attacker === houseId || x.defender === houseId || x.attackers.includes(houseId) || x.defenders.includes(houseId)));
+  const rung = wars.some((x) => x.rung === 'war') ? 'war' : wars.length ? 'clashes' : null;
+  let home = 0, field = 0;
+  for (const f of Object.values(s.formations)) {
+    if (f.houseId !== houseId || f.strength <= 0) continue;
+    const base = f.strength * FORCE_UPKEEP[f.kind];
+    if (f.front && rung) field += base * FIELD_MULT[rung]; else home += base;
+  }
+  const blockaded = wars.some((x) => { const mine = x.attacker === houseId || x.attackers.includes(houseId) ? 'attackers' : 'defenders'; return x.fronts.some((fr) => fr.kind === 'orbit' && fr.winner && fr.winner !== mine); });
+  return { home: round(home), field: round(field), rung, blockaded };
 }
 
 /** Per Phase, per level. */
@@ -210,13 +239,19 @@ export function credibilityMarkup(world: World, houseId: string): number {
   return clamp((55 - world.houses[houseId]!.standing.honour) / 250, -0.12, 0.2);
 }
 
-export function buyPrice(world: World, houseId: string, g: Good): number {
-  // An embargo makes every purchase dearer; the Numarade's privilege makes it cheaper.
-  return world.economy.market[g].price * (1 + credibilityMarkup(world, houseId)) * embargoMarkup(world, houseId) * (privilegeOf(world, houseId) === 'privilege' ? 0.95 : 1);
+/** What our credit, an embargo and the Numarade's privilege add to anything we buy. */
+export function purchaseMarkup(world: World, houseId: string): number {
+  return (1 + credibilityMarkup(world, houseId)) * embargoMarkup(world, houseId) * (privilegeOf(world, houseId) === 'privilege' ? 0.95 : 1);
 }
 
-export function sellPrice(world: World, g: Good): number {
-  return world.economy.market[g].price * 0.9;
+/** The best price to buy a unit now, delivered home (see exchange.ts). */
+export function buyPrice(world: World, houseId: string, g: Good): number {
+  return bestBuy(world, houseId, g);
+}
+
+/** The best a unit would fetch now, less the haul (see exchange.ts). */
+export function sellPrice(world: World, g: Good, houseId = world.playerHouseId): number {
+  return bestSell(world, houseId, g);
 }
 
 /** Buy (qty > 0) or sell (qty < 0) on a world already cloned. Returns an error or null. */
@@ -252,32 +287,14 @@ function fromPartners(world: World, houseId: string, g: Good, want: number): num
   return got;
 }
 
-export function tradeInPlace(world: World, houseId: string, g: Good, qty: number): string | null {
+export function tradeInPlace(world: World, houseId: string, g: Good, qty: number, partial = false): string | null {
   if (!qty) return null;
   if (qty > 0 && world.lanes?.compacts?.length) {
     qty -= fromPartners(world, houseId, g, qty);
     if (qty <= 0) return null;
   }
-  const e = econ(world, houseId);
-  const m = world.economy.market[g];
-  if (qty > 0) {
-    const cost = round(buyPrice(world, houseId, g) * qty);
-    if (e.stock.othes < cost) return `Not enough othes: ${cost.toLocaleString('en-US')} needed.`;
-    record(world, houseId, { resource: 'othes', amount: -cost, label: `Bought ${qty} ${RESOURCE_LABEL[g].toLowerCase()}`, kind: 'trade' });
-    record(world, houseId, { resource: g, amount: qty, label: 'Bought at the Exchange', kind: 'trade' });
-  } else {
-    const n = -qty;
-    if (e.stock[g] < n) return `Only ${round(e.stock[g])} ${RESOURCE_LABEL[g].toLowerCase()} in store.`;
-    const gain = round(sellPrice(world, g) * n);
-    record(world, houseId, { resource: g, amount: -n, label: 'Sold at the Exchange', kind: 'trade' });
-    record(world, houseId, { resource: 'othes', amount: gain, label: `Sold ${n} ${RESOURCE_LABEL[g].toLowerCase()}`, kind: 'trade' });
-  }
-  m.pressure += qty;
-  // Every trade is a shipment: the lanes load it and send it (see lanes.ts).
-  world.lanes?.loading?.push({ owner: houseId, good: g, qty, value: qty > 0 ? round(buyPrice(world, houseId, g) * qty) : round(sellPrice(world, g) * -qty) });
-  // Large trades move the price at once, a little.
-  m.price = clamp(m.price * (1 + clamp(qty / DEPTH[g], -0.1, 0.1) * 0.5), BASE_PRICE[g] * 0.4, BASE_PRICE[g] * 3);
-  return null;
+  const r = marketOrder(world, houseId, g, qty, { partial });
+  return r.error ?? null;
 }
 
 export function trade(input: World, houseId: string, g: Good, qty: number): World {
@@ -293,24 +310,6 @@ export function setTax(input: World, houseId: string, tax: HouseEconomy['tax']):
   return w;
 }
 
-/** What the Reaches beyond the houses bring to the Exchange each Phase (positive) or take from it (negative): free traders, the Reach, the far worlds. */
-const OUTSIDE: Record<Good, number> = { navisium: -10, metals: -150, provisions: 150, fuel: 140, components: -10 };
-
-function settleMarket(world: World, rng: Rng) {
-  for (const g of GOODS) {
-    const m = world.economy.market[g];
-    m.pressure -= OUTSIDE[g];
-    const base = BASE_PRICE[g];
-    let p = m.price * (1 + clamp(m.pressure / DEPTH[g], -0.15, 0.15) * 0.5);
-    p += (base - p) * 0.1; // drifts back toward the usual price
-    p *= 1 + rng.gauss() * 0.03;
-    m.price = Math.round(clamp(p, base * 0.4, base * 3) * 100) / 100;
-    m.history.push(m.price);
-    m.history = m.history.slice(-12);
-    m.pressure = 0;
-  }
-}
-
 // ---------------------------------------------------------------- each turn
 
 export function advanceEconomy(world: World, rng: Rng, phaseTurned: boolean, orbitTurned: boolean): void {
@@ -318,7 +317,7 @@ export function advanceEconomy(world: World, rng: Rng, phaseTurned: boolean, orb
   if (orbitTurned) { deliverQuotas(world); stewardAccounts(world); }
   if (!phaseTurned) return;
   for (const houseId of Object.keys(world.houses)) settlePhase(world, rng, houseId);
-  settleMarket(world, rng);
+  clearExchange(world, rng);
 }
 
 /** Each Orbit the Steward sends up the accounts: what came in, what went out, and whether it can last. */
@@ -370,16 +369,21 @@ function settlePhase(world: World, rng: Rng, houseId: string) {
   if (shift) for (const s of heldSectors(world, houseId)) s.unrest = clamp(s.unrest + shift, 0, 100);
 
   const isPlayer = houseId === world.playerHouseId;
-  if (!isPlayer) rivalTrades(world, houseId, lines);
 
-  // The Steward covers shortfalls at the Exchange if the coffers allow.
+  // Provisions do not keep for ever: what is far beyond need spoils in the stores.
+  const eat = -lines.filter((l) => l.resource === 'provisions' && l.kind === 'food').reduce((t, l) => t + l.amount, 0);
+  const keep = Math.max(400, eat * 40);
+  if (e.stock.provisions > keep) e.stock.provisions = round(e.stock.provisions - (e.stock.provisions - keep) * 0.04);
+
+  // The Steward covers shortfalls at the Exchange if the coffers allow, selling what we have too much of to pay for it.
   for (const g of GOODS) {
     if (e.stock[g] >= 0) continue;
     const need = Math.ceil(-e.stock[g]);
-    const err = tradeInPlace(world, houseId, g, need);
-    if (!err) {
+    if (e.stock.othes < buyPrice(world, houseId, g) * need) sellSurplus(world, houseId, buyPrice(world, houseId, g) * need - e.stock.othes, g);
+    tradeInPlace(world, houseId, g, need, true);
+    if (e.stock[g] >= 0) {
       const st = alive(world).find((c) => c.houseId === houseId && c.seat === 'steward');
-      tell(world, houseId, `${st ? shortName(st.name) : 'The Steward'} bought ${need} ${RESOURCE_LABEL[g].toLowerCase()} at the Exchange to cover a shortfall.`, st ? [st.id] : undefined);
+      tell(world, houseId, `${st ? shortName(st.name) : 'The Steward'} bought ${need} ${RESOURCE_LABEL[g].toLowerCase()} on the Exchange, at whatever the sellers asked, to cover a shortfall.`, st ? [st.id] : undefined);
     } else {
       e.stock[g] = 0;
       if (!isPlayer) rivalShort(world, houseId, g);
@@ -392,13 +396,35 @@ function settlePhase(world: World, rng: Rng, houseId: string) {
     }
   }
 
-  // Debt.
+  // Debt: before borrowing on our name, the Steward sells what we can spare.
+  if (e.stock.othes < 0) sellSurplus(world, houseId, -e.stock.othes);
   if (e.stock.othes < 0) {
     const st = world.houses[houseId]!.standing;
-    st.honour = clamp(st.honour - 1, 0, 100);
+    if (rng.chance(0.25)) st.honour = clamp(st.honour - 1, 0, 100);
     tell(world, houseId, `We are in debt (${round(e.stock.othes).toLocaleString('en-US')} othes). Our word is worth less: honour −1.`);
   }
   void rng;
+}
+
+/** What a house keeps in store before the Steward calls it surplus. */
+export const RESERVE: Record<Good, number> = { navisium: 250, metals: 400, provisions: 600, fuel: 300, components: 150 };
+
+/** The Steward raises `want` othes by selling stores beyond the reserve, the dearest first. */
+export function sellSurplus(world: World, houseId: string, want: number, not?: Good): number {
+  const e = econ(world, houseId);
+  let got = 0;
+  const order = [...GOODS].filter((g) => g !== not).sort((a, b) => sellPrice(world, b, houseId) - sellPrice(world, a, houseId));
+  for (const g of order) {
+    if (got >= want) break;
+    const spare = Math.floor(e.stock[g] - RESERVE[g]);
+    if (spare <= 0) continue;
+    const n = Math.min(spare, Math.ceil((want - got) / Math.max(0.01, sellPrice(world, g, houseId))));
+    const before = e.stock.othes;
+    tradeInPlace(world, houseId, g, -n, true);
+    got += e.stock.othes - before;
+  }
+  if (got > 0) tell(world, houseId, `The Steward sold stores we had too much of for ${round(got).toLocaleString('en-US')} othes, to keep the house fed and paid.`);
+  return got;
 }
 
 /** A rival running dry is news, and it hurts them: hunger in their sectors, their works idle. */
@@ -418,25 +444,6 @@ function rivalShort(world: World, houseId: string, g: Good) {
 }
 
 /** Rivals keep a couple of Phases of what they use, and sell what piles up. */
-function rivalTrades(world: World, houseId: string, lines: LedgerLine[]) {
-  const e = econ(world, houseId);
-  const net = netPerPhase(lines);
-  for (const g of GOODS) {
-    const use = Math.max(0, -net[g]);
-    const keep = g === 'navisium' ? Math.max(100, use * 2) : use * 2;
-    if (e.stock[g] < keep && e.stock.othes > 1500) {
-      const want = Math.ceil(keep - e.stock[g]);
-      const afford = Math.floor((e.stock.othes - 1500) / buyPrice(world, houseId, g));
-      const qty = Math.min(want, afford);
-      if (qty > 0) tradeInPlace(world, houseId, g, qty);
-    } else if (net[g] > 0 && e.stock[g] > net[g] * 6) {
-      tradeInPlace(world, houseId, g, -Math.floor(e.stock[g] - net[g] * 3));
-    } else if (g === 'navisium' && e.stock[g] > Math.max(300, use * 4)) {
-      tradeInPlace(world, houseId, g, -Math.floor(e.stock[g] - Math.max(200, use * 3)));
-    }
-  }
-}
-
 // ---------------------------------------------------------------- ransom
 
 const RANSOM_DAYS = CYCLES_PER_PHASE;

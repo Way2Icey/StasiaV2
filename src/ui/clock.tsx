@@ -26,7 +26,7 @@ export interface ClockApi {
   setSpeed: (s: Speed) => void;
 }
 
-export function useClock(world: World, setWorld: (fn: (w: World) => World) => void, onFreeze: (events: string[], reason: string, battle?: string) => void, onNotice: (msg: string) => void, blocked: boolean): ClockApi {
+export function useClock(world: World, setWorld: (fn: (w: World) => World) => void, onFreeze: (events: string[], reason: string, battle?: string, scene?: string) => void, onNotice: (msg: string) => void, blocked: boolean): ClockApi {
   const [running, setRunningState] = useState(false);
   const [speed, setSpeedState] = useState<Speed>(() => { const v = Number(storage.get('stasia.speed')); return (v === 2 || v === 3 ? v : 1) as Speed; });
   const [pauseOnDecisions] = useState(true);
@@ -43,7 +43,7 @@ export function useClock(world: World, setWorld: (fn: (w: World) => World) => vo
       const r = stepClock(latest.current, pauseOnDecisions);
       latest.current = r.world;
       setWorld(() => r.world);
-      if (r.freeze) { setRunningState(false); onFreeze(r.freeze.events, r.freeze.reason, r.freeze.battle); return; }
+      if (r.freeze) { setRunningState(false); onFreeze(r.freeze.events, r.freeze.reason, r.freeze.battle, r.freeze.scene); return; }
       if (r.notice) onNotice(r.notice);
       timer.current = window.setTimeout(tick, TICK[speed]);
     };
@@ -67,7 +67,7 @@ export function useClock(world: World, setWorld: (fn: (w: World) => World) => vo
   return { running, setRunning, speed, setSpeed };
 }
 
-export function ClockControl({ world, setWorld, clock, onFreeze }: { world: World; setWorld: (fn: (w: World) => World) => void; clock: ClockApi; onFreeze: (events: string[], reason: string, battle?: string) => void }) {
+export function ClockControl({ world, setWorld, clock, onFreeze }: { world: World; setWorld: (fn: (w: World) => World) => void; clock: ClockApi; onFreeze: (events: string[], reason: string, battle?: string, scene?: string) => void }) {
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -114,7 +114,7 @@ export function ClockControl({ world, setWorld, clock, onFreeze }: { world: Worl
       <span className={`act act-${act}`} title={`The storyteller: ${ACT_LABEL[act]} (tension ${Math.round(world.story?.tension ?? 0)})`}><Term k="storyteller">{ACT_LABEL[act]}</Term></span>
       {open ? (
         <div className="continue-menu" role="menu">
-          <button type="button" role="menuitem" onClick={() => { setOpen(false); const r = stepClock(latest.current); setWorld(() => r.world); if (r.freeze) onFreeze(r.freeze.events, r.freeze.reason, r.freeze.battle); }}>
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); const r = stepClock(latest.current); setWorld(() => r.world); if (r.freeze) onFreeze(r.freeze.events, r.freeze.reason, r.freeze.battle, r.freeze.scene); }}>
             <span>One step</span><span className="muted">two Cycles</span>
           </button>
           {SPANS.map((s) => (

@@ -3,7 +3,7 @@ import { useGame, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, SectorLink } from './links';
 import { Term } from './tip';
 import { formatDate } from '../sim/time';
-import { answerEvent, checkBand, checkChance, eventDef, makeCtx, oddsWord, optionLabel, type Check, type Ctx, type PendingEvent } from '../sim/events';
+import { answerEvent, checkBand, checkChance, eventDef, makeCtx, oddsWord, optionLabel, optionsFor, shown, titleFor, type Check, type Ctx, type PendingEvent } from '../sim/events';
 import { useSee } from './fog';
 import { shortName } from '../sim/names';
 import '../sim/eventDefs';
@@ -29,6 +29,7 @@ export function Decision({ p }: { p: PendingEvent }) {
   const def = eventDef(p.defId);
   if (!def) return null;
   const ctx = makeCtx(world, new Rng(world.rng), p);
+  const opts = optionsFor(def, p);
   const m = p.missionId ? world.missions[p.missionId] : undefined;
   const arc = ctx.arc;
   const st = ctx.struggle;
@@ -37,7 +38,7 @@ export function Decision({ p }: { p: PendingEvent }) {
       <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={{ fontSize: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
           <span className="tag council">{def.category}</span>
-          <strong style={{ fontSize: 14 }}>{def.title}</strong>
+          <strong style={{ fontSize: 14 }}>{titleFor(def, p)}</strong>
           {m ? <><PersonById id={m.leaderId} /> <Go to={{ kind: 'mission', id: m.id }}>· view mission</Go></> : null}
           {p.personId && p.personId !== m?.leaderId ? <PersonById id={p.personId} /> : null}
           {p.otherHouseId ? <HouseLink id={p.otherHouseId} /> : null}
@@ -48,7 +49,8 @@ export function Decision({ p }: { p: PendingEvent }) {
         {p.urgent ? <span className="tag" style={{ alignSelf: 'flex-start' }}>Now</span> : null}
         <span className="quote">{p.text}</span>
         <span className="choices-row">
-          {def.options.map((o, i) => {
+          {opts.map((o, i) => {
+            if (!shown(o, ctx)) return null;
             const why = o.available?.(ctx) ?? null;
             const band = o.check ? oddsBand(ctx, o.check, see) : null;
             const chance = band ? (band[0] + band[1]) / 2 : null;
@@ -69,7 +71,7 @@ export function Decision({ p }: { p: PendingEvent }) {
           })}
         </span>
         <span className="muted" style={{ fontSize: 11 }}>
-          Lapses {formatDate(p.expires)}. If you say nothing, the council will <em>{optionLabel(def.options[def.fallback]!, ctx).toLowerCase()}</em>.
+          Lapses {formatDate(p.expires)}. If you say nothing, the council will <em>{optionLabel(opts[def.fallback] ?? def.options[def.fallback]!, ctx).toLowerCase()}</em>.
         </span>
       </span>
     </div>

@@ -39,6 +39,10 @@ export interface PendingEvent {
   struggleId?: string;
   /** Freezes the clock until answered. */
   urgent?: boolean;
+  /** Which telling of the event this is (a variant's id), if not the plain one. */
+  variant?: string;
+  /** What setup chose that the options need later: amounts, names, places. */
+  stakes?: Record<string, string | number>;
 }
 
 export interface ResolvedEvent {
@@ -108,6 +112,25 @@ export interface EventOption {
   then?: (c: Ctx, passed: boolean) => Next | null;
   /** How the arc ends if it ends on this option. */
   ending?: string;
+  /** Shown only when this holds: a branch for a trait, a thread, a view, a past. */
+  when?: (c: Ctx) => boolean;
+}
+
+/** Another telling of the same event: a different cast, other stakes, a turn the plain one lacks. */
+export interface Variant {
+  id: string;
+  /** Only when this holds (after setup has cast the event). */
+  when?: (c: Ctx) => boolean;
+  /** Against the plain telling's 1. */
+  weight?: number;
+  title?: string;
+  /** Fill in this telling's stakes (into c.memo) before the text is written. */
+  stake?: (c: Ctx) => void;
+  text?: (c: Ctx) => string;
+  /** Replaces the options; keep the fallback's index meaningful. */
+  options?: EventOption[];
+  /** Added after the usual options. */
+  extra?: EventOption[];
 }
 
 export interface EventDef {
@@ -132,6 +155,8 @@ export interface EventDef {
   act?: Act;
   /** Names the arc it starts, when it starts one. */
   arc?: string;
+  /** Other tellings, chosen when the event fires. */
+  variants?: Variant[];
 }
 
 // ---------------------------------------------------------------- effects
@@ -300,6 +325,7 @@ function baseCtx(world: World, rng: Rng, p: Partial<PendingEvent>): Omit<Ctx, 'f
     sector: p.sectorId ? findSector(world, p.sectorId)?.sector : undefined,
     arc: p.arcId ? world.story?.arcs.find((a) => a.id === p.arcId) : undefined,
     struggle: p.struggleId ? world.story?.struggles.find((x) => x.id === p.struggleId) : undefined,
+    ...(p.stakes ? { memo: { ...p.stakes } } : {}),
   };
 }
 
@@ -317,22 +343,65 @@ export function registerEvents(defs: EventDef[]): void { DEFS = [...defs, ...DEF
 /** Add more definitions (arcs, struggles) alongside the rest. */
 export function addEvents(defs: EventDef[]): void { DEFS = [...DEFS.filter((d) => !defs.some((x) => x.id === d.id)), ...defs]; }
 export function eventDef(id: string): EventDef | undefined { return DEFS.find((d) => d.id === id); }
+
+// ---------------------------------------------------------------- variants and branches
+
+const BRANCHES = new Map<string, EventOption[]>();
+/** More choices for an event that only some houses or people will see (each with its own `when`). */
+export function addBranches(defId: string, opts: EventOption[]): void { BRANCHES.set(defId, [...(BRANCHES.get(defId) ?? []), ...opts]); }
+
+const VARIANTS = new Map<string, Variant[]>();
+/** Other tellings of an event defined elsewhere. */
+export function addVariants(defId: string, vs: Variant[]): void { VARIANTS.set(defId, [...(VARIANTS.get(defId) ?? []), ...vs]); }
+export function variantsOf(def: EventDef): Variant[] { return [...(def.variants ?? []), ...(VARIANTS.get(def.id) ?? [])]; }
+
+export function variantOf(def: EventDef, p: Partial<PendingEvent>): Variant | undefined {
+  return p.variant ? variantsOf(def).find((v) => v.id === p.variant) : undefined;
+}
+/** Every option this telling has, in a fixed order (answers are indices into this). */
+export function optionsFor(def: EventDef, p: Partial<PendingEvent>): EventOption[] {
+  const v = variantOf(def, p);
+  return [...(v?.options ?? def.options), ...(v?.extra ?? []), ...(BRANCHES.get(def.id) ?? [])];
+}
+/** Whether an option is on the table here. */
+export function shown(o: EventOption, c: Ctx): boolean {
+  if (!o.when) return true;
+  try { return !!o.when(c); } catch { return false; }
+}
+export function titleFor(def: EventDef, p: Partial<PendingEvent>): string {
+  return variantOf(def, p)?.title ?? def.title;
+}
+
+function pickVariant(def: EventDef, c: Ctx, rng: Rng): Variant | undefined {
+  const all = variantsOf(def);
+  if (!all.length) return undefined;
+  const ok = all.filter((v) => { try { return !v.when || v.when(c); } catch { return false; } });
+  if (!ok.length) return undefined;
+  const pick = rng.weighted<Variant | null>([[null, 1], ...ok.map((v) => [v, v.weight ?? (v.when ? 1.5 : 1)] as [Variant, number])]);
+  return pick ?? undefined;
+}
 export function allDefs(): EventDef[] { return DEFS; }
 
-function place(world: World, def: EventDef, holder: Partial<PendingEvent>, life: number, arcId?: string, memo?: Record<string, string | number>): PendingEvent {
+function place(world: World, def: EventDef, holder: Partial<PendingEvent>, life: number, arcId?: string, memo?: Record<string, string | number>, rng?: Rng): PendingEvent {
   const ev = world.events;
-  const fresh = makeCtx(world, new Rng(world.rng), holder);
+  const fresh = makeCtx(world, rng ?? new Rng(world.rng), holder);
   if (memo) fresh.memo = memo;
   if (arcId) fresh.arc = world.story?.arcs.find((a) => a.id === arcId);
+  fresh.set = holder;
+  const v = rng ? pickVariant(def, fresh, rng) : undefined;
+  if (v?.stake) { fresh.memo ??= {}; v.stake(fresh); }
+  const stakes = fresh.memo && Object.keys(fresh.memo).length ? { ...fresh.memo } : undefined;
   const p: PendingEvent = {
     ...holder,
     id: `e${world.nextId++}`,
     defId: def.id,
     date: world.date,
     expires: addCycles(world.date, def.life ?? life),
-    text: def.text(fresh),
+    text: (v?.text ?? def.text)(fresh),
     ...(arcId ? { arcId } : {}),
     ...(def.urgent ? { urgent: true } : {}),
+    ...(v ? { variant: v.id } : {}),
+    ...(stakes ? { stakes } : {}),
   };
   ev.pending.push(p);
   ev.recent.unshift(def.id);
@@ -361,8 +430,8 @@ export function fire(world: World, rng: Rng, trigger: EventTrigger, seed: Partia
     if (!def.setup(ctx)) continue;
     // Someone already at the heart of one story is not cast as the heart of another.
     if (def.arc && holder.personId && busy.has(holder.personId)) continue;
-    const p = place(world, def, holder, life, undefined, ctx.memo);
-    if (def.arc) { const run = startArc(world, p, def.arc); if (ctx.memo) run.data = { ...ctx.memo }; }
+    const p = place(world, def, holder, life, undefined, ctx.memo, rng);
+    if (def.arc) { const run = startArc(world, p, def.arc); if (p.stakes) run.data = { ...p.stakes }; }
     return true;
   }
   return false;
@@ -377,8 +446,9 @@ export function fireStage(world: World, rng: Rng, defId: string, seed: Partial<P
   ctx.set = holder;
   if (arcId) ctx.arc = world.story?.arcs.find((a) => a.id === arcId);
   if (!def.setup(ctx)) return null;
-  const p = place(world, def, holder, CYCLES_PER_PHASE, arcId, ctx.memo);
-  if (!arcId && def.arc) { const run = startArc(world, p, def.arc); if (ctx.memo) run.data = { ...ctx.memo }; }
+  const p = place(world, def, holder, CYCLES_PER_PHASE, arcId, ctx.memo, rng);
+  if (!arcId && def.arc) { const run = startArc(world, p, def.arc); if (p.stakes) run.data = { ...p.stakes }; }
+  else if (arcId && p.stakes) { const run = world.story?.arcs.find((a) => a.id === arcId); if (run) run.data = { ...(run.data ?? {}), ...p.stakes }; }
   return p;
 }
 
@@ -442,9 +512,12 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
   if (!def) return null;
   const idx = choice ?? def.fallback;
   const ctx = makeCtx(world, rng, p);
-  const opt = def.options[idx] ?? def.options[def.fallback]!;
-  const why = opt.available?.(ctx);
-  const use0 = why ? def.options[def.fallback]! : opt;
+  const opts = optionsFor(def, p);
+  const fb = opts[def.fallback] ?? def.options[def.fallback]!;
+  const opt = opts[idx] ?? fb;
+  const why = !shown(opt, ctx) ? 'hidden' : opt.available?.(ctx);
+  const use0 = why ? fb : opt;
+  const title = titleFor(def, p);
   const use = { ...use0, label: optionLabel(use0, ctx) };
   let passed = true;
   if (use.check) {
@@ -459,9 +532,9 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
   let run = ctx.arc ?? (p.arcId ? world.story?.arcs.find((a) => a.id === p.arcId) : undefined);
   const nx = use.then?.(ctx, passed) ?? null;
   // An event that leads somewhere becomes an arc the moment it does.
-  if (!run && nx) run = startArc(world, p, def.arc ?? def.title);
+  if (!run && nx) run = startArc(world, p, def.arc ?? title);
   if (run) {
-    run.stages.push({ date: world.date, title: def.title, choice: use.label, lines: [...ctx.fx.lines], byCouncil: choice === null });
+    run.stages.push({ date: world.date, title: title, choice: use.label, lines: [...ctx.fx.lines], byCouncil: choice === null });
     Object.assign(run.cast, castOf(p));
     if (nx?.cast) Object.assign(run.cast, nx.cast);
     if (nx?.data) run.data = { ...(run.data ?? {}), ...nx.data };
@@ -469,13 +542,13 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
     else { run.open = false; delete run.next; run.ending = use.ending ?? `${use.label}.`; }
   }
   const r: ResolvedEvent = {
-    id: p.id, defId: def.id, title: def.title, date: world.date, choice: use.label, byCouncil: choice === null,
+    id: p.id, defId: def.id, title: title, date: world.date, choice: use.label, byCouncil: choice === null,
     lines: ctx.fx.lines, missionId: p.missionId,
   };
   ev.log.unshift(r);
   ev.log = ev.log.slice(0, 40);
   const m = p.missionId ? world.missions[p.missionId] : undefined;
-  if (m) m.log.push({ date: world.date, text: `${def.title}: ${use.label.toLowerCase()}. ${ctx.fx.lines.join('; ')}.` });
+  if (m) m.log.push({ date: world.date, text: `${title}: ${use.label.toLowerCase()}. ${ctx.fx.lines.join('; ')}.` });
   const who: { id: string; part: string }[] = [];
   if (ctx.leader) who.push({ id: ctx.leader.id, part: 'mission leader' });
   if (ctx.person && ctx.person.id !== ctx.leader?.id) who.push({ id: ctx.person.id, part: 'at the heart of it' });
@@ -483,7 +556,7 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
   logRecord(world, {
     kind: 'council', type: 'decision',
     severity: ctx.fx.lines.some((l) => l.includes('wounded')) ? 2 : 1,
-    text: `${def.title}: ${choice === null ? 'left to the council, who chose to' : 'we chose to'} ${use.label.toLowerCase()}.`,
+    text: `${title}: ${choice === null ? 'left to the council, who chose to' : 'we chose to'} ${use.label.toLowerCase()}.`,
     detail: p.text, effects: ctx.fx.lines, who, missionId: p.missionId,
     placeId: p.sectorId ?? (m ? m.targetSectorId ?? m.targetPlanetId : undefined),
     houseIds: p.otherHouseId ? [p.otherHouseId] : undefined,

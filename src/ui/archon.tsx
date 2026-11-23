@@ -14,6 +14,7 @@ import { CLIMATE_LABEL, HAZARD_LABEL, worthOf, wildLabel } from '../sim/frontier
 import { SPECIES } from '../data/species';
 import { attitude, attitudeColor } from '../sim/relations';
 import { createWorld } from '../sim/world';
+import { beginLegendHunt, beginPact, whyNoAgent } from '../sim/scenes_api';
 import { dateParts, formatDate } from '../sim/time';
 import type { World } from '../sim/types';
 
@@ -148,6 +149,7 @@ export function ArchonHousePage({ id }: { id: string }) {
       <div className="actions">
         <button type="button" className="btn primary" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => courtHouse(w, id))}>Court them ({COURT_COST.toLocaleString('en-US')} othes)</button>
         <Go to={{ kind: 'numarade' }} className="btn">The Numarade ›</Go>
+        <button type="button" className="btn" onClick={() => run((w) => beginPact(w, id))} title="A live negotiation">Propose a pact</button>
         <Go to={{ kind: 'war' }} className="btn">War ›</Go>
       </div>
       <div className="grid">
@@ -304,6 +306,13 @@ export function NumaradePage() {
 
 // ---------------------------------------------------------------- history and frontier
 
+function LegendHunt({ id }: { id: string }) {
+  const world = useWorld();
+  const { run } = usePlay();
+  const why = whyNoAgent(world);
+  return <button type="button" className="btn tiny" disabled={!!why} title={why ?? 'An expedition: 2,000 othes, and a live infiltration'} onClick={() => run((w) => beginLegendHunt(w, id))}>Send someone after it</button>;
+}
+
 export function HistoryPage() {
   const world = useWorld();
   const a = world.archon;
@@ -324,7 +333,7 @@ export function HistoryPage() {
       <div className="grid">
         <Panel title="Lost Caiges" aside="legends; perhaps still out there" className="span-12">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
-            {a.legends.map((l) => <div key={l.id}><strong>{l.name}</strong> <span className="muted">· {l.form} · <ArchonHouseLink id={l.house} />, lost {l.year} · {l.where}</span></div>)}
+            {a.legends.map((l) => <div key={l.id} className="fline2" style={{ gap: 8, alignItems: 'baseline' }}><strong>{l.name}</strong> <span className="muted">· {l.form} · <ArchonHouseLink id={l.house} />, lost {l.year} · {l.where}</span>{l.found ? <span className="tag">found {l.found}</span> : <LegendHunt id={l.id} />}</div>)}
           </div>
         </Panel>
         <Panel title="The record" aside={`${rows.length} entries`} className="span-12">

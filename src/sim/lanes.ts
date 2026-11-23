@@ -9,6 +9,7 @@
 // houses' through the Spymaster's people.
 import { Rng } from './rng';
 import { econ, quotaFor, record } from './economy';
+import { consignmentLanded, consignmentLost } from './exchange';
 import { logRecord } from './records';
 import { relation, shiftRelation } from './relations';
 import { seatHolder } from './query';
@@ -126,6 +127,8 @@ export interface Convoy {
   smuggle?: import('./smuggling').SmuggleRun;
   /** For a run between houses: who bought it (the owner is the seller). */
   buyer?: string;
+  /** Goods shipped ahead to sell at another market (exchange.ts). */
+  order?: string;
   good: Good;
   qty: number;
   value: number;
@@ -169,7 +172,7 @@ export interface LanesState {
   smuggleNotes?: import('./smuggling').SmuggleNote[];
 }
 
-export interface Manifest { owner: string; good: Good; qty: number; value: number; /** A sale to a compact partner: they bought it. */ buyer?: string }
+export interface Manifest { owner: string; good: Good; qty: number; value: number; /** A sale to a compact partner: they bought it. */ buyer?: string; /** Market to market (exchange.ts); else capital to the Docks. */ from?: string; to?: string }
 export interface Compact { id: string; a: string; b: string; since: GameDate; /** Value traded, all told. */ traded: number; /** This Orbit, by house: what it sold and bought under the compact, in othes. */ orbit: Record<string, { sold: number; bought: number }> }
 export interface CompactOffer { id: string; from: string; expires: GameDate }
 
@@ -261,7 +264,7 @@ export function launch(world: World, rng: Rng, c: Omit<Convoy, 'id' | 'lane' | '
 function ship(world: World, rng: Rng) {
   const groups = new Map<string, Manifest>();
   for (const m of world.lanes.loading) {
-    const k = `${m.owner}|${m.good}|${Math.sign(m.qty)}|${m.buyer ?? ''}`;
+    const k = `${m.owner}|${m.good}|${Math.sign(m.qty)}|${m.buyer ?? ''}|${m.from ?? ''}|${m.to ?? ''}`;
     const g = groups.get(k);
     if (g) { g.qty += m.qty; g.value += m.value; } else groups.set(k, { ...m });
   }
@@ -270,7 +273,14 @@ function ship(world: World, rng: Rng) {
     const h = world.houses[m.owner];
     if (!h || !m.qty) continue;
     if (m.buyer) {
-      launch(world, rng, { owner: m.owner, buyer: m.buyer, kind: 'compact', good: m.good, qty: Math.abs(m.qty), value: m.value, from: h.capitalPlanetId, to: world.houses[m.buyer]!.capitalPlanetId, crew: rng.int(10, 26) });
+      launch(world, rng, { owner: m.owner, buyer: m.buyer, kind: 'compact', good: m.good, qty: Math.abs(m.qty), value: m.value, from: m.from ?? h.capitalPlanetId, to: m.to ?? world.houses[m.buyer]!.capitalPlanetId, crew: rng.int(10, 26) });
+      continue;
+    }
+    if (m.from && m.to) {
+      if (m.from === m.to) continue;
+      if (!laneBetween(m.from, m.to)) { if (laneBetween(m.from, 'exchange') && m.to !== 'exchange') m.from = 'exchange'; else continue; }
+      const sell = m.qty < 0;
+      launch(world, rng, { owner: m.owner, kind: sell ? 'export' : 'import', good: m.good, qty: Math.abs(m.qty), value: m.value, from: m.from, to: m.to, crew: rng.int(10, 30), contraband: rng.chance(0.04 * (1 + h.personality.greed)) });
       continue;
     }
     const sell = m.qty < 0;
@@ -333,6 +343,7 @@ function finish(world: World, c: Convoy, fate: NonNullable<Convoy['fate']>, by?:
 /** The owner loses what was aboard: an export's goods or an import's purchase, Navisium from the quota. */
 function lose(world: World, c: Convoy, label: string) {
   if (c.owner === 'free') return;
+  if (c.order) { consignmentLost(world, c.order); return; }
   if (c.kind === 'export') {
     record(world, c.owner, { resource: 'othes', amount: -Math.min(Math.max(0, econ(world, c.owner).stock.othes), c.value), label: `${label}: the sale never paid`, kind: 'raid' });
   } else if (c.kind === 'compact' && c.buyer) {
@@ -343,11 +354,10 @@ function lose(world: World, c: Convoy, label: string) {
     record(world, c.owner, { resource: c.good, amount: -take, label, kind: 'raid' });
   }
   // A lost quota simply never arrives.
-  const m = world.economy?.market[c.good];
-  if (m) m.pressure += c.qty * 0.6;
 }
 
 function deliver(world: World, c: Convoy) {
+  if (c.order) consignmentLanded(world, c.order);
   if (c.kind === 'quota') record(world, c.owner, { resource: 'navisium', amount: c.qty, label: 'Numarade quota, landed', kind: 'quota' });
   finish(world, c, 'arrived');
 }

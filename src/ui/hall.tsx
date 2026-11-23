@@ -33,7 +33,7 @@ import { moodLabel, moodOf } from '../sim/mood';
 import { TASKS_BY_ID, OATHS_BY_ID, oathProgress } from '../sim/council';
 import { leadsOf } from '../sim/discovery';
 import { absoluteCycle, type GameDate } from '../sim/time';
-import { eventDef } from '../sim/events';
+import { eventDef, titleFor, type PendingEvent } from '../sim/events';
 import { displayName } from '../sim/names';
 import { answerCrew, answerOffer } from '../sim/lanes';
 import { answerSmuggledCaige, answerSmuggler, notesFor, smuggledCaiges, SMUGGLE_LABEL } from '../sim/smuggling';
@@ -225,7 +225,7 @@ export function Desk({ className }: { className?: string }) {
     const lead = m ? world.characters[m.leaderId] : undefined;
     items.push({
       id: p.id, mark: '[!]', kind: 'DECISION',
-      text: <>{titleOf(p.defId)}{lead ? ` — from ${lead.name.given}` : ''}</>,
+      text: <>{titleOf(p)}{lead ? ` — from ${lead.name.given}` : ''}</>,
       when: inCycles(world, p.expires),
       open: () => setOpen((o) => (o === p.id ? null : p.id)),
     });
@@ -499,6 +499,7 @@ export function CouncilViews({ id }: { id: string }) {
   );
 }
 
-function titleOf(defId: string): string {
-  return eventDef(defId)?.title ?? 'A decision';
+function titleOf(p: PendingEvent): string {
+  const d = eventDef(p.defId);
+  return d ? titleFor(d, p) : 'A decision';
 }

@@ -413,7 +413,7 @@ export interface LedgerLine {
   /** Per Phase for standing flows; the amount for one-off entries. */
   amount: number;
   label: string;
-  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit' | 'boon' | 'court' | 'port' | 'raid';
+  kind: 'quarter' | 'tax' | 'food' | 'stipend' | 'skim' | 'quota' | 'trade' | 'mission' | 'develop' | 'ransom' | 'steward' | 'audit' | 'boon' | 'court' | 'port' | 'raid' | 'forces' | 'war';
   sectorId?: string;
   quarterId?: string;
   characterId?: string;
@@ -445,6 +445,12 @@ export interface Economy {
   market: Record<GoodId, MarketGood>;
   /** How the house pays its knights, champion and councillors. */
   payScale?: 'meagre' | 'fair' | 'generous';
+  /** Events out in the Archon pulling prices away from the usual. */
+  shocks?: import('./arcs_economy').Shock[];
+  /** The last Exchange crash, and how far along it is. */
+  crash?: { at: number; stage: 0 | 1 | 2 | 3; asker?: string };
+  /** The regional markets, the orders on them, and the Steward's standing orders (exchange.ts). */
+  exchange?: import('./exchange').ExchangeState;
 }
 
 // ---------------------------------------------------------------- discoveries
@@ -463,6 +469,14 @@ export interface Caige {
   vaultId?: string;
   /** Put up as security for a loan from this house. */
   pledgedTo?: string;
+  /** The souls held in it (canon: their will against the wielder's). */
+  souls?: import('./scenes_power').Soul[];
+  /** Caige Density Index once bonded: 0..1, never 1. */
+  cdi?: number;
+  /** The shape it takes in the bearer's hand. */
+  form?: string;
+  /** How many transmuted states it allows (rarely two). */
+  forms?: number;
 }
 
 /** Who in the house wants a prospect, and what for. */
@@ -559,6 +573,8 @@ export interface World {
   archon?: import('./archon').ArchonState;
   /** Forces, wars, tribute, hostages and fealty. */
   war?: import('./war').WarState;
+  /** Live scenes: sessions, negotiations, rituals, infiltrations, audiences, ceremonies, crises, the chronicle. */
+  scenes?: import('./scene').ScenesState;
   /** The year's mock war. */
   crucible: import('./crucible').CrucibleState;
   grounds: import('./grounds').GroundsState;

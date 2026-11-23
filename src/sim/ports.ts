@@ -554,7 +554,9 @@ function dock(world: World, rng: Rng, ship: Ship) {
   }
   if (port && ours) {
     const value = ship.cargo.filter((c) => !c.hidden && c.good).reduce((s, c) => s + c.qty * BASE_PRICE[c.good!], 0);
-    const fee = Math.round((value * port.tariff) / 100) + (ship.cls === 'liner' ? ship.passengers * 2 : 0);
+    // Ships give a house at war a wide berth: half the trade, half the tariffs.
+    const shunned = (world.war?.wars ?? []).some((x) => x.status === 'active' && x.rung === 'war' && (x.attacker === P || x.defender === P || x.attackers.includes(P) || x.defenders.includes(P))) ? 0.5 : 1;
+    const fee = Math.round(((value * port.tariff) / 100) * 0.7 * shunned) + (ship.cls === 'liner' ? ship.passengers * 2 : 0);
     if (fee > 0 && ship.purpose !== 'warship') {
       port.tally.tariffs += fee;
       record(world, P, { resource: 'othes', amount: fee, label: `Tariffs at ${sector?.name ?? 'port'}`, kind: 'port', sectorId: ship.sectorId });
@@ -1025,7 +1027,7 @@ function fineInPlace(w: World, ship: Ship, byCouncil = false, onTheSpot = false)
   const found = contraband(ship).filter((c) => c.found);
   const P = w.playerHouseId;
   const value = found.reduce((s, c) => s + (c.good ? c.qty * BASE_PRICE[c.good] : 150), 0);
-  const fine = Math.max(100, Math.round(value * 1.5));
+  const fine = Math.max(100, Math.round(value * 0.35));
   record(w, P, { resource: 'othes', amount: fine, label: `Fine: ${ship.name}`, kind: 'port', sectorId: ship.sectorId });
   for (const c of found) if (c.good) { record(w, P, { resource: c.good, amount: c.qty, label: `Seized from ${ship.name}`, kind: 'port', sectorId: ship.sectorId }); c.qty = 0; }
   if (!found.length && w.houses[ship.flag]) shiftRelation(w, ship.flag, P, -4);

@@ -614,3 +614,9 @@ table.list tr.ours td { color: var(--gold); }
 @media (max-width: 640px) { .tug { font-size: 10px; } }
 .fline2 { display: flex; flex-wrap: wrap; }
 .formation .select { padding-top: 2px; padding-bottom: 2px; }
+
+/* 7.0: live scenes */
+.battle.scene .bgrid { grid-template-columns: 220px 1fr 240px; }
+.battle.scene .bside { display: flex; flex-direction: column; gap: 8px; }
+.bbar.bad span { background: var(--orange); }
+@media (max-width: 760px) { .battle.scene .bgrid { grid-template-columns: 1fr; } }
