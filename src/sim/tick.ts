@@ -141,7 +141,7 @@ export function advanceUntil(input: World, turns: number, stopOnEvents: boolean)
 }
 
 /** What one tick of the running clock produced: a moment that freezes it, or news that doesn't. */
-export interface ClockStep { world: World; freeze?: { reason: string; events: string[] }; notice?: string }
+export interface ClockStep { world: World; freeze?: { reason: string; events: string[]; battle?: string }; notice?: string }
 
 /**
  * One tick of the real-time clock. Decisions freeze it (as events do in CK); urgent ones always do.
@@ -151,7 +151,11 @@ export function stepClock(input: World, pauseOnDecisions = true): ClockStep {
   const w = structuredClone(input);
   const before = snapshotOfAttention(w);
   const had = new Set((w.events?.pending ?? []).map((p) => p.id));
+  const fought = new Set((w.battles?.list ?? []).map((b) => b.id));
   stepInPlace(w);
+  // A battle of ours has begun: everything stops for it.
+  const battle = (w.battles?.list ?? []).find((b) => !fought.has(b.id) && b.status === 'ready');
+  if (battle) return { world: w, freeze: { reason: `Battle: ${battle.title}.`, events: [], battle: battle.id } };
   const fresh = (w.events?.pending ?? []).filter((p) => !had.has(p.id));
   const urgent = fresh.filter((p) => p.urgent);
   if (urgent.length) return { world: w, freeze: { reason: 'Something needs you now.', events: urgent.map((p) => p.id) } };
@@ -167,11 +171,12 @@ export function stepClock(input: World, pauseOnDecisions = true): ClockStep {
   return reason ? { world: w, notice: reason } : { world: w };
 }
 
-interface Attention { petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null; decisions: number; alerts: number }
+interface Attention { battles: number; petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null; decisions: number; alerts: number }
 
 function snapshotOfAttention(w: World): Attention {
   const P = w.playerHouseId;
   return {
+    battles: (w.battles?.list ?? []).filter((x) => x.status !== 'over').length,
     petitions: w.courts[P]?.petitions.length ?? 0,
     leads: w.leads.filter((l) => l.houseId === P).length,
     demands: Object.values(w.captives).filter((c) => c.ransom?.status === 'open' && w.characters[c.characterId]?.houseId === P).length,
@@ -186,6 +191,7 @@ function snapshotOfAttention(w: World): Attention {
 
 function needsAttention(w: World, b: Attention): string | null {
   const a = snapshotOfAttention(w);
+  if (a.battles > b.battles) return 'A battle has begun.';
   if (a.decisions > b.decisions) return 'A decision awaits your word.';
   if (a.alerts > b.alerts) return 'Word has come that needs you.';
   if (a.done > b.done) return 'A mission has come home.';

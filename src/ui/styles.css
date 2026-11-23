@@ -558,3 +558,27 @@ pre.ascii .inv, span.inv { background: var(--fg); color: #000; }
 .meter > .fill { position: absolute; top: 0; bottom: 0; background: var(--fg); }
 .clock .speeds { margin: 0 2px; gap: 2px; }
 .clock .btn.speed[aria-pressed='true'] { outline: 1px solid #000; outline-offset: -3px; }
+/* ---------------- 5.1: battles */
+.battle { width: min(1200px, 100%); background: #000; border: 1px solid var(--fg); box-shadow: 6px 6px 0 #262626; }
+.battle > header { display: flex; gap: 12px; align-items: baseline; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+.momentum { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 10px 14px; font-size: 11px; }
+.momentum .meter { height: 14px; }
+.bgrid { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(300px, 1.5fr) minmax(220px, 1fr); gap: 14px; padding: 0 14px 14px; align-items: start; }
+.bside { display: grid; gap: 4px; padding: 8px; border: 1px solid var(--line-soft); margin-bottom: 8px; }
+.bbar { height: 6px; background: #1a1a1a; border: 1px solid var(--line-soft); }
+.bbar > span { display: block; height: 100%; background: var(--fg); }
+.frow { border-bottom: 1px solid var(--line-soft); padding: 6px 4px; display: grid; gap: 3px; }
+.frow.out { opacity: 0.45; }
+.fhead { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.fsub { font-size: 11px; }
+.factions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
+.factions .select { max-width: 130px; font-size: 11px; }
+.bmid { display: grid; gap: 10px; min-width: 0; }
+.bmoment { border: 1px solid var(--fg); padding: 10px 12px; }
+.feed { height: 300px; overflow-y: auto; border: 1px solid var(--line-soft); padding: 8px; font-size: 12.5px; display: grid; align-content: start; gap: 3px; }
+.fline.big { color: #fff; font-weight: 700; }
+.fline.them { color: var(--muted); }
+.fline.big.them { color: var(--fg-2); }
+.orders { display: grid; gap: 6px; }
+.caige { font-size: 11px; }
+@media (max-width: 900px) { .bgrid { grid-template-columns: 1fr; } .feed { height: 220px; } }
