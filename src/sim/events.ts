@@ -50,6 +50,8 @@ export interface EventState {
   log: ResolvedEvent[];
   /** Ids of recently fired events, to keep them from repeating. */
   recent: string[];
+  /** How many times each event has fired, all told: the commoner it has been, the rarer it gets. */
+  fired?: Record<string, number>;
 }
 
 export interface Ctx {
@@ -260,7 +262,9 @@ function fire(world: World, rng: Rng, trigger: EventTrigger, seed: Partial<Pendi
   // Try a few in weighted order until one fits.
   const pool = [...candidates];
   for (let tries = 0; tries < 6 && pool.length; tries++) {
-    const def = rng.weighted(pool.map((d) => [d, d.weight] as [EventDef, number]));
+    // What has happened often grows rarer: the same quarrel every year stops being news.
+    const fired = ev.fired ?? {};
+    const def = rng.weighted(pool.map((d) => [d, d.weight / (1 + (fired[d.id] ?? 0) * 0.6)] as [EventDef, number]));
     pool.splice(pool.indexOf(def), 1);
     const holder: Partial<PendingEvent> = { ...seed };
     const ctx = makeCtx(world, rng, seed);
@@ -278,6 +282,7 @@ function fire(world: World, rng: Rng, trigger: EventTrigger, seed: Partial<Pendi
     ev.pending.push(p);
     ev.recent.unshift(def.id);
     ev.recent = ev.recent.slice(0, 14);
+    (ev.fired ??= {})[def.id] = (ev.fired[def.id] ?? 0) + 1;
     return true;
   }
   return false;

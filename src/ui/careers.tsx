@@ -32,7 +32,7 @@ export function CareerPanel({ c, className }: { c: Character; className?: string
     <Panel title="Record" aside={<>{stageLabel(world, c.id)}potential <Diamonds c={c} /></>} className={className}>
       <DevLine id={c.id} />
       <LadderLine id={c.id} />
-      {(() => { const r = renownRow(world, c.id); return r ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Renown {r.renown} · <strong>{r.tier}</strong> · {r.rankHouse === 1 ? 'first' : `#${r.rankHouse}`} in their house, #{r.rankAll} across the houses · <Go to={{ kind: 'people', view: 'renown' }}>the table ›</Go></p> : null; })()}
+      {(() => { const r = renownRow(world, c.id); return r && r.tier !== 'Unknown' ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Renown {r.renown} · <strong>{r.tier}</strong> · {r.rankHouse === 1 ? 'first' : `#${r.rankHouse}`} in their house, #{r.rankAll} across the houses · <Go to={{ kind: 'people', view: 'renown' }}>the table ›</Go></p> : null; })()}
       {titles.length ? <div className="body" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{titles.map((x, i) => <span key={i} className="pill" aria-pressed="true">{x.title}</span>)}</div> : null}
       {rows.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No deeds on record yet.</p> : (
         <>

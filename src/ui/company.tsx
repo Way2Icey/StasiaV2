@@ -23,7 +23,12 @@ export function CompanyWindow({ id, onClose }: { id: string; onClose: () => void
   const f = world.lanes?.factions[id];
   const [target, setTarget] = useState(Object.keys(world.houses).find((h) => h !== P) ?? '');
   const hunters = huntersFree(world);
-  const [leader, setLeader] = useState(hunters[0] ?? '');
+  const [leader, setLeader] = useState(() => {
+    // Default to whoever has the best chance against the first known target.
+    const target = world.lanes?.factions[id]?.members.find((m) => m.known && !m.fate && m.role !== 'fixer');
+    if (!target) return hunters[0] ?? '';
+    return [...hunters].sort((a, b) => huntOdds(world, id, target.id, b).win - huntOdds(world, id, target.id, a).win)[0] ?? '';
+  });
   const [mates, setMates] = useState<string[]>(hunters.slice(1, 3));
   const ships = huntShips(world);
   const [shipId, setShipId] = useState<string>(ships[0] ?? '');

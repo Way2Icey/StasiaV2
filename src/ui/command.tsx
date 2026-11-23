@@ -62,7 +62,7 @@ const VERBS: [string, string, Route][] = [
   ['Deal with the corsairs', 'corsairs pirates passage bounty marque privateer letters', { kind: 'lanes' }],
   ['Propose a trade compact', 'compact trade agreement partner house', { kind: 'lanes' }],
   ['Hunt a corsair captain', 'hunt corsair captain pirate knights company', { kind: 'lanes' }],
-  ['Grant a Caige', 'caige grant bond armoury', { kind: 'council' }],
+  ['Grant a Caige', 'caige grant bond armoury', { kind: 'seat', id: 'grandMaster' }],
   ['Renown across the houses', 'renown fame famous legend rank', { kind: 'people', view: 'renown' }],
   ['Find posts for veterans', 'veteran retired old knights elder teacher', { kind: 'knights' }],
   ['Hold or blockade a lane', 'lane watch blockade secure ships', { kind: 'lanes' }],

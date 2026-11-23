@@ -134,7 +134,8 @@ export function PoachPanel({ className }: { className?: string }) {
 export function RenownPage() {
   const world = useWorld();
   const P = world.playerHouseId;
-  const rows = renownTable(world);
+  // Only those with a name worth the word: the rest have not done anything yet.
+  const rows = renownTable(world).filter((r) => r.tier !== 'Unknown');
   const ours = rows.filter((r) => world.characters[r.id]?.houseId === P);
   const Table = ({ list }: { list: typeof rows }) => (
     <div className="table-wrap">
