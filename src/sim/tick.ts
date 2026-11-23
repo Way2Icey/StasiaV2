@@ -15,6 +15,8 @@ import { advanceCircuit } from './circuit';
 import { advanceLadder } from './ladder';
 import { advanceTreasury } from './treasury';
 import { advanceLanes } from './lanes';
+import { advanceRenown } from './renown';
+import { advanceRealm } from './houses';
 import './eventDefs';
 import { displayName } from './names';
 import { Rng } from './rng';
@@ -99,6 +101,8 @@ function stepInPlace(world: World): void {
   advanceLadder(world, rng, crossed.orbits > 0);
   advanceTreasury(world, crossed.phases > 0);
   advanceLanes(world, rng, crossed.phases > 0, crossed.orbits > 0);
+  advanceRenown(world, crossed.orbits > 0);
+  advanceRealm(world, rng, crossed.orbits > 0);
   advanceEvents(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 

@@ -29,7 +29,13 @@ export const BOND_LABEL: Record<Bond, string> = {
 export const SECRET_BONDS: Bond[] = ['lover'];
 
 export interface Tie {
+  /** like − dislike, kept for everything that reads one number. */
   opinion: number;
+  /** 0..100 each: how much they like, and how much they dislike, the other. Both can be high at once. */
+  like?: number;
+  dislike?: number;
+  /** Tiers already announced for this pair, so a bar wavering at a line is not news twice. */
+  marks?: string[];
   bond?: Bond;
   since: GameDate;
   /** The last few things that moved it, newest first. */
@@ -85,12 +91,50 @@ export function bondOf(world: World, a: string, b: string): Bond | 'kin' | undef
   return A && B && A.familyId === B.familyId ? 'kin' : undefined;
 }
 
-/** Move how a feels about b, with a reason that is kept. */
+// ---------------------------------------------------------------- like and dislike
+
+/** The tiers of each bar, and what they do. */
+export const LIKE_TIERS: [number, string][] = [[75, 'Devoted'], [55, 'Close'], [35, 'Friendly'], [15, 'Acquainted']];
+export const DISLIKE_TIERS: [number, string][] = [[75, 'Hatred'], [55, 'Enmity'], [35, 'Dislike'], [15, 'Wary']];
+/** Close: they seek each other out, go on work together and form circles. */
+export const CLOSE = 55;
+/** Dislike: they avoid each other and work worse together. */
+export const AVOID = 35;
+
+export function tierOf(v: number, tiers: [number, string][]): string | undefined {
+  return tiers.find(([at]) => v >= at)?.[1];
+}
+
+/** Older saves kept one number: split it into the two bars. */
+function bars(t: Tie) {
+  if (t.like === undefined || t.dislike === undefined) {
+    t.like = Math.max(0, t.opinion);
+    t.dislike = Math.max(0, -t.opinion);
+  }
+  return t as Tie & { like: number; dislike: number };
+}
+
+/** How much a likes and dislikes b. */
+export function barsOf(world: World, a: string, b: string): { like: number; dislike: number } {
+  const t = tieOf(world, a, b);
+  if (!t) return { like: 0, dislike: 0 };
+  const x = bars(t);
+  return { like: x.like, dislike: x.dislike };
+}
+
+export const isClose = (world: World, a: string, b: string) => barsOf(world, a, b).like >= CLOSE && barsOf(world, b, a).like >= CLOSE - 10;
+export const avoids = (world: World, a: string, b: string) => barsOf(world, a, b).dislike >= AVOID || barsOf(world, b, a).dislike >= AVOID;
+
+/** Move how a feels about b, with a reason that is kept. Warmth fills the like bar, friction the dislike bar. */
 export function shiftOpinion(world: World, a: string, b: string, by: number, reason: string): void {
   if (a === b || !by) return;
-  const t = tie(world, a, b);
+  const t = bars(tie(world, a, b));
   const was = t.opinion;
-  t.opinion = clamp(t.opinion + by, -100, 100);
+  const tierWas = [tierOf(t.like, LIKE_TIERS), tierOf(t.dislike, DISLIKE_TIERS)];
+  if (by > 0) { t.like = clamp(t.like + by, 0, 100); t.dislike = clamp(t.dislike - by * 0.2, 0, 100); }
+  else { t.dislike = clamp(t.dislike - by, 0, 100); t.like = clamp(t.like + by * 0.2, 0, 100); }
+  t.opinion = clamp(Math.round(t.like - t.dislike), -100, 100) || 0;
+  noteTier(world, a, b, tierWas, [tierOf(t.like, LIKE_TIERS), tierOf(t.dislike, DISLIKE_TIERS)]);
   const d = Math.round(t.opinion - was) || Math.sign(by);
   // The same cause again adds up rather than repeating.
   const same = t.reasons.findIndex((r) => r.replace(/^[+-]?\d+ /, '') === reason);
@@ -99,6 +143,51 @@ export function shiftOpinion(world: World, a: string, b: string, by: number, rea
   const total = prev + d;
   t.reasons = [`${total > 0 ? '+' : ''}${total} ${reason}`, ...rest].slice(0, 4);
   settleBond(world, a, b, t);
+}
+
+/** Crossing into Close, Devoted, Enmity or Hatred is news at our court. */
+function noteTier(world: World, a: string, b: string, was: (string | undefined)[], now: (string | undefined)[]) {
+  const A = world.characters[a];
+  const B = world.characters[b];
+  if (!A || !B || (A.houseId !== world.playerHouseId && B.houseId !== world.playerHouseId) || a > b) return;
+  const who = [{ id: a, part: '' }, { id: b, part: '' }];
+  const t = world.ties?.[a]?.[b];
+  const seen = (k: string) => { if (!t) return false; if (t.marks?.includes(k)) return true; (t.marks ??= []).push(k); return false; };
+  if (now[0] !== was[0] && (now[0] === 'Close' || now[0] === 'Devoted') && was[0] !== 'Devoted' && !seen(now[0]!)) {
+    logRecord(world, { kind: 'world', type: 'world', severity: now[0] === 'Devoted' ? 1 : 0, text: now[0] === 'Devoted' ? `${displayName(A.name)} and ${displayName(B.name)} are devoted to each other now. Where one goes, the other follows.` : `${displayName(A.name)} and ${displayName(B.name)} have grown close. They look for work together.`, who });
+  }
+  if (now[1] !== was[1] && (now[1] === 'Enmity' || now[1] === 'Hatred') && was[1] !== 'Hatred' && !seen(now[1]!)) {
+    logRecord(world, { kind: 'world', type: 'world', severity: now[1] === 'Hatred' ? 1 : 0, text: now[1] === 'Hatred' ? `${displayName(A.name)} hates ${displayName(B.name)}. It will come to something.` : `${displayName(A.name)} can no longer stand ${displayName(B.name)}. They keep out of each other's way.`, who });
+  }
+}
+
+/**
+ * Two or more people thrown together: a mission, a hunt, a card at the pits, a ceremony, the docks. Each pair
+ * rolls: their fixed chemistry, how it went, and their natures push the roll toward liking or disliking.
+ * `went` runs from -1 (a disaster) to 1 (a triumph).
+ */
+export function meet(world: World, rng: Rng, ids: string[], where: string, went = 0, weight = 1): void {
+  const people = [...new Set(ids)].filter((id) => world.characters[id]?.alive).slice(0, 8);
+  for (let i = 0; i < people.length; i++) for (let j = i + 1; j < people.length; j++) {
+    const a = world.characters[people[i]!]!;
+    const b = world.characters[people[j]!]!;
+    let r = chemistry(a.id, b.id) * 0.6 + went * 0.4 + rng.gauss() * 0.5;
+    if (a.hidden.ambition >= 14 && b.hidden.ambition >= 14) r -= 0.25;
+    if (a.traits.some((t) => b.traits.some((u) => u.id === t.id))) r += 0.2;
+    if (avoids(world, a.id, b.id)) r -= 0.2;
+    const amt = (2 + Math.abs(r) * 6) * weight;
+    if (r > 0.15) { shiftOpinion(world, a.id, b.id, Math.round(amt), `${where} together`); shiftOpinion(world, b.id, a.id, Math.round(amt * (0.7 + rng.next() * 0.5)), `${where} together`); }
+    else if (r < -0.15) { shiftOpinion(world, a.id, b.id, -Math.round(amt), `friction: ${where}`); shiftOpinion(world, b.id, a.id, -Math.round(amt * (0.7 + rng.next() * 0.5)), `friction: ${where}`); }
+    else { shiftOpinion(world, a.id, b.id, 1, `${where} together`); shiftOpinion(world, b.id, a.id, 1, `${where} together`); }
+  }
+}
+
+/** The people someone would bring along: close to them, free, and willing; never someone they avoid. */
+export function companionsFor(world: World, id: string, ok: (c: Character) => boolean): Character[] {
+  return Object.entries(world.ties?.[id] ?? {})
+    .filter(([o]) => world.characters[o]?.alive && ok(world.characters[o]!) && isClose(world, id, o) && !avoids(world, id, o))
+    .sort((x, y) => (bars(y[1]).like) - (bars(x[1]).like))
+    .map(([o]) => world.characters[o]!);
 }
 
 export function shiftBoth(world: World, a: string, b: string, by: number, reason: string): void {
@@ -111,6 +200,13 @@ export function setBond(world: World, a: string, b: string, ab: Bond | undefined
   const t2 = tie(world, b, a);
   t1.bond = ab; t2.bond = ba;
   t1.since = t2.since = world.date;
+  // A bond named outright carries the feeling that goes with it.
+  for (const [t, b] of [[t1, ab], [t2, ba]] as const) {
+    const x = bars(t);
+    if (b === 'rival' || b === 'feud') x.dislike = Math.max(x.dislike, 45);
+    if (b === 'friend' || b === 'sworn' || b === 'lover' || b === 'spouse') x.like = Math.max(x.like, 55);
+    x.opinion = clamp(Math.round(x.like - x.dislike), -100, 100) || 0;
+  }
   t1.reasons = [reason, ...t1.reasons].slice(0, 4);
   t2.reasons = [reason, ...t2.reasons].slice(0, 4);
 }
@@ -118,20 +214,20 @@ export function setBond(world: World, a: string, b: string, ab: Bond | undefined
 /** Friendships and rivalries form, and fade, as opinions cross a line. */
 function settleBond(world: World, a: string, b: string, t: Tie) {
   if (t.bond && !['friend', 'rival'].includes(t.bond)) return;
-  const back = opinion(world, b, a);
-  const mine = opinion(world, a, b);
+  const mineB = bars(t);
+  const backB = barsOf(world, b, a);
   const A = world.characters[a];
   const B = world.characters[b];
   const ours = A?.houseId === world.playerHouseId || B?.houseId === world.playerHouseId;
-  if (!t.bond && mine >= 45 && back >= 45) {
+  if (!t.bond && mineB.like >= 50 && backB.like >= 50 && mineB.dislike < 35 && backB.dislike < 35) {
     setBond(world, a, b, 'friend', 'friend', 'became friends');
     if (ours && A && B) logRecord(world, { kind: 'world', type: 'world', severity: 1, text: `${displayName(A.name)} and ${displayName(B.name)} have become friends.`, who: [{ id: a, part: 'friend' }, { id: b, part: 'friend' }] });
-  } else if (!t.bond && mine <= -45 && back <= -35) {
+  } else if (!t.bond && mineB.dislike >= 55 && backB.dislike >= 40) {
     setBond(world, a, b, 'rival', 'rival', 'fell out');
     if (ours && A && B) logRecord(world, { kind: 'world', type: 'world', severity: 1, text: `${displayName(A.name)} and ${displayName(B.name)} are now open rivals.`, who: [{ id: a, part: 'rival' }, { id: b, part: 'rival' }] });
-  } else if (t.bond === 'friend' && mine < 15) {
+  } else if (t.bond === 'friend' && (mineB.like < 30 || mineB.dislike >= 50)) {
     setBond(world, a, b, undefined, undefined, 'drifted apart');
-  } else if (t.bond === 'rival' && mine > -10) {
+  } else if (t.bond === 'rival' && mineB.dislike < 25) {
     setBond(world, a, b, undefined, undefined, 'made peace');
   }
 }
@@ -157,7 +253,10 @@ export function synergy(world: World, ids: string[]): number {
   for (const a of ids) for (const b of ids) if (a !== b) { sum += opinion(world, a, b); n++; if (a < b && kindred(world, a, b)) kin++; }
   const avg = sum / n;
   const sworn = ids.some((a) => ids.some((b) => bondOf(world, a, b) === 'sworn'));
-  return clamp(1 + avg / 800 + (sworn ? 0.05 : 0) + kin * 0.03, 0.85, 1.18);
+  let close = 0;
+  let sour = 0;
+  for (const a of ids) for (const b of ids) if (a < b) { if (isClose(world, a, b)) close++; if (avoids(world, a, b)) sour++; }
+  return clamp(1 + avg / 800 + (sworn ? 0.05 : 0) + kin * 0.03 + close * 0.04 - sour * 0.05, 0.8, 1.22);
 }
 
 /** The thing a person is best at, as a subject. */
@@ -231,6 +330,8 @@ export function advanceRelationships(world: World, rng: Rng, phaseTurned: boolea
       const known = Object.keys(world.ties?.[a.id] ?? {}).map((id) => court.find((c) => c.id === id)).filter((c): c is Character => !!c);
       const b = known.length && rng.chance(0.5) ? rng.pick(known) : rng.pick(court);
       if (a.id === b.id) continue;
+      // People who dislike each other keep apart; mostly they simply do not meet.
+      if (avoids(world, a.id, b.id) && rng.chance(0.7)) continue;
       // Some people simply get on, and some never will: chemistry is fixed for each pair.
       // Then ambition grates on ambition, greed sours, and shared work builds trust.
       let drift = chemistry(a.id, b.id) * 7 + rng.gauss() * 3;
@@ -249,6 +350,13 @@ export function advanceRelationships(world: World, rng: Rng, phaseTurned: boolea
       }
     }
   }
+  // Feelings fade without contact: liking slowly, dislike more slowly still.
+  for (const row of Object.values(world.ties ?? {})) for (const t of Object.values(row)) {
+    const x = bars(t);
+    x.like = Math.max(0, x.like - 0.25);
+    x.dislike = Math.max(0, x.dislike - 0.15);
+    x.opinion = clamp(Math.round(x.like - x.dislike), -100, 100) || 0;
+  }
   // Ties colour mood: a friend at court lifts it, a rival at court sours it.
   for (const c of Object.values(world.characters)) {
     if (!c.alive || c.houseId !== world.playerHouseId || c.tier !== 'full' || isAway(world, c.id)) continue;
@@ -266,11 +374,7 @@ export function advanceRelationships(world: World, rng: Rng, phaseTurned: boolea
 /** A mission party comes home: shared danger makes friends, failure finds someone to blame. */
 export function afterMission(world: World, rng: Rng, ids: string[], outcome: string): void {
   if (ids.length < 2) return;
-  const good = outcome === 'success' || outcome === 'triumph';
-  for (const a of ids) for (const b of ids) {
-    if (a === b) continue;
-    shiftOpinion(world, a, b, good ? 6 + rng.next() * 4 : outcome === 'disaster' ? -6 - rng.next() * 6 : -2, good ? 'came through a mission together' : 'a mission that went wrong');
-  }
+  meet(world, rng, ids, 'a mission', outcome === 'triumph' ? 1 : outcome === 'success' ? 0.6 : outcome === 'disaster' ? -1 : -0.3, 1.3);
   if (outcome === 'triumph') {
     const knights = ids.filter((id) => world.characters[id]?.role === 'Knight' || world.characters[id]?.seat === 'champion');
     if (knights.length >= 2 && rng.chance(0.5) && !tieOf(world, knights[0]!, knights[1]!)?.bond) {
@@ -306,7 +410,7 @@ export function factions(world: World, houseId: string): string[][] {
   const ids = Object.values(world.characters).filter((c) => c.alive && c.houseId === houseId && c.tier === 'full').map((c) => c.id);
   const near = (a: string, b: string) => {
     const bd = tieOf(world, a, b)?.bond;
-    return bd === 'friend' || bd === 'sworn' || bd === 'lover' || bd === 'spouse' || (opinion(world, a, b) >= 40 && opinion(world, b, a) >= 40);
+    return bd === 'friend' || bd === 'sworn' || bd === 'lover' || bd === 'spouse' || isClose(world, a, b);
   };
   const seen = new Set<string>();
   const groups: string[][] = [];

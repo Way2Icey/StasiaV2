@@ -13,7 +13,7 @@ import { isAway } from './court';
 import { shiftMood } from './mood';
 import { seatHolder } from './query';
 import { shiftRelation } from './relations';
-import { bondOf, opinion, shiftOpinion } from './relationships';
+import { barsOf, bondOf, opinion, shiftOpinion } from './relationships';
 import { addGlory } from './ambitions';
 import { award, titlesOf, totals, type Season } from './careers';
 import { competence } from './reports';
@@ -257,7 +257,7 @@ function bloodIn(w: World, c: Character, r: Rung, t: Character | undefined, choi
   const came = here.filter((x) => opinion(w, x.id, c.id) >= -10 && (!t || opinion(w, x.id, t.id) >= -25) && ageOf(x, w.date) >= SPECIES[x.species].adulthood);
   const stayed = here.filter((x) => !came.includes(x) && (bondOf(w, x.id, c.id) === 'rival' || bondOf(w, x.id, c.id) === 'feud' || opinion(w, x.id, c.id) < -25));
   const sector = w.planets[c.location.planetId]?.sectors.find((s) => s.id === c.location.sectorId)?.name ?? w.planets[c.location.planetId]?.name ?? 'home';
-  for (const x of came) { shiftMood(x, 2); shiftOpinion(w, c.id, x.id, 3, 'came to their blooding'); }
+  for (const x of came) { shiftMood(x, 2); shiftOpinion(w, c.id, x.id, 3, 'came to their blooding'); shiftOpinion(w, x.id, c.id, 2, 'saw them blooded'); }
   if (t) { shiftOpinion(w, c.id, t.id, 10, 'stood for them at their blooding'); shiftOpinion(w, t.id, c.id, 8, 'blooded under their eye'); }
   const lord = w.houses[P]?.rulerId;
   if (choice === 'gift' && lord) shiftOpinion(w, c.id, lord, 12, 'a gift at their blooding');
@@ -375,6 +375,7 @@ function pullOf(world: World, c: Character): { house: string; pull: number; why:
     if (!o?.alive || o.houseId === c.houseId || !world.houses[o.houseId]) continue;
     const e = (byHouse[o.houseId] ??= { pull: 0, why: [] });
     if (t.bond === 'lover' || t.bond === 'spouse') { e.pull += 2; e.why.push(`${shortName(o.name)}, who has their heart`); }
+    else if (barsOf(world, c.id, oid).like >= 75) { e.pull += 2; e.why.push(`${shortName(o.name)}, whom they are devoted to`); }
     else if (t.bond === 'friend' || t.bond === 'sworn' || opinion(world, c.id, oid) >= 50) { e.pull += 1; e.why.push(`a friend in ${shortName(o.name)}`); }
   }
   for (const h of Object.values(world.houses)) {

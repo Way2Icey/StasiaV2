@@ -2,6 +2,7 @@
 // comes from something the world is doing (trade, a rival's mission, a
 // smuggler's run, raiders scouting a target) and the house sees only what its
 // harbourmaster, customs and agents find out.
+import { meet } from './relationships';
 import { raidOdds } from './lanes';
 import { noticeYouth } from './prospects';
 import { baseStrength, imprison, listeningOn } from './holdings';
@@ -874,7 +875,7 @@ function strike(world: World, rng: Rng, raid: Raid) {
     house.standing.dread = Math.min(100, house.standing.dread + 3);
     if (raid.answer === 'muster') house.standing.honour = Math.min(100, house.standing.honour + 1);
     for (const k of knights) shiftMood(k, 3);
-    if (raid.answer === 'muster') for (const k of knights) tally(world, k.id, 'raidsRepelled');
+    if (raid.answer === 'muster') { for (const k of knights) tally(world, k.id, 'raidsRepelled'); meet(world, rng, rng.shuffle([...knights]).slice(0, 6).map((k) => k.id), 'holding the walls', 0.7); }
     raid.result = `Driven off at ${s?.name}. Dread +3.`;
     tell(world, 'world', `The corsairs struck ${s?.name} and were driven off${raid.answer === 'muster' ? ' by the mustered knights' : ' by the sector watch'}.`, undefined, {
       type: 'fight', severity: 2, placeId: raid.sectorId, who: knights.map((k) => ({ id: k.id, part: raid.answer === 'muster' ? 'fought' : 'at home' })),

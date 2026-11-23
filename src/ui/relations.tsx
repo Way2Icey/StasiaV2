@@ -6,7 +6,7 @@ import { Term } from './tip';
 import { PeoplePage } from './pages';
 import { Younglings } from './training';
 import { AmbitionsView } from './ambitions';
-import { BOND_LABEL, factions, SECRET_BONDS, tiesOf, type Bond } from '../sim/relationships';
+import { barsOf, BOND_LABEL, DISLIKE_TIERS, factions, LIKE_TIERS, SECRET_BONDS, tierOf, tiesOf, type Bond } from '../sim/relationships';
 import { knowledgeOf } from '../sim/knowledge';
 import { isAway } from '../sim/court';
 import { SEAT_TITLE } from '../sim/world';
@@ -94,7 +94,10 @@ export function RelationsPage({ focus: initial, view: initialView }: { focus?: s
   );
 }
 
-/** A person's ties: how they feel, how it is returned, and why. */
+/** A ten-block meter for a 0..100 bar. */
+const meter = (v: number) => '[' + '█'.repeat(Math.round(v / 10)) + '░'.repeat(10 - Math.round(v / 10)) + ']';
+
+/** A person's ties: how much they like and dislike each person, how it is returned, and why. */
 export function TiesPanel({ id, className, limit }: { id: string; className?: string; limit?: number }) {
   const world = useWorld();
   const me = world.characters[id];
@@ -109,14 +112,17 @@ export function TiesPanel({ id, className, limit }: { id: string; className?: st
       <div className="table-wrap">
         {shown.length ? (
           <table className="ctable">
-            <thead><tr><th>PERSON</th><th>BOND</th><th>THEY FEEL</th><th>RETURNED</th><th>WHY</th></tr></thead>
+            <thead><tr><th>PERSON</th><th>BOND</th><th>LIKE</th><th>DISLIKE</th><th>RETURNED</th><th>WHY</th></tr></thead>
             <tbody>
               {shown.map((t) => (
                 <tr key={t.other}>
                   <td><PersonById id={t.other} /></td>
                   <td>{bondText(world, id, t.other, t.bond)}</td>
-                  <td className="mono">{opinionBar(t.out)} {t.out > 0 ? '+' : ''}{t.out}</td>
-                  <td className="mono">{opinionBar(t.back)} {t.back > 0 ? '+' : ''}{t.back}</td>
+                  {(() => { const m = barsOf(world, id, t.other); const b = barsOf(world, t.other, id); return <>
+                    <td className="mono" title={tierOf(m.like, LIKE_TIERS) ?? ''}>{meter(m.like)} <span className="muted">{tierOf(m.like, LIKE_TIERS) ?? ''}</span></td>
+                    <td className="mono" title={tierOf(m.dislike, DISLIKE_TIERS) ?? ''}>{meter(m.dislike)} <span className="muted">{tierOf(m.dislike, DISLIKE_TIERS) ?? ''}</span></td>
+                    <td className="mono muted" style={{ fontSize: 12 }}>like {Math.round(b.like)} · dislike {Math.round(b.dislike)}</td>
+                  </>; })()}
                   <td className="muted" style={{ whiteSpace: 'normal', fontSize: 12 }}>{t.reasons.slice(0, 2).join('; ')}</td>
                 </tr>
               ))}

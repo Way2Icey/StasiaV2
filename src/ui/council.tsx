@@ -11,7 +11,7 @@ import { activeMissionOf, MISSION_LABEL } from '../sim/missions';
 import { formatDate } from '../sim/time';
 import { captivesHeldBy, executeCaptive, interrogateCaptive, releaseCaptive } from '../sim/captives';
 import { answerRansom, demandRansom, econ, ransomValue } from '../sim/economy';
-import { bondCaige, caigesOf, cannotBond } from '../sim/discovery';
+import { bondCaige, caigeAdvice, caigesOf, cannotGrant } from '../sim/discovery';
 import { courtOf, courtTotals, highroyAway } from '../sim/court';
 import { alive } from '../sim/query';
 import { BAND_COLOR, SectorLink } from './links';
@@ -399,7 +399,7 @@ export function ArmouryPanel({ className }: { className?: string }) {
   const house = world.playerHouseId;
   const caiges = caigesOf(world, house);
   const bonded = alive(world).filter((c) => c.houseId === house && c.flags.some((f) => f.id === 'caigeBonded'));
-  const candidates = alive(world).filter((c) => c.houseId === house && !cannotBond(c));
+  const candidates = alive(world).filter((c) => c.houseId === house && !cannotGrant(world, c));
   const [pick, setPick] = useState<Record<string, string>>({});
   return (
     <Panel title={<Term k="armoury">Caige armoury</Term>} aside={`${caiges.filter((x) => !x.bondedTo).length} unbonded · ${bonded.length} bonded in the house`} className={className}>
@@ -414,7 +414,12 @@ export function ArmouryPanel({ className }: { className?: string }) {
               <span className="muted" style={{ fontSize: 12 }}><span style={{ color: BAND_COLOR[cg.band] }}>{cg.band}</span> · {cg.type} · found {formatDate(cg.found)} in <SectorLink id={cg.foundAt.sectorId} withPlanet /></span>
             </span>
             {holder ? <span style={{ fontSize: 12 }}>Bonded to <PersonLink c={holder} /></span> : (
-              <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', flexBasis: '100%' }}>
+                {caigeAdvice(world, cg.id).map((a) => (
+                  <span key={a.seat} className="muted" style={{ fontSize: 12, flexBasis: '100%' }}>
+                    {a.seat === 'champion' ? 'The Champion' : 'The Grand Master'} ({world.characters[a.adviserId]?.name.given}) would give it to <button type="button" className="linklike" onClick={() => setPick({ ...pick, [cg.id]: a.forId })}>{world.characters[a.forId]?.name.given}</button>: “{a.quote}” <span className="muted">({a.why})</span>
+                  </span>
+                ))}
                 <select aria-label={`Who bonds ${cg.name}`} className="select" value={chosen} onChange={(e) => setPick({ ...pick, [cg.id]: e.target.value })}>
                   {candidates.map((c) => <option key={c.id} value={c.id}>{c.name.given} {c.name.family ?? ''} · {c.role}</option>)}
                 </select>

@@ -43,6 +43,8 @@ export interface CapitalShip {
   houseId: string;
   name: string;
   cls: CapitalClass;
+  /** On a lane watch (its id): away from other duties while it lasts. */
+  watch?: string;
   captainId: string | null;
   crew: number;
   /** 0..100. Below 25 talk turns to mutiny. */

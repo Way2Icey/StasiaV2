@@ -1,6 +1,9 @@
 // The economy: othes and five resources. Standing flows (quarters, taxes,
 // food, stipends) settle once a Phase; trades, missions and ransoms settle at
 // once. Prices on the Imperial Exchange move with what the houses buy and sell.
+import { embargoMarkup } from './lanewatch';
+import { favourQuota, privilegeOf } from './houses';
+import { renownOf } from './renown';
 import { Rng } from './rng';
 import { alive, findSector } from './query';
 import { shiftMood } from './mood';
@@ -67,7 +70,7 @@ function efficiency(c: Character | undefined): number {
 
 export function quotaFor(world: World, houseId: string): number {
   const h = world.houses[houseId]!;
-  return round(QUOTA_BASE[h.tier] * (0.8 + h.standing.respect / 250));
+  return round(QUOTA_BASE[h.tier] * (0.8 + h.standing.respect / 250) * favourQuota(world, houseId));
 }
 
 /**
@@ -150,10 +153,9 @@ export function stipendOf(world: World, c: Character): number {
   return Math.round((40 + Math.min(40, fame) * 4) * (c.seat === 'champion' ? 1.5 : c.seat === 'grandMaster' ? 1.3 : 1));
 }
 
+/** Fame for pay: a knight's renown, in the stipend's terms. */
 export function fameOf(world: World, c: Character): number {
-  const t = world.careers?.titles[c.id]?.length ?? 0;
-  const won = Object.values(world.careers?.of[c.id] ?? {}).reduce((n, s) => n + (s.boutsWon ?? 0) + (s.duelsWon ?? 0) + (s.cDuelsWon ?? 0) * 2, 0);
-  return t * 2 + won / 3;
+  return renownOf(world, c) / 1.5;
 }
 
 export function setPayScale(input: World, scale: 'meagre' | 'fair' | 'generous'): World {
@@ -209,7 +211,8 @@ export function credibilityMarkup(world: World, houseId: string): number {
 }
 
 export function buyPrice(world: World, houseId: string, g: Good): number {
-  return world.economy.market[g].price * (1 + credibilityMarkup(world, houseId));
+  // An embargo makes every purchase dearer; the Numarade's privilege makes it cheaper.
+  return world.economy.market[g].price * (1 + credibilityMarkup(world, houseId)) * embargoMarkup(world, houseId) * (privilegeOf(world, houseId) === 'privilege' ? 0.95 : 1);
 }
 
 export function sellPrice(world: World, g: Good): number {

@@ -1,5 +1,6 @@
 // Lanes & corsairs: our convoys under way, the danger on every lane, our customs post, and what we
 // have to do with the corsair companies.
+import { KnownConvoysPanel, TradeTermsPanel, WatchPanel } from './realm';
 import { useState } from 'react';
 import { useGame, useWorld } from './context';
 import { Go, HouseLink, Panel } from './links';
@@ -113,6 +114,9 @@ export function LanesPage() {
           <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>Partners buy from each other first, from what the other can spare, at the Exchange price without its cut. The goods ship capital to capital, so they cross the lanes between you. The other houses make compacts among themselves too: {s.compacts.filter((c) => c.a !== P && c.b !== P).map((c) => `${world.houses[c.a]?.name}–${world.houses[c.b]?.name}`).join(', ') || 'none yet'}.</p>
         </Panel>
 
+        <WatchPanel className="span-7" />
+        <KnownConvoysPanel className="span-5" />
+        <TradeTermsPanel className="span-5" />
         <Panel title="The lanes" aside="danger to an unescorted run of ours" className="span-7">
           {LANES.map((l) => {
             const t = s.tally[l.id];

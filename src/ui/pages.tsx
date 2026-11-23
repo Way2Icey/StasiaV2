@@ -1,3 +1,4 @@
+import { HouseDealings, HousesOverview, PoachPanel } from './realm';
 import { CalendarPanel } from './calendar';
 import { PersonActions } from './sections';
 import { TiesPanel } from './relations';
@@ -409,6 +410,7 @@ export function HousesPage() {
       <Title title="Houses" sub="The four houses of the vertical slice." />
       <div className="actions" style={{ marginBottom: 12 }}><Go to={{ kind: 'crucible' }} className="btn primary">The Crucible ›</Go></div>
       <div className="grid">
+        <HousesOverview className="span-12" />
         {Object.values(world.houses).map((h) => {
           const r = ruler(world, h.id);
           return (
@@ -425,6 +427,7 @@ export function HousesPage() {
             </Panel>
           );
         })}
+        <PoachPanel className="span-12" />
       </div>
     </>
   );
@@ -450,6 +453,7 @@ export function HousePage({ id }: { id: string }) {
         </div>
       ) : null}
       <div className="grid">
+        <HouseDealings id={h.id} className="span-12" />
         <StandingPanel houseId={h.id} className="span-6" />
         <AnnalsPanel houseId={h.id} className="span-6" />
         <EmbassyPanel houseId={h.id} className="span-12" />

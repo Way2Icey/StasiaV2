@@ -2,6 +2,7 @@
 // We learn them as they cross us: a raid led by a captain someone recognised, a ransomed crew's story, a
 // word from a company that likes us. Every dealing with a company goes in its history. A house can turn
 // openly hostile to a company, or send its knights to hunt a known captain down.
+import { shiftFavour } from './houses';
 import { Rng } from './rng';
 import { buildWord } from './names';
 import { econ, record } from './economy';
@@ -11,6 +12,7 @@ import { isMilitary } from './grounds';
 import { kill } from './death';
 import { imprison } from './holdings';
 import { tally } from './careers';
+import { meet } from './relationships';
 import { seasoned } from './ladder';
 import { powerOf } from './fleet';
 import { LANE_BY_ID } from './lanes';
@@ -45,6 +47,14 @@ export interface Member {
   /** What we know of them, as we learned it. */
   notes: string[];
   fate?: 'dead' | 'captured';
+  /** Turned: a captured member who now informs for this house. */
+  informant?: string;
+  /** Questioned already by this house. */
+  questioned?: boolean;
+  /** Refused to turn: they will not be asked again. */
+  refused?: boolean;
+  /** When our Spymaster last worked them (a fixer). */
+  workedAt?: GameDate;
   /** Who did it. */
   fateBy?: string;
 }
@@ -186,7 +196,7 @@ export function setHostile(input: World, factionId: string, on: boolean): World 
 /** Our great ships that could go on a hunt: home and not on a long station. */
 export function huntShips(world: World): string[] {
   const P = world.playerHouseId;
-  return Object.values(world.fleet?.ships ?? {}).filter((s) => s.houseId === P && !s.lost && !s.arrives && !s.ready && !s.crucible && s.condition >= 40 && (s.duty === 'harbour' || s.duty === 'escort' || s.duty === 'patrol')).map((s) => s.id);
+  return Object.values(world.fleet?.ships ?? {}).filter((s) => s.houseId === P && !s.lost && !s.arrives && !s.ready && !s.crucible && !s.watch && s.condition >= 40 && (s.duty === 'harbour' || s.duty === 'escort' || s.duty === 'patrol')).map((s) => s.id);
 }
 
 const worth = (c: { stats: Record<string, number> }) => (c.stats.duelling! + c.stats.valor! + c.stats.tactics!) / 3;
@@ -278,6 +288,7 @@ function resolveHunt(world: World, rng: Rng, h: Hunt) {
   const margin = odds.ours + rng.gauss() * 4 - (odds.theirs + rng.gauss() * 4);
   const won = margin >= 0;
   for (const c of party) { seasoned(world, rng, c!.id, won); tally(world, c!.id, 'raidsRepelled'); }
+  meet(world, rng, party.map((c) => c!.id), 'a corsair hunt', won ? 0.8 : -0.4, 1.2);
   piracyXp(rng, m, !won);
   if (ship) { ship.condition = clamp(ship.condition - rng.int(5, won ? 12 : 22), 5, 100); }
   if (won) {
@@ -289,6 +300,7 @@ function resolveHunt(world: World, rng: Rng, h: Hunt) {
     const st = world.houses[P]!.standing;
     st.respect = clamp(st.respect + 2, 0, 100);
     st.dread = clamp(st.dread + 1, 0, 100);
+    shiftFavour(world, P, 3);
     if (taken) imprison(world, P, m.name, `corsair ${m.role} of ${f.name}`, null, 'crime', 10 + rng.int(0, 6));
     chronicle(world, f, `${lead.name.given} ${taken ? 'took' : 'killed'} ${m.name}${m.ship ? ` aboard the ${m.ship}` : ''}.`);
     logRecord(world, { kind: 'world', type: 'fight', severity: 2, seat: 'grandMaster', houseIds: [P], text: `${lead.name.given} ran down ${m.name} of ${f.name}${m.ship ? ` and the ${m.ship}` : ''}${aboard} and ${taken ? 'brought them home in chains' : 'killed them'}.`, who, effects: ['Respect +2', 'Dread +1', `${cap(f.name)} weakened`, `${cap(f.name)} regard −30`], quote: { from: lead.id, text: taken ? 'Alive, as you see. They will have plenty to say.' : 'They would not strike. So.' } });
@@ -323,3 +335,145 @@ export function huntersFree(world: World): string[] {
     .sort((a, b) => (b.stats.duelling + b.stats.valor + b.stats.tactics) - (a.stats.duelling + a.stats.valor + a.stats.tactics)).map((c) => c.id);
 }
 
+
+// ---------------------------------------------------------------- captured corsairs
+
+export type CaptiveAnswer = 'question' | 'turn' | 'ransom' | 'hang';
+export const RANSOM_BACK = (m: Member) => (m.role === 'chief' ? 6000 : 2500);
+
+export function cannotHandle(world: World, factionId: string, memberId: string, answer: CaptiveAnswer): string | null {
+  const P = world.playerHouseId;
+  const f = world.lanes?.factions[factionId];
+  const m = f?.members.find((x) => x.id === memberId);
+  if (!f || !m) return 'No such person.';
+  if (m.fate !== 'captured' || !m.fateBy || world.characters[m.fateBy]?.houseId !== P) return 'Not in our cells.';
+  if (m.informant) return answer === 'hang' || answer === 'ransom' ? null : 'Already informing for us.';
+  if (answer === 'question' && m.questioned) return 'They have told us what they will.';
+  if (answer === 'turn' && m.refused) return 'They would not turn before; they will not now.';
+  return null;
+}
+
+/** What to do with a corsair in our cells. */
+export function handleCaptive(input: World, factionId: string, memberId: string, answer: CaptiveAnswer): World {
+  if (cannotHandle(input, factionId, memberId, answer)) return input;
+  return act(input, (w, rng) => {
+    const P = w.playerHouseId;
+    const f = w.lanes.factions[factionId]!;
+    const m = f.members.find((x) => x.id === memberId)!;
+    const spy = competence(w, 'spymaster');
+    if (answer === 'question') {
+      m.questioned = true;
+      const named = alive(f).filter((x) => !x.known).slice(0, rng.int(1, 2));
+      for (const x of named) reveal(x, `Named by ${m.name} under questioning.`);
+      const deals = w.lanes.deals.filter((d) => d.faction === f.id && d.house !== P);
+      // Routes and habits: the company is easier to find and to avoid for a while.
+      for (const x of alive(f)) x.cunning = clamp((x.cunning ?? 10) - 1, 1, 20);
+      chronicle(w, f, `We questioned ${m.name}: ${named.length ? `they named ${named.map((x) => x.name).join(' and ')}` : 'they gave up their routes'}.`);
+      logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 1, seat: 'spymaster', houseIds: [P], text: `${m.name} talked. ${named.length ? `New names: ${named.map((x) => `${x.name}, ${x.role}${x.ship ? ` of the ${x.ship}` : ''}`).join('; ')}. ` : ''}${deals.length ? `They say ${deals.map((d) => `House ${w.houses[d.house]?.name} ${d.kind === 'passage' ? 'pays them for passage' : d.kind === 'bounty' ? 'has a bounty on them' : `gave them letters against House ${w.houses[d.target!]?.name}`}`).join('; ')}.` : 'Their routes and habits are ours now: the company is easier to find.'}` });
+    } else if (answer === 'turn') {
+      if (rng.chance(clamp(0.25 + spy * 0.02 + (m.role === 'fixer' ? 0.1 : 0) - (m.role === 'chief' ? 0.2 : 0), 0.05, 0.75))) {
+        m.informant = P;
+        chronicle(w, f, `${m.name} agreed to inform for us, in return for their life.`);
+        logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 2, seat: 'spymaster', houseIds: [P], text: `${m.name} will inform for us now. We will hear when ${f.name} moves, and of other houses' convoys.` });
+      } else {
+        m.refused = true;
+        chronicle(w, f, `${m.name} would not turn.`);
+        logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 1, seat: 'spymaster', houseIds: [P], text: `${m.name} spat at the offer. They will not turn.` });
+      }
+    } else if (answer === 'ransom') {
+      const pay = RANSOM_BACK(m);
+      record(w, P, { resource: 'othes', amount: pay, label: `Ransom from ${f.name}`, kind: 'ransom' });
+      m.fate = undefined; m.informant = undefined; m.notes.push('Ransomed back to the company.');
+      f.rel[P] = clamp((f.rel[P] ?? 0) + 15, -100, 100);
+      chronicle(w, f, `We ransomed ${m.name} back to them for ${pay.toLocaleString('en-US')} othes.`);
+      logRecord(w, { kind: 'world', type: 'economy', severity: 1, seat: 'steward', houseIds: [P], text: `${f.name[0]!.toUpperCase() + f.name.slice(1)} paid ${pay.toLocaleString('en-US')} othes for ${m.name}.`, effects: [`+${pay.toLocaleString('en-US')} othes`, `${cap(f.name)} regard +15`] });
+    } else {
+      m.fate = 'dead'; m.informant = undefined; m.notes.push('Hanged by us, in public.');
+      const st = w.houses[P]!.standing;
+      st.dread = clamp(st.dread + 3, 0, 100);
+      st.respect = clamp(st.respect + (m.role === 'chief' ? 2 : 1), 0, 100);
+      f.rel[P] = clamp((f.rel[P] ?? 0) - 40, -100, 100);
+      chronicle(w, f, `We hanged ${m.name} where the docks could see.`);
+      logRecord(w, { kind: 'world', type: 'fight', severity: 2, seat: 'grandMaster', houseIds: [P], text: `${m.name} of ${f.name} was hanged at our docks. Every corsair in the Reaches will hear of it.`, effects: ['Dread +3', `${cap(f.name)} regard −40`] });
+    }
+  });
+}
+
+/** Each Orbit an informant may bring word: a warning of a raid, a name, or a rival convoy. */
+export function informants(world: World, rng: Rng): void {
+  const P = world.playerHouseId;
+  for (const f of Object.values(world.lanes.factions)) for (const m of f.members.filter((x) => x.informant === P && x.fate === 'captured')) {
+    if (!rng.chance(0.3)) continue;
+    const named = alive(f).filter((x) => !x.known)[0];
+    if (named) {
+      reveal(named, `Named by our informant ${m.name}.`);
+      logRecord(world, { kind: 'intrigue', type: 'intrigue', severity: 1, seat: 'spymaster', houseIds: [P], text: `Our informant ${m.name} names ${named.name}, ${named.role}${named.ship ? ` of the ${named.ship}` : ''}.` });
+    } else {
+      const rival = Object.values(world.lanes.convoys).filter((c) => c.owner !== P && c.owner !== 'free' && !c.known).sort((a, b) => b.value - a.value)[0];
+      if (rival) { rival.known = true; logRecord(world, { kind: 'intrigue', type: 'intrigue', severity: 1, seat: 'spymaster', houseIds: [P], text: `Our informant ${m.name} says a House ${world.houses[rival.owner]?.name} run worth ${rival.value.toLocaleString('en-US')} othes is on the lanes.` }); }
+    }
+  }
+}
+
+// ---------------------------------------------------------------- fixers
+
+export const WORK_FIXER = 400;
+export const GO_BETWEEN = 800;
+
+export function cannotWorkFixer(world: World, factionId: string, memberId: string, how: 'work' | 'gobetween'): string | null {
+  const P = world.playerHouseId;
+  const f = world.lanes?.factions[factionId];
+  const m = f?.members.find((x) => x.id === memberId);
+  if (!f || !m || m.role !== 'fixer') return 'Not their fixer.';
+  if (!m.known) return 'We do not know who it is.';
+  if (m.fate) return 'Gone.';
+  if (how === 'work' && m.workedAt && absoluteCycle(world.date) - absoluteCycle(m.workedAt) < CYCLES_PER_PHASE * 10) return 'Worked recently: they have nothing new yet.';
+  if (how === 'gobetween') {
+    if (f.goBetween?.includes(P)) return 'Already our go-between.';
+    if ((f.rel[P] ?? 0) < 10) return 'The company does not trust us enough.';
+    if (isHostile(world, f, P)) return 'Not while we are at war with them.';
+  }
+  const cost = how === 'work' ? WORK_FIXER : GO_BETWEEN;
+  if (econ(world, P).stock.othes < cost) return `Needs ${cost} othes.`;
+  return null;
+}
+
+/** Have the Spymaster work on a company's fixer: names, routes, and who pays them. */
+export function workFixer(input: World, factionId: string, memberId: string): World {
+  if (cannotWorkFixer(input, factionId, memberId, 'work')) return input;
+  return act(input, (w, rng) => {
+    const P = w.playerHouseId;
+    const f = w.lanes.factions[factionId]!;
+    const m = f.members.find((x) => x.id === memberId)!;
+    record(w, P, { resource: 'othes', amount: -WORK_FIXER, label: `Working ${m.name}`, kind: 'mission' });
+    m.workedAt = w.date;
+    if (!rng.chance(0.55 + competence(w, 'spymaster') * 0.02)) {
+      f.rel[P] = clamp((f.rel[P] ?? 0) - 5, -100, 100);
+      chronicle(w, f, `${m.name} saw our people coming and closed up.`);
+      logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 1, seat: 'spymaster', houseIds: [P], text: `${m.name} smelled our interest and went quiet. The company will have heard.` });
+      return;
+    }
+    const named = alive(f).filter((x) => !x.known).slice(0, 2);
+    for (const x of named) reveal(x, `Named by their fixer ${m.name}, for a price.`);
+    const deals = w.lanes.deals.filter((d) => d.faction === f.id && d.house !== P);
+    const run = Object.values(w.lanes.convoys).filter((c) => c.owner !== P && c.owner !== 'free' && !c.known).sort((a, b) => b.value - a.value)[0];
+    if (run) run.known = true;
+    chronicle(w, f, `Our people worked ${m.name} for what they knew.`);
+    logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 1, seat: 'spymaster', houseIds: [P], text: `${m.name} sold us what they had. ${named.length ? `Names: ${named.map((x) => x.name).join(', ')}. ` : ''}${deals.length ? `Who pays ${f.name}: ${deals.map((d) => `House ${w.houses[d.house]?.name} (${d.kind})`).join(', ')}. ` : 'No other house deals with them just now. '}${run ? `And a House ${w.houses[run.owner]?.name} run is on the lanes.` : ''}` });
+  });
+}
+
+/** Make the fixer our go-between: our dealings with the company are cheaper and they tell us more. */
+export function retainGoBetween(input: World, factionId: string, memberId: string): World {
+  if (cannotWorkFixer(input, factionId, memberId, 'gobetween')) return input;
+  return act(input, (w) => {
+    const P = w.playerHouseId;
+    const f = w.lanes.factions[factionId]!;
+    const m = f.members.find((x) => x.id === memberId)!;
+    record(w, P, { resource: 'othes', amount: -GO_BETWEEN, label: `Retaining ${m.name}`, kind: 'mission' });
+    (f.goBetween ??= []).push(P);
+    f.rel[P] = clamp((f.rel[P] ?? 0) + 5, -100, 100);
+    chronicle(w, f, `${m.name} now carries our dealings with the company.`);
+    logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 1, seat: 'spymaster', houseIds: [P], text: `${m.name} will carry our word to ${f.name}: passage and letters cost less, and we hear more of what moves on the lanes.` });
+  });
+}

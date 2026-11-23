@@ -1,8 +1,9 @@
 // Careers on screen: season lines, titles, potential diamonds, and the people the Highroy follows.
+import { renownRow } from '../sim/renown';
 import { STAGE_LABEL, stageOf } from '../sim/ladder';
 import { formatDate } from '../sim/time';
 import { useGame, useWorld } from './context';
-import { Panel, PersonLink } from './links';
+import { Go, Panel, PersonLink } from './links';
 import { Fragment } from 'react';
 import { diamondRead, diamondText, seasonLine, STAT_LABEL, titlesOf, togglePin, totals, type Stat } from '../sim/careers';
 import { ageOf } from '../sim/characters';
@@ -31,6 +32,7 @@ export function CareerPanel({ c, className }: { c: Character; className?: string
     <Panel title="Record" aside={<>{stageLabel(world, c.id)}potential <Diamonds c={c} /></>} className={className}>
       <DevLine id={c.id} />
       <LadderLine id={c.id} />
+      {(() => { const r = renownRow(world, c.id); return r ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Renown {r.renown} · <strong>{r.tier}</strong> · {r.rankHouse === 1 ? 'first' : `#${r.rankHouse}`} in their house, #{r.rankAll} across the houses · <Go to={{ kind: 'people', view: 'renown' }}>the table ›</Go></p> : null; })()}
       {titles.length ? <div className="body" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{titles.map((x, i) => <span key={i} className="pill" aria-pressed="true">{x.title}</span>)}</div> : null}
       {rows.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No deeds on record yet.</p> : (
         <>

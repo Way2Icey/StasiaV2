@@ -8,7 +8,7 @@ import { SPECIES } from '../data/species';
 
 export type Route =
   | { kind: 'throne' }
-  | { kind: 'people'; focus?: string; view?: 'web' | 'factions' | 'ambitions' | 'young' | 'everyone' }
+  | { kind: 'people'; focus?: string; view?: 'web' | 'factions' | 'ambitions' | 'young' | 'everyone' | 'renown' }
   | { kind: 'houses' }
   | { kind: 'worlds' }
   | { kind: 'save' }
@@ -92,6 +92,7 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
   people: [
     { label: 'Ties', to: { kind: 'people', view: 'web' }, on: (r) => r.kind === 'people' && (!r.view || r.view === 'web') },
     { label: 'Factions', to: { kind: 'people', view: 'factions' }, on: (r) => r.kind === 'people' && r.view === 'factions' },
+    { label: 'Renown', to: { kind: 'people', view: 'renown' }, on: (r) => r.kind === 'people' && r.view === 'renown' },
     { label: 'Younglings & wards', to: { kind: 'people', view: 'young' }, on: (r) => r.kind === 'people' && r.view === 'young' },
     { label: 'Training & academy', to: { kind: 'training' }, on: is('training') },
     { label: 'Everyone', to: { kind: 'people', view: 'everyone' }, on: (r) => r.kind === 'people' && r.view === 'everyone' },

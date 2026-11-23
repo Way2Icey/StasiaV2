@@ -36,6 +36,9 @@ import { absoluteCycle, type GameDate } from '../sim/time';
 import { eventDef } from '../sim/events';
 import { displayName } from '../sim/names';
 import { answerCrew, answerOffer } from '../sim/lanes';
+import { answerSmuggledCaige, answerSmuggler, notesFor, smuggledCaiges, SMUGGLE_LABEL } from '../sim/smuggling';
+import { idleVeterans, letRest, postsFor } from '../sim/veterans';
+import { answerAlliance } from '../sim/houses';
 import type { FeedEntry, World } from '../sim/types';
 
 /** Cycles from now, as the terminal shows them: "C+4". */
@@ -201,7 +204,7 @@ interface DeskItem {
 }
 
 type DeskTab = 'needs' | 'chances' | 'news';
-const NEEDS = new Set(['CREW', 'BLOODING', 'DECISION', 'AUDIENCE', 'PETITION', 'RAID', 'RANSOM', 'LOAN', 'DEFAULT', 'CAIGE', 'CRUCIBLE', 'CHALLENGE', 'INTAKE', 'PUPIL', 'INVITATION', 'WARD']);
+const NEEDS = new Set(['SMUGGLER', 'SMUGGLED', 'CREW', 'BLOODING', 'DECISION', 'AUDIENCE', 'PETITION', 'RAID', 'RANSOM', 'LOAN', 'DEFAULT', 'CAIGE', 'CRUCIBLE', 'CHALLENGE', 'INTAKE', 'PUPIL', 'INVITATION', 'WARD']);
 const tabOf = (k: string): DeskTab => (NEEDS.has(k) ? 'needs' : k === 'NEWS' ? 'news' : 'chances');
 
 function scrollTo(id: string) {
@@ -239,6 +242,30 @@ export function Desk({ className }: { className?: string }) {
     if (r.status !== 'revealed' || r.answer) continue;
     const s = findSector(world, r.sectorId)?.sector;
     items.push({ id: r.id, mark: '[⚠]', kind: 'RAID', text: <>Corsairs bound for {s?.name}</>, when: inCycles(world, r.arrives), open: () => nav.to({ kind: 'port', id: r.sectorId }) });
+  }
+  for (const n of notesFor(world)) {
+    const c = world.characters[n.by];
+    items.push({ id: n.id, mark: '[!]', kind: 'SMUGGLER', text: <>{c ? displayName(c.name) : 'Someone of ours'} is running {SMUGGLE_LABEL[n.goods]}</>, when: inCycles(world, n.until),
+      open: () => setOpen((o) => (o === n.id ? null : n.id)),
+      detail: <span className="muted" style={{ fontSize: 12 }}>The Spymaster heard first. They {n.why}. Stop it and they resent us; look away for a quarter and it is on us too if it comes out; expose them and the house keeps its name.</span>,
+      acts: [{ label: 'Stop it', primary: true, run: (w) => answerSmuggler(w, n.id, 'stop') }, { label: 'Look away for a cut', run: (w) => answerSmuggler(w, n.id, 'cut') }, { label: 'Expose them', run: (w) => answerSmuggler(w, n.id, 'expose') }] });
+  }
+  for (const sc of smuggledCaiges(world)) {
+    const c = world.characters[sc.holder];
+    const cg = world.armoury[sc.caigeId];
+    items.push({ id: `sc-${sc.caigeId}`, mark: '[◈]', kind: 'SMUGGLED', text: <>{c ? displayName(c.name) : 'Someone'} carries a smuggled Caige{cg ? `, ${cg.name}` : ''}</>, when: '', open: () => nav.to({ kind: 'character', id: sc.holder }),
+      acts: [{ label: 'Take it for the armoury', primary: true, run: (w) => answerSmuggledCaige(w, sc.caigeId, false) }, { label: 'Let them keep it', run: (w) => answerSmuggledCaige(w, sc.caigeId, true) }] });
+  }
+  for (const c of idleVeterans(world)) {
+    const posts = postsFor(world, c);
+    items.push({ id: `vet-${c.id}`, mark: '[◇]', kind: 'VETERAN', text: <>{displayName(c.name)} has hung up the blade · where should they serve?</>, when: '',
+      open: () => setOpen((o) => (o === `vet-${c.id}` ? null : `vet-${c.id}`)),
+      detail: <span className="muted" style={{ fontSize: 12 }}>The Grand Master's thought: {posts[0] ? `${posts[0].label.toLowerCase()} (${posts[0].why.toLowerCase()})` : 'let them rest; there is no post that needs them'}.</span>,
+      acts: [...posts.slice(0, 2).map((p, i) => ({ label: p.label, primary: i === 0, run: p.run })), { label: 'Let them rest', run: (w) => letRest(w, c.id) }] });
+  }
+  for (const o of world.realm?.offers ?? []) {
+    items.push({ id: o.id, mark: '[∞]', kind: 'ALLIANCE', text: <>House {world.houses[o.from]?.name} offers an alliance</>, when: inCycles(world, o.expires), open: () => nav.to({ kind: 'house', id: o.from }),
+      acts: [{ label: 'Accept', primary: true, run: (w) => answerAlliance(w, o.id, true) }, { label: 'Decline', run: (w) => answerAlliance(w, o.id, false) }] });
   }
   for (const h of (world.lanes?.held ?? []).filter((x) => x.owner === P)) {
     const f = world.lanes.factions[h.faction];

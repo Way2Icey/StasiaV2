@@ -178,7 +178,9 @@ export function teacherSkill(world: World, id: string | undefined, subject: Subj
   const t = id ? world.characters[id] : undefined;
   if (!t?.alive) return 6;
   const s = SUBJECTS[subject].stats;
-  return s.reduce((n, k) => n + t.stats[k], 0) / s.length;
+  // An old knight teaches the arms from life.
+  const vet = subject === 'arms' && t.flags.some((f) => f.id === 'retired') ? 2 : 0;
+  return s.reduce((n, k) => n + t.stats[k], 0) / s.length + vet;
 }
 
 /** Expected gain in a subject per Phase, summed over its stats. */

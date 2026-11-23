@@ -1,5 +1,6 @@
 // The rail's sections and their hub pages: a strip of tabs under each section, and the pages that
 // gather features which used to live wherever they were first attached.
+import { VeteransPanel } from './realm';
 import { useState } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonLink } from './links';
@@ -60,6 +61,7 @@ export function railCount(world: World, s: Section): { gold?: number; plain?: nu
       + (g?.circuit.filter((e) => !e.done && e.invited?.includes(P) && !e.entrants.some((x) => x.houseId === P)).length ?? 0)
       + (world.ports?.raids.filter((r) => r.status === 'revealed' && !r.answer).length ?? 0)
       + (world.lanes?.held.filter((h) => h.owner === P).length ?? 0)
+      + (world.lanes?.smuggleNotes?.length ?? 0)
       + (world.crucible?.stage === 'drawn' && world.crucible.entrants.includes(P) && !world.crucible.contingents[P] ? 1 : 0)
       + (world.crucible?.stage === 'campaign' && world.crucible.contingents[P] && !world.crucible.contingents[P]!.out && currentRound(world) && !currentRound(world)!.stance[P] ? 1 : 0)
       + (world.loans?.asks.filter((a) => a.to === P).length ?? 0)
@@ -96,6 +98,7 @@ export function KnightsPage() {
       </div>
       <div className="grid">
         <Challenges className="span-12" />
+        <VeteransPanel className="span-12" />
         <Panel title="Our military" aside={`${military.length}`} className="span-12">
           <div className="table-wrap">
             <table className="table">

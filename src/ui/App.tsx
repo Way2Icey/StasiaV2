@@ -1,3 +1,4 @@
+import { RenownPage } from './realm';
 import { VERSION } from '../version';
 import { useEffect, useMemo, useRef, useState , Fragment } from 'react';
 import { Term } from './tip';
@@ -199,7 +200,8 @@ export function App() {
 function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void }) {
   switch (route.kind) {
     case 'throne': return <ThroneRoom />;
-    case 'people': return <RelationsPage key={route.view ?? 'web'} focus={route.focus} view={route.view} />;
+    case 'people': if (route.view === 'renown') return <RenownPage />;
+      return <RelationsPage key={route.view ?? 'web'} focus={route.focus} view={route.view} />;
     case 'houses': return <HousesPage />;
     case 'worlds': return <StarMapPage />;
     case 'save': return <SavePage setWorld={setWorld} />;
