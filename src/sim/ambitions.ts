@@ -1,3 +1,4 @@
+import { addThread } from './storystate';
 // Ambitions: what people want out of life, and what they do when they don't get it.
 // Everyone of note wants something: a seat, a ship, glory, love, a fortune, the wide Reaches.
 // Wants that go unmet sour into resentment; ours come to the Highroy in audience, and the Highroy must answer.
@@ -271,7 +272,7 @@ export function optionsFor(w: World, au: Audience): AnswerOption[] {
   }
 }
 
-function setSeat(w: World, c: Character, seat: CouncilSeat) {
+export function setSeat(w: World, c: Character, seat: CouncilSeat) {
   const old = seatHolder(w, c.houseId, seat);
   if (c.seat && c.seat !== 'highroy') { /* leaving their old seat empty */ c.seat = undefined; }
   if (old) {
@@ -646,7 +647,9 @@ export function knight(input: World, id: string): World {
     .sort((a, b) => absoluteCycle(a[1].since) - absoluteCycle(b[1].since))[0];
   if (waited && Math.abs(hashOf(waited[0] + c.id)) % 3 !== 0) { rivalsFrom(w, waited[0], c.id, `passed over for a knighthood that went to ${shortName(c.name)}`, 2); sting(w, waited[0], c.id, 'passed over'); }
   // A few days later, their letter: thanks, and what they mean to do.
-  logRecord(w, { kind: 'world', type: 'world', severity: 2, seat: 'grandMaster', text: `A letter from ${displayName(c.name)}, newly knighted.`, quote: { from: c.id, text: oathOf(w, c) }, who: [{ id: c.id, part: 'wrote' }] });
+  const oath = oathOf(w, c);
+  logRecord(w, { kind: 'world', type: 'world', severity: 2, seat: 'grandMaster', text: `A letter from ${displayName(c.name)}, newly knighted.`, quote: { from: c.id, text: oath }, who: [{ id: c.id, part: 'wrote' }] });
+  addThread(w, c.id, 'vow', `Swore at their knighting: "${oath.replace(/^My lord[^:.]*[:.]\s*/, '')}"`);
   return w;
 }
 

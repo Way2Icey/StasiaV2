@@ -11,6 +11,7 @@ import { absoluteCycle, CYCLES_PER_PHASE, CYCLES_PER_TURN } from './time';
 import { logRecord } from './records';
 import { shortName } from './names';
 import { seatHolder } from './query';
+import { battleOf, runOut, applyFates } from './battle';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -21,6 +22,13 @@ export const STRUGGLE: Record<StruggleKind, { label: string; stats: StatId[]; no
   ring: { label: 'A ring in our port', stats: ['law', 'perception', 'stewardship'], note: 'Law, perception and stewardship work against it.', ours: 'the ring is broken', theirs: 'the Numarade finds it first' },
   madness: { label: "The Caige's pull", stats: ['composure', 'insight', 'intellect'], note: 'The bearer fights it with willpower and control; helpers add composure, insight and learning.', ours: 'they master it', theirs: 'it masters them' },
   feud: { label: 'A feud between families', stats: ['diplomacy', 'eloquence', 'leadership'], note: 'Diplomacy, eloquence and leadership calm it.', ours: 'reconciled', theirs: 'blood is drawn' },
+  succession: { label: 'A contested succession', stats: ['leadership', 'diplomacy', 'law'], note: 'Leadership, diplomacy and law hold the house to our choice.', ours: 'our heir is accepted', theirs: 'the house splits' },
+  plague: { label: 'Plague', stats: ['intellect', 'perception', 'stewardship'], note: 'The Physician first; learning, perception and stewardship fight it.', ours: 'it burns out', theirs: 'the dead are counted' },
+  uprising: { label: 'Uprising', stats: ['leadership', 'law', 'eloquence'], note: 'Leadership, law and eloquence bring them back.', ours: 'terms, or the leader taken', theirs: 'the sector is lost for a time' },
+  hunted: { label: 'The hunted child', stats: ['perception', 'stealth', 'duelling'], note: 'Perception, stealth and blades keep the child safe.', ours: 'the hunters give up', theirs: 'the child is taken' },
+  glass: { label: 'Glass in the barracks', stats: ['law', 'insight', 'leadership'], note: 'Law, insight and leadership clean the order.', ours: 'the dealer is taken', theirs: 'the order is rotten with it' },
+  campaign: { label: 'The campaign', stats: ['diplomacy', 'eloquence', 'negotiation'], note: 'Diplomacy, eloquence and negotiation win votes.', ours: 'the seat is ours', theirs: 'the rival takes the seat' },
+  drift: { label: 'The Drift opens', stats: ['resonanceControl', 'intellect', 'willpower'], note: 'Control, learning and will hold the rift.', ours: 'sealed', theirs: 'the Drift seeps in' },
 };
 
 /** Turning points: a stage fires the first time the meter crosses each. */
@@ -97,6 +105,16 @@ export function endStruggle(world: World, id: string | undefined, won: boolean, 
 function advanceStruggles(world: World, rng: Rng, phaseTurned: boolean): void {
   if (!phaseTurned) return;
   for (const s of openStruggles(world)) {
+    if (s.battle) {
+      const bt = battleOf(world, s.battle);
+      if (bt && bt.status !== 'over' && absoluteCycle(world.date) - absoluteCycle(bt.created) >= 8) runOut(bt, world);
+      if (!bt || bt.status === 'over') {
+        if (bt) { applyFates(world, bt); pushStruggle(world, s.id, bt.result?.winner === 0 ? 25 : -25, bt.result?.winner === 0 ? 'Won the fight.' : 'Lost the fight.'); }
+        delete s.battle;
+      }
+    }
+    // One decision at a time: while a turning point or an ending waits on the Highroy, the meter moves but nothing new is asked.
+    const waiting = world.events.pending.some((p) => p.struggleId === s.id);
     const ours = oursPush(world, s);
     const theirs = s.theirs.strength;
     const d = clamp((ours - theirs) * 0.9 + rng.gauss() * 6, -22, 22);
@@ -104,18 +122,20 @@ function advanceStruggles(world: World, rng: Rng, phaseTurned: boolean): void {
     s.meter = clamp(s.meter + d, -100, 100);
     // Turning points, once each.
     for (const pt of POINTS) {
-      if (s.fired.includes(pt)) continue;
+      if (waiting || s.fired.includes(pt)) continue;
       const crossed = pt > 0 ? before < pt && s.meter >= pt : before > pt && s.meter <= pt;
       if (!crossed) continue;
       s.fired.push(pt);
       fireStage(world, rng, `str:${s.kind}:${pt > 0 ? 'up' : 'down'}`, { ...s.cast, struggleId: s.id });
       break;
     }
-    if (s.meter >= 100 || s.meter <= -100) {
+    if (!waiting && (s.meter >= 100 || s.meter <= -100)) {
       const won = s.meter >= 100;
       const p = fireStage(world, rng, `str:${s.kind}:${won ? 'won' : 'lost'}`, { ...s.cast, struggleId: s.id });
       if (!p) endStruggle(world, s.id, won, won ? `Over: ${STRUGGLE[s.kind].ours}.` : `Over: ${STRUGGLE[s.kind].theirs}.`);
       else s.meter = won ? 99 : -99; // held at the edge until the Highroy decides
+    } else if (waiting) {
+      s.meter = clamp(s.meter, -99, 99);
     }
   }
 }
@@ -147,8 +167,11 @@ function maybeOpenStruggle(world: World, rng: Rng): void {
   if (openStruggles(world).length >= 2) return;
   const p = st.act === 'crisis' ? 0.25 : st.act === 'rising' ? 0.08 : 0;
   if (!rng.chance(p)) return;
-  const kinds = rng.shuffle<StruggleKind>(['plot', 'ring', 'madness', 'feud']);
-  for (const k of kinds) if (fireStage(world, rng, `str:${k}:open`, {})) return;
+  const kinds = rng.shuffle<StruggleKind>(['plot', 'ring', 'madness', 'feud', 'glass', 'uprising', 'plague']);
+  // The same kind of trouble does not come straight back.
+  const now = absoluteCycle(world.date);
+  const recent = new Set(st.struggles.filter((s) => !s.ended || now - absoluteCycle(s.ended.date) < CYCLES_PER_PHASE * 10).map((s) => s.kind));
+  for (const k of kinds) if (!recent.has(k) && fireStage(world, rng, `str:${k}:open`, {})) return;
 }
 
 /** Once a turn. */
@@ -166,6 +189,11 @@ export function advanceStory(world: World, rng: Rng, phaseTurned: boolean): void
   const now = absoluteCycle(world.date);
   for (const run of st.arcs) {
     if (!run.open || !run.next || absoluteCycle(run.next.at) > now) continue;
+    // A stage that went to blades waits for the fight to end, and the fight's toll is paid first.
+    const bid = run.data?.battle as string | undefined;
+    const bt = bid ? battleOf(world, bid) : undefined;
+    if (bt && bt.status !== 'over') { if (now - absoluteCycle(bt.created) >= 8) runOut(bt, world); else continue; }
+    if (bt && !bt.applied) applyFates(world, bt);
     if (world.events.pending.some((p) => p.arcId === run.id)) continue;
     const next = run.next.defId;
     delete run.next;
@@ -185,6 +213,6 @@ export function advanceStory(world: World, rng: Rng, phaseTurned: boolean): void
 /** Who the house would put on a struggle first: the seat that suits it. */
 export function naturalFor(world: World, kind: StruggleKind): Character | undefined {
   const P = world.playerHouseId;
-  const seat = kind === 'plot' ? 'spymaster' : kind === 'ring' ? 'steward' : kind === 'madness' ? 'physician' : 'envoy';
+  const seat = ({ plot: 'spymaster', ring: 'steward', madness: 'physician', feud: 'envoy', succession: 'elder', plague: 'physician', uprising: 'steward', hunted: 'champion', glass: 'grandMaster', campaign: 'envoy', drift: 'elder' } as const)[kind];
   return seatHolder(world, P, seat);
 }

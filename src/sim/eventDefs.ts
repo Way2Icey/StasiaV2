@@ -412,7 +412,7 @@ const court: EventDef[] = [
         c.fx.say(`${nm(a)} wins`).wound(b).mood(a, 3).respect(1);
         if (a && b) { shiftOpinion(c.world, b.id, a.id, -25, 'beaten at dawn'); shiftOpinion(c.world, a.id, b.id, 5, 'a fair fight'); c.fx.thread(b, 'grudge', `Beaten at dawn by ${nm(a)}`, a.id); c.memo = { winner: a.id, loser: b.id }; }
       },
-        then: (c) => (c.memo?.loser && c.rng.chance(0.55) ? { next: 'blades2', after: c.rng.int(40, 80), cast: { personId: c.memo.winner, secondId: c.memo.loser } } : null) },
+        then: (c) => (c.memo?.loser && c.rng.chance(0.55) ? { next: 'blades2', after: c.rng.int(40, 80), cast: { personId: String(c.memo.winner), secondId: String(c.memo.loser) } } : null) },
       { label: 'Reconcile them', check: { who: highroy, stats: ['diplomacy', 'leadership'], dc: 10 },
         resolve: (c, ok) => { if (ok) c.fx.mood(c.person, 3).mood(c.second, 3); else c.fx.mood(c.person, -3).mood(c.second, -3); if (c.person && c.second) shiftBoth(c.world, c.person.id, c.second.id, ok ? 20 : -15, ok ? 'reconciled by the Highroy' : 'a failed reconciliation'); } },
     ],

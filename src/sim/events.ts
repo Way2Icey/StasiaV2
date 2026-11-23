@@ -80,7 +80,7 @@ export interface Ctx {
   /** The struggle this is a turning point of, if any. */
   struggle?: Struggle;
   /** Scratch space an option's resolve can leave for its `then`. */
-  memo?: Record<string, string>;
+  memo?: Record<string, string | number>;
 }
 
 export interface Check {
@@ -310,10 +310,12 @@ export function registerEvents(defs: EventDef[]): void { DEFS = [...defs, ...DEF
 /** Add more definitions (arcs, struggles) alongside the rest. */
 export function addEvents(defs: EventDef[]): void { DEFS = [...DEFS.filter((d) => !defs.some((x) => x.id === d.id)), ...defs]; }
 export function eventDef(id: string): EventDef | undefined { return DEFS.find((d) => d.id === id); }
+export function allDefs(): EventDef[] { return DEFS; }
 
-function place(world: World, def: EventDef, holder: Partial<PendingEvent>, life: number, arcId?: string): PendingEvent {
+function place(world: World, def: EventDef, holder: Partial<PendingEvent>, life: number, arcId?: string, memo?: Record<string, string | number>): PendingEvent {
   const ev = world.events;
   const fresh = makeCtx(world, new Rng(world.rng), holder);
+  if (memo) fresh.memo = memo;
   if (arcId) fresh.arc = world.story?.arcs.find((a) => a.id === arcId);
   const p: PendingEvent = {
     ...holder,
@@ -336,19 +338,24 @@ function place(world: World, def: EventDef, holder: Partial<PendingEvent>, life:
 /** Fire one event of this trigger, weighted, preferring what suits the storyteller's act. */
 export function fire(world: World, rng: Rng, trigger: EventTrigger, seed: Partial<PendingEvent>, life: number, act?: Act): boolean {
   const ev = world.events;
-  const candidates = DEFS.filter((d) => d.trigger === trigger && !d.stage && !ev.recent.includes(d.id));
+  // One telling of a story at a time: an arc already under way does not start again.
+  const running = new Set((world.story?.arcs ?? []).filter((a) => a.open).map((a) => a.title));
+  const busy = new Set((world.story?.arcs ?? []).filter((a) => a.open).flatMap((a) => [a.cast.personId, a.cast.secondId]).filter(Boolean) as string[]);
+  const candidates = DEFS.filter((d) => d.trigger === trigger && !d.stage && !ev.recent.includes(d.id) && !(d.arc && running.has(d.arc)));
   const pool = [...candidates];
   for (let tries = 0; tries < 6 && pool.length; tries++) {
     // What has happened often grows rarer: the same quarrel every year stops being news.
     const fired = ev.fired ?? {};
-    const def = rng.weighted(pool.map((d) => [d, (d.weight * (act && d.act === act ? 2.5 : act && d.act && d.act !== act ? 0.4 : 1)) / (1 + (fired[d.id] ?? 0) * 0.6)] as [EventDef, number]));
+    const def = rng.weighted(pool.map((d) => [d, (d.weight * (act && d.act === act ? 2.5 : act && d.act && d.act !== act ? 0.4 : 1)) / (1 + (fired[d.id] ?? 0) * (d.arc ? 1.5 : 0.6))] as [EventDef, number]));
     pool.splice(pool.indexOf(def), 1);
     const holder: Partial<PendingEvent> = { ...seed };
     const ctx = makeCtx(world, rng, seed);
     ctx.set = holder;
     if (!def.setup(ctx)) continue;
-    const p = place(world, def, holder, life);
-    if (def.arc) startArc(world, p, def.arc);
+    // Someone already at the heart of one story is not cast as the heart of another.
+    if (def.arc && holder.personId && busy.has(holder.personId)) continue;
+    const p = place(world, def, holder, life, undefined, ctx.memo);
+    if (def.arc) { const run = startArc(world, p, def.arc); if (ctx.memo) run.data = { ...ctx.memo }; }
     return true;
   }
   return false;
@@ -363,8 +370,8 @@ export function fireStage(world: World, rng: Rng, defId: string, seed: Partial<P
   ctx.set = holder;
   if (arcId) ctx.arc = world.story?.arcs.find((a) => a.id === arcId);
   if (!def.setup(ctx)) return null;
-  const p = place(world, def, holder, CYCLES_PER_PHASE, arcId);
-  if (!arcId && def.arc) startArc(world, p, def.arc);
+  const p = place(world, def, holder, CYCLES_PER_PHASE, arcId, ctx.memo);
+  if (!arcId && def.arc) { const run = startArc(world, p, def.arc); if (ctx.memo) run.data = { ...ctx.memo }; }
   return p;
 }
 
@@ -428,7 +435,7 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
   if (!def) return null;
   const idx = choice ?? def.fallback;
   const ctx = makeCtx(world, rng, p);
-  const opt = def.options[idx]!;
+  const opt = def.options[idx] ?? def.options[def.fallback]!;
   const why = opt.available?.(ctx);
   const use = why ? def.options[def.fallback]! : opt;
   let passed = true;

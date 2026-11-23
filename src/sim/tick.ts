@@ -1,6 +1,13 @@
 import { advanceEvents } from './events';
 import { advanceStory } from './story';
 import './arcs';
+import './arcs_resonance';
+import './arcs_threads';
+import './arcs_arms';
+import './arcs_court';
+import './arcs_intrigue';
+import './arcs_realm';
+import './arcs_crisis';
 import { advancePorts } from './ports';
 import { trimFeed } from './records';
 import { advanceRelationships } from './relationships';
@@ -154,7 +161,9 @@ export function stepClock(input: World, pauseOnDecisions = true): ClockStep {
   const fought = new Set((w.battles?.list ?? []).map((b) => b.id));
   stepInPlace(w);
   // A battle of ours has begun: everything stops for it.
-  const battle = (w.battles?.list ?? []).find((b) => !fought.has(b.id) && b.status === 'ready');
+  void fought;
+  const battle = (w.battles?.list ?? []).find((b) => b.status === 'ready' && !b.prompted);
+  if (battle) battle.prompted = true;
   if (battle) return { world: w, freeze: { reason: `Battle: ${battle.title}.`, events: [], battle: battle.id } };
   const fresh = (w.events?.pending ?? []).filter((p) => !had.has(p.id));
   const urgent = fresh.filter((p) => p.urgent);

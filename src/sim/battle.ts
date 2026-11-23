@@ -7,6 +7,8 @@ import { Rng } from './rng';
 import type { Character, ResonanceBand, ResonanceType, StatId, World } from './types';
 import { barsOf } from './relationships';
 import { shortName } from './names';
+import { kill as killHere } from './death';
+import { addCycles } from './time';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -92,7 +94,7 @@ export type MomentKind = 'challenge' | 'surge' | 'wounded' | 'break' | 'nemesis'
 export interface MomentOption { key: string; label: string; hint?: string }
 export interface Moment { kind: MomentKind; text: string; options: MomentOption[]; who?: string; foe?: string }
 
-export type BattleKind = 'hunt' | 'crucible' | 'raid' | 'war';
+export type BattleKind = 'hunt' | 'crucible' | 'raid' | 'war' | 'arc';
 
 export interface Battle {
   id: string;
@@ -119,6 +121,8 @@ export interface Battle {
   created: World['date'];
   result?: { winner: 0 | 1; text: string; brokeOff?: boolean };
   applied?: boolean;
+  /** The clock has stopped for it once already. */
+  prompted?: boolean;
 }
 
 export interface BattlesState { list: Battle[] }
@@ -179,6 +183,12 @@ export function createBattle(world: World, spec: { kind: BattleKind; title: stri
   };
   spec.ours.fighters.forEach((f, i) => { const x = mkF(f, 0, i); if (x) fighters.push(x); });
   spec.theirs.fighters.forEach((f, i) => { const x = mkF(f, 1, i); if (x) fighters.push(x); });
+  // Old scores: a grudge against someone on the other side, and they go after them whatever they are told.
+  for (const f of fighters) {
+    if (f.side !== 0 || !f.id || f.hunts) continue;
+    const g = (world.story?.threads ?? []).find((t) => !t.closed && t.kind === 'grudge' && t.personId === f.id && t.about && fighters.some((o) => o.side === 1 && o.id === t.about));
+    if (g) f.hunts = g.about;
+  }
   const seedRng = Rng.fromSeed(`${world.nextId}:${world.rng.join(',')}`);
   const b: Battle = {
     id: `bt${world.nextId++}`, kind: spec.kind, title: spec.title, theatre: th, where: spec.where, ref: spec.ref,
@@ -640,3 +650,23 @@ export const orderBattle = (input: World, id: string, o: Order) => onBattle(inpu
 export const answerBattleMoment = (input: World, id: string, key: string) => onBattle(input, id, (b, w) => answerMoment(b, key, w));
 /** Leave it to the commander: fought out now. */
 export const fightItOut = (input: World, id: string) => onBattle(input, id, (b, w) => runOut(b, w));
+
+/**
+ * What a battle did to our people, applied once: the dead are dead, the downed are wounded, scores settled.
+ * Hunts and the Crucible settle their own; arcs and others use this.
+ */
+export function applyFates(world: World, b: Battle): void {
+  if (b.applied) return;
+  b.applied = true;
+  for (const f of b.fighters) {
+    const c = f.id ? world.characters[f.id] : undefined;
+    if (!c?.alive) continue;
+    if (f.state === 'dead') { killHere(world, c, world.date, `killed: ${b.title}`); continue; }
+    if (f.state === 'down' && !c.flags.some((x) => x.id === 'wounded')) c.flags.push({ id: 'wounded', since: world.date, until: addCycles(world.date, 32) });
+    // A score settled: the one they hunted went down.
+    if (f.hunts) {
+      const foe = b.fighters.find((x) => x.key === f.hunts || x.id === f.hunts);
+      if (foe && (foe.state === 'down' || foe.state === 'dead')) for (const t of world.story?.threads ?? []) if (!t.closed && t.personId === c.id && t.kind === 'grudge' && t.about === (foe.id ?? foe.key)) t.closed = world.date;
+    }
+  }
+}
