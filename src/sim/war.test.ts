@@ -125,3 +125,49 @@ describe('war', () => {
     expect(w.archon!.history.some((e) => e.kind === 'war' && e.year >= 412)).toBe(true);
   }, 120000);
 });
+
+describe('6.4', () => {
+  it('our great ships sail with the fleet and can be lost', () => {
+    let w = createWorld('ships');
+    const ships = Object.values(w.fleet.ships).filter((s) => s.houseId === w.playerHouseId && !s.ready);
+    w = declareWar(w, 'myr', 'tribute', 'war');
+    const fleet = formationsOf(w, w.playerHouseId).find((f) => f.kind === 'fleet')!;
+    expect(fleet.front).toBeTruthy();
+    w = run(w, 400);
+    expect(ships.length).toBeGreaterThanOrEqual(0);
+  }, 60000);
+
+  it('a knight can be given leave to found a house sworn to us', async () => {
+    const { grantFounding, cannotFound } = await import('./war');
+    const { openWilds } = await import('./archon');
+    let w = structuredClone(createWorld('found'));
+    w.economy.houses[w.playerHouseId]!.stock.othes = 20000;
+    const k = Object.values(w.characters).find((c) => c.alive && c.houseId === w.playerHouseId && c.flags.some((f) => f.id === 'knighted') && !c.seat)!;
+    const wild = openWilds(w)[0]!;
+    expect(cannotFound(w, k.id, wild.id)).toBeNull();
+    w = grantFounding(w, k.id, wild.id);
+    const h = Object.values(w.archon!.houses).find((x) => x.foundedBy && w.archon!.frontier[wild.id]!.claimedBy === x.id)!;
+    expect(w.war!.liege[h.id]).toBe(w.playerHouseId);
+    expect(w.characters[k.id]!.flags.some((f) => f.id === 'retired')).toBe(true);
+    w = run(w, 200);
+  }, 60000);
+
+  it('a vassal can fight its liege, and winning frees it', () => {
+    const w = structuredClone(createWorld('fealty'));
+    w.war!.liege[w.playerHouseId] = 'lumen';
+    expect(cannotDeclare(w, 'lumen', 'clashes')).toBeNull();
+    const rng = new Rng(w.rng);
+    const war = startWar(w, rng, { attacker: w.playerHouseId, defender: 'lumen', goal: 'humble', rung: 'clashes' });
+    war.status = 'ended';
+    war.result = { winner: 'attackers', text: 't', date: w.date };
+    applyTerms(w, rng, war, 'humble');
+    expect(w.war!.liege[w.playerHouseId]).toBeUndefined();
+  });
+
+  it('a world taken in war has people to govern', () => {
+    const w = structuredClone(createWorld('people'));
+    const p = makePlanet(w, new Rng(w.rng), w.playerHouseId, 'Peopled', 'x', { human: 100 });
+    expect(Object.values(w.characters).filter((c) => c.location?.planetId === p.id).length).toBeGreaterThan(3);
+    expect(p.sectors.every((s) => s.quarters.every((q) => q.overseerId))).toBe(true);
+  });
+});

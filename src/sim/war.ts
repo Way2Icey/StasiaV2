@@ -24,6 +24,9 @@ import { fireStage, makeCtx } from './events';
 import { affinity, houseName, liveHouses, personName, regardOf, shiftRegard, table, type ArchonHouse, type Motion } from './archon';
 import { worthOf, wildLabel, type Wild } from './frontier';
 import { rosterOf } from './crucible';
+import { powerOf, type CapitalShip } from './fleet';
+import { kill } from './death';
+import { foundHouse, openWilds } from './archon';
 import { SPECIES } from '../data/species';
 import { CULTURES } from '../data/cultures';
 import type { Character, Planet, SpeciesId, World } from './types';
@@ -246,6 +249,18 @@ export function commanderOf(w: World, f: Formation): { name: string; skill: numb
   return { name: f.commanderName ?? 'a captain', skill: f.commanderSkill ?? 10 };
 }
 
+// ---------------------------------------------------------------- great ships with the fleet
+
+/** A house's great ships free to sail with its war fleet: not on blockade, escort, a watch or the Crucible. */
+export function shipsWithFleet(w: World, h: string): CapitalShip[] {
+  return Object.values(w.fleet?.ships ?? {}).filter((s) => s.houseId === h && !s.lost && !s.ready && !s.watch && !s.crucible && (s.duty === 'harbour' || s.duty === 'patrol'));
+}
+
+/** Ships actually at a front: those with the fleet, when the fleet is there. */
+function shipsAt(w: World, f: Formation): CapitalShip[] {
+  return f.kind === 'fleet' && f.front ? shipsWithFleet(w, f.houseId) : [];
+}
+
 // ---------------------------------------------------------------- power on a front
 
 const WEIGHT: Record<FrontKind, Record<FormationKind, number>> = {
@@ -259,7 +274,8 @@ function formationPower(w: World, f: Formation, kind: FrontKind): number {
   const cmd = commanderOf(w, f);
   const knights = f.knights.map((id) => w.characters[id]).filter((c): c is Character => !!c?.alive);
   const kp = knights.reduce((t, k) => t + fighterPower(k, kind === 'orbit' ? 'ship' : 'surface') * (k.flags.some((x) => x.id === 'caigeBonded') ? 1.4 : 1), 0) / 12;
-  return (Math.sqrt(f.strength / SCALE[f.kind]) * f.quality * (0.5 + f.morale / 200) * (1 + (cmd.skill - 10) / 30) + kp) * WEIGHT[kind][f.kind];
+  const great = shipsAt(w, f).reduce((t, s) => t + powerOf(w, s), 0) / 8;
+  return (Math.sqrt(f.strength / SCALE[f.kind]) * f.quality * (0.5 + f.morale / 200) * (1 + (cmd.skill - 10) / 30) + kp + great) * WEIGHT[kind][f.kind];
 }
 
 export function sidePower(w: World, war: War, front: Front, side: 'attackers' | 'defenders'): number {
@@ -387,7 +403,6 @@ export function cannotDeclare(w: World, target: string, rung: Rung): string | nu
   if (target === P) return 'Not ourselves.';
   if (!w.archon?.houses[target] || w.archon.houses[target]!.ended) return 'No such house.';
   if (atWar(w, P, target)) return 'We are already fighting them.';
-  if (w.war?.liege[P] === target) return 'We are sworn to them; breaking fealty is its own war (not yet).';
   if (warsOf(w, P).length >= 2) return 'We cannot fight more than two wars at once.';
   if (!formationsOf(w, P).some((f) => f.strength > f.max * 0.3)) return 'Our forces are too broken to march.';
   if (rung === 'war' && econ(w, P).stock.othes < 4000) return 'A declared war needs a war chest of 4,000 othes.';
@@ -400,8 +415,9 @@ export function declareWar(input: World, target: string, goal: WarGoal, rung: Ru
   const w = structuredClone(input);
   const P = w.playerHouseId;
   const rng = new Rng(w.rng);
-  const just = grievances(w, P, target);
-  const war = startWar(w, rng, { attacker: P, defender: target, goal, rung });
+  const breaking = w.war?.liege[P] === target;
+  const just = breaking ? ['We will be sworn to no one.'] : grievances(w, P, target);
+  const war = startWar(w, rng, { attacker: P, defender: target, goal: breaking ? 'humble' : goal, rung, cause: breaking ? 'to throw off their yoke' : undefined });
   if (!just.length) {
     // War for nothing: the others take note.
     const std = w.houses[P]!.standing;
@@ -612,7 +628,8 @@ function fightersFor(w: World, rng: Rng, war: War, fr: Front, side: 'attackers' 
   const mass = clamp(rnd(fs.reduce((t, f) => t + Math.sqrt(f.strength / SCALE[f.kind]) * 6, 0)), 10, 120);
   const name = lead ? `${cap(lead.name)} of House ${houseName(w, house)}` : `House ${houseName(w, house)}`;
   if (isSim(w, house)) {
-    const people = [...new Set(fs.flatMap((f) => [f.commanderId, ...f.knights]).filter((x): x is string => !!x))].map((id) => w.characters[id]).filter((c): c is Character => !!c?.alive && !isAway(w, c.id) || (!!c?.alive && fs.some((f) => f.commanderId === c.id)));
+    const captains = fr.kind === 'orbit' ? fs.flatMap((f) => shipsAt(w, f).map((s) => s.captainId)).filter((x): x is string => !!x) : [];
+    const people = [...new Set([...fs.flatMap((f) => [f.commanderId, ...f.knights]), ...captains].filter((x): x is string => !!x))].map((id) => w.characters[id]).filter((c): c is Character => !!c?.alive && !isAway(w, c.id) || (!!c?.alive && fs.some((f) => f.commanderId === c.id)));
     const spec: FighterSpec[] = people.slice(0, 5).map((c, i) => ({ id: c.id, champion: i === 0 && c.flags.some((x) => x.id === 'knighted') }));
     if (spec.length < 2) spec.push(...Array.from({ length: 3 - spec.length }, (_, i) => ({ key: `ranks${i}`, name: `a sergeant of the ${lead?.name.replace(/^the /, '') ?? 'line'}`, power: 9 + rng.next() * 3 })));
     return { spec, cmd: { id: cmd.id, name: cmd.name, skill: cmd.skill }, mass, name, house };
@@ -672,6 +689,21 @@ function settleBattle(w: World, rng: Rng, war: War, fr: Front): void {
     war.losses[f.houseId] = (war.losses[f.houseId] ?? 0) + (f.kind === 'fleet' ? lost * 300 : lost);
   }
   say(w, war, `${b.title}: ${weWon ? 'ours' : 'theirs'}. ${b.result.text}`, true);
+  // Great ships in the fight take the damage.
+  if (fr.kind === 'orbit') for (const f of Object.values(w.war!.formations).filter((x) => x.front === fr.id)) {
+    const won = (sideOf(war, f.houseId) === ours) === weWon;
+    for (const sh of shipsAt(w, f)) {
+      if (!rng.chance(won ? 0.15 : 0.4)) continue;
+      sh.condition = Math.max(0, sh.condition - rng.int(won ? 8 : 18, won ? 20 : 50));
+      if (sh.condition <= 0) {
+        sh.lost = { date: w.date, how: `lost in ${b.title}` };
+        const cap0 = sh.captainId ? w.characters[sh.captainId] : undefined;
+        if (cap0?.alive && rng.chance(0.5)) kill(w, cap0, w.date, `went down with the ${sh.name} in ${b.title}`);
+        say(w, war, `The ${sh.name} of House ${houseName(w, sh.houseId)} is lost.`, true);
+        logRecord(w, { kind: 'world', type: 'fight', severity: sh.houseId === P ? 3 : 1, text: `The great ship ${sh.name} of House ${houseName(w, sh.houseId)} is lost in ${b.title}.`, houseIds: [sh.houseId].filter((x) => isSim(w, x)) });
+      } else if (sh.houseId === P) say(w, war, `The ${sh.name} is hurt: hull at ${Math.round(sh.condition)}.`);
+    }
+  }
   promote(w, rng, war, b, weWon);
   frontEnds(w, rng, war, fr);
   checkEnd(w, rng, war);
@@ -823,6 +855,8 @@ export function applyTerms(w: World, rng: Rng, war: War, terms: WarGoal): void {
       break;
     }
   }
+  // A vassal who beats its liege is free; a liege who beats a rebel keeps it.
+  if (w.war!.liege[winner] === loser) { delete w.war!.liege[winner]; text += ` House ${W} is sworn to House ${L} no longer.`; }
   shiftRegard(w, loser, winner, -20);
   say(w, war, `Terms: ${text}`, true);
   logRecord(w, { kind: 'world', type: 'politics', severity: winner === w.playerHouseId || loser === w.playerHouseId ? 3 : 1, text: `The terms of ${war.name}: ${text}`, houseIds: [winner, loser].filter((x) => isSim(w, x)), source: 'the Numarade' });
@@ -860,6 +894,23 @@ export function makePlanet(w: World, rng: Rng, houseId: string, name: string, de
   };
   w.planets[id] = planet;
   for (const h of Object.keys(w.houses)) { w.knowledge[h] ??= {}; }
+  // People: an overseer for each quarter, and a few names among the locals.
+  if (isSim(w, houseId)) {
+    const ROLES = ['Dock hand', 'Smith', 'Field hand', 'Trader', 'Old soldier', 'Clerk'];
+    for (const sec of planet.sectors) {
+      for (const q of sec.quarters) {
+        const sp = rng.weighted(Object.entries(peoples) as [SpeciesId, number][]);
+        const fam = commonerFamily(w, rng, houseId, sp);
+        const c = createCharacter(w, rng, { houseId, familyId: fam.id, species: sp, role: `Overseer, ${q.name}`, focus: 'overseer', tier: 'minor', location: { planetId: id, sectorId: sec.id } });
+        q.overseerId = c.id;
+      }
+      for (let i = 0; i < 2; i++) {
+        const sp = rng.weighted(Object.entries(peoples) as [SpeciesId, number][]);
+        const fam = commonerFamily(w, rng, houseId, sp);
+        createCharacter(w, rng, { houseId, familyId: fam.id, species: sp, role: rng.pick(ROLES), focus: 'labourer', tier: 'minor', location: { planetId: id, sectorId: sec.id } });
+      }
+    }
+  }
   return planet;
 }
 
@@ -951,8 +1002,9 @@ function maybeWar(w: World, rng: Rng): void {
     if (last.some((yr) => w.date.year - yr < (y.id === P ? 4 : 6))) continue;
     const r = regardOf(w, x.id, y.id);
     const feud = grievances(w, x.id, y.id).length;
-    if (r > -20 && !feud) continue;
-    let weight = (x.personality.aggression + 0.2) * (Math.max(0, -r) / 50 + (feud ? 0.6 : 0)) * (x.might / Math.max(0.5, y.might));
+    const rebel = w.war!.liege[x.id] === y.id;
+    if (r > -20 && !feud && !(rebel && r < 10)) continue;
+    let weight = (x.personality.aggression + 0.2) * (Math.max(0, -r) / 50 + (feud ? 0.6 : 0) + (rebel ? 0.5 : 0)) * (x.might / Math.max(0.5, y.might));
     // We are not picked on often.
     if (y.id === P) weight *= 0.25;
     if (x.id === P) continue;
@@ -1056,3 +1108,49 @@ export type { Motion };
 export { wildLabel, worthOf };
 export type { Wild };
 void CYCLES_PER_PHASE;
+
+
+// ---------------------------------------------------------------- a knight given leave to found a house
+
+export function cannotFound(w: World, personId: string, wildId: string): string | null {
+  const c = w.characters[personId];
+  const P = w.playerHouseId;
+  if (!c?.alive || c.houseId !== P) return 'Not one of ours.';
+  if (c.seat === 'highroy' || c.role === 'Heir') return 'The Highroy and the heir cannot leave.';
+  if (!c.flags.some((f) => f.id === 'knighted')) return 'Only a knight may be given a world.';
+  if (c.flags.some((f) => f.id === 'retired')) return 'They have put down their arms.';
+  const wild = w.archon?.frontier[wildId];
+  if (!wild || wild.claimedBy) return 'That world is not free.';
+  if (econ(w, P).stock.othes < 5000) return 'Founding a house costs 5,000 othes in ships and stores.';
+  return null;
+}
+
+/** One of our knights leaves with our blessing to raise a capital on the frontier: a new house, sworn to us. */
+export function grantFounding(input: World, personId: string, wildId: string): World {
+  const why = cannotFound(input, personId, wildId);
+  if (why) throw new Error(why);
+  const w = structuredClone(input);
+  const P = w.playerHouseId;
+  const rng = new Rng(w.rng);
+  const c = w.characters[personId]!;
+  const fam = w.families[c.familyId];
+  const taken = new Set(Object.values(w.archon!.houses).map((h) => h.name));
+  const name = fam && !taken.has(fam.name) && !fam.name.startsWith('the ') ? fam.name : buildWord(rng, CULTURES[c.species].given);
+  const founder = displayName(c.name);
+  const h = foundHouse(w, rng, { founder, species: c.species, family: name, from: P, wildId, year: w.date.year, name })!;
+  ensureWar(w);
+  w.war!.liege[h.id] = P;
+  shiftRegard(w, h.id, P, 40);
+  econ(w, P).stock.othes -= 5000;
+  // They leave our house: retired from our service, remembered as founder.
+  if (c.seat) c.seat = undefined;
+  c.role = `Founder of House ${h.name}`;
+  if (!c.flags.some((f) => f.id === 'retired')) c.flags.push({ id: 'retired', since: w.date, detail: `left to found House ${h.name}` });
+  for (const f of Object.values(w.war!.formations)) { f.knights = f.knights.filter((k) => k !== c.id); if (f.commanderId === c.id) f.commanderId = undefined; }
+  h.notables.push({ name: founder, role: 'Founder', note: `Once a knight of House ${houseName(w, P)}, given leave and a world.`, species: c.species });
+  logRecord(w, { kind: 'world', type: 'politics', severity: 3, text: `${founder} leaves with our blessing and 5,000 othes, claims ${wildLabel(w.archon!.frontier[wildId]!)} and raises a capital. House ${h.name} is founded, sworn to us.`, who: [{ id: c.id, part: 'founder' }] });
+  w.rng = rng.state;
+  return w;
+}
+
+export { openWilds };

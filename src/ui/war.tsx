@@ -8,7 +8,7 @@ import { ArchonHouseLink } from './archon';
 import { houseName, liveHouses, regardOf } from '../sim/archon';
 import {
   activeWars, assignFormation, cannotDeclare, cannotJoin, commanderOf, declareWar, escalate, FORMATION_LABEL, formationsOf, FRONT_LABEL, GOAL_LABEL,
-  grievances, joinWar, offerPeace, partiesOf, peaceOdds, setCommander, setKnight, sideOf, sidePower, UNIT_LABEL, warsOf, type Formation, type Front, type Rung, type War, type WarGoal,
+  grievances, joinWar, shipsWithFleet, offerPeace, partiesOf, peaceOdds, setCommander, setKnight, sideOf, sidePower, UNIT_LABEL, warsOf, type Formation, type Front, type Rung, type War, type WarGoal,
 } from '../sim/war';
 import { formatDate } from '../sim/time';
 import { econ } from '../sim/economy';
@@ -87,6 +87,7 @@ function FormationRow({ f }: { f: Formation }) {
         </select>
         <button type="button" className="btn small" disabled={!add} onClick={() => { run((w) => setKnight(w, f.id, add, true)); setAdd(''); }}>Attach</button>
       </div>
+      {f.kind === 'fleet' ? <div className="muted" style={{ fontSize: 12 }}>Great ships with it: {shipsWithFleet(world, P).length ? shipsWithFleet(world, P).map((sh) => `${sh.name} (hull ${Math.round(sh.condition)})`).join(', ') : 'none (all on other duties)'}. Ships on blockade, escort or a watch stay where they are.</div> : null}
       {f.honours.length ? <div className="muted" style={{ fontSize: 11 }}>Honours: {f.honours.slice(-4).join(' · ')}</div> : null}
     </div>
   );
