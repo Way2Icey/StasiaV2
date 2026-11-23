@@ -698,8 +698,8 @@ function settleBattle(w: World, rng: Rng, war: War, fr: Front): void {
       if (sh.condition <= 0) {
         sh.lost = { date: w.date, how: `lost in ${b.title}` };
         const cap0 = sh.captainId ? w.characters[sh.captainId] : undefined;
-        if (cap0?.alive && rng.chance(0.5)) kill(w, cap0, w.date, `went down with the ${sh.name} in ${b.title}`);
-        say(w, war, `The ${sh.name} of House ${houseName(w, sh.houseId)} is lost.`, true);
+        if (cap0?.alive && rng.chance(0.5)) kill(w, cap0, w.date, `died aboard the ${sh.name} when she broke apart in ${b.title}`);
+        say(w, war, `The ${sh.name} of House ${houseName(w, sh.houseId)} breaks apart and is lost.`, true);
         logRecord(w, { kind: 'world', type: 'fight', severity: sh.houseId === P ? 3 : 1, text: `The great ship ${sh.name} of House ${houseName(w, sh.houseId)} is lost in ${b.title}.`, houseIds: [sh.houseId].filter((x) => isSim(w, x)) });
       } else if (sh.houseId === P) say(w, war, `The ${sh.name} is hurt: hull at ${Math.round(sh.condition)}.`);
     }
