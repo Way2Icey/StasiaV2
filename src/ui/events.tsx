@@ -3,19 +3,35 @@ import { useGame, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, SectorLink } from './links';
 import { Term } from './tip';
 import { formatDate } from '../sim/time';
-import { answerEvent, checkChance, eventDef, makeCtx, oddsWord, type PendingEvent } from '../sim/events';
+import { answerEvent, checkBand, checkChance, eventDef, makeCtx, oddsWord, type Check, type Ctx, type PendingEvent } from '../sim/events';
+import { useSee } from './fog';
+import { shortName } from '../sim/names';
 import '../sim/eventDefs';
 import { Rng } from '../sim/rng';
 import { STAT_LABEL } from './pages';
 import type { World } from '../sim/types';
 
+/** The odds as we can see them: exact for a fixed difficulty, a range against someone we only half know. */
+function oddsBand(ctx: Ctx, check: Check, see: ReturnType<typeof useSee>): [number, number] {
+  const foe = check.vs?.(ctx);
+  if (!foe) { const p = checkChance(ctx, check); return [p, p]; }
+  const v = see(foe);
+  const stats = check.vsStats ?? check.stats;
+  const lo = stats.reduce((t, s) => t + v.stats[s][0], 0) / stats.length;
+  const hi = stats.reduce((t, s) => t + v.stats[s][1], 0) / stats.length;
+  return checkBand(ctx, check, [lo, hi]);
+}
+
 export function Decision({ p }: { p: PendingEvent }) {
   const world = useWorld();
+  const see = useSee();
   const game = useGame();
   const def = eventDef(p.defId);
   if (!def) return null;
   const ctx = makeCtx(world, new Rng(world.rng), p);
   const m = p.missionId ? world.missions[p.missionId] : undefined;
+  const arc = ctx.arc;
+  const st = ctx.struggle;
   return (
     <div className="row decision">
       <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -27,12 +43,17 @@ export function Decision({ p }: { p: PendingEvent }) {
           {p.otherHouseId ? <HouseLink id={p.otherHouseId} /> : null}
           {p.sectorId ? <SectorLink id={p.sectorId} /> : null}
         </span>
+        {arc && arc.stages.length ? <span className="arcline"><Term k="arc">Arc</Term> · {arc.title}, stage {arc.stages.length + 1} · before: {arc.stages.map((x) => x.choice.toLowerCase()).join(' → ')}</span> : null}
+        {st ? <span className="arcline"><Term k="struggle">Struggle</Term> · {st.title} · {Math.round(st.meter) >= 0 ? '+' : ''}{Math.round(st.meter)}</span> : null}
+        {p.urgent ? <span className="tag" style={{ alignSelf: 'flex-start' }}>Now</span> : null}
         <span className="quote">{p.text}</span>
         <span className="choices-row">
           {def.options.map((o, i) => {
             const why = o.available?.(ctx) ?? null;
-            const chance = o.check ? checkChance(ctx, o.check) : null;
+            const band = o.check ? oddsBand(ctx, o.check, see) : null;
+            const chance = band ? (band[0] + band[1]) / 2 : null;
             const tester = o.check?.who(ctx);
+            const foe = o.check?.vs?.(ctx);
             return (
               <button key={i} type="button" className={`btn small option${i === def.fallback ? ' fallback' : ''}`} disabled={!!why}
                 title={why ?? (o.check ? `${tester ? tester.name.given : 'Our people'}: ${o.check.stats.map((s) => STAT_LABEL[s]).join(' + ')}` : undefined)}
@@ -40,7 +61,7 @@ export function Decision({ p }: { p: PendingEvent }) {
                 <span>{o.label}</span>
                 {o.hint || chance !== null || why ? (
                   <span className="opt-sub">
-                    {why ?? [o.hint, chance !== null ? `${oddsWord(chance)} · ${Math.round(chance * 100)}%` : null].filter(Boolean).join(' · ')}
+                    {why ?? [o.hint, foe && tester ? `${shortName(tester.name)} vs ${shortName(foe.name)}` : null, band ? `${oddsWord(chance!)} · ${band[1] - band[0] < 0.04 ? `${Math.round(chance! * 100)}%` : `${Math.round(band[0] * 100)}–${Math.round(band[1] * 100)}%`}` : null].filter(Boolean).join(' · ')}
                   </span>
                 ) : null}
               </button>

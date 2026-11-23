@@ -1,6 +1,7 @@
 import { HouseDealings, HousesOverview, PoachPanel } from './realm';
 import { CalendarPanel } from './calendar';
 import { DecisionsPanel } from './sections';
+import { StoriesPanel, ThreadsPanel } from './stories';
 import { doingNow } from './decisions';
 import { barsOf, DISLIKE_TIERS, LIKE_TIERS, tierOf } from '../sim/relationships';
 import { TiesPanel } from './relations';
@@ -128,6 +129,7 @@ export function ThroneRoom() {
         <div className="span-8 stack">
           <RaidPanel />
           <Desk />
+          <StoriesPanel />
         </div>
         <div className="span-4 stack">
           <CalendarPanel />
@@ -358,6 +360,7 @@ export function CharacterPage({ id }: { id: string }) {
               </dl>
             </div>
           </Panel>
+          <ThreadsPanel id={c.id} />
           <Panel title={<Term k="status">Status</Term>}>
             <div className="body chips">
               {v.flags.length === 0 ? <span className="muted" style={{ fontSize: 12 }}>Nothing of note</span> : null}

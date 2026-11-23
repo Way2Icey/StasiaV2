@@ -22,6 +22,8 @@ import { isAway } from '../sim/court';
 import { seatHolder } from '../sim/query';
 import { SEAT_TITLE } from '../sim/world';
 import { shortName } from '../sim/names';
+import { openStruggles } from '../sim/storystate';
+import { cannotJoin, joinStruggle, leaveStruggle } from '../sim/story';
 
 export type Group = 'Court' | 'Arms' | 'Missions' | 'Learning' | 'Intrigue' | 'Sheet';
 export const GROUPS: Group[] = ['Court', 'Arms', 'Missions', 'Learning', 'Intrigue', 'Sheet'];
@@ -149,6 +151,14 @@ export function decisionsFor(world: World, id: string): Decision[] {
       sub: (['courtier', 'envoy', 'idle'] as const).map((o) => ({ key: `occ:${o}`, group: 'Court' as Group, label: OCCUPATION_LABEL[o], note: OCCUPATION_NOTE[o], why: occ === o ? 'Already' : null, run: (w: World) => setOccupation(w, P, id, o) })),
     });
   }
+
+  const strs = openStruggles(world);
+  const onIt = strs.find((s) => s.ours.includes(id));
+  if (onIt) out.push({ key: 'struggle', group: 'Court', label: `Take off: ${onIt.title}`, note: 'the struggle', run: (w) => leaveStruggle(w, onIt.id, id) });
+  else if (strs.length && !young) out.push({
+    key: 'struggle', group: 'Court', label: 'Set to a struggle',
+    sub: strs.map((s): Decision => ({ key: `str:${s.id}`, group: 'Court', label: s.title, note: `${Math.round(s.meter) >= 0 ? '+' : ''}${Math.round(s.meter)}`, why: cannotJoin(world, s, id), run: (w) => joinStruggle(w, s.id, id) })),
+  });
 
   // ---- Arms
   const kn = cannotKnight(world, id);

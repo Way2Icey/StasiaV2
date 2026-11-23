@@ -339,7 +339,7 @@ const court: EventDef[] = [
       { label: 'Have the Steward dig', check: { who: (c) => seat(c, 'steward'), stats: ['stewardship', 'insight'], dc: 11 },
         resolve: (c, ok) => { if (ok) c.fx.othes(300).learnOf(c.person, 15).mood(c.person, -4); else c.fx.othes(-150).say('The trail went cold'); } },
       { label: 'Punish them openly', resolve: (c) => { c.fx.othes(150).mood(c.person, -10).dread(1).honour(1); } },
-      { label: 'Let it go', resolve: (c) => { c.fx.othes(-Math.min(200, othes(c))); } },
+      { label: 'Let it go', resolve: (c) => { c.fx.othes(-Math.min(200, othes(c))); }, then: (c) => (c.rng.chance(0.6) ? { next: 'till2', after: c.rng.int(40, 60) } : null) },
     ],
     fallback: 2,
   },
@@ -380,7 +380,7 @@ const court: EventDef[] = [
         if (cg && c.person) { cg.bondedTo = c.person.id; c.person.flags.push({ id: 'caigeBonded', since: c.world.date }); c.fx.say(`${nm(c.person)} is bonded to ${cg.name}`); }
         c.fx.mood(c.person, 10);
       } },
-      { label: 'Promise it later', resolve: (c) => { c.fx.mood(c.person, 2); } },
+      { label: 'Promise it later', resolve: (c) => { c.fx.mood(c.person, 2); }, then: (c) => ({ next: 'caigeLoyalty2', after: c.rng.int(60, 90) }) },
       { label: 'Refuse', resolve: (c) => { c.fx.mood(c.person, -6); } },
     ],
     fallback: 1,
@@ -410,8 +410,9 @@ const court: EventDef[] = [
       { label: 'Let them fight', resolve: (c) => {
         const [a, b] = c.rng.chance(0.5) ? [c.person, c.second] : [c.second, c.person];
         c.fx.say(`${nm(a)} wins`).wound(b).mood(a, 3).respect(1);
-        if (a && b) { shiftOpinion(c.world, b.id, a.id, -25, 'beaten at dawn'); shiftOpinion(c.world, a.id, b.id, 5, 'a fair fight'); }
-      } },
+        if (a && b) { shiftOpinion(c.world, b.id, a.id, -25, 'beaten at dawn'); shiftOpinion(c.world, a.id, b.id, 5, 'a fair fight'); c.fx.thread(b, 'grudge', `Beaten at dawn by ${nm(a)}`, a.id); c.memo = { winner: a.id, loser: b.id }; }
+      },
+        then: (c) => (c.memo?.loser && c.rng.chance(0.55) ? { next: 'blades2', after: c.rng.int(40, 80), cast: { personId: c.memo.winner, secondId: c.memo.loser } } : null) },
       { label: 'Reconcile them', check: { who: highroy, stats: ['diplomacy', 'leadership'], dc: 10 },
         resolve: (c, ok) => { if (ok) c.fx.mood(c.person, 3).mood(c.second, 3); else c.fx.mood(c.person, -3).mood(c.second, -3); if (c.person && c.second) shiftBoth(c.world, c.person.id, c.second.id, ok ? 20 : -15, ok ? 'reconciled by the Highroy' : 'a failed reconciliation'); } },
     ],
@@ -501,7 +502,7 @@ const intrigue: EventDef[] = [
     setup: (c) => { const h = athome(c); return h.length > 0 && choose(c, { personId: c.rng.pick(h).id }); },
     text: (c) => `A note arrives: pay, or the city learns what ${full(c.person)} did last Orbit.`,
     options: [
-      { label: 'Pay', hint: '−300 othes', available: need(300), resolve: (c) => { c.fx.othes(-300); } },
+      { label: 'Pay', hint: '−300 othes', available: need(300), resolve: (c) => { c.fx.othes(-300); }, then: (c) => (c.rng.chance(0.7) ? { next: 'blackmail2', after: c.rng.int(40, 70) } : null) },
       { label: 'Hunt the writer', check: { who: (c) => seat(c, 'spymaster'), stats: ['intrigue', 'perception'], dc: 12 },
         resolve: (c, ok) => { if (ok) c.fx.dread(2).say('The writer is found and silenced'); else c.fx.respect(-3).mood(c.person, -5); } },
       { label: 'Let them talk', resolve: (c) => { c.fx.respect(-3).mood(c.person, -5); } },
@@ -535,7 +536,7 @@ const intrigue: EventDef[] = [
     setup: (c) => { const h = pickRival(c); return !!h && choose(c, { otherHouseId: h }); },
     text: (c) => `A courtier of House ${houseName(c, c.other)} is at the gate, asking for shelter and offering everything he knows.`,
     options: [
-      { label: 'Take him in', resolve: (c) => { c.fx.learnHouse(c.other, 25).regard(c.other, -10); } },
+      { label: 'Take him in', resolve: (c) => { c.fx.learnHouse(c.other, 25).regard(c.other, -10); }, then: (c) => (c.rng.chance(0.6) ? { next: 'defector2', after: c.rng.int(24, 48) } : null) },
       { label: 'Send him back', resolve: (c) => { c.fx.regard(c.other, 5).honour(1); } },
       { label: 'Sell him to them', resolve: (c) => { c.fx.othes(300).honour(-3).regard(c.other, 2); } },
     ],
@@ -587,7 +588,8 @@ const resonance: EventDef[] = [
     text: (c) => `${full(c.person)} has heard the same voice three nights running. It knows their name.`,
     options: [
       { label: 'Listen to it', check: { who: who.person, stats: ['willpower', 'resonanceControl'], dc: 11 },
-        resolve: (c, ok) => { if (ok) c.fx.stat(c.person, 'resonanceControl', 1); else { if (c.person) c.person.hidden.drift += 1; c.fx.mood(c.person, -4).say('Something followed them back'); } } },
+        resolve: (c, ok) => { if (ok) c.fx.stat(c.person, 'resonanceControl', 1); else { if (c.person) c.person.hidden.drift += 1; c.fx.mood(c.person, -4).say('Something followed them back'); } },
+        then: (c, ok) => (ok ? null : { next: 'dream2', after: c.rng.int(16, 30) }) },
       { label: 'Keep them busy', resolve: (c) => { c.fx.mood(c.person, -1); } },
     ],
     fallback: 1,
@@ -598,7 +600,7 @@ const resonance: EventDef[] = [
     text: (c) => `${full(c.person)} has been taking godglass to sharpen their resonance. The other knights know.`,
     options: [
       { label: 'Treat them', hint: '−200 othes', available: need(200), resolve: (c) => { c.fx.othes(-200).mood(c.person, -2); } },
-      { label: 'Look away', resolve: (c) => { c.fx.say('The habit continues, quietly').stat(c.person, 'valor', 1); if (c.person) { c.person.hidden.drift += 1; c.person.flags.push({ id: 'godglass', since: c.world.date }); } } },
+      { label: 'Look away', resolve: (c) => { c.fx.say('The habit continues, quietly').stat(c.person, 'valor', 1); if (c.person) { c.person.hidden.drift += 1; c.person.flags.push({ id: 'godglass', since: c.world.date }); } }, then: (c) => ({ next: 'godglass2', after: c.rng.int(40, 64) }) },
       { label: 'Strip their spurs', resolve: (c) => { c.fx.mood(c.person, -12).honour(1).moodAll(knights(c).filter((x) => x !== c.person), -1, 'The knights'); } },
     ],
     fallback: 1,

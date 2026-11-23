@@ -527,14 +527,34 @@ pre.ascii .inv, span.inv { background: var(--fg); color: #000; }
 .pm-err { margin: 6px 12px; font-size: 12px; color: var(--fg); border-left: 2px solid var(--fg); padding-left: 8px; }
 .toast { position: fixed; z-index: 90; left: 50%; bottom: 64px; transform: translateX(-50%); background: var(--fg); color: #000; padding: 8px 14px; font: 13px var(--mono); box-shadow: 4px 4px 0 #262626; }
 /* Decisions on a sheet */
-.decisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 22px; align-items: start; }
+.dec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 22px; align-items: start; }
 .dec-col { display: flex; flex-direction: column; min-width: 0; }
-.decisions .pm-group { padding: 0 0 4px 8px; border-bottom: 1px solid var(--line-soft); margin-bottom: 2px; }
-.decisions .pm-item { padding: 4px 8px; }
-.decisions .pm-item.inner { padding-left: 20px; }
+.dec-grid .pm-group { padding: 0 0 4px 8px; border-bottom: 1px solid var(--line-soft); margin-bottom: 2px; }
+.dec-grid .pm-item { padding: 4px 8px; }
+.dec-grid .pm-item.inner { padding-left: 20px; }
 .pm-item.info:disabled { color: var(--fg-2); }
 .pm-item.info .pm-label::before { content: '◆ '; }
 @media (max-width: 640px) {
   .person-menu { left: 8px !important; right: 8px; top: auto !important; bottom: 8px; width: auto; max-height: 72vh; }
   .pm-item { padding: 9px 14px; }
 }
+
+/* ---------------- 5.0: the clock, moments, stories */
+.clock .speeds { display: inline-flex; }
+.clock .btn.speed { padding: 0 8px; min-width: 30px; letter-spacing: -2px; }
+.clock .btn.speed[aria-pressed='false'] { background: #000; color: var(--fg); }
+.clock .btn.play { min-width: 92px; }
+.clock .act { font: 11px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-left: 8px; align-self: center; }
+.clock .act-rising { color: var(--fg-2); }
+.clock .act-crisis { color: #fff; font-weight: 700; }
+.moment-veil { position: fixed; inset: 0; z-index: 85; background: rgba(0, 0, 0, 0.72); display: flex; align-items: flex-start; justify-content: center; padding: 72px 16px 16px; overflow-y: auto; }
+.moment { width: min(760px, 100%); background: #000; border: 1px solid var(--fg); box-shadow: 6px 6px 0 #262626; }
+.moment > header { display: flex; gap: 12px; align-items: baseline; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+.moment > header strong { flex: 1; min-width: 200px; }
+.moment .row.decision { padding: 14px 16px; }
+.arcline { font-size: 11px; color: var(--muted); }
+.meter { position: relative; height: 10px; border: 1px solid var(--line); background: #0c0c0c; }
+.meter > .mid { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted); }
+.meter > .fill { position: absolute; top: 0; bottom: 0; background: var(--fg); }
+.clock .speeds { margin: 0 2px; gap: 2px; }
+.clock .btn.speed[aria-pressed='true'] { outline: 1px solid #000; outline-offset: -3px; }

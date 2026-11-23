@@ -15,6 +15,10 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   phase: { term: 'Phase', group: 'Time', text: '16 cycles. The economy settles at the start of each Phase: output, taxes, food and stipends.' },
   orbit: { term: 'Orbit', group: 'Time', text: '80 cycles, five Phases. Oaths last an Orbit, and the Numarade grants Navisium once per Orbit.' },
   year: { term: 'Standard Year', group: 'Time', text: 'Ten Orbits (800 cycles). Ages and lifespans are counted in years.' },
+  storyteller: { term: 'The storyteller', group: 'Time', text: 'Reads how tense the house\'s life is, from unrest, wounds, feuds, raids, open struggles and how long it has been quiet, and paces what comes to the Highroy. Calm: fewer, lighter moments. Rising: more. Crisis: the heavy ones. A long calm builds toward something.' },
+  arc: { term: 'Arc', group: 'Time', text: 'A story over several stages. Each stage is a decision; what you chose decides what comes next, and when. Arcs are cast from the world, so the same arc plays differently with different people.' },
+  struggle: { term: 'Struggle', group: 'Time', text: 'A long contest with a meter from −100 to +100. Each Phase both sides push: ours by the skill of the people set to it, theirs by their strength. Turning points along the way ask for a decision; at either end it is over.' },
+  thread: { term: 'Thread', group: 'Time', text: 'Something left hanging on a person: a grudge, a debt, a secret, a vow, an omen. Later stories pick threads up.' },
   stopOnEvents: { term: 'Stop when something needs me', group: 'Time', text: 'Long stretches of time stop early when a mission comes home, a petition or ransom demand arrives, someone is caught, a lead turns up, a decision arrives, the oath ends, or someone of the house dies.' },
   continue: { term: 'Continue', group: 'Time', text: 'Advances the world two cycles. The arrow beside it skips further: to the next Phase or Orbit, a year, five years, or until something happens.' },
 

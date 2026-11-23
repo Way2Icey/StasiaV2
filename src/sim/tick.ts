@@ -1,4 +1,6 @@
 import { advanceEvents } from './events';
+import { advanceStory } from './story';
+import './arcs';
 import { advancePorts } from './ports';
 import { trimFeed } from './records';
 import { advanceRelationships } from './relationships';
@@ -104,6 +106,7 @@ function stepInPlace(world: World): void {
   advanceRenown(world, crossed.orbits > 0);
   advanceRealm(world, rng, crossed.orbits > 0);
   advanceEvents(world, rng, crossed.phases > 0);
+  advanceStory(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 
   world.rng = rng.state;
@@ -135,6 +138,33 @@ export function advanceUntil(input: World, turns: number, stopOnEvents: boolean)
     }
   }
   return { world: w, ran: turns };
+}
+
+/** What one tick of the running clock produced: a moment that freezes it, or news that doesn't. */
+export interface ClockStep { world: World; freeze?: { reason: string; events: string[] }; notice?: string }
+
+/**
+ * One tick of the real-time clock. Decisions freeze it (as events do in CK); urgent ones always do.
+ * Other news is a notice: the clock runs on.
+ */
+export function stepClock(input: World, pauseOnDecisions = true): ClockStep {
+  const w = structuredClone(input);
+  const before = snapshotOfAttention(w);
+  const had = new Set((w.events?.pending ?? []).map((p) => p.id));
+  stepInPlace(w);
+  const fresh = (w.events?.pending ?? []).filter((p) => !had.has(p.id));
+  const urgent = fresh.filter((p) => p.urgent);
+  if (urgent.length) return { world: w, freeze: { reason: 'Something needs you now.', events: urgent.map((p) => p.id) } };
+  if (fresh.length && pauseOnDecisions) return { world: w, freeze: { reason: 'A decision awaits your word.', events: fresh.map((p) => p.id) } };
+  const P = w.playerHouseId;
+  const news = w.feed.slice(before.last ? w.feed.indexOf(before.last) + 1 : 0);
+  const death = news.find((f) => f.kind === 'death' && f.characterIds?.some((id) => w.characters[id]?.houseId === P && w.characters[id]?.tier === 'full'));
+  if (death) return { world: w, freeze: { reason: death.text, events: [] } };
+  const raidsBefore = new Set((input.ports?.raids ?? []).filter((r) => r.status === 'revealed').map((r) => r.id));
+  const raid = (w.ports?.raids ?? []).find((r) => r.status === 'revealed' && !raidsBefore.has(r.id));
+  if (raid) return { world: w, freeze: { reason: 'Raiders are coming for one of our worlds. See the Hall.', events: [] } };
+  const reason = needsAttention(w, before);
+  return reason ? { world: w, notice: reason } : { world: w };
 }
 
 interface Attention { petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null; decisions: number; alerts: number }

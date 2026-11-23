@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'rea
 import { Term } from './tip';
 import { GlossaryPage } from './glossary';
 import { createWorld } from '../sim/world';
-import { ContinueControl } from './continue';
+import { ClockControl, useClock } from './clock';
+import { MomentWindow } from './moments';
 import { dateParts, formatDate } from '../sim/time';
 import { deserialize, serialize } from '../sim/save';
 import { ageOf } from '../sim/characters';
@@ -123,6 +124,11 @@ export function App() {
   const personMenu = useMemo(() => ({ open: (id: string, x: number, y: number) => { setHovered(null); setMenu({ id, x, y }); } }), []);
   const closeMenu = useCallback(() => setMenu(null), []);
   const done = useCallback((m: string) => { setToast(m); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(null), 2600); }, []);
+  // Moments: decisions that froze the clock, shown over whatever page you are on.
+  const [moments, setMoments] = useState<{ ids: string[]; reason: string; resume: boolean } | null>(null);
+  const onFreeze = useCallback((ids: string[], reason: string) => { setMoments((m) => ({ ids: [...(m?.ids ?? []), ...ids.filter((x) => !m?.ids.includes(x))], reason, resume: true })); }, []);
+  const onNotice = useCallback((msg: string) => done(msg), [done]);
+  const clock = useClock(world, setWorld, onFreeze, onNotice, !!moments);
   const game: Game = useMemo(() => ({ update: (fn) => setWorld((w) => fn(w)), reveal, setReveal }), [reveal]);
 
   const parts = dateParts(world.date);
@@ -167,7 +173,7 @@ export function App() {
                 <strong>{formatDate(world.date)}</strong>
                 <span><Term k="phase">Phase</Term> {parts.phase} of 5 · <Term k="cycle">Cycle</Term> {parts.cycleOfPhase} of 16 · <button type="button" className="linklike coffers-link" onClick={() => nav.to({ kind: 'economy' })}><Coffers /></button></span>
               </div>
-              <ContinueControl world={world} setWorld={setWorld} />
+              <ClockControl world={world} setWorld={setWorld} clock={clock} onFreeze={onFreeze} />
             </header>
             <div className="shell">
               <nav className="rail" aria-label="Screens">
@@ -202,6 +208,7 @@ export function App() {
             {command ? <CommandBar onClose={() => setCommand(false)} /> : null}
             {menu ? <PersonMenuLayer key={`${menu.id}-${menu.x}-${menu.y}`} id={menu.id} x={menu.x} y={menu.y} onClose={closeMenu} onDone={done} /> : null}
             {toast ? <Toast msg={toast} /> : null}
+            {moments ? <MomentWindow ids={moments.ids} reason={moments.reason} onClose={(resume) => { setMoments(null); if (resume && moments.resume) clock.setRunning(true); }} /> : null}
             {hovered && !menu ? <HoverCard id={hovered.id} x={hovered.x} y={hovered.y} above={hovered.above} reveal={reveal} keep={() => window.clearTimeout(hideTimer.current)} leave={hover.hide} /> : null}
           </div>
           </GameContext.Provider>

@@ -322,7 +322,7 @@ export function DecisionsPanel({ id }: { id: string }) {
   };
   return (
     <Panel title="Decisions" aside="right-click any name for these" className="span-12">
-      <div className="body decisions">
+      <div className="body dec-grid">
         {GROUPS.map((g) => {
           const items = all.filter((d) => d.group === g);
           if (!items.length) return null;
