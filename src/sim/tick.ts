@@ -1,4 +1,13 @@
 import { advanceEvents } from './events';
+import { advanceStory } from './story';
+import './arcs';
+import './arcs_resonance';
+import './arcs_threads';
+import './arcs_arms';
+import './arcs_court';
+import './arcs_intrigue';
+import './arcs_realm';
+import './arcs_crisis';
 import { advancePorts } from './ports';
 import { trimFeed } from './records';
 import { advanceRelationships } from './relationships';
@@ -104,6 +113,7 @@ function stepInPlace(world: World): void {
   advanceRenown(world, crossed.orbits > 0);
   advanceRealm(world, rng, crossed.orbits > 0);
   advanceEvents(world, rng, crossed.phases > 0);
+  advanceStory(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
 
   world.rng = rng.state;
@@ -137,11 +147,45 @@ export function advanceUntil(input: World, turns: number, stopOnEvents: boolean)
   return { world: w, ran: turns };
 }
 
-interface Attention { petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null; decisions: number; alerts: number }
+/** What one tick of the running clock produced: a moment that freezes it, or news that doesn't. */
+export interface ClockStep { world: World; freeze?: { reason: string; events: string[]; battle?: string }; notice?: string }
+
+/**
+ * One tick of the real-time clock. Decisions freeze it (as events do in CK); urgent ones always do.
+ * Other news is a notice: the clock runs on.
+ */
+export function stepClock(input: World, pauseOnDecisions = true): ClockStep {
+  const w = structuredClone(input);
+  const before = snapshotOfAttention(w);
+  const had = new Set((w.events?.pending ?? []).map((p) => p.id));
+  const fought = new Set((w.battles?.list ?? []).map((b) => b.id));
+  stepInPlace(w);
+  // A battle of ours has begun: everything stops for it.
+  void fought;
+  const battle = (w.battles?.list ?? []).find((b) => b.status === 'ready' && !b.prompted);
+  if (battle) battle.prompted = true;
+  if (battle) return { world: w, freeze: { reason: `Battle: ${battle.title}.`, events: [], battle: battle.id } };
+  const fresh = (w.events?.pending ?? []).filter((p) => !had.has(p.id));
+  const urgent = fresh.filter((p) => p.urgent);
+  if (urgent.length) return { world: w, freeze: { reason: 'Something needs you now.', events: urgent.map((p) => p.id) } };
+  if (fresh.length && pauseOnDecisions) return { world: w, freeze: { reason: 'A decision awaits your word.', events: fresh.map((p) => p.id) } };
+  const P = w.playerHouseId;
+  const news = w.feed.slice(before.last ? w.feed.indexOf(before.last) + 1 : 0);
+  const death = news.find((f) => f.kind === 'death' && f.characterIds?.some((id) => w.characters[id]?.houseId === P && w.characters[id]?.tier === 'full'));
+  if (death) return { world: w, freeze: { reason: death.text, events: [] } };
+  const raidsBefore = new Set((input.ports?.raids ?? []).filter((r) => r.status === 'revealed').map((r) => r.id));
+  const raid = (w.ports?.raids ?? []).find((r) => r.status === 'revealed' && !raidsBefore.has(r.id));
+  if (raid) return { world: w, freeze: { reason: 'Raiders are coming for one of our worlds. See the Hall.', events: [] } };
+  const reason = needsAttention(w, before);
+  return reason ? { world: w, notice: reason } : { world: w };
+}
+
+interface Attention { battles: number; petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null; decisions: number; alerts: number }
 
 function snapshotOfAttention(w: World): Attention {
   const P = w.playerHouseId;
   return {
+    battles: (w.battles?.list ?? []).filter((x) => x.status !== 'over').length,
     petitions: w.courts[P]?.petitions.length ?? 0,
     leads: w.leads.filter((l) => l.houseId === P).length,
     demands: Object.values(w.captives).filter((c) => c.ransom?.status === 'open' && w.characters[c.characterId]?.houseId === P).length,
@@ -156,6 +200,7 @@ function snapshotOfAttention(w: World): Attention {
 
 function needsAttention(w: World, b: Attention): string | null {
   const a = snapshotOfAttention(w);
+  if (a.battles > b.battles) return 'A battle has begun.';
   if (a.decisions > b.decisions) return 'A decision awaits your word.';
   if (a.alerts > b.alerts) return 'Word has come that needs you.';
   if (a.done > b.done) return 'A mission has come home.';

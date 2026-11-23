@@ -23,6 +23,7 @@ import { ensureLadder } from './ladder';
 import { ensureTreasury } from './treasury';
 import { ensureLanes } from './lanes';
 import { ensureRealm } from './houses';
+import { ensureStory } from './storystate';
 import './eventDefs';
 
 export const SAVE_VERSION = 11;
@@ -117,5 +118,6 @@ export function deserialize(text: string): World {
   ensureTreasury(world);
   ensureLanes(world);
   ensureRealm(world);
+  ensureStory(world);
   return world;
 }

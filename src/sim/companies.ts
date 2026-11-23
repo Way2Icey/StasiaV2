@@ -15,6 +15,7 @@ import { tally } from './careers';
 import { meet } from './relationships';
 import { seasoned } from './ladder';
 import { powerOf } from './fleet';
+import { createBattle, battleOf, runOut, outcomes } from './battle';
 import { LANE_BY_ID } from './lanes';
 import { competence } from './reports';
 import { absoluteCycle, addCycles, CYCLES_PER_PHASE, type GameDate } from './time';
@@ -59,7 +60,7 @@ export interface Member {
   fateBy?: string;
 }
 export interface CompanyLine { date: GameDate; text: string; ours?: boolean }
-export interface Hunt { id: string; faction: string; memberId: string; leaderId: string; companions: string[]; launched: GameDate; resolves: GameDate; /** Our ship, if one went. */ shipId?: string }
+export interface Hunt { id: string; faction: string; memberId: string; leaderId: string; companions: string[]; launched: GameDate; resolves: GameDate; /** Our ship, if one went. */ shipId?: string; /** Found them: the fight, live. */ battleId?: string }
 
 export type Hull = 'cutter' | 'raider' | 'frigate';
 export const HULL: Record<Hull, { label: string; power: number }> = {
@@ -273,26 +274,64 @@ function resolveHunt(world: World, rng: Rng, h: Hunt) {
   const m = f?.members.find((x) => x.id === h.memberId);
   const lead = world.characters[h.leaderId];
   const party = [h.leaderId, ...h.companions].map((id) => world.characters[id]).filter((c) => c?.alive);
-  for (const c of party) c!.flags = c!.flags.filter((x) => x.id !== 'hunting');
   const ship = h.shipId ? world.fleet?.ships[h.shipId] : undefined;
-  if (!f || !m || !lead?.alive) return;
+  const unflag = () => { for (const c of party) c!.flags = c!.flags.filter((x) => x.id !== 'hunting'); };
+  if (!f || !m || !lead?.alive) { unflag(); return; }
   const who = [{ id: lead.id, part: 'led the hunt' }, ...h.companions.map((id) => ({ id, part: 'went with them' }))];
   const odds = huntOdds(world, f.id, m.id, lead.id, h.companions, ship?.id);
-  const aboard = ship ? ` aboard the ${ship.name}` : '';
   if (m.fate || !rng.chance(odds.find)) {
     chronicle(world, f, `${lead.name.given} hunted ${m.name} for two Phases and never found the ${m.ship ?? 'ship'}.`);
     logRecord(world, { kind: 'world', type: 'mission', severity: 1, seat: 'grandMaster', houseIds: [P], text: `${lead.name.given} came home without ${m.name}: the ${m.ship ?? 'ship'} was never where the word said it would be.`, who });
     m.notes.push(`Slipped a hunt led by ${lead.name.given}.`);
+    unflag();
     return;
   }
-  const margin = odds.ours + rng.gauss() * 4 - (odds.theirs + rng.gauss() * 4);
-  const won = margin >= 0;
-  for (const c of party) { seasoned(world, rng, c!.id, won); tally(world, c!.id, 'raidsRepelled'); }
-  meet(world, rng, party.map((c) => c!.id), 'a corsair hunt', won ? 0.8 : -0.4, 1.2);
+  // Found: they fight, live. The leader commands; the Highroy may watch and give orders.
+  const second = m.role === 'chief' ? f.members.filter((x) => !x.fate && x.role === 'captain' && x.known).sort((x, y) => y.skill - x.skill)[0] : undefined;
+  const crew = Math.max(1, Math.min(3, Math.round((m.crew ?? 40) / 30)));
+  const npc = (n: number) => 6 + (m.crew ?? 40) / 14 + n;
+  const b = createBattle(world, {
+    kind: 'hunt', title: `The hunt for ${m.name}`, theatre: m.ship ? 'ship' : 'station', where: m.ship ? `aboard the ${m.ship}` : `a corsair hideout`, ref: h.id,
+    ours: { name: ship ? `the ${ship.name}` : 'our party', houseId: P, commander: { id: lead.id }, mass: (ship ? powerOf(world, ship) : HULL.cutter.power) * 4 + 10, fighters: party.map((c, i) => ({ id: c!.id, champion: i === 0 })) },
+    theirs: { name: m.ship ? `the ${m.ship}` : cap(f.name), commander: { name: m.name, skill: m.tactics ?? 10, lead: m.skill }, mass: HULL[m.hull ?? 'raider'].power * 4 + (m.crew ?? 40) / 2,
+      fighters: [{ key: `m:${m.id}`, name: m.name, power: m.skill * 0.9 + (m.tactics ?? 10) * 0.1, champion: true }, ...(second ? [{ key: `m:${second.id}`, name: second.name, power: second.skill * 0.9 }] : []), ...Array.from({ length: crew }, (_, i) => ({ key: `crew${i}`, name: rngLine(m.id + i, ['the bosun', 'a boarding hand', 'the gunner', 'a deckhand', 'the quartermaster']), power: npc(i) }))] },
+  });
+  h.battleId = b.id;
+  world.lanes.hunts.push(h);
+}
+
+/** The hunt's fight is over: what came of it. */
+function finishHunt(world: World, rng: Rng, h: Hunt) {
+  const P = world.playerHouseId;
+  const f = world.lanes.factions[h.faction];
+  const m = f?.members.find((x) => x.id === h.memberId);
+  const lead = world.characters[h.leaderId];
+  const b = battleOf(world, h.battleId!);
+  const ship = h.shipId ? world.fleet?.ships[h.shipId] : undefined;
+  if (!f || !m || !b || !lead) return;
+  b.applied = true;
+  const party = [h.leaderId, ...h.companions].map((id) => world.characters[id]).filter((c) => c?.alive);
+  const who = [{ id: lead.id, part: 'led the hunt' }, ...h.companions.map((id) => ({ id, part: 'went with them' }))];
+  const aboard = ship ? ` aboard the ${ship.name}` : '';
+  const won = b.result!.winner === 0;
+  const margin = b.momentum / 10;
+  // What the fight did to each of ours.
+  const outs = outcomes(b);
+  const hurt: string[] = [];
+  for (const o of outs.filter((x) => x.side === 0 && x.id)) {
+    const c = world.characters[o.id!];
+    if (!c?.alive) continue;
+    if (o.fate === 'dead') { kill(world, c, world.date, `killed hunting ${m.name} of ${f.name}`); hurt.push(`${c.name.given} was killed`); }
+    else if (o.fate === 'down') { c.flags.push({ id: 'wounded', since: world.date, until: addCycles(world.date, CYCLES_PER_PHASE * 2), detail: `hunting ${m.name}` }); hurt.push(`${c.name.given} came home wounded`); }
+    if (o.rating >= 8 && c.alive) tally(world, c.id, 'raidsRepelled');
+  }
+  const capt = b.fighters.find((x) => x.key === `m:${m.id}`);
+  for (const c of party) { if (!c!.alive) continue; seasoned(world, rng, c!.id, won); tally(world, c!.id, 'raidsRepelled'); }
+  meet(world, rng, party.filter((c) => c!.alive).map((c) => c!.id), 'a corsair hunt', won ? 0.8 : -0.4, 1.2);
   piracyXp(rng, m, !won);
-  if (ship) { ship.condition = clamp(ship.condition - rng.int(5, won ? 12 : 22), 5, 100); }
-  if (won) {
-    const taken = rng.chance(clamp(0.35 + margin * 0.05, 0.2, 0.8));
+  if (ship) { ship.condition = clamp(ship.condition - rng.int(5, won ? 12 : 22) - (b.raised.includes('rammed') ? 10 : 0), 5, 100); }
+  if (won && lead.alive) {
+    const taken = capt?.state === 'dead' ? false : rng.chance(clamp(0.35 + margin * 0.05, 0.2, 0.8));
     m.fate = taken ? 'captured' : 'dead';
     m.fateBy = lead.id;
     f.strength = clamp(f.strength - (m.role === 'chief' ? 15 : 8), 10, 95);
@@ -303,26 +342,31 @@ function resolveHunt(world: World, rng: Rng, h: Hunt) {
     shiftFavour(world, P, 3);
     if (taken) imprison(world, P, m.name, `corsair ${m.role} of ${f.name}`, null, 'crime', 10 + rng.int(0, 6));
     chronicle(world, f, `${lead.name.given} ${taken ? 'took' : 'killed'} ${m.name}${m.ship ? ` aboard the ${m.ship}` : ''}.`);
-    logRecord(world, { kind: 'world', type: 'fight', severity: 2, seat: 'grandMaster', houseIds: [P], text: `${lead.name.given} ran down ${m.name} of ${f.name}${m.ship ? ` and the ${m.ship}` : ''}${aboard} and ${taken ? 'brought them home in chains' : 'killed them'}.`, who, effects: ['Respect +2', 'Dread +1', `${cap(f.name)} weakened`, `${cap(f.name)} regard −30`], quote: { from: lead.id, text: taken ? 'Alive, as you see. They will have plenty to say.' : 'They would not strike. So.' } });
+    logRecord(world, { kind: 'world', type: 'fight', severity: 2, seat: 'grandMaster', houseIds: [P], text: `${lead.name.given} ran down ${m.name} of ${f.name}${m.ship ? ` and the ${m.ship}` : ''}${aboard} and ${taken ? 'brought them home in chains' : 'killed them'}.${hurt.length ? ` ${hurt.join('; ')}.` : ''}`, who, effects: ['Respect +2', 'Dread +1', `${cap(f.name)} weakened`, `${cap(f.name)} regard −30`], quote: { from: lead.id, text: taken ? 'Alive, as you see. They will have plenty to say.' : 'They would not strike. So.' } });
     return;
   }
-  // Beaten. A near thing costs a bruise or two; a rout can cost a life.
+  // Beaten.
   f.rel[P] = clamp((f.rel[P] ?? 0) - 10, -100, 100);
-  const rout = margin < -5;
-  let hurt: string;
-  const roll = rng.next();
-  if (rout && roll < 0.05) { kill(world, lead, world.date, `killed hunting ${m.name} of ${f.name}`); hurt = `${lead.name.given} was killed`; }
-  else if (roll < (rout ? 0.6 : 0.3)) { lead.flags.push({ id: 'wounded', since: world.date, until: addCycles(world.date, CYCLES_PER_PHASE * (rout ? 3 : 2)), detail: `hunting ${m.name}` }); hurt = `${lead.name.given} came home wounded`; }
-  else hurt = `${lead.name.given} brought everyone home, beaten`;
-  if (rout) for (const id of h.companions) { const c = world.characters[id]; if (c?.alive && rng.chance(0.3)) c.flags.push({ id: 'wounded', since: world.date, until: addCycles(world.date, CYCLES_PER_PHASE * 2), detail: `hunting ${m.name}` }); }
   m.notes.push(`Beat off a hunt led by ${lead.name.given}${aboard}.`);
-  chronicle(world, f, `${m.name} beat off our hunt${aboard}: ${hurt.toLowerCase()}.`);
-  logRecord(world, { kind: 'world', type: 'fight', severity: 2, seat: 'grandMaster', houseIds: [P], text: `${m.name} was ready for us${aboard ? `, and the ${ship!.name} came home scarred` : ''}. The hunt ${rout ? 'was routed' : 'fell just short'}: ${hurt}.`, who });
+  const how = hurt.length ? hurt.join('; ') : `${lead.name.given} brought everyone home, beaten`;
+  chronicle(world, f, `${m.name} beat off our hunt${aboard}: ${how.toLowerCase()}.`);
+  logRecord(world, { kind: 'world', type: 'fight', severity: 2, seat: 'grandMaster', houseIds: [P], text: `${m.name} was ready for us${aboard ? `, and the ${ship!.name} came home scarred` : ''}. The hunt ${b.result?.brokeOff ? 'broke off' : margin < -5 ? 'was routed' : 'fell just short'}: ${how}.`, who });
 }
 
 export function advanceHunts(world: World, rng: Rng): void {
   const now = absoluteCycle(world.date);
   for (const h of [...(world.lanes.hunts ?? [])]) {
+    if (h.battleId) {
+      const b = battleOf(world, h.battleId);
+      // Nobody came to command it: the leader fights it out.
+      if (b && b.status !== 'over' && now - absoluteCycle(b.created) >= 8) runOut(b, world);
+      if (!b || b.status === 'over') {
+        world.lanes.hunts = world.lanes.hunts.filter((x) => x !== h);
+        for (const id of [h.leaderId, ...h.companions]) { const c = world.characters[id]; if (c) c.flags = c.flags.filter((x) => x.id !== 'hunting'); }
+        if (b) finishHunt(world, rng, h);
+      }
+      continue;
+    }
     if (absoluteCycle(h.resolves) > now) continue;
     world.lanes.hunts = world.lanes.hunts.filter((x) => x !== h);
     resolveHunt(world, rng, h);

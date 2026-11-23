@@ -349,3 +349,10 @@ export function poach(input: World, id: string, purse: number): World {
     }
   });
 }
+
+/** Open a feud between two houses from a story, if there isn't one. */
+export function openFeud(world: World, a: string, b: string, cause: string): void {
+  ensureRealm(world);
+  if (a === b || feuding(world, a, b)) return;
+  world.realm.feuds.push({ id: `fd${world.nextId++}`, a, b, since: world.date, cause });
+}

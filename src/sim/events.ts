@@ -13,6 +13,7 @@ import { logRecord } from './records';
 import { absoluteCycle, addCycles, CYCLES_PER_PHASE } from './time';
 import { RESOURCE_LABEL, type Good } from '../data/economy';
 import type { Character, Mission, Sector, StatId, World } from './types';
+import { addThread, ensureStory, type Act, type ArcRun, type Struggle, type ThreadKind } from './storystate';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -32,6 +33,12 @@ export interface PendingEvent {
   otherHouseId?: string;
   sectorId?: string;
   text: string;
+  /** The arc this is a stage of. */
+  arcId?: string;
+  /** The struggle this is a turning point of. */
+  struggleId?: string;
+  /** Freezes the clock until answered. */
+  urgent?: boolean;
 }
 
 export interface ResolvedEvent {
@@ -68,13 +75,25 @@ export interface Ctx {
   fx: Fx;
   /** While an event is being set up: who and where it is about. */
   set?: Partial<PendingEvent>;
+  /** The arc this stage belongs to, if any. */
+  arc?: ArcRun;
+  /** The struggle this is a turning point of, if any. */
+  struggle?: Struggle;
+  /** Scratch space an option's resolve can leave for its `then`. */
+  memo?: Record<string, string | number>;
 }
 
 export interface Check {
   who: (c: Ctx) => Character | undefined;
   stats: StatId[];
   dc: number;
+  /** An opposed check: set against this person's stats instead of a fixed difficulty. */
+  vs?: (c: Ctx) => Character | undefined;
+  vsStats?: StatId[];
 }
+
+/** What an option leads to: the next stage of the arc, some cycles on. */
+export interface Next { next: string; after: number; cast?: ArcRun['cast']; data?: Record<string, string | number> }
 
 export interface EventOption {
   label: string;
@@ -83,6 +102,10 @@ export interface EventOption {
   /** Why this option can't be taken, or null. */
   available?: (c: Ctx) => string | null;
   resolve: (c: Ctx, passed: boolean) => void;
+  /** Carries the story on: the stage that follows, or null to end it here. */
+  then?: (c: Ctx, passed: boolean) => Next | null;
+  /** How the arc ends if it ends on this option. */
+  ending?: string;
 }
 
 export interface EventDef {
@@ -97,6 +120,16 @@ export interface EventDef {
   options: EventOption[];
   /** The option the council takes if the Highroy says nothing. */
   fallback: number;
+  /** Only ever comes as a stage of an arc, never on its own. */
+  stage?: boolean;
+  /** Stops the clock until answered. */
+  urgent?: boolean;
+  /** How long it waits before the council settles it, in cycles. */
+  life?: number;
+  /** When the storyteller likes it best. */
+  act?: Act;
+  /** Names the arc it starts, when it starts one. */
+  arc?: string;
 }
 
 // ---------------------------------------------------------------- effects
@@ -135,6 +168,12 @@ export class Fx {
   honour(n: number) { return this.standing('honour', n); }
   respect(n: number) { return this.standing('respect', n); }
   dread(n: number) { return this.standing('dread', n); }
+  /** Leave something hanging on a person for a later story to pick up. */
+  thread(c: Character | undefined, kind: ThreadKind, text: string, about?: string) {
+    if (!c) return this;
+    addThread(this.w, c.id, kind, text, about);
+    return this;
+  }
   mood(c: Character | undefined, n: number) {
     if (!c || !n) return this;
     shiftMood(c, n);
@@ -211,9 +250,21 @@ export function checkValue(c: Character | undefined, stats: StatId[]): number {
   return base + (c.flags.some((f) => f.id === 'counselled') ? 1 : 0);
 }
 
+/** The odds of a check: against a fixed difficulty, or against a named person (two rolls, so a wider spread). */
 export function checkChance(ctx: Ctx, check: Check): number {
+  if (check.vs) return phi((checkValue(check.who(ctx), check.stats) - checkValue(check.vs(ctx), check.vsStats ?? check.stats)) / (SPREAD * Math.SQRT2));
   return phi((checkValue(check.who(ctx), check.stats) - check.dc) / SPREAD);
 }
+
+/** Odds from what we know: our side exact, theirs as a range. Returns the lowest and highest chance. */
+export function checkBand(ctx: Ctx, check: Check, theirs: [number, number] | null): [number, number] {
+  if (!check.vs || !theirs) { const p = checkChance(ctx, check); return [p, p]; }
+  const mine = checkValue(check.who(ctx), check.stats);
+  const f = (v: number) => phi((mine - v) / (SPREAD * Math.SQRT2));
+  return [f(theirs[1]), f(theirs[0])];
+}
+
+export { SPREAD as CHECK_SPREAD };
 
 export function oddsWord(p: number): string {
   if (p >= 0.85) return 'almost certain';
@@ -240,6 +291,8 @@ function baseCtx(world: World, rng: Rng, p: Partial<PendingEvent>): Omit<Ctx, 'f
     second: p.secondId ? world.characters[p.secondId] : undefined,
     other: p.otherHouseId,
     sector: p.sectorId ? findSector(world, p.sectorId)?.sector : undefined,
+    arc: p.arcId ? world.story?.arcs.find((a) => a.id === p.arcId) : undefined,
+    struggle: p.struggleId ? world.story?.struggles.find((x) => x.id === p.struggleId) : undefined,
   };
 }
 
@@ -253,39 +306,92 @@ export function makeCtx(world: World, rng: Rng, p: Partial<PendingEvent>): Ctx {
 // ---------------------------------------------------------------- firing
 
 let DEFS: EventDef[] = [];
-export function registerEvents(defs: EventDef[]): void { DEFS = defs; }
+export function registerEvents(defs: EventDef[]): void { DEFS = [...defs, ...DEFS.filter((d) => !defs.some((x) => x.id === d.id))]; }
+/** Add more definitions (arcs, struggles) alongside the rest. */
+export function addEvents(defs: EventDef[]): void { DEFS = [...DEFS.filter((d) => !defs.some((x) => x.id === d.id)), ...defs]; }
 export function eventDef(id: string): EventDef | undefined { return DEFS.find((d) => d.id === id); }
+export function allDefs(): EventDef[] { return DEFS; }
 
-function fire(world: World, rng: Rng, trigger: EventTrigger, seed: Partial<PendingEvent>, life: number): boolean {
+function place(world: World, def: EventDef, holder: Partial<PendingEvent>, life: number, arcId?: string, memo?: Record<string, string | number>): PendingEvent {
   const ev = world.events;
-  const candidates = DEFS.filter((d) => d.trigger === trigger && !ev.recent.includes(d.id));
-  // Try a few in weighted order until one fits.
+  const fresh = makeCtx(world, new Rng(world.rng), holder);
+  if (memo) fresh.memo = memo;
+  if (arcId) fresh.arc = world.story?.arcs.find((a) => a.id === arcId);
+  const p: PendingEvent = {
+    ...holder,
+    id: `e${world.nextId++}`,
+    defId: def.id,
+    date: world.date,
+    expires: addCycles(world.date, def.life ?? life),
+    text: def.text(fresh),
+    ...(arcId ? { arcId } : {}),
+    ...(def.urgent ? { urgent: true } : {}),
+  };
+  ev.pending.push(p);
+  ev.recent.unshift(def.id);
+  ev.recent = ev.recent.slice(0, 14);
+  (ev.fired ??= {})[def.id] = (ev.fired[def.id] ?? 0) + 1;
+  if (world.story) world.story.quiet = 0;
+  return p;
+}
+
+/** Fire one event of this trigger, weighted, preferring what suits the storyteller's act. */
+export function fire(world: World, rng: Rng, trigger: EventTrigger, seed: Partial<PendingEvent>, life: number, act?: Act): boolean {
+  const ev = world.events;
+  // One telling of a story at a time: an arc already under way does not start again.
+  const running = new Set((world.story?.arcs ?? []).filter((a) => a.open).map((a) => a.title));
+  const busy = new Set((world.story?.arcs ?? []).filter((a) => a.open).flatMap((a) => [a.cast.personId, a.cast.secondId]).filter(Boolean) as string[]);
+  const candidates = DEFS.filter((d) => d.trigger === trigger && !d.stage && !ev.recent.includes(d.id) && !(d.arc && running.has(d.arc)));
   const pool = [...candidates];
   for (let tries = 0; tries < 6 && pool.length; tries++) {
     // What has happened often grows rarer: the same quarrel every year stops being news.
     const fired = ev.fired ?? {};
-    const def = rng.weighted(pool.map((d) => [d, d.weight / (1 + (fired[d.id] ?? 0) * 0.6)] as [EventDef, number]));
+    const def = rng.weighted(pool.map((d) => [d, (d.weight * (act && d.act === act ? 2.5 : act && d.act && d.act !== act ? 0.4 : 1)) / (1 + (fired[d.id] ?? 0) * (d.arc ? 1.5 : 0.6))] as [EventDef, number]));
     pool.splice(pool.indexOf(def), 1);
     const holder: Partial<PendingEvent> = { ...seed };
     const ctx = makeCtx(world, rng, seed);
     ctx.set = holder;
     if (!def.setup(ctx)) continue;
-    const fresh = makeCtx(world, rng, holder);
-    const p: PendingEvent = {
-      ...holder,
-      id: `e${world.nextId++}`,
-      defId: def.id,
-      date: world.date,
-      expires: addCycles(world.date, life),
-      text: def.text(fresh),
-    };
-    ev.pending.push(p);
-    ev.recent.unshift(def.id);
-    ev.recent = ev.recent.slice(0, 14);
-    (ev.fired ??= {})[def.id] = (ev.fired[def.id] ?? 0) + 1;
+    // Someone already at the heart of one story is not cast as the heart of another.
+    if (def.arc && holder.personId && busy.has(holder.personId)) continue;
+    const p = place(world, def, holder, life, undefined, ctx.memo);
+    if (def.arc) { const run = startArc(world, p, def.arc); if (ctx.memo) run.data = { ...ctx.memo }; }
     return true;
   }
   return false;
+}
+
+/** Fire a named event directly: the next stage of an arc, or a struggle's turning point. */
+export function fireStage(world: World, rng: Rng, defId: string, seed: Partial<PendingEvent>, arcId?: string): PendingEvent | null {
+  const def = eventDef(defId);
+  if (!def) return null;
+  const holder: Partial<PendingEvent> = { ...seed };
+  const ctx = makeCtx(world, rng, seed);
+  ctx.set = holder;
+  if (arcId) ctx.arc = world.story?.arcs.find((a) => a.id === arcId);
+  if (!def.setup(ctx)) return null;
+  const p = place(world, def, holder, CYCLES_PER_PHASE, arcId, ctx.memo);
+  if (!arcId && def.arc) { const run = startArc(world, p, def.arc); if (ctx.memo) run.data = { ...ctx.memo }; }
+  return p;
+}
+
+function castOf(p: Partial<PendingEvent>) {
+  const c: ArcRun['cast'] = {};
+  if (p.personId) c.personId = p.personId;
+  if (p.secondId) c.secondId = p.secondId;
+  if (p.otherHouseId) c.otherHouseId = p.otherHouseId;
+  if (p.sectorId) c.sectorId = p.sectorId;
+  if (p.missionId) c.missionId = p.missionId;
+  return c;
+}
+
+function startArc(world: World, p: PendingEvent, title: string): ArcRun {
+  ensureStory(world);
+  const run: ArcRun = { id: `arc${world.nextId++}`, title, cast: castOf(p), stages: [], open: true };
+  world.story!.arcs.unshift(run);
+  world.story!.arcs = world.story!.arcs.filter((a, i) => a.open || i < 40);
+  p.arcId = run.id;
+  return run;
 }
 
 /** Choose who/where an event is about, from inside `setup`. */
@@ -315,9 +421,8 @@ export function advanceEvents(world: World, rng: Rng, phaseTurned: boolean): voi
     if (m.stage === 'travel' && rng.chance(0.08)) fire(world, rng, 'travel', { missionId: m.id }, 8);
     else if (m.stage === 'task' && rng.chance(0.09)) fire(world, rng, 'arrival', { missionId: m.id }, 6);
   }
-  // At home, now and then.
-  const homePending = ev.pending.filter((x) => !x.missionId).length;
-  if (phaseTurned && homePending < 3 && rng.chance(0.5)) fire(world, rng, 'home', {}, CYCLES_PER_PHASE);
+  // At home: the storyteller decides when (see story.ts).
+  void phaseTurned;
 }
 
 /** Answer an event (option index), or let the council settle it (null). */
@@ -330,16 +435,31 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
   if (!def) return null;
   const idx = choice ?? def.fallback;
   const ctx = makeCtx(world, rng, p);
-  const opt = def.options[idx]!;
+  const opt = def.options[idx] ?? def.options[def.fallback]!;
   const why = opt.available?.(ctx);
   const use = why ? def.options[def.fallback]! : opt;
   let passed = true;
   if (use.check) {
     const who = use.check.who(ctx);
-    passed = checkValue(who, use.check.stats) + rng.gauss() * SPREAD >= use.check.dc;
-    ctx.fx.say(`${who ? shortName(who.name) : 'Our people'} ${passed ? 'succeed' : 'fail'}`);
+    const vs = use.check.vs?.(ctx);
+    const bar = use.check.vs ? checkValue(vs, use.check.vsStats ?? use.check.stats) + rng.gauss() * SPREAD : use.check.dc;
+    passed = checkValue(who, use.check.stats) + rng.gauss() * SPREAD >= bar;
+    ctx.fx.say(`${who ? shortName(who.name) : 'Our people'} ${passed ? (vs ? `get the better of ${shortName(vs.name)}` : 'succeed') : (vs ? `are bested by ${shortName(vs.name)}` : 'fail')}`);
   }
   use.resolve(ctx, passed);
+  // The story goes on, or ends here.
+  let run = ctx.arc ?? (p.arcId ? world.story?.arcs.find((a) => a.id === p.arcId) : undefined);
+  const nx = use.then?.(ctx, passed) ?? null;
+  // An event that leads somewhere becomes an arc the moment it does.
+  if (!run && nx) run = startArc(world, p, def.arc ?? def.title);
+  if (run) {
+    run.stages.push({ date: world.date, title: def.title, choice: use.label, lines: [...ctx.fx.lines], byCouncil: choice === null });
+    Object.assign(run.cast, castOf(p));
+    if (nx?.cast) Object.assign(run.cast, nx.cast);
+    if (nx?.data) run.data = { ...(run.data ?? {}), ...nx.data };
+    if (nx && eventDef(nx.next)) run.next = { defId: nx.next, at: addCycles(world.date, Math.max(1, nx.after)) };
+    else { run.open = false; delete run.next; run.ending = use.ending ?? `${use.label}.`; }
+  }
   const r: ResolvedEvent = {
     id: p.id, defId: def.id, title: def.title, date: world.date, choice: use.label, byCouncil: choice === null,
     lines: ctx.fx.lines, missionId: p.missionId,

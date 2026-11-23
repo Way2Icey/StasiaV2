@@ -29,6 +29,7 @@ import { ensureLadder } from './ladder';
 import { ensureTreasury } from './treasury';
 import { ensureLanes } from './lanes';
 import { ensureRealm } from './houses';
+import { ensureStory } from './storystate';
 import './eventDefs';
 import type { Character, CouncilSeat, Family, Planet, SpeciesId, World } from './types';
 
@@ -163,6 +164,7 @@ export function createWorld(seed: string = DEFAULT_SEED): World {
   ensureTreasury(world);
   ensureLanes(world);
   ensureRealm(world);
+  ensureStory(world);
   world.rng = rng.state;
   return world;
 }

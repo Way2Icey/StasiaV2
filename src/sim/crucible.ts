@@ -23,6 +23,8 @@ import { award, tally } from './careers';
 import { storeInVault } from './holdings';
 import { addCycles, dateParts } from './time';
 import type { Character, World } from './types';
+import { createBattle, battleOf, runOut, outcomes, type FighterSpec } from './battle';
+import { absoluteCycle } from './time';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
@@ -148,7 +150,7 @@ export interface Battle {
   mvp?: string;
 }
 
-export interface Round { orbit: number; moves: Record<string, string>; stance: Record<string, Stance | undefined>; battles: Battle[]; taken: Record<string, string>; done: boolean }
+export interface Round { orbit: number; moves: Record<string, string>; stance: Record<string, Stance | undefined>; battles: Battle[]; taken: Record<string, string>; done: boolean; /** Our clash, fought live: settled when the battle ends. */ live?: { battleId: string; locId: string; sides: string[] } }
 
 export interface Standing { held: number; won: number; lost: number; menLost: number }
 
@@ -605,7 +607,10 @@ function chooseTarget(w: World, rng: Rng, h: string): string | undefined {
   return options.length ? rng.weighted(options) : undefined;
 }
 
-function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[]): Battle {
+/** The result of a battle fought live, to settle the location by. */
+interface Forced { winner: string; duel?: string; fallen: string[]; wounded: string[]; lossFrac: Record<string, number> }
+
+function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[], forced?: Forced): Battle {
   const cr = w.crucible;
   const P = w.playerHouseId;
   const score: Record<string, number> = {};
@@ -616,11 +621,11 @@ function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[]): 
     .sort((a, b) => b.c!.score - a.c!.score);
   let duel: Battle['duel'];
   let duelWinner: string | undefined;
-  if (champs.length >= 2) {
+  if (champs.length >= 2 && (!forced || forced.duel)) {
     const [x, y] = champs as [{ h: string; c: { score: number; id?: string; name: string } }, { h: string; c: { score: number; id?: string; name: string } }];
     const rx = x.c.score + rng.gauss() * 3;
     const ry = y.c.score + rng.gauss() * 3;
-    const win = rx >= ry ? x : y;
+    const win = forced?.duel ? (forced.duel === x.h ? x : y) : rx >= ry ? x : y;
     const lose = win === x ? y : x;
     duelWinner = win.h;
     duel = { a: x.c.id ?? x.c.name, b: y.c.id ?? y.c.name, winner: win.c.id ?? win.c.name };
@@ -631,7 +636,7 @@ function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[]): 
     if (win.c.id && lose.c.id) shiftOpinion(w, lose.c.id, win.c.id, -10, `beat them on ${BATTLE_WORLD}`);
     const keyOf = (s: typeof x) => s.c.id ?? nk(s.h, s.c.name);
     let what: Nemesis['what'] = 'beat';
-    if (lose.c.id) {
+    if (lose.c.id && !forced) {
       const p = w.characters[lose.c.id]!;
       const roll = rng.next();
       if (roll < 0.02) { kill(w, p, w.date, `killed by ${win.c.name} on ${BATTLE_WORLD}`); fallen.push(p.id); what = 'killed'; }
@@ -672,12 +677,12 @@ function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[]): 
     score[h] = (strengthOf(w, c) * (0.75 + marshalOf(w, c) / 40) * edge * defending * studied * (duelWinner === h ? 1.12 : 1)) * (0.85 + rng.next() * 0.3);
   }
   const order = [...sides].sort((a, b) => score[b]! - score[a]!);
-  const winner = order[0]!;
+  const winner = forced ? forced.winner : order[0]!;
   const losses: Record<string, number> = {};
   for (const h of sides) {
     const c = cr.contingents[h]!;
     const men = Math.max(0, c.men - c.menLost);
-    const lost = Math.round(men * (h === winner ? 0.06 + rng.next() * 0.1 : 0.18 + rng.next() * 0.2));
+    const lost = Math.round(men * (forced?.lossFrac[h] !== undefined ? forced.lossFrac[h]! : h === winner ? 0.06 + rng.next() * 0.1 : 0.18 + rng.next() * 0.2));
     c.menLost += lost;
     losses[h] = lost;
     cr.table[h]!.menLost += lost;
@@ -687,10 +692,15 @@ function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[]): 
       const id = p.id;
       tally(w, id, 'crucible');
       if (h === winner) { tally(w, id, 'crucibleWon'); addGlory(w, id, 1); }
-      const roll = rng.next();
+      const roll = forced ? (forced.fallen.includes(id) ? 0 : forced.wounded.includes(id) ? 0.03 : 1) : rng.next();
       if (roll < 0.006) { kill(w, p, w.date, `fell at ${loc.name} on ${BATTLE_WORLD}`); fallen.push(id); }
       else if (roll < 0.065) { p.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, 48) }); wounded.push(id); lastingWound(w, rng, id, `at ${loc.name} on ${BATTLE_WORLD}`); }
       if (!fallen.includes(id)) seasoned(w, rng, id, h === winner);
+    }
+    if (forced && c.championId && w.characters[c.championId]?.alive) {
+      const ch = w.characters[c.championId]!;
+      if (forced.fallen.includes(ch.id)) { kill(w, ch, w.date, `fell at ${loc.name} on ${BATTLE_WORLD}`); fallen.push(ch.id); }
+      else if (forced.wounded.includes(ch.id)) { ch.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, 48) }); wounded.push(ch.id); lastingWound(w, rng, ch.id, `at ${loc.name} on ${BATTLE_WORLD}`); }
     }
     if (c.championId) { tally(w, c.championId, 'crucible'); if (h === winner) tally(w, c.championId, 'crucibleWon'); }
     if (c.marshalId) { tally(w, c.marshalId, 'crucible'); if (h === winner) { tally(w, c.marshalId, 'crucibleWon'); addGlory(w, c.marshalId, 1); } }
@@ -710,6 +720,93 @@ function fightAt(w: World, rng: Rng, r: Round, loc: Location, sides: string[]): 
   for (const h of sides) if (h !== winner && w.houses[h] && w.houses[winner]) shiftRelation(w, h, winner, -2);
   loc.holder = winner;
   return { locationId: loc.id, sides, winner, losses, duel, fallen, wounded, mvp };
+}
+
+/** The house hears how one clash went. */
+function hearOf(w: World, r: Round, b: Battle) {
+  const cr = w.crucible;
+  const P = w.playerHouseId;
+    const ours = b.sides.includes(P);
+    const loc = cr.locations.find((l) => l.id === b.locationId)!;
+    const nameOf = (x: string) => (w.characters[x] ? displayName(w.characters[x]!.name) : x);
+    logRecord(w, {
+      kind: 'world', type: 'fight', severity: ours ? 2 : b.sides.some((h) => w.houses[h]) ? 1 : 0,
+      text: `The Crucible, Orbit ${r.orbit}: ${houseLabel(w, b.winner)} took ${loc.name} from ${b.sides.filter((h) => h !== b.winner).map((h) => shortHouse(w, h)).join(' and ')}.${b.duel ? ` ${nameOf(b.duel.winner)} won the champions' duel${b.duel.rematch ? ', a rematch' : ''}.` : ''}${b.duel?.avenged && w.characters[b.duel.avenged] ? (b.duel.winner === b.duel.avenged ? ` ${shortName(w.characters[b.duel.avenged]!.name)} settles the score.` : ` ${displayName(w.characters[b.duel.avenged]!.name)} is avenged.`) : ''}`,
+      detail: b.sides.map((h) => `${shortHouse(w, h)}: ${STANCE_LABEL[r.stance[h]!]}, lost ${b.losses[h]} men`).join('\n') + (b.fallen.length ? `\nFallen: ${b.fallen.map(nameOf).join(', ')}.` : '') + (b.wounded.length ? `\nWounded: ${b.wounded.map(nameOf).join(', ')}.` : ''),
+      who: [...(b.mvp && w.characters[b.mvp] ? [{ id: b.mvp, part: 'best of the field' }] : []), ...b.fallen.map((id) => ({ id, part: 'fell' })), ...b.wounded.map((id) => ({ id, part: 'wounded' }))],
+      houseIds: b.sides.filter((h) => w.houses[h]), source: BATTLE_WORLD,
+    });
+    // House fever.
+    for (const c of Object.values(w.characters)) {
+      if (!c.alive || c.tier !== 'full') continue;
+      if (c.houseId === b.winner) shiftMood(c, 2);
+      else if (b.sides.includes(c.houseId)) shiftMood(c, -1);
+    }
+  }
+
+/** Our clash at a location becomes a live battle on the surface of the battle world. */
+function liveClash(w: World, loc: Location, here: string[]): string {
+  const cr = w.crucible;
+  const P = w.playerHouseId;
+  const foes = here.filter((h) => h !== P).sort((a, b) => strengthOf(w, cr.contingents[b]!) - strengthOf(w, cr.contingents[a]!));
+  const main = foes[0]!;
+  const ours = cr.contingents[P]!;
+  const them = cr.contingents[main]!;
+  const nem = openNemeses(w);
+  const theirChampKey = them.skill ? nk(main, them.names!.champion) : them.championId ?? undefined;
+  const mine: FighterSpec[] = [];
+  if (ours.championId) mine.push({ id: ours.championId, champion: true, hunts: nem.find((n) => n.victimId === ours.championId && n.foeKey === theirChampKey) ? theirChampKey : undefined });
+  for (const k of alive(w, ours.knights).slice(0, 6)) mine.push({ id: k.id, hunts: nem.find((n) => n.victimId === k.id && n.foeKey === theirChampKey) ? theirChampKey : undefined });
+  const theirs: FighterSpec[] = [];
+  if (them.skill) {
+    theirs.push({ key: theirChampKey, name: them.names!.champion, power: them.skill.champion, champion: true });
+    for (let i = 0; i < Math.min(6, them.names!.knights); i++) theirs.push({ key: `g:${main}:k${i}`, name: `a knight of ${shortHouse(w, main)}`, power: them.skill.knight });
+  } else {
+    if (them.championId) theirs.push({ id: them.championId, champion: true });
+    for (const k of alive(w, them.knights).slice(0, 6)) theirs.push({ id: k.id });
+  }
+  const men = (c: Contingent) => Math.max(0, c.men - c.menLost) / 10;
+  const extra = foes.slice(1).reduce((t, h) => t + men(cr.contingents[h]!) * 0.5, 0);
+  const b = createBattle(w, {
+    kind: 'crucible', title: `${loc.name}, ${BATTLE_WORLD}`, theatre: 'surface', where: `${loc.name} on ${BATTLE_WORLD}`, ref: loc.id,
+    ours: { name: 'our contingent', houseId: P, commander: { id: ours.marshalId ?? undefined }, mass: men(ours), fighters: mine },
+    theirs: { name: `${shortHouse(w, main)}${foes.length > 1 ? ' and others' : ''}`, houseId: w.houses[main] ? main : undefined, commander: them.skill ? { name: them.names!.marshal, skill: them.skill.marshal, lead: them.skill.marshal } : { id: them.marshalId ?? undefined }, mass: men(them) + extra, fighters: theirs },
+  });
+  return b.id;
+}
+
+/** Settle our live clash once the battle is over (or the Marshal has fought it out). */
+function settleLive(w: World, rng: Rng, r: Round) {
+  const cr = w.crucible;
+  const P = w.playerHouseId;
+  const lv = r.live!;
+  const bt = battleOf(w, lv.battleId);
+  const loc = cr.locations.find((l) => l.id === lv.locId);
+  if (!bt || !loc) { delete r.live; return; }
+  if (bt.status !== 'over') {
+    if (absoluteCycle(w.date) - absoluteCycle(bt.created) < 8) return;
+    runOut(bt, w);
+  }
+  const foes = lv.sides.filter((h) => h !== P).sort((a, b) => strengthOf(w, cr.contingents[b]!) - strengthOf(w, cr.contingents[a]!));
+  const won = bt.result!.winner === 0;
+  const outs = outcomes(bt);
+  const duelWinner = bt.fighters.find((f) => f.deeds.includes('won the champions\' duel'));
+  const lossFrac: Record<string, number> = {};
+  lossFrac[P] = Math.min(0.6, 1 - bt.sides[0].mass / Math.max(1, bt.sides[0].massMax)) * 0.8;
+  for (const h of foes) lossFrac[h] = Math.min(0.6, 1 - bt.sides[1].mass / Math.max(1, bt.sides[1].massMax)) * 0.8;
+  const forced: Forced = {
+    winner: won ? P : foes[0]!,
+    duel: duelWinner ? (duelWinner.side === 0 ? P : foes[0]!) : undefined,
+    fallen: outs.filter((o) => o.id && o.fate === 'dead').map((o) => o.id!),
+    wounded: outs.filter((o) => o.id && o.fate === 'down').map((o) => o.id!),
+    lossFrac,
+  };
+  const res = fightAt(w, rng, r, loc, lv.sides, forced);
+  r.battles.push(res);
+  delete r.live;
+  for (const h of cr.entrants) cr.table[h]!.held = cr.locations.filter((l) => l.holder === h).length;
+  hearOf(w, r, res);
+  bt.applied = true;
 }
 
 function playRound(w: World, rng: Rng, r: Round) {
@@ -741,29 +838,13 @@ function playRound(w: World, rng: Rng, r: Round) {
       loc.holder = h;
       continue;
     }
+    if (here.includes(P)) { r.live = { battleId: liveClash(w, loc, here), locId: loc.id, sides: here }; continue; }
     r.battles.push(fightAt(w, rng, r, loc, here));
   }
   for (const h of cr.entrants) cr.table[h]!.held = cr.locations.filter((l) => l.holder === h).length;
   r.done = true;
   // The house hears.
-  for (const b of r.battles) {
-    const ours = b.sides.includes(P);
-    const loc = cr.locations.find((l) => l.id === b.locationId)!;
-    const nameOf = (x: string) => (w.characters[x] ? displayName(w.characters[x]!.name) : x);
-    logRecord(w, {
-      kind: 'world', type: 'fight', severity: ours ? 2 : b.sides.some((h) => w.houses[h]) ? 1 : 0,
-      text: `The Crucible, Orbit ${r.orbit}: ${houseLabel(w, b.winner)} took ${loc.name} from ${b.sides.filter((h) => h !== b.winner).map((h) => shortHouse(w, h)).join(' and ')}.${b.duel ? ` ${nameOf(b.duel.winner)} won the champions' duel${b.duel.rematch ? ', a rematch' : ''}.` : ''}${b.duel?.avenged && w.characters[b.duel.avenged] ? (b.duel.winner === b.duel.avenged ? ` ${shortName(w.characters[b.duel.avenged]!.name)} settles the score.` : ` ${displayName(w.characters[b.duel.avenged]!.name)} is avenged.`) : ''}`,
-      detail: b.sides.map((h) => `${shortHouse(w, h)}: ${STANCE_LABEL[r.stance[h]!]}, lost ${b.losses[h]} men`).join('\n') + (b.fallen.length ? `\nFallen: ${b.fallen.map(nameOf).join(', ')}.` : '') + (b.wounded.length ? `\nWounded: ${b.wounded.map(nameOf).join(', ')}.` : ''),
-      who: [...(b.mvp && w.characters[b.mvp] ? [{ id: b.mvp, part: 'best of the field' }] : []), ...b.fallen.map((id) => ({ id, part: 'fell' })), ...b.wounded.map((id) => ({ id, part: 'wounded' }))],
-      houseIds: b.sides.filter((h) => w.houses[h]), source: BATTLE_WORLD,
-    });
-    // House fever.
-    for (const c of Object.values(w.characters)) {
-      if (!c.alive || c.tier !== 'full') continue;
-      if (c.houseId === b.winner) shiftMood(c, 2);
-      else if (b.sides.includes(c.houseId)) shiftMood(c, -1);
-    }
-  }
+  for (const b of r.battles) hearOf(w, r, b);
   const ourTake = Object.entries(r.taken).filter(([, h]) => h === P).map(([id]) => cr.locations.find((l) => l.id === id)!.name);
   if (ourTake.length) logRecord(w, { kind: 'world', type: 'fight', severity: 1, text: `The Crucible, Orbit ${r.orbit}: our contingent takes ${ourTake.join(' and ')} unopposed.` });
   if (active.includes(P) && w.ports) w.ports.alerts += 1;
@@ -838,6 +919,7 @@ function finish(w: World, rng: Rng) {
 export function advanceCrucible(world: World, rng: Rng, phaseTurned: boolean): void {
   ensureCrucible(world);
   const cr = world.crucible;
+  for (const r of cr.rounds) if (r.live) settleLive(world, rng, r);
   if (!phaseTurned) return;
   const d = dateParts(world.date);
   // Lost men are slowly replaced.
@@ -846,7 +928,7 @@ export function advanceCrucible(world: World, rng: Rng, phaseTurned: boolean): v
   if (cr.stage === 'drawn' && d.orbit >= CLOSES) land(world, rng);
   if (cr.stage === 'campaign') {
     for (const r of cr.rounds) if (!r.done && r.orbit === d.orbit && d.phase === FIGHT_PHASE) playRound(world, rng, r);
-    if (cr.rounds.every((r) => r.done) || cr.entrants.filter((h) => !cr.contingents[h]?.out).length <= 1) finish(world, rng);
+    if (cr.rounds.every((r) => r.done && !r.live) || cr.entrants.filter((h) => !cr.contingents[h]?.out).length <= 1) finish(world, rng);
   }
 }
 

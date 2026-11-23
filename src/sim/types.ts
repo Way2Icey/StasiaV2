@@ -556,4 +556,8 @@ export interface World {
   renown?: Record<string, string>;
   /** Aims, alliances, feuds and the Numarade's favour. */
   realm: import('./houses').RealmState;
+  /** The storyteller's pace, arcs under way, threads on people, long struggles. */
+  story?: import('./storystate').StoryState;
+  /** Battles under way or waiting to be watched. */
+  battles?: import('./battle').BattlesState;
 }
