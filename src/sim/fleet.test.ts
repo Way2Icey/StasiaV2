@@ -1,3 +1,5 @@
+import { refit, retireShip, shipLog } from './fleet';
+import { buildModule } from './holdings';
 import { createWorld } from './world';
 import { advanceTurn } from './tick';
 import { deserialize, serialize } from './save';
@@ -18,8 +20,13 @@ function run(w: World, turns: number): World {
 }
 
 describe('great ships', () => {
-  it('every house has a flagship; great houses two', () => {
-    for (const h of Object.values(world.houses)) expect(shipsOf(world, h.id).length).toBe(h.tier === 'great' ? 2 : 1);
+  it('every house starts with the fleet of its canon or its rank; only Great Houses have flagships', () => {
+    for (const h of Object.values(world.houses)) {
+      const ships = shipsOf(world, h.id);
+      expect(ships.length).toBeGreaterThanOrEqual(3);
+      expect(ships.some((s) => s.cls === 'flagship')).toBe(h.tier === 'great');
+    }
+    expect(shipsOf(world, 'alerion').map((s) => s.cls).sort()).toEqual(['cruiser', 'destroyer', 'destroyer', 'destroyer']);
     expect(powerOf(world, shipsOf(world, P)[0]!)).toBeGreaterThan(0);
   });
 
@@ -64,5 +71,21 @@ describe('great ships', () => {
     const after = w.fleet.ships[s.id]!;
     expect(after.lost || after.crew < s.crew || after.crewMood > 12).toBeTruthy();
     expect(deserialize(serialize(w)).fleet).toEqual(w.fleet);
+  });
+
+  it('refits, a record that earns a name, and laying a ship up with honour', () => {
+    let w = structuredClone(world);
+    const s = shipsOf(w, P).find((x) => x.cls === 'cruiser') ?? shipsOf(w, P)[0]!;
+    w.economy.houses[P]!.stock.othes = 100000; w.economy.houses[P]!.stock.components = 500;
+    if (!Object.values(w.holdings.modules).some((m) => m.kind === 'shipyard' && m.houseId === P && m.sectorId === s.sectorId)) w = buildModule(w, 'shipyard', s.sectorId);
+    for (const m of Object.values(w.holdings.modules)) if (m.kind === 'shipyard' && m.houseId === P) { m.level = Math.max(1, m.level); delete m.works; }
+    const before = powerOf(w, w.fleet.ships[s.id]!);
+    w = refit(w, s.id, 'shardCannons');
+    expect(powerOf(w, w.fleet.ships[s.id]!)).toBeGreaterThan(before);
+    for (let i = 0; i < 5; i++) shipLog(w, w.fleet.ships[s.id]!, 'Fought, and won', 3);
+    expect(w.fleet.ships[s.id]!.epithet).toBeTruthy();
+    w = retireShip(w, s.id, 'honour');
+    expect(w.fleet.ships[s.id]!.lost).toBeTruthy();
+    expect(w.fleet.past?.[0]?.name).toBe(s.name);
   });
 });

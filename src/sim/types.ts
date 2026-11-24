@@ -436,6 +436,17 @@ export interface HouseEconomy {
   lastPhase: LedgerLine[];
   /** Temporary income from deals and finds. */
   boons: Boon[];
+  /** How the house arms its legions: 0 old issue .. 3 the finest in the Archon. */
+  equip?: 0 | 1 | 2 | 3;
+  /** What the house spends on the ceremonies its station owes. */
+  ceremony?: 'modest' | 'fitting' | 'lavish';
+  /** 0..100: the credibility of the house's othes, which are bound commitments. Defaults cost it. */
+  credibility?: number;
+  /** The year the house last held a festival for the Realm. */
+  festivalYear?: number;
+  /** Othes in and out this year and last, by kind. */
+  tally?: Record<string, number>;
+  lastTally?: Record<string, number>;
 }
 
 export interface MarketGood {
@@ -449,6 +460,8 @@ export interface MarketGood {
 export interface Economy {
   houses: Record<string, HouseEconomy>;
   market: Record<GoodId, MarketGood>;
+  /** Where the last scan for ceremonies owed left off (absolute cycle), and the ranks it saw. */
+  ceremonyScan?: { at: number; ranks: Record<string, string> };
   /** How the house pays its knights, champion and councillors. */
   payScale?: 'meagre' | 'fair' | 'generous';
   /** Events out in the Archon pulling prices away from the usual. */

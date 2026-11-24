@@ -1,4 +1,5 @@
 // Loans: only houses lend. Money moves between houses with interest, a term and something put up as security.
+import { credibilityOf, shiftCredibility } from './standing';
 import { Rng } from './rng';
 import { displayName } from './names';
 import { econ, record, heldSectors } from './economy';
@@ -103,7 +104,7 @@ export function creditworthiness(world: World, borrower: string, lender: string)
   const debt = debtOf(world, borrower);
   const income = Math.max(1000, (reservesOf(world, borrower) + econ(world, borrower).stock.othes) / 4);
   const defaults = Object.values(world.loans.loans).filter((l) => l.borrower === borrower && l.status === 'defaulted').length;
-  return clamp(h.standing.honour / 100 - debt / (income * 6) + relation(world, lender, borrower) / 300 - defaults * 0.15, 0, 1);
+  return clamp(h.standing.honour / 100 - debt / (income * 6) + relation(world, lender, borrower) / 300 - defaults * 0.15 + (credibilityOf(world, borrower) - 60) / 200, 0, 1);
 }
 
 /** The rate a lender asks: greedier lenders and shakier borrowers pay more. */
@@ -350,6 +351,8 @@ function defaultLoan(w: World, rng: Rng, l: Loan) {
   const P = w.playerHouseId;
   const b = w.houses[l.borrower]!;
   b.standing.honour = clamp(b.standing.honour - 8, 0, 100);
+  // A broken commitment: every othe the house issues is worth less for it.
+  shiftCredibility(w, l.borrower, -15);
   shiftRelation(w, l.lender, l.borrower, -20);
   l.overdue = true;
   if (l.lender === P || l.borrower === P) {

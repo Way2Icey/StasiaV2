@@ -4,6 +4,7 @@
 import { embargoMarkup } from './lanewatch';
 import { favourQuota, privilegeOf } from './houses';
 import { guardCost } from './chair';
+import { ceremoniesOrbit, credibilityOf, credibilityPhase, standingLines, standingMult, tallyLine } from './standing';
 import { bestBuy, bestSell, clearExchange, marketOrder } from './exchange';
 import { renownOf } from './renown';
 import { Rng } from './rng';
@@ -120,7 +121,8 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
   }
   if (people) lines.push({ resource: 'provisions', amount: -round(people / PEOPLE_PER_PROVISION), label: `Feeding ${people.toLocaleString('en-US')} people`, kind: 'food' });
   const pay = PAY_SCALE[world.economy?.payScale ?? 'fair'];
-  const mult = houseId === world.playerHouseId ? pay.mult : 1;
+  // A house's people are paid like the servants of a house of its station.
+  const mult = (houseId === world.playerHouseId ? pay.mult : 1) * (1 + (standingMult(world, houseId) - 1) * 0.5);
   const seats = alive(world).filter((c) => c.houseId === houseId && c.seat && c.seat !== 'highroy').length;
   if (seats) lines.push({ resource: 'othes', amount: -Math.round(seats * STIPEND * mult), label: `Council stipends (${seats})`, kind: 'stipend' });
   // Knights are paid by their fame; the blooded get an allowance.
@@ -146,6 +148,7 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
   const pupils = Object.values(world.training?.enrolments ?? {}).filter((e) => e.houseId === houseId && e.program === 'academy').length;
   upkeep += pupils * 8;
   if (upkeep) lines.push({ resource: 'othes', amount: -upkeep, label: `Upkeep of holdings (${mods})${pupils ? ` and ${pupils} academy places` : ''}`, kind: 'stipend' });
+  lines.push(...standingLines(world, houseId));
   return lines;
 }
 
@@ -215,6 +218,7 @@ export function computingOf(world: World, houseId: string): { total: number; sou
 export function record(world: World, houseId: string, line: LedgerLine) {
   const e = econ(world, houseId);
   e.stock[line.resource] += line.amount;
+  tallyLine(world, houseId, line);
   e.recent.unshift({ ...line, date: world.date });
   e.recent = e.recent.slice(0, 40);
 }
@@ -237,9 +241,9 @@ export { DEVELOP_COST };
 
 // ---------------------------------------------------------------- the Imperial Exchange
 
-/** Your honour sets what your othes are worth: a markup or a discount, -12%..+20%. */
+/** Your honour, and the credibility of your othes, set what they are worth: a markup or a discount, -12%..+45%. */
 export function credibilityMarkup(world: World, houseId: string): number {
-  return clamp((55 - world.houses[houseId]!.standing.honour) / 250, -0.12, 0.2);
+  return clamp((55 - world.houses[houseId]!.standing.honour) / 250 + Math.max(0, 60 - credibilityOf(world, houseId)) / 150, -0.12, 0.45);
 }
 
 /** What our credit, an embargo and the Numarade's privilege add to anything we buy. */
@@ -317,7 +321,7 @@ export function setTax(input: World, houseId: string, tax: HouseEconomy['tax']):
 
 export function advanceEconomy(world: World, rng: Rng, phaseTurned: boolean, orbitTurned: boolean): void {
   if (!world.economy) return;
-  if (orbitTurned) { deliverQuotas(world); stewardAccounts(world); }
+  if (orbitTurned) { deliverQuotas(world); stewardAccounts(world); ceremoniesOrbit(world, (h, l) => record(world, h, l)); }
   if (!phaseTurned) return;
   for (const houseId of Object.keys(world.houses)) settlePhase(world, rng, houseId);
   clearExchange(world, rng);
@@ -363,8 +367,9 @@ function deliverQuotas(world: World) {
 function settlePhase(world: World, rng: Rng, houseId: string) {
   const e = econ(world, houseId);
   const lines = phaseLedger(world, houseId);
-  for (const l of lines) e.stock[l.resource] += l.amount;
+  for (const l of lines) { e.stock[l.resource] += l.amount; tallyLine(world, houseId, l); }
   e.lastPhase = lines;
+  credibilityPhase(world, houseId);
   e.recent = [];
 
   // Tax mood.

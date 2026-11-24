@@ -10,6 +10,8 @@
 // counted, not named, until a battle gives one of them a reason to matter: the survivor who fled and comes
 // back for the knight who broke the line, the wounded soldier who carried a knight out. Then the game names
 // them, and they carry it.
+import { equipPower } from './standing';
+import { hasWork } from './treasury';
 import { envyOf } from './envy';
 import { Rng } from './rng';
 import { buildWord, displayName, shortName } from './names';
@@ -25,7 +27,7 @@ import { fireStage, makeCtx } from './events';
 import { affinity, houseName, liveHouses, personName, regardOf, shiftRegard, table, type ArchonHouse, type Motion } from './archon';
 import { worthOf, wildLabel, type Wild } from './frontier';
 import { rosterOf } from './crucible';
-import { powerOf, type CapitalShip } from './fleet';
+import { hasFit, lostShip, powerOf, shipLog, type CapitalShip } from './fleet';
 import { kill } from './death';
 import { foundHouse, openWilds } from './archon';
 import { SPECIES } from '../data/species';
@@ -276,12 +278,15 @@ function formationPower(w: World, f: Formation, kind: FrontKind): number {
   const knights = f.knights.map((id) => w.characters[id]).filter((c): c is Character => !!c?.alive);
   const kp = knights.reduce((t, k) => t + fighterPower(k, kind === 'orbit' ? 'ship' : 'surface') * (k.flags.some((x) => x.id === 'caigeBonded') ? 1.4 : 1), 0) / 12;
   const great = shipsAt(w, f).reduce((t, s) => t + powerOf(w, s), 0) / 8;
-  return (Math.sqrt(f.strength / SCALE[f.kind]) * f.quality * (0.5 + f.morale / 200) * (1 + (cmd.skill - 10) / 30) + kp + great) * WEIGHT[kind][f.kind];
+  const arms = f.kind === 'fleet' ? 1 : equipPower(w, f.houseId);
+  return (Math.sqrt(f.strength / SCALE[f.kind]) * f.quality * arms * (0.5 + f.morale / 200) * (1 + (cmd.skill - 10) / 30) + kp + great) * WEIGHT[kind][f.kind];
 }
 
 export function sidePower(w: World, war: War, front: Front, side: 'attackers' | 'defenders'): number {
   const houses = partiesOf(war, side);
-  return Object.values(w.war!.formations).filter((f) => f.front === front.id && houses.includes(f.houseId)).reduce((t, f) => t + formationPower(w, f, front.kind), 0);
+  // A shielded citadel makes the house that raised it far harder to dislodge on its own ground.
+  const shielded = (h: string) => side === 'defenders' && front.kind !== 'orbit' && h === w.playerHouseId && hasWork(w, 'citadel') ? 1.25 : 1;
+  return Object.values(w.war!.formations).filter((f) => f.front === front.id && houses.includes(f.houseId)).reduce((t, f) => t + formationPower(w, f, front.kind) * shielded(f.houseId), 0);
 }
 
 // ---------------------------------------------------------------- grievances
@@ -695,10 +700,14 @@ function settleBattle(w: World, rng: Rng, war: War, fr: Front): void {
   if (fr.kind === 'orbit') for (const f of Object.values(w.war!.formations).filter((x) => x.front === fr.id)) {
     const won = (sideOf(war, f.houseId) === ours) === weWon;
     for (const sh of shipsAt(w, f)) {
+      shipLog(w, sh, won ? `Fought in ${b.title}, and won` : `Fought in ${b.title}, and was beaten`, won ? 3 : 1);
       if (!rng.chance(won ? 0.15 : 0.4)) continue;
-      sh.condition = Math.max(0, sh.condition - rng.int(won ? 8 : 18, won ? 20 : 50));
+      // Shields halve a hit; armour keeps a broken ship together.
+      sh.condition = Math.max(0, sh.condition - rng.int(won ? 8 : 18, won ? 20 : 50) * (hasFit(sh, 'shields') ? 0.5 : 1));
+      if (sh.condition <= 0 && hasFit(sh, 'armour') && rng.chance(0.5)) { sh.condition = 5; shipLog(w, sh, `Held together, barely, in ${b.title}`, 2); }
       if (sh.condition <= 0) {
         sh.lost = { date: w.date, how: `lost in ${b.title}` };
+        lostShip(w, sh, `lost in ${b.title}`);
         const cap0 = sh.captainId ? w.characters[sh.captainId] : undefined;
         if (cap0?.alive && rng.chance(0.5)) kill(w, cap0, w.date, `died aboard the ${sh.name} when she broke apart in ${b.title}`);
         say(w, war, `The ${sh.name} of House ${houseName(w, sh.houseId)} breaks apart and is lost.`, true);
