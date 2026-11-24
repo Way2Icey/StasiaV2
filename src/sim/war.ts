@@ -10,6 +10,7 @@
 // counted, not named, until a battle gives one of them a reason to matter: the survivor who fled and comes
 // back for the knight who broke the line, the wounded soldier who carried a knight out. Then the game names
 // them, and they carry it.
+import { grievedSites, transferSite } from './places';
 import { equipPower } from './standing';
 import { hasWork } from './treasury';
 import { envyOf } from './envy';
@@ -304,6 +305,7 @@ export function grievances(w: World, us: string, them: string): string[] {
   if (regardOf(w, us, them) <= -50) out.push('We hate them, and they know it.');
   if ((w.war?.named ?? []).some((n) => n.houseId === them && n.against && w.characters[n.against]?.houseId === us)) out.push('One of theirs hunts one of ours.');
   if (w.war?.liege[them] === us) out.push('They are sworn to us.');
+  for (const s of grievedSites(w, us, them)) out.push(`They hold ${s.name}, which was ours.`);
   return out;
 }
 
@@ -934,7 +936,9 @@ function takeWorld(w: World, rng: Rng, winner: string, loser: string, named?: st
     const cap0 = w.houses[loser]!.capitalPlanetId;
     const p = Object.values(w.planets).find((x) => x.houseId === loser && x.id !== cap0);
     if (p && isSim(w, winner)) { p.houseId = winner; for (const s of p.sectors) s.controllerFamilyId = null; if (lh) lh.worlds = Math.max(1, lh.worlds - 1); return `House ${L} cedes ${p.name} to House ${W}.`; }
-    // A simulated house's capital is not taken: tribute instead.
+    // A simulated house's capital is not taken: one of its places, if it has one; tribute if not.
+    const site = Object.values(w.places?.sites ?? {}).find((s) => s.holdable && s.holder === loser);
+    if (site && isSim(w, winner)) { transferSite(w, site, winner, 'terms'); return `House ${L} cedes ${site.name} to House ${W}.`; }
     const amount = rnd(4000 + (lh?.might ?? 1) * 3000);
     w.war!.tributes.push({ from: loser, to: winner, amount, until: w.date.year + 5 });
     return `House ${L} has no world to spare beyond its capital, and pays ${fmt(amount)} othes a year for five years instead.`;

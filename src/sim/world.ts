@@ -1,3 +1,4 @@
+import { ensurePlaces } from './places';
 import { CULTURES } from '../data/cultures';
 import { SLICE_HOUSES } from '../data/houses';
 import { SLICE_PLANETS } from '../data/planets';
@@ -188,6 +189,7 @@ export function createWorld(seed: string = DEFAULT_SEED, opts: NewGame = {}): Wo
   ensureExchange(world);
   ensureLegacy(world);
   ensureChair(world);
+  ensurePlaces(world);
   ensureRealm(world);
   ensureStory(world);
   if (ensureArchon(world)) writeHistory(world, true);

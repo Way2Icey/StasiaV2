@@ -99,7 +99,7 @@ function StandingPanels({ run }: { run: (fn: (w: World) => World) => void }) {
         <div className="actions body">
           {(Object.keys(CEREMONY_LABEL) as (keyof typeof CEREMONY_LABEL)[]).map((k) => <button key={k} type="button" className={`btn small${cer === k ? ' primary' : ''}`} title={CEREMONY_NOTE[k]} onClick={() => run((w) => setCeremony(w, k))}>{CEREMONY_LABEL[k]}</button>)}
         </div>
-        <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{CEREMONY_NOTE[cer]} Every knighting, promotion, birth in the Highroy\'s family and funeral of the court is owed one, paid for as it comes.</p>
+        <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{CEREMONY_NOTE[cer]} Every knighting, promotion, birth in the Highroy&apos;s family and funeral of the court is owed one, paid for as it comes.</p>
       </Panel>
       <Panel title={<Term k="credibility">Credibility of our othes</Term>} aside={credibilityWord(cred)} className="span-6">
         <div className="body" style={{ display: 'grid', gap: 6 }}>

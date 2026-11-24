@@ -1,6 +1,7 @@
 // The economy: othes and five resources. Standing flows (quarters, taxes,
 // food, stipends) settle once a Phase; trades, missions and ransoms settle at
 // once. Prices on the Imperial Exchange move with what the houses buy and sell.
+import { siteLines } from './places';
 import { embargoMarkup } from './lanewatch';
 import { favourQuota, privilegeOf } from './houses';
 import { guardCost } from './chair';
@@ -122,7 +123,7 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
   if (people) lines.push({ resource: 'provisions', amount: -round(people / PEOPLE_PER_PROVISION), label: `Feeding ${people.toLocaleString('en-US')} people`, kind: 'food' });
   const pay = PAY_SCALE[world.economy?.payScale ?? 'fair'];
   // A house's people are paid like the servants of a house of its station.
-  const mult = (houseId === world.playerHouseId ? pay.mult : 1) * (1 + (standingMult(world, houseId) - 1) * 0.5);
+  const mult = houseId === world.playerHouseId ? pay.mult * (1 + (standingMult(world, houseId) - 1) * 0.5) : 1 + (standingMult(world, houseId) - 1) * 0.2;
   const seats = alive(world).filter((c) => c.houseId === houseId && c.seat && c.seat !== 'highroy').length;
   if (seats) lines.push({ resource: 'othes', amount: -Math.round(seats * STIPEND * mult), label: `Council stipends (${seats})`, kind: 'stipend' });
   // Knights are paid by their fame; the blooded get an allowance.
@@ -148,7 +149,7 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
   const pupils = Object.values(world.training?.enrolments ?? {}).filter((e) => e.houseId === houseId && e.program === 'academy').length;
   upkeep += pupils * 8;
   if (upkeep) lines.push({ resource: 'othes', amount: -upkeep, label: `Upkeep of holdings (${mods})${pupils ? ` and ${pupils} academy places` : ''}`, kind: 'stipend' });
-  lines.push(...standingLines(world, houseId));
+  lines.push(...standingLines(world, houseId), ...siteLines(world, houseId));
   return lines;
 }
 

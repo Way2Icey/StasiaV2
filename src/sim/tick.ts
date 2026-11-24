@@ -1,3 +1,4 @@
+import { advancePlaces } from './arcs_places';
 import { advanceEvents } from './events';
 import { advanceStory } from './story';
 import { advanceCrash, checkDebt, marketShocks, maybeCrash } from './arcs_economy';
@@ -106,6 +107,7 @@ function stepInPlace(world: World): void {
   if (crossed.years > 0) { maybeCrash(world, rng); checkDebt(world); yearlyStories(world, rng); shipStories(world, rng); }
   { const promoted = advanceLegacy(world, rng, crossed); if (crossed.years > 0) legacyStories(world, rng, promoted); }
   advanceChair(world, rng, crossed);
+  advancePlaces(world, rng, crossed);
   if (crossed.years > 0) { tendCircles(world); standingYear(world); }
   lapseRansoms(world);
   advanceCouncil(world, rng, crossed.phases > 0, crossed.orbits > 0);

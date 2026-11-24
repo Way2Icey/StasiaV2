@@ -25,10 +25,10 @@ const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 export type CapitalClass = 'flagship' | 'carrier' | 'cruiser' | 'destroyer';
 export interface CapitalClassDef { label: string; crew: number; upkeep: number; power: number; cost: number; components: number; slots: number; refits: number; note: string }
 export const CAPITAL_CLASSES: Record<CapitalClass, CapitalClassDef> = {
-  flagship: { label: 'Flagship', crew: 2000, upkeep: 1000, power: 55, cost: 140000, components: 600, slots: 4, refits: 3, note: 'A Great House\'s command ship and its pride: the Grand Master\'s deck, a city\'s worth of crew, the house\'s whole treasury afloat. Only one at a time, and only for a Great House.' },
-  carrier: { label: 'Carrier', crew: 800, upkeep: 650, power: 26, cost: 50000, components: 250, slots: 3, refits: 2, note: 'Fights through its fighter wings, and carries troops to an assault: a hangar makes it.' },
-  cruiser: { label: 'Cruiser', crew: 400, upkeep: 380, power: 20, cost: 26000, components: 120, slots: 2, refits: 2, note: 'The heart of a house\'s fleet: a command ship for a Minor House, a ship of the line for a Great one.' },
-  destroyer: { label: 'Destroyer', crew: 300, upkeep: 170, power: 11, cost: 12000, components: 60, slots: 1, refits: 1, note: 'Escort and fast strike: screens the heavier ships, hunts corsairs, and goes where it is sent.' },
+  flagship: { label: 'Flagship', crew: 2000, upkeep: 900, power: 55, cost: 140000, components: 600, slots: 4, refits: 3, note: 'A Great House\'s command ship and its pride: the Grand Master\'s deck, a city\'s worth of crew, the house\'s whole treasury afloat. Only one at a time, and only for a Great House.' },
+  carrier: { label: 'Carrier', crew: 800, upkeep: 500, power: 26, cost: 50000, components: 250, slots: 3, refits: 2, note: 'Fights through its fighter wings, and carries troops to an assault: a hangar makes it.' },
+  cruiser: { label: 'Cruiser', crew: 400, upkeep: 300, power: 20, cost: 26000, components: 120, slots: 2, refits: 2, note: 'The heart of a house\'s fleet: a command ship for a Minor House, a ship of the line for a Great one.' },
+  destroyer: { label: 'Destroyer', crew: 300, upkeep: 100, power: 11, cost: 12000, components: 60, slots: 1, refits: 1, note: 'Escort and fast strike: screens the heavier ships, hunts corsairs, and goes where it is sent.' },
 };
 /** Old saves named their ships by older classes. */
 const OLD_CLASS: Record<string, CapitalClass> = { dreadnought: 'flagship', battlecruiser: 'cruiser' };
@@ -135,8 +135,8 @@ const CANON_FLEETS: Record<string, CapitalClass[]> = {
 };
 function startingFleet(h: World['houses'][string]): CapitalClass[] {
   if (CANON_FLEETS[h.id]) return CANON_FLEETS[h.id]!;
-  if (h.tier === 'great') return ['flagship', 'cruiser', 'destroyer', 'destroyer'];
-  return h.personality.aggression > 0.6 ? ['cruiser', 'destroyer', 'destroyer', 'destroyer'] : ['cruiser', 'destroyer', 'destroyer'];
+  if (h.tier === 'great') return ['flagship', 'cruiser', 'destroyer'];
+  return h.personality.aggression > 0.6 ? ['cruiser', 'destroyer', 'destroyer'] : ['cruiser', 'destroyer'];
 }
 
 export function ensureFleet(world: World): void {
@@ -374,20 +374,24 @@ function arrive(w: World, s: CapitalShip) {
 function payUpkeep(w: World, s: CapitalShip) {
   const cost = upkeepOf(s, w);
   const e = econ(w, s.houseId);
-  if (e.stock.othes >= cost) {
+  // A house will go into debt to pay its crews before it lets them starve; deep in debt, it cannot.
+  if (e.stock.othes - cost > -10000) {
     record(w, s.houseId, { resource: 'othes', amount: -cost, label: `Upkeep: the ${s.name}`, kind: 'stipend' });
     s.unpaid = 0;
   } else {
+    // A crew will wait a Phase or two for its pay; after that, every Phase unpaid sours it faster.
     s.unpaid = (s.unpaid ?? 0) + 1;
-    s.crewMood = clamp(s.crewMood - 10, 0, 100);
-    if (s.houseId === w.playerHouseId) logRecord(w, { kind: 'world', type: 'economy', severity: 2, text: `The crew of the ${s.name} went unpaid this Phase.`, effects: ['Crew mood −10'] });
+    const hit = Math.min(10, 2 + s.unpaid * 2);
+    s.crewMood = clamp(s.crewMood - hit, 0, 100);
+    if (s.houseId === w.playerHouseId) logRecord(w, { kind: 'world', type: 'economy', severity: 2, text: `The crew of the ${s.name} went unpaid this Phase${s.unpaid > 1 ? `, ${s.unpaid} Phases running` : ''}.`, effects: [`Crew mood −${hit}`] });
   }
 }
 
 function crewLife(w: World, rng: Rng, s: CapitalShip) {
   const cap = s.captainId ? w.characters[s.captainId] : undefined;
   if (s.captainId && !cap?.alive) s.captainId = null;
-  let d = (cap?.alive ? (cap.stats.leadership - 10) / 4 : -2) + rng.gauss();
+  // Without a captain, a lieutenant keeps order in harbour, if not at sea.
+  let d = (cap?.alive ? (cap.stats.leadership - 10) / 4 : s.duty === 'harbour' && !s.arrives ? -0.3 : -2) + rng.gauss();
   if (s.duty === 'harbour' && !s.arrives) {
     d -= 0.8;
     const yard = Object.values(w.holdings?.modules ?? {}).some((m) => m.kind === 'shipyard' && m.sectorId === s.sectorId && m.houseId === s.houseId && m.level > 0);

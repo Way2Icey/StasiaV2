@@ -46,6 +46,7 @@ export type Route =
   | { kind: 'history' }
   | { kind: 'legacy' }
   | { kind: 'chair' }
+  | { kind: 'places' }
   | { kind: 'frontier' }
   | { kind: 'newgame' }
   | { kind: 'war' }
@@ -62,7 +63,7 @@ export function sectionOf(r: Route): Section | null {
     case 'people': return r.view === 'ambitions' ? 'court' : 'people';
     case 'training': case 'character': case 'trait': case 'flag': case 'species': case 'band': case 'family': return 'people';
     case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': case 'war': return 'arms';
-    case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'houses': case 'house': case 'embassies': case 'lanes': case 'numarade': case 'history': case 'frontier': case 'legacy': case 'chair': return 'realm';
+    case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'houses': case 'house': case 'embassies': case 'lanes': case 'numarade': case 'history': case 'frontier': case 'legacy': case 'chair': case 'places': return 'realm';
     case 'economy': case 'loans': case 'vaults': case 'spend': return 'treasury';
     case 'missions': case 'mission': case 'plan': return 'missions';
     case 'log': return 'log';
@@ -114,6 +115,7 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
   realm: [
     { label: 'Star map', to: { kind: 'worlds' }, on: (r) => r.kind === 'worlds' || r.kind === 'planet' || r.kind === 'sector' || r.kind === 'port' },
     { label: 'Holdings', to: { kind: 'holdings' }, on: is('holdings') },
+    { label: 'Places', to: { kind: 'places' }, on: is('places') },
     { label: 'Build', to: { kind: 'build' }, on: is('build') },
     { label: 'Houses', to: { kind: 'houses' }, on: (r) => r.kind === 'houses' || r.kind === 'house' },
     { label: 'Numarade', to: { kind: 'numarade' }, on: is('numarade') },
@@ -192,6 +194,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'history': return 'Annals of the Archon';
     case 'legacy': return 'Legacy';
     case 'chair': return 'The Chair';
+    case 'places': return 'Places';
     case 'frontier': return 'The frontier';
     case 'newgame': return 'New game';
     case 'war': return 'War';

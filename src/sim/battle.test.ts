@@ -118,6 +118,8 @@ describe('the Crucible is fought live', () => {
       if (seen) seen = battleOf(w, seen.id);
     }
     if (!entered) return; // not drawn in this world's first years: nothing to see
+    // Drawn, but never met another house at a location: no clash of ours to fight.
+    if (!seen) { expect(w.crucible.rounds.every((r) => r.battles.every((b) => !b.sides.includes(P)))).toBe(true); return; }
     expect(seen?.theatre).toBe('surface');
     expect(seen?.applied).toBe(true);
     expect(w.crucible.rounds.some((r) => r.battles.some((b) => b.locationId === seen!.ref))).toBe(true);

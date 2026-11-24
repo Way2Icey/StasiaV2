@@ -609,6 +609,7 @@ export interface World {
   story?: import('./storystate').StoryState;
   /** The Exarchon's chair: promises, legitimacy, guards on our people, and the chair itself when it is ours. */
   chair?: import('./chair').ChairState;
+  places?: import('./places').PlacesState;
   /** Battles under way or waiting to be watched. */
   battles?: import('./battle').BattlesState;
 }

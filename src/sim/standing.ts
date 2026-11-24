@@ -50,7 +50,8 @@ function soldiers(w: World, houseId: string): number {
 /** The standing costs, a Phase: equipment, the court, the famous, and what a Great House owes the Archon. */
 export function standingLines(w: World, houseId: string): LedgerLine[] {
   const out: LedgerLine[] = [];
-  const S = standingMult(w, houseId);
+  // Other houses keep simpler books, and cannot cut back the way a player can: they pay half.
+  const S = standingMult(w, houseId) * (houseId === w.playerHouseId ? 1 : 0.5);
   const eq = equipOf(w, houseId);
   const arms = round(soldiers(w, houseId) * EQUIP_COST[eq]);
   if (arms) out.push({ resource: 'othes', amount: -arms, label: `Arms of the legions: ${EQUIP_LABEL[eq].toLowerCase()}`, kind: 'forces' });
@@ -61,12 +62,12 @@ export function standingLines(w: World, houseId: string): LedgerLine[] {
     circle++;
     if (c.name.epithet && c.seat !== 'highroy') famous++;
   }
-  const court = round((circle * 3 + household * 0.3) * S);
+  const court = round((circle * 2.5 + household * 0.3) * S);
   if (court) out.push({ resource: 'othes', amount: -court, label: `The court and household (${circle} at court)`, kind: 'stipend' });
   if (famous) out.push({ resource: 'othes', amount: -round(famous * 20 * S), label: `The famous, whom other houses court (${famous})`, kind: 'stipend' });
   const n = w.archon?.numarade;
   const great = (w.houses[houseId]?.tier) === 'great';
-  if (great) out.push({ resource: 'othes', amount: -round(120 * S), label: 'A Great House\'s dues to the Numarade', kind: 'stipend' });
+  if (great) out.push({ resource: 'othes', amount: -round(90 * S), label: 'A Great House\'s dues to the Numarade', kind: 'stipend' });
   else if (n?.seats.includes(houseId)) out.push({ resource: 'othes', amount: -round(50 * S), label: 'Keeping a seat in the Numarade', kind: 'stipend' });
   if (n?.exarchon?.houseId === houseId) out.push({ resource: 'othes', amount: -round(300 * S), label: 'The Exarchon\'s household', kind: 'stipend' });
   return out;

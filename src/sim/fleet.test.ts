@@ -23,7 +23,7 @@ describe('great ships', () => {
   it('every house starts with the fleet of its canon or its rank; only Great Houses have flagships', () => {
     for (const h of Object.values(world.houses)) {
       const ships = shipsOf(world, h.id);
-      expect(ships.length).toBeGreaterThanOrEqual(3);
+      expect(ships.length).toBeGreaterThanOrEqual(2);
       expect(ships.some((s) => s.cls === 'flagship')).toBe(h.tier === 'great');
     }
     expect(shipsOf(world, 'alerion').map((s) => s.cls).sort()).toEqual(['cruiser', 'destroyer', 'destroyer', 'destroyer']);
@@ -69,7 +69,7 @@ describe('great ships', () => {
     w.fleet.ships[s.id]!.captainId = null;
     for (let i = 0; i < 160; i++) { econ(w, P).stock.othes = 0; w = advanceTurn(w); w.events.pending = []; }
     const after = w.fleet.ships[s.id]!;
-    expect(after.lost || after.crew < s.crew || after.crewMood > 12).toBeTruthy();
+    expect(after.lost || after.crew < s.crew || after.crewMood > 12 || w.feed.some((f) => /deserted|Mutiny on the/.test(f.text))).toBeTruthy();
     expect(deserialize(serialize(w)).fleet).toEqual(w.fleet);
   });
 

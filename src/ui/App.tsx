@@ -1,5 +1,6 @@
 import { LegacyPage } from './legacy';
 import { ChairPage } from './chair';
+import { PlacesPage } from './places';
 import { PersonMenuLayer, Toast } from './personmenu';
 import { RenownPage } from './realm';
 import { VERSION } from '../version';
@@ -282,6 +283,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'history': return <HistoryPage />;
     case 'legacy': return <LegacyPage />;
     case 'chair': return <ChairPage />;
+    case 'places': return <PlacesPage />;
     case 'frontier': return <FrontierPage />;
     case 'newgame': return <NewGamePage setWorld={setWorld} />;
     case 'war': return <WarPage />;
