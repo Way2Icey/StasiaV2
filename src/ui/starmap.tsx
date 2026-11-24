@@ -194,7 +194,7 @@ export function StarMapPage() {
   const ports = p.sectors.filter((s) => s.port !== 'none');
   return (
     <>
-      <div className="page-title"><h2>Star map</h2><p>The Reaches as your people know them. Pick a world; press 1–9 to change screens.</p></div>
+      <div className="page-title"><h2>Star map</h2><p>The Reaches as your people know them. Pick a world; press 0–9 to change screens.</p></div>
       <div className="grid">
         <Panel title="The Reaches" aside={`${Object.keys(world.planets).length} worlds · ${activeMissions(world, P).length} of ours in flight`} className="major span-8">
           <div className="body map-wrap"><MapText world={world} selected={selected} pick={setSelected} /></div>
@@ -242,7 +242,7 @@ export function StarMapPage() {
             </div>
           </Panel>
           <Panel title="Ours across the Reaches">
-            <div className="body actions"><Go to={{ kind: 'fleet' }} className="btn small">Fleet ›</Go><Go to={{ kind: 'holdings' }} className="btn small">Holdings ›</Go><Go to={{ kind: 'build' }} className="btn small">Build ›</Go></div>
+            <div className="body actions"><Go to={{ kind: 'fleet' }} className="btn small">Fleet ›</Go><Go to={{ kind: 'holdings' }} className="btn small">Holdings & build ›</Go><Go to={{ kind: 'places' }} className="btn small">Places ›</Go></div>
           </Panel>
           <Panel title={<Term k="holdings">All worlds</Term>}>
             {Object.values(world.planets).map((w) => (

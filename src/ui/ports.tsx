@@ -1,6 +1,8 @@
 // The port authority: traffic, the file on each ship, standing orders and the
 // watchlist. Plus the raid warning that sits in the Hall.
-import { Fragment, useState } from 'react';
+import { Peek } from './links';
+import { useInspect } from './context';
+import { Fragment, useEffect, useState } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, PersonLink, PlanetLink } from './links';
 import { Term } from './tip';
@@ -48,7 +50,9 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
   const ours = isOurs(world, id);
   const post = postAt(world, id);
   const list = all.filter((s) => filter === 'all' || (filter === 'arriving' ? s.status === 'inbound' || s.status === 'docked' || s.status === 'held' : filter === 'leaving' ? s.status === 'departed' : filter === 'held' ? s.status === 'held' : flagged(s)));
-  const ship = sel ? world.ports.ships[sel] : undefined;
+  const ins = useInspect();
+  // Arriving here for one ship: open its file at once.
+  useEffect(() => { if (initial && world.ports?.ships[initial]) ins.open({ k: 'portShip', id: initial }); }, [initial]); // eslint-disable-line react-hooks/exhaustive-deps
   const hm = harbourmaster(world, id);
   const inPort = all.filter((s) => s.status === 'docked' || s.status === 'held').length;
   const berths = BERTHS[sector.port];
@@ -69,7 +73,7 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
         </div>
       ) : null}
       <div className="grid">
-        <Panel title="Traffic board" aside={`${inPort} in port · ${all.filter((s) => s.status === 'inbound').length} inbound`} className="major span-8">
+        <Panel title="Traffic board" aside={`${inPort} in port · ${all.filter((s) => s.status === 'inbound').length} inbound`} className="major span-12">
           <div className="filters body" style={{ paddingBottom: 0 }}>
             {(['all', 'arriving', 'leaving', 'held', 'flagged'] as Filter[]).map((f) => (
               <button key={f} type="button" className="pill" aria-pressed={filter === f} onClick={() => setFilter(f)}>{f.toUpperCase()}</button>
@@ -81,10 +85,10 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
               <tbody>
                 {list.length === 0 ? <tr><td colSpan={8} className="muted">No ships.</td></tr> : null}
                 {list.map((s) => (
-                  <tr key={s.id} className={`clickable${sel === s.id ? ' sel' : ''}${s.status === 'departed' ? ' gone' : ''}`} onClick={() => setSel(s.id)}>
+                  <tr key={s.id} className={`clickable${sel === s.id ? ' sel' : ''}${s.status === 'departed' ? ' gone' : ''}`} onClick={() => { setSel(s.id); ins.open({ k: 'portShip', id: s.id }); }}>
                     <td>{when(s)}</td>
                     <td>{s.status === 'departed' ? '▲' : '▼'}</td>
-                    <td><button type="button" className="linklike" onClick={(e) => { e.stopPropagation(); setSel(s.id); }}>{s.name}</button></td>
+                    <td><button type="button" className="linklike" onClick={(e) => { e.stopPropagation(); setSel(s.id); ins.open({ k: 'portShip', id: s.id }); }}>{s.name}</button></td>
                     <td>{s.cls}</td>
                     <td>{s.status === 'departed' ? `→ ${placeLabel(world, s.to)}` : placeLabel(world, s.from)}</td>
                     <td>{flagLabel(world, s.flag).toUpperCase()}</td>
@@ -95,12 +99,9 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
               </tbody>
             </table>
           </div>
-          <p className="body keyhint" style={{ margin: 0, fontSize: 12 }}>▼ arriving · ▲ leaving · ! customs found something · ● someone on your watchlist</p>
+          <p className="body keyhint" style={{ margin: 0, fontSize: 12 }}>▼ arriving · ▲ leaving · ! customs found something · ● someone on your watchlist · pick a ship to open its file</p>
         </Panel>
 
-        <div className="span-4 stack">
-          {ship ? <Dossier ship={ship} /> : <Panel title="Ship file"><p className="body muted" style={{ margin: 0 }}>Pick a ship from the board.</p></Panel>}
-        </div>
 
         {ours ? <Panel title="Port status" aside={sector.port} className="span-4">
           <div className="body">
@@ -167,13 +168,13 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
             </div>
           </Panel>
         </div>
-        {ours ? <Register className="span-12" onPick={(shipId) => setSel(shipId)} /> : null}
+        {ours ? <Register className="span-12" onPick={(shipId) => { setSel(shipId); ins.open({ k: 'portShip', id: shipId }); }} /> : null}
       </div>
     </>
   );
 }
 
-function Dossier({ ship }: { ship: Ship }) {
+export function Dossier({ ship }: { ship: Ship }) {
   const world = useWorld();
   const game = useGame();
   const agent = agentAvailable(world);
@@ -273,7 +274,7 @@ export function Watchlist() {
           <div key={id} className="row" style={{ fontSize: 13 }}>
             <span>{s ? '●' : ' '}</span>
             <PersonById id={id} />
-            <span className="muted" style={{ marginLeft: 'auto' }}>{s ? <Go to={{ kind: 'port', id: s.sectorId, ship: s.id }}>{`DOCKED · ${s.name}`}</Go> : 'not seen'}</span>
+            <span className="muted" style={{ marginLeft: 'auto' }}>{s ? <Peek t={{ k: 'portShip', id: s.id }}>{`DOCKED · ${s.name}`}</Peek> : 'not seen'}</span>
             <button type="button" className="btn small" aria-label="Stop watching" onClick={() => game.update((w) => toggleWatch(w, id))}>×</button>
           </div>
         );

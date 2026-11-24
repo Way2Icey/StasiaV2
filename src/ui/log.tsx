@@ -1,4 +1,5 @@
 // The Log: every record in one place, one line each, the same card for all.
+import { Peek } from './links';
 import { useMemo, useState } from 'react';
 import { useNav, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, PlanetLink, SectorLink } from './links';
@@ -125,7 +126,7 @@ export function RecordCard({ row }: { row: Row }) {
         {e.effects?.length ? <><dt>Effects</dt><dd style={{ display: 'grid', gap: 2 }}>{e.effects.map((x, i) => <span key={i}>› {x}</span>)}</dd></> : null}
         <dt>Source</dt><dd>{e.source ?? "the house's own people"}</dd>
         {e.missionId && world.missions[e.missionId] ? <><dt>Mission</dt><dd><Go to={{ kind: 'mission', id: e.missionId }}>open the mission ›</Go></dd></> : null}
-        {ship ? <><dt>Ship</dt><dd><Go to={{ kind: 'port', id: ship.sectorId, ship: ship.id }}>{ship.name} ›</Go></dd></> : null}
+        {ship ? <><dt>Ship</dt><dd><Peek t={{ k: 'portShip', id: ship.id }}>{ship.name} ›</Peek></dd></> : null}
         {cause ? <><dt>Follows from</dt><dd>{cause.text}</dd></> : null}
       </dl>
     </div>

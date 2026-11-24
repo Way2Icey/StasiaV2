@@ -1,6 +1,7 @@
 // The Hall: the home screen in the terminal look. A drawing of the throne room
 // that follows the house's state, the council as a table, and the Desk, where
 // everything waiting on the Highroy lands.
+import { Peek } from './links';
 import { readyForCommand } from '../sim/missions';
 import { answerBlooding, LOCAL_COST, readinessText } from '../sim/ladder';
 import { councilViews, tally as tallyViews } from '../sim/views';
@@ -17,7 +18,7 @@ import { answerAsk } from '../sim/loans';
 import { dismissLead, recruit } from '../sim/discovery';
 import { ageOf } from '../sim/characters';
 import { useState, type ReactNode } from 'react';
-import { useGame, useNav, useWorld } from './context';
+import { useGame, useInspect, useNav, useWorld } from './context';
 import { AudienceCard } from './ambitions';
 import { AMBITION_LABEL } from '../sim/ambitions';
 import { CLOSES, currentRound } from '../sim/crucible';
@@ -215,6 +216,7 @@ export function Desk({ className }: { className?: string }) {
   const world = useWorld();
   const game = useGame();
   const nav = useNav();
+  const ins = useInspect();
   const P = world.playerHouseId;
   const [open, setOpen] = useState<string | null>(null);
   const [tabPick, setTabPick] = useState<DeskTab | null>(null);
@@ -283,12 +285,12 @@ export function Desk({ className }: { className?: string }) {
       const hm = harbourmaster(world, s.sectorId);
       const found = s.cargo.filter((c) => c.found && c.hidden).map((c) => c.label);
       items.push({ id: s.id, mark: '[⚓]', kind: 'HELD', text: <>{hm ? `${hm.name.given}, harbourmaster: ` : 'Customs: '}we hold the {s.name} at {findSector(world, s.sectorId)?.sector.name}</>, open: () => setOpen((o) => (o === s.id ? null : s.id)),
-        detail: <span className="muted" style={{ fontSize: 12 }}>Sent up through the Steward. {found.length ? `Found aboard: ${found.join(', ')}.` : 'Papers out of order.'} Fine them and let them go, release them, or jail the captain. <button type="button" className="linklike" onClick={() => nav.to({ kind: 'port', id: s.sectorId, ship: s.id })}>The ship ›</button></span>,
+        detail: <span className="muted" style={{ fontSize: 12 }}>Sent up through the Steward. {found.length ? `Found aboard: ${found.join(', ')}.` : 'Papers out of order.'} Fine them and let them go, release them, or jail the captain. <Peek t={{ k: 'portShip', id: s.id }}>The ship ›</Peek></span>,
         acts: [{ label: 'Fine', primary: true, run: (w) => fineShip(w, s.id) }, { label: 'Release', run: (w) => releaseShip(w, s.id) }, { label: 'Jail captain', run: (w) => jailCaptain(w, s.id) }] });
     }
     else if (s.status === 'docked' && s.aboard.some((a) => a.characterId && world.ports.watch.includes(a.characterId))) {
       const a = s.aboard.find((x) => x.characterId && world.ports.watch.includes(x.characterId))!;
-      items.push({ id: `w-${s.id}`, mark: '[●]', kind: 'WATCH', text: <>{a.name} docked · {s.name}</>, open: () => nav.to({ kind: 'port', id: s.sectorId, ship: s.id }) });
+      items.push({ id: `w-${s.id}`, mark: '[●]', kind: 'WATCH', text: <>{a.name} docked · {s.name}</>, open: () => ins.open({ k: 'portShip', id: s.id }) });
     }
   }
   for (const pet of world.courts[P]?.petitions ?? []) {

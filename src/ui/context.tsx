@@ -57,3 +57,18 @@ export const PersonMenuContext = createContext<PersonMenu>({ open: () => {} });
 export function usePersonMenu(): PersonMenu {
   return useContext(PersonMenuContext);
 }
+
+/** What the inspector can open: anything with a card. */
+export type Inspect =
+  | { k: 'person'; id: string }
+  | { k: 'ship'; id: string }
+  | { k: 'portShip'; id: string }
+  | { k: 'site'; id: string }
+  | { k: 'relic'; id: string }
+  | { k: 'planet'; id: string }
+  | { k: 'sector'; id: string }
+  | { k: 'module'; id: string }
+  | { k: 'house'; id: string };
+export interface Inspector { open: (t: Inspect) => void; close: () => void }
+export const InspectContext = createContext<Inspector>({ open: () => {}, close: () => {} });
+export const useInspect = (): Inspector => useContext(InspectContext);

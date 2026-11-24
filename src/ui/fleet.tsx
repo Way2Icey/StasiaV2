@@ -1,4 +1,5 @@
 // Great ships: the fleet list, a ship's own page, and ships at a world.
+import { Peek } from './links';
 import { useState } from 'react';
 import { useGame, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonLink, SectorLink } from './links';
@@ -32,7 +33,7 @@ function where(world: World, s: CapitalShip): string {
 }
 
 export function ShipLink({ s }: { s: CapitalShip }) {
-  return <Go to={{ kind: 'ship', id: s.id }}>{s.name}</Go>;
+  return <Peek t={{ k: 'ship', id: s.id }}>{s.name}</Peek>;
 }
 
 /** All our great ships; new ones are laid down at a shipyard. */

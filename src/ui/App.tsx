@@ -1,3 +1,6 @@
+import { InspectLayer, PortShipHead } from './inspect';
+import { InspectContext, type Inspect, type Inspector } from './context';
+import { Dossier } from './ports';
 import { LegacyPage } from './legacy';
 import { ChairPage } from './chair';
 import { PlacesPage } from './places';
@@ -149,6 +152,13 @@ export function App() {
     if (s) { setScene(s.id); clock.setRunning(false); }
   }, [world, scene, battle, moments, clock]);
   const game: Game = useMemo(() => ({ update: (fn) => setWorld((w) => fn(w)), reveal, setReveal }), [reveal]);
+  // The inspector: cards over the page, with a short trail of what was opened from what.
+  const [peek, setPeek] = useState<Inspect[]>([]);
+  const inspector: Inspector = useMemo(() => ({
+    open: (t) => { setHovered(null); setMenu(null); setPeek((s) => (s.length && JSON.stringify(s[s.length - 1]) === JSON.stringify(t) ? s : [...s.slice(-7), t])); },
+    close: () => setPeek([]),
+  }), []);
+  useEffect(() => { setPeek([]); }, [history]);
 
   const parts = dateParts(world.date);
   const house = world.houses[world.playerHouseId]!;
@@ -167,6 +177,7 @@ export function App() {
         <HoverContext.Provider value={hover}>
         <PersonMenuContext.Provider value={personMenu}>
           <GameContext.Provider value={game}>
+          <InspectContext.Provider value={inspector}>
           <div className="app">
             <header className="topbar">
               <button type="button" className="crest" onClick={() => nav.to({ kind: 'house', id: house.id })} aria-label={`Open House ${house.name}`}>
@@ -232,6 +243,8 @@ export function App() {
             {scene && !battle ? <SceneWindow id={scene} onClose={() => { setWorld((w) => { const x = w.scenes?.list.find((y) => y.id === scene); if (x && !x.prompted) { const c = structuredClone(w); c.scenes!.list.find((y) => y.id === scene)!.prompted = true; return c; } return w; }); setScene(null); }} /> : null}
             {hovered && !menu ? <HoverCard id={hovered.id} x={hovered.x} y={hovered.y} above={hovered.above} reveal={reveal} keep={() => window.clearTimeout(hideTimer.current)} leave={hover.hide} /> : null}
           </div>
+          {peek.length ? <InspectLayer stack={peek} onBack={() => setPeek((s) => s.slice(0, -1))} onClose={() => setPeek([])} portShip={(id) => (world.ports?.ships[id] ? <><PortShipHead id={id} /><Dossier ship={world.ports.ships[id]!} /></> : <p className="muted">That ship has gone.</p>)} /> : null}
+          </InspectContext.Provider>
           </GameContext.Provider>
         </PersonMenuContext.Provider>
         </HoverContext.Provider>

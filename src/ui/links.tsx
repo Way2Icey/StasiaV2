@@ -7,7 +7,7 @@ import { TRAITS_BY_ID, traitLabel } from '../data/traits';
 import { FLAGS_BY_ID } from '../data/flags';
 import { SPECIES } from '../data/species';
 import type { Character, FlagInstance, TraitInstance } from '../sim/types';
-import { useHover, useNav, usePersonMenu, useWorld } from './context';
+import { useHover, useInspect, useNav, usePersonMenu, useWorld } from './context';
 import type { Route } from './router';
 import { useSee } from './fog';
 
@@ -28,7 +28,7 @@ export function Go({ to, children, className, title }: { to: Route; children: Re
 }
 
 export function PersonLink({ c, short }: { c: Character; short?: boolean }) {
-  const nav = useNav();
+  const ins = useInspect();
   const hover = useHover();
   const menu = usePersonMenu();
   // Long-press on a touch screen opens the same menu (iOS never sends a context-menu event).
@@ -42,7 +42,7 @@ export function PersonLink({ c, short }: { c: Character; short?: boolean }) {
       title="Right-click for decisions"
       onContextMenu={(e) => { e.preventDefault(); hover.hide(); menu.open(c.id, e.clientX, e.clientY); }}
       onKeyDown={(e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); hover.hide(); menu.open(c.id, r.left, r.bottom + 4); } }}
-      onClick={() => { if (press.current.fired) { press.current.fired = false; return; } hover.hide(); nav.to({ kind: 'character', id: c.id }); }}
+      onClick={(e) => { e.stopPropagation(); if (press.current.fired) { press.current.fired = false; return; } hover.hide(); ins.open({ k: 'person', id: c.id }); }}
       onTouchStart={(e) => { const t = e.touches[0]; if (!t) return; const x = t.clientX; const y = t.clientY; press.current.fired = false; endPress(); press.current.t = window.setTimeout(() => { press.current.fired = true; hover.hide(); menu.open(c.id, x, y); }, 480); }}
       onTouchEnd={(e) => { endPress(); if (press.current.fired) e.preventDefault(); }}
       onTouchMove={endPress}
@@ -63,9 +63,15 @@ export function PersonById({ id }: { id: string | null | undefined }) {
   return c ? <PersonLink c={c} /> : <span className="muted">—</span>;
 }
 
+/** Opens a card over the page rather than leaving it. */
+export function Peek({ t, children, className, title }: { t: import('./context').Inspect; children: ReactNode; className?: string; title?: string }) {
+  const ins = useInspect();
+  return <button type="button" className={className ?? 'linklike'} title={title} onClick={(e) => { e.stopPropagation(); ins.open(t); }}>{children}</button>;
+}
+
 export function HouseLink({ id }: { id: string }) {
   const world = useWorld();
-  return <Go to={{ kind: 'house', id }}>{world.houses[id]?.name ?? world.archon?.houses[id]?.name ?? id}</Go>;
+  return <Peek t={{ k: 'house', id }}>{world.houses[id]?.name ?? world.archon?.houses[id]?.name ?? id}</Peek>;
 }
 
 export function FamilyLink({ id, prefix }: { id: string; prefix?: boolean }) {
@@ -77,7 +83,7 @@ export function FamilyLink({ id, prefix }: { id: string; prefix?: boolean }) {
 
 export function PlanetLink({ id }: { id: string }) {
   const world = useWorld();
-  return <Go to={{ kind: 'planet', id }}>{world.planets[id]?.name ?? id}</Go>;
+  return <Peek t={{ k: 'planet', id }}>{world.planets[id]?.name ?? id}</Peek>;
 }
 
 export function SectorLink({ id, withPlanet }: { id: string; withPlanet?: boolean }) {
@@ -86,7 +92,7 @@ export function SectorLink({ id, withPlanet }: { id: string; withPlanet?: boolea
   if (!found) return <span className="muted">—</span>;
   return (
     <span>
-      <Go to={{ kind: 'sector', id }}>{found.sector.name}</Go>
+      <Peek t={{ k: 'sector', id }}>{found.sector.name}</Peek>
       {withPlanet ? <>, <PlanetLink id={found.planet.id} /></> : null}
     </span>
   );

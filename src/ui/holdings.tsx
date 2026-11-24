@@ -1,4 +1,5 @@
 // Holdings: cells, vaults and academies the house has built, and what is in them.
+import { Peek } from './links';
 import { Fragment, useState } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, PersonLink, SectorLink } from './links';
@@ -393,7 +394,7 @@ export function SectorHoldings({ sectorId }: { sectorId: string }) {
     return (
       <Panel title={<Term k="modules">Holdings</Term>} aside="as far as we know" className="span-12">
         <p className="body" style={{ margin: 0 }}>
-          {mods.length ? mods.map((m) => `${MODULE_LABEL[m.kind]} (level ${m.level})`).join(' · ') : 'Nothing of note built here.'}
+          {mods.length ? mods.map((m, i) => <span key={m.id}>{i ? ' · ' : ''}<Peek t={{ k: 'module', id: m.id }}>{`${MODULE_LABEL[m.kind]} (level ${m.level})`}</Peek></span>) : 'Nothing of note built here.'}
         </p>
       </Panel>
     );

@@ -77,6 +77,7 @@ export function railCount(world: World, s: Section): { gold?: number; plain?: nu
   }
   if (s === 'missions') return { plain: activeMissions(world, P).length };
   if (s === 'people') return { plain: world.training?.intake?.length ?? 0 };
+  if (s === 'archon') return { plain: world.archon?.numarade.motions.filter((m) => m.status === 'open').length ?? 0 };
   return {};
 }
 

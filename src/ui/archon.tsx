@@ -1,5 +1,7 @@
 // The Archon as a whole: the register of houses, the Numarade, the history, the frontier, and the new-game
 // screen where a house is chosen.
+import { CLAIM_COST, cannotClaim, claimWild } from '../sim/arcs_places';
+import { Peek } from './links';
 import { useMemo, useState } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { Go, Panel, PersonById } from './links';
@@ -23,7 +25,7 @@ const H = (w: World, id: string) => `House ${houseName(w, id)}`;
 
 export function ArchonHouseLink({ id }: { id: string }) {
   const world = useWorld();
-  return <Go to={{ kind: 'house', id }}>{houseName(world, id)}</Go>;
+  return <Peek t={{ k: 'house', id }}>{houseName(world, id)}</Peek>;
 }
 
 function Title({ eyebrow, title, sub }: { eyebrow?: React.ReactNode; title: React.ReactNode; sub?: React.ReactNode }) {
@@ -354,18 +356,22 @@ export function HistoryPage() {
 
 export function FrontierPage() {
   const world = useWorld();
+  const game = useGame();
+  const [err, setErr] = useState<string | null>(null);
+  const claim = (id: string) => game.update((w) => { try { setErr(null); return claimWild(w, id); } catch (e) { setErr((e as Error).message); return w; } });
   const a = world.archon;
   if (!a) return null;
   const all = Object.values(a.frontier).sort((x, y) => (x.claimedBy ? 1 : 0) - (y.claimedBy ? 1 : 0) || worthOf(y) - worthOf(x));
   const total = Object.keys(world.planets).length + all.length;
   return (
     <>
-      <Title eyebrow="Unclaimed" title="The frontier" sub={`Worlds and moons no house holds. A house is founded by claiming one and raising a capital there; there can never be more houses than worlds to hold them (${liveHouses(world).length} houses, ${total} worlds known).`} />
+      <Title eyebrow="Unclaimed" title="The frontier" sub={`Worlds and moons no house holds. Claim one as an outpost (${CLAIM_COST.othes.toLocaleString('en-US')} othes and ${CLAIM_COST.components} components), hold it three years, and it can be settled into a world of the house. New houses are founded out here too; there can never be more houses than worlds to hold them (${liveHouses(world).length} houses, ${total} worlds known).`} />
+      {err ? <p className="error body">{err}</p> : null}
       <div className="grid">
         <Panel title="Worlds and moons" aside={`${openWilds(world).length} unclaimed`} className="span-12">
           <div className="body" style={{ overflowX: 'auto' }}>
             <table className="list">
-              <thead><tr><th>World</th><th>Region</th><th>Kind</th><th>Liveable</th><th>Worth</th><th>Hazard</th><th>Held by</th></tr></thead>
+              <thead><tr><th>World</th><th>Region</th><th>Kind</th><th>Liveable</th><th>Worth</th><th>Hazard</th><th>Held by</th><th></th></tr></thead>
               <tbody>
                 {all.map((x) => (
                   <tr key={x.id}>
@@ -376,11 +382,12 @@ export function FrontierPage() {
                     <td className="mono">{Math.round(worthOf(x) * 100)}</td>
                     <td>{HAZARD_LABEL[x.hazard]}</td>
                     <td>{x.claimedBy ? <><ArchonHouseLink id={x.claimedBy} /> <span className="muted">{x.claimedYear}</span></> : <span className="muted">no one</span>}</td>
+                    <td>{x.claimedBy ? null : (() => { const why = cannotClaim(world, x.id); return <button type="button" className="btn small" disabled={!!why} title={why ?? 'Claim it as an outpost'} onClick={() => claim(x.id)}>Claim</button>; })()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>Founding a house of our own (a knight given leave, or a founder's playthrough) is on the way; for now other houses' people strike out here now and then.</p>
+            <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>Our outposts, and what the frontier sends against them, are kept under Places.</p>
           </div>
         </Panel>
       </div>
