@@ -1,7 +1,7 @@
 // Hover definitions: what each word on screen means and why it matters.
 // Kept short: one line on what it is, one on what it does in play.
 
-export type GlossaryGroup = 'Time' | 'Houses' | 'Holdings' | 'Economy' | 'People' | 'Attributes' | 'Hidden' | 'Council' | 'Missions' | 'Intrigue' | 'Legacy';
+export type GlossaryGroup = 'Time' | 'Houses' | 'Holdings' | 'Economy' | 'People' | 'Attributes' | 'Hidden' | 'Council' | 'Missions' | 'Intrigue' | 'Legacy' | 'The Chair';
 
 export interface GlossaryEntry {
   term: string;
@@ -201,6 +201,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   houseAnnals: { term: 'Annals of the house', group: 'Legacy', text: 'What the house has done across generations, written down as it happens. They never close. Some are hidden until earned, and some can only be earned by losing something first.' },
   reliquary: { term: 'Reliquary', group: 'Legacy', text: 'The house\'s relics. Memory Steels: Echo Coins that hold a moment, Keepring Blades that carry the dead down the line, Shardsaints of collapsed navisium that hold a whole death. Navisigns that tie a Caige to the blood. Banners of lost legions, crusade writs, war-navisium, station logs from the Silence, and things marked CLRCH that no one understands. A full Reliquary is standing in the Archon.' },
   archive: { term: 'Archive', group: 'Legacy', text: 'Fragments of the past: the war, Vaelor Primus, the Rend, the Silence, the disputed text On the Weight of Will, and stranger things. Every fragment came from someone with a side; some contradict each other. Some threads never close.' },
+  envy: { term: 'Envy', group: 'The Chair', text: 'The will of the Archon against whoever stands highest. Houses beneath us resent our standing, our coin, and above all the chair: it costs votes in the Numarade, sours regard a little every year, tables motions against us, and draws wars our way. Pacts, sworn vassals and real friendship soften it. Nothing removes it.' },
+  legitimacy: { term: 'Legitimacy', group: 'The Chair', text: 'How far the houses accept the Exarchon\'s hand, 0 to 100. Every year in the chair wears it down; rulings, scandals and broken promises move it. Below 40, the Numarade starts tabling motions to remove the Exarchon, and the lower it falls the more seats vote for them.' },
+  regent: { term: 'Regent', group: 'The Chair', text: 'While the Highroy sits in the Exarchon\'s chair, someone must run the house: sit the council, keep the stores, judge the family. A good regent keeps the council near full strength; none at all costs the house, and the Archon notices.' },
+  politicalCapital: { term: 'Political capital', group: 'The Chair', text: 'What the Exarchon pays for decrees with: ending a war, summoning a house to answer, moving navisium quota, ending a feud, levying the Great Houses, striking a motion from the agenda. It refills each year, faster with a high legitimacy and an Adviser on law.' },
+  guards: { term: 'Guards', group: 'The Chair', text: 'Envy reaches for the people nearest the house: the Highroy, the regent, the heir, the council, anyone with a name. Guards and a good Spymaster turn the knife, the forged letter, the abduction and the bribe aside. They are paid every Phase.' },
   drift: { term: 'The Drift', group: 'Legacy', text: 'Something moves through navisium, more in some ages than others: Caiges change their weight, bearers dream the same dream, some move in step with strangers. Nobody at court has a name for it. The chroniclers name the ages after what it does.' },
   markets: { term: 'Markets', group: 'Economy', text: 'Each house\'s capital is a market for that house\'s needs, the Exchange Docks carry the rest of the Archon, and the Outer Reach buys fuel and food dear and sells ore cheap. A good is worth what a buyer there will pay for it: a house that is short pays more the shorter it is, a house with enough only buys cheap. Hauling goods between markets costs freight, more to or from a house at war. Under everything, the Imperial Exchange buys at a low floor and sells at a high ceiling, a limited amount each Phase.' },
   sellstance: { term: 'Steward sells', group: 'Economy', text: 'What the Steward does with what we have beyond the reserve. Hold: nothing. Fair: puts the surplus up at what last Phase\'s buyers paid, half at a time, all at once in a glut. Quick: sells the lot at whatever clears. Orders placed by hand come first and stand until filled or cancelled.' },
@@ -220,4 +225,4 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   embezzler: { term: 'Embezzler', group: 'Intrigue', text: 'An overseer caught skimming the takings.' },
 };
 
-export const GLOSSARY_GROUPS: GlossaryGroup[] = ['Time', 'Houses', 'Holdings', 'Economy', 'People', 'Attributes', 'Hidden', 'Council', 'Missions', 'Intrigue', 'Legacy'];
+export const GLOSSARY_GROUPS: GlossaryGroup[] = ['Time', 'Houses', 'Holdings', 'Economy', 'People', 'Attributes', 'Hidden', 'Council', 'Missions', 'Intrigue', 'Legacy', 'The Chair'];

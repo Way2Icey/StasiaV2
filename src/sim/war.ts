@@ -10,6 +10,7 @@
 // counted, not named, until a battle gives one of them a reason to matter: the survivor who fled and comes
 // back for the knight who broke the line, the wounded soldier who carried a knight out. Then the game names
 // them, and they carry it.
+import { envyOf } from './envy';
 import { Rng } from './rng';
 import { buildWord, displayName, shortName } from './names';
 import { logRecord } from './records';
@@ -1010,8 +1011,8 @@ function maybeWar(w: World, rng: Rng): void {
     const rebel = w.war!.liege[x.id] === y.id;
     if (r > -20 && !feud && !(rebel && r < 10)) continue;
     let weight = (x.personality.aggression + 0.2) * (Math.max(0, -r) / 50 + (feud ? 0.6 : 0) + (rebel ? 0.5 : 0)) * (x.might / Math.max(0.5, y.might));
-    // We are not picked on often.
-    if (y.id === P) weight *= 0.25;
+    // We are not picked on often, unless we have become the house everyone resents.
+    if (y.id === P) weight *= 0.3 + Math.min(1.2, envyOf(w, x.id, P) / 25);
     if (x.id === P) continue;
     if (weight > 0) pairs.push([x, y, weight]);
   }

@@ -534,6 +534,8 @@ export function answerIntake(input: World, intakeId: string, choice: IntakeChoic
 /** Someone not of a great family becomes one of ours: a new line of the house under their own name. */
 export function takeIntoHouse(w: World, c: Character, role: string): void {
   const P = w.playerHouseId;
+  if (c.veiled) { delete c.veiled; c.tier = 'full'; }
+  c.seen = absoluteCycle(w.date);
   if (c.houseId !== P || !w.families[c.familyId] || w.families[c.familyId]!.houseId !== P || w.families[c.familyId]!.ruling) {
     const famId = `${P}:line-${w.nextId++}`;
     const old = w.families[c.familyId];

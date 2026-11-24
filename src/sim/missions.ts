@@ -1,6 +1,7 @@
 // Missions: the house sends one of its people to do something somewhere.
 // Milestone 2 has two kinds: Investigate (look into a person) and Scout
 // (survey a world). Everything resolves turn by turn, deterministically.
+import { touch } from './circle';
 import { rivalsFrom } from './grounds';
 import { award, tally } from './careers';
 import { offerPupil, pupilsFor } from './training';
@@ -430,6 +431,7 @@ export function launchInPlace(world: World, spec: MissionSpec): string {
   m.log.push({ date: world.date, text: `${shortName(r.leader.name)} sets out${withWhom} for ${where}${spec.approach === 'quick' ? ', travelling light and fast' : ''}.` });
   for (const id of forced) m.log.push({ date: world.date, text: `${shortName(world.characters[id]!.name)} goes only because the Highroy ordered it.` });
   world.missions[id] = m;
+  for (const x of [m.leaderId, ...(m.companions ?? [])]) touch(world, x);
   if (m.houseId === world.playerHouseId) {
     // The academy's head may ask that one of the pupils go along.
     const rng = new Rng(world.rng);

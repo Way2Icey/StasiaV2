@@ -17,7 +17,7 @@ export function kill(world: World, c: Character, now: GameDate, cause: string) {
   const seat = c.seat;
   onLegacyDeath(world, c, cause, seat);
   c.seat = undefined;
-  if (c.tier === 'full') {
+  if (c.tier === 'full' && !c.veiled) {
     logRecord(world, {
       kind: 'death', type: 'death', severity: c.houseId === world.playerHouseId ? 3 : c.seat || seat ? 2 : 1,
       text: `${displayName(c.name)} has died, aged ${ageOf(c, now)}.`, detail: `Cause: ${cause}.`,

@@ -5,6 +5,7 @@
 // the past, and the slow tide of the Drift that names the ages. None of it ends the game: every height can
 // be lost, and the world keeps moving.
 import { Rng } from './rng';
+import { touch } from './circle';
 import { FRAGMENTS, FRAGMENT_BY_ID, THREADS, fragmentsOf, type Fragment, type ThreadId } from '../data/archive';
 import { displayName } from './names';
 import { logRecord } from './records';
@@ -88,6 +89,7 @@ export function addDeed(w: World, personId: string, kind: DeedKind, text: string
   const c = w.characters[personId];
   if (!c) return;
   const L = ensureLegacy(w);
+  touch(w, personId);
   const list = (L.deeds[personId] ??= []);
   if (list.some((d) => d.text === text && d.date.year === w.date.year)) return;
   list.unshift({ date: w.date, kind, text, weight });

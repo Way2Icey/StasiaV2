@@ -137,6 +137,12 @@ export interface Character {
   mood?: number;
   /** When they last came home from a mission. */
   lastMission?: GameDate;
+  /** In the Household (out of the Circle) since this year: of the house, but no longer followed (circle.ts). */
+  veiled?: number;
+  /** Kept in the Circle by the player's choice. */
+  pinned?: boolean;
+  /** Absolute cycle they last had a part in a story. */
+  seen?: number;
 }
 
 // ---------------------------------------------------------------- houses
@@ -588,6 +594,8 @@ export interface World {
   realm: import('./houses').RealmState;
   /** The storyteller's pace, arcs under way, threads on people, long struggles. */
   story?: import('./storystate').StoryState;
+  /** The Exarchon's chair: promises, legitimacy, guards on our people, and the chair itself when it is ours. */
+  chair?: import('./chair').ChairState;
   /** Battles under way or waiting to be watched. */
   battles?: import('./battle').BattlesState;
 }

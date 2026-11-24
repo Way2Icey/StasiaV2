@@ -2,6 +2,7 @@
 // missions (on the road and at the target) and at home, wait in the Throne
 // Room, and settle with the chosen option. Left unanswered, the council
 // settles them with a cautious default when they lapse.
+import { touch } from './circle';
 import { Rng } from './rng';
 import { displayName, shortName } from './names';
 import { findSector, seatHolder } from './query';
@@ -391,6 +392,8 @@ function place(world: World, def: EventDef, holder: Partial<PendingEvent>, life:
   const v = rng ? pickVariant(def, fresh, rng) : undefined;
   if (v?.stake) { fresh.memo ??= {}; v.stake(fresh); }
   const stakes = fresh.memo && Object.keys(fresh.memo).length ? { ...fresh.memo } : undefined;
+  touch(world, holder.personId);
+  touch(world, holder.secondId);
   const p: PendingEvent = {
     ...holder,
     id: `e${world.nextId++}`,

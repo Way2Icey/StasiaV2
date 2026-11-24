@@ -1,3 +1,4 @@
+import { anchored, circleOf, CIRCLE_CAP, knownTo, letFade, pin } from '../sim/circle';
 import { HouseDealings, HousesOverview, PoachPanel } from './realm';
 import { ArchonHousePage, ArchonPanel, RegisterPanel } from './archon';
 import { beginHeist, beginPact, whyNoAgent } from '../sim/scenes_api';
@@ -163,50 +164,69 @@ export function ThroneRoom() {
 
 export function PeoplePage() {
   const world = useWorld();
-  const [house, setHouse] = useState<string>('all');
-  const [tier, setTier] = useState<'full' | 'minor' | 'all'>('full');
+  const game = useGame();
+  const P = world.playerHouseId;
+  const [house, setHouse] = useState<string>(P);
+  const [ring, setRing] = useState<'circle' | 'household'>('circle');
   const [q, setQ] = useState('');
+  const [err, setErr] = useState<string | null>(null);
   const see = useSee();
-  const rows = useMemo(() => {
+  const act = (fn: (w: typeof world) => typeof world) => game.update((w) => { try { setErr(null); return fn(w); } catch (e) { setErr((e as Error).message); return w; } });
+  const { rows, hidden } = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return alive(world)
-      .filter((c) => house === 'all' || c.houseId === house)
-      .filter((c) => tier === 'all' || c.tier === tier)
-      .filter((c) => !needle || displayName(c.name).toLowerCase().includes(needle) || c.role.toLowerCase().includes(needle));
-  }, [world, house, tier, q]);
+    const pool = alive(world).filter((c) => house === 'all' || c.houseId === house);
+    const ours = pool.filter((c) => c.houseId === P && (ring === 'circle' ? !c.veiled : !!c.veiled));
+    const theirs = pool.filter((c) => c.houseId !== P);
+    const known = theirs.filter((c) => knownTo(world, P, c));
+    const shown = [...ours, ...known].filter((c) => !needle || displayName(c.name).toLowerCase().includes(needle) || c.role.toLowerCase().includes(needle));
+    return { rows: shown, hidden: theirs.length - known.length };
+  }, [world, house, ring, q, P]);
+  const circle = circleOf(world, P).length;
 
   return (
     <>
-      <Title title="People" sub={`${rows.length} shown. Names come from each house's culture.`} />
+      <Title title="People" sub={`The Circle: ${circle} of ${CIRCLE_CAP} people the story follows in House ${world.houses[P]?.name}. ${rows.length} shown${hidden ? `; ${hidden} more of other houses are not known to us` : ''}.`} />
       <div className="filters">
-        {['all', ...Object.keys(world.houses)].map((h) => (
+        {[P, ...Object.keys(world.houses).filter((h) => h !== P), 'all'].map((h) => (
           <button key={h} type="button" className="pill" aria-pressed={house === h} onClick={() => setHouse(h)}>
             {h === 'all' ? 'All houses' : world.houses[h]!.name}
           </button>
         ))}
-        <span style={{ width: 8 }} />
-        {(['full', 'minor', 'all'] as const).map((t) => (
-          <button key={t} type="button" className="pill" aria-pressed={tier === t} onClick={() => setTier(t)}>
-            {t === 'full' ? 'Full sheets' : t === 'minor' ? 'Minor named' : 'Everyone'}
-          </button>
-        ))}
+        {house === P || house === 'all' ? (
+          <>
+            <span style={{ width: 8 }} />
+            {(['circle', 'household'] as const).map((t) => (
+              <button key={t} type="button" className="pill" aria-pressed={ring === t} onClick={() => setRing(t)} title={t === 'circle' ? 'The people the story follows' : 'Of the house, named, but not followed'}>
+                {t === 'circle' ? 'The Circle' : 'The Household'}
+              </button>
+            ))}
+          </>
+        ) : null}
         <label htmlFor="people-filter" className="eyebrow" style={{ marginLeft: 8 }}>Filter</label>
         <input id="people-filter" className="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name or role" />
       </div>
+      {err ? <p className="error">{err}</p> : null}
+      {ring === 'household' && (house === P || house === 'all') ? <p className="body muted" style={{ fontSize: 12 }}>The Household: people of the house with names, who age and marry and die without word reaching the Highroy. Any of them can come into view by doing something; you can also bring one into the Circle yourself.</p> : null}
       <section className="panel">
         <div className="table-wrap">
           <table className="list">
-            <thead><tr><th>Name</th><th>House</th><th>Species</th><th>Age</th><th>Role</th><th>Traits</th><th>Resonance</th></tr></thead>
+            <thead><tr><th>Name</th><th>House</th><th>Species</th><th>Age</th><th>Role</th><th>Traits</th><th>Resonance</th><th /></tr></thead>
             <tbody>
               {rows.map((c) => (
                 <tr key={c.id}>
-                  <td><PersonLink c={c} /></td>
+                  <td><PersonLink c={c} />{c.pinned ? <span className="muted" title="Kept in the Circle"> ◆</span> : null}</td>
                   <td><HouseLink id={c.houseId} /></td>
                   <td><SpeciesLink id={c.species} /></td>
                   <td className="mono">{ageOf(c, world.date)}</td>
                   <td>{c.role}</td>
                   <td><TraitList c={c} /></td>
                   <td>{(() => { const r = see(c).resonance; return r && (r === 'unknown' || r.band !== 'frostpoint') ? <BandLink c={c} /> : <span className="muted">—</span>; })()}</td>
+                  <td>{c.houseId === P ? (c.veiled
+                    ? <button type="button" className="btn small" onClick={() => act((w) => pin(w, c.id, true))}>Bring into view</button>
+                    : <span className="actions">
+                        <button type="button" className="btn small" title={c.pinned ? 'Stop keeping them in view' : 'Keep them in the Circle whatever happens'} onClick={() => act((w) => pin(w, c.id, !c.pinned))}>{c.pinned ? 'Unpin' : 'Pin'}</button>
+                        {!anchored(world, c) ? <button type="button" className="btn small" title="Let them drift back into the Household" onClick={() => act((w) => letFade(w, c.id))}>Let fade</button> : null}
+                      </span>) : null}</td>
                 </tr>
               ))}
             </tbody>
@@ -480,7 +500,7 @@ export function HousePage({ id }: { id: string }) {
   const council = councilOf(world, h.id);
   const fams = Object.values(world.families).filter((f) => f.houseId === h.id && !isCommoner(f));
   const capital = world.planets[h.capitalPlanetId]!;
-  const knights = alive(world).filter((c) => c.houseId === h.id && c.flags.some((f) => f.id === 'knighted'));
+  const knights = alive(world).filter((c) => c.houseId === h.id && c.flags.some((f) => f.id === 'knighted') && knownTo(world, world.playerHouseId, c));
 
   return (
     <>
@@ -557,7 +577,9 @@ export function FamilyPage({ id }: { id: string }) {
   const f = world.families[id];
   if (!f) return <p className="error">No such family.</p>;
   const head = familyHead(world, f.id);
-  const members = familyMembers(world, f.id, true);
+  const all = familyMembers(world, f.id, true);
+  const members = all.filter((m) => !m.alive || knownTo(world, world.playerHouseId, m));
+  const unknown = all.length - members.length;
   const holds = sectorsControlledBy(world, f.id);
   const oversees = members.flatMap((m) => quartersOverseenBy(world, m.id).map((q) => ({ ...q, who: m })));
 
@@ -566,7 +588,7 @@ export function FamilyPage({ id }: { id: string }) {
       <Title eyebrow={<>House <HouseLink id={f.houseId} /> · {f.ruling ? 'ruling family' : f.high ? 'high family' : isCommoner(f) ? 'common family' : 'vassal family'}</>}
         title={`Family ${f.name}`} sub={<><SpeciesLink id={f.species} /> · {members.filter((m) => m.alive).length} living named members</>} />
       <div className="grid">
-        <Panel title="Members" className="span-8">
+        <Panel title="Members" aside={unknown ? `${unknown} more we know nothing of` : undefined} className="span-8">
           <PeopleTable people={members} extra={{ label: 'Traits', cell: (k) => <TraitList c={k} /> }} />
         </Panel>
         <div className="span-4 stack">
