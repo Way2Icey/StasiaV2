@@ -385,7 +385,7 @@ export function Desk({ className }: { className?: string }) {
   const act = (fn: (w: World) => World) => { setErr(null); game.update((w) => { try { return fn(w); } catch (e) { setErr((e as Error).message); return w; } }); };
   const LABEL: Record<DeskTab, string> = { needs: 'Needs you', chances: 'Opportunities', news: 'Letters' };
   return (
-    <Panel title={<Term k="decision">The desk</Term>} aside={`${counts.needs} need you`} className={`major ${className ?? ''}`}>
+    <Panel scroll={560} title={<Term k="decision">The desk</Term>} aside={`${counts.needs} need you`} className={`major ${className ?? ''}`}>
       <div className="desk-filters">
         {(['needs', 'chances', 'news'] as DeskTab[]).map((t) => (
           <button key={t} type="button" className="subtab" aria-current={tab === t ? 'page' : undefined} onClick={() => setTabPick(t)}>{LABEL[t]} ({counts[t]})</button>

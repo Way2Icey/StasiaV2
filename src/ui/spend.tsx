@@ -33,7 +33,7 @@ export function SpendPage() {
       </div>
       {err ? <p className="body error">{err}</p> : null}
       <div className="grid">
-        <Panel title="How we pay" aside={`${fmt(-lines.reduce((n, l) => n + l.amount, 0))} othes a Phase`} className="span-6">
+        <Panel scroll={420} title="How we pay" aside={`${fmt(-lines.reduce((n, l) => n + l.amount, 0))} othes a Phase`} className="span-6">
           <div className="actions body">
             {(Object.keys(PAY_SCALE) as (keyof typeof PAY_SCALE)[]).map((k) => (
               <button key={k} type="button" className={`btn small${scale === k ? ' primary' : ''}`} title={PAY_SCALE[k].note} onClick={() => run((w) => setPayScale(w, k))}>{PAY_SCALE[k].label}</button>
@@ -43,20 +43,20 @@ export function SpendPage() {
           {lines.map((l, i) => <div key={i} className="row"><span style={{ flex: 1 }}>{l.label}</span><span className="mono">{fmt(l.amount)}</span></div>)}
         </Panel>
         <StandingPanels run={run} />
-        <Panel title="The knights' pay" aside={`${knights.length}`} className="span-6">
+        <Panel scroll={300} title="The knights' pay" aside={`${knights.length}`} className="span-6">
           {knights.slice(0, 14).map((c) => (
             <div key={c.id} className="row"><span style={{ flex: 1 }}><PersonLink c={c} /> <span className="muted">· fame {fameOf(world, c).toFixed(0)}</span></span><span className="mono">{fmt(stipendOf(world, c) * mult)}/Phase</span></div>
           ))}
         </Panel>
-        <Panel title="The Crucible bid" aside={`${fmt(FUND_COST)} othes`} className="span-6">
+        <Panel fold title="The Crucible bid" aside={`${fmt(FUND_COST)} othes`} className="span-6">
           <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Once we are drawn: the best kit, fresh provisions and a second transport. Our force fights about a twelfth stronger that year.</p>
           <div className="actions"><button type="button" className="btn small primary" disabled={!!cannotFund(world)} title={cannotFund(world) ?? ''} onClick={() => run(fundBid)}>{cannotFund(world) ?? 'Fund it in full'}</button></div>
         </Panel>
-        <Panel title="A word with the Numarade" aside={`${fmt(BRIBE_COST)} othes`} className="span-6">
+        <Panel fold title="A word with the Numarade" aside={`${fmt(BRIBE_COST)} othes`} className="span-6">
           <p className="body muted" style={{ margin: 0, fontSize: 12 }}>A purse for the right clerk and we are drawn for the next Crucible. About one time in three, it comes out, and the other courts laugh.</p>
           <div className="actions"><button type="button" className="btn small" disabled={!!cannotBribe(world)} title={cannotBribe(world) ?? ''} onClick={() => run(bribeDraw)}>{cannotBribe(world) ?? 'Pay the clerk'}</button></div>
         </Panel>
-        <Panel title="Great works" aside="One at a time · paid as the treasury allows" className="span-12">
+        <Panel fold="open" title="Great works" aside="One at a time · paid as the treasury allows" className="span-12">
           {(Object.keys(WORKS) as WorkId[]).map((id) => {
             const d = WORKS[id];
             const x = world.treasury?.works.find((y) => y.id === id);
@@ -112,7 +112,7 @@ function StandingPanels({ run }: { run: (fn: (w: World) => World) => void }) {
         <div className="actions"><button type="button" className="btn small" disabled={!!fest} title={fest ?? ''} onClick={() => run(holdFestival)}>{fest ?? 'Hold the festival'}</button></div>
       </Panel>
       {tally.length ? (
-        <Panel title="Last year's accounts" className="span-12">
+        <Panel fold="open" title="Last year's accounts" className="span-12">
           {tally.map(([k, v]) => <div key={k} className="row"><span style={{ flex: 1 }}>{KIND[k.slice(1)] ?? k.slice(1)}</span><span className="mono">{v > 0 ? '+' : ''}{fmt(v)}</span></div>)}
         </Panel>
       ) : null}

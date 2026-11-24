@@ -507,7 +507,7 @@ export function HouseholdPanel({ className }: { className?: string }) {
     .sort((a, b) => occupationOf(a).localeCompare(occupationOf(b)) || a.name.given.localeCompare(b.name.given));
   const counts = nobles.reduce((m, c) => ({ ...m, [occupationOf(c)]: (m[occupationOf(c)] ?? 0) + 1 }), {} as Record<string, number>);
   return (
-    <Panel title={<Term k="occupation">Nobles of the house</Term>} aside={`${counts.courtier ?? 0} at court · ${counts.envoy ?? 0} envoys · ${counts.idle ?? 0} idle`} className={className}>
+    <Panel fold="open" scroll={360} title={<Term k="occupation">Nobles of the house</Term>} aside={`${counts.courtier ?? 0} at court · ${counts.envoy ?? 0} envoys · ${counts.idle ?? 0} idle`} className={className}>
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
       <div className="table-wrap">
         <table className="list">

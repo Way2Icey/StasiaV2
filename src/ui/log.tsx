@@ -62,7 +62,7 @@ export function LogPage({ person, place, house, open: initial }: { person?: stri
         <p>Every happening the house knows of, newest first, on the same card. Each says who told us.</p>
       </div>
       <div className="grid">
-        <Panel title={scope ? <>Log · {scope}</> : 'The log'} aside={`${list.length} of ${scoped.length} records`} className="major span-12">
+        <Panel scroll={640} title={scope ? <>Log · {scope}</> : 'The log'} aside={`${list.length} of ${scoped.length} records`} className="major span-12">
           <div className="body" style={{ display: 'grid', gap: 8, paddingBottom: 4 }}>
             {scope ? (
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>

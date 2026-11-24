@@ -1,3 +1,4 @@
+import { ExchangePage } from './exchange';
 import { InspectLayer, PortShipHead } from './inspect';
 import { InspectContext, type Inspect, type Inspector } from './context';
 import { Dossier } from './ports';
@@ -277,6 +278,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'council': return <CouncilPage />;
     case 'seat': return <SeatPage key={route.id} seat={route.id} />;
     case 'economy': return <EconomyPage />;
+    case 'exchange': return <ExchangePage />;
     case 'glossary': return <GlossaryPage />;
     case 'log': return <LogPage key={`${route.person}-${route.place}-${route.house}`} person={route.person} place={route.place} house={route.house} open={route.open} />;
     case 'port': return <PortPage key={route.id} id={route.id} ship={route.ship} />;

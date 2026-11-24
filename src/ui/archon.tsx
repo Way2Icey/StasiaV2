@@ -107,7 +107,7 @@ export function RegisterPanel({ className }: { className?: string }) {
   const n = world.archon?.numarade;
   const rows = liveHouses(world).sort((a, b) => (a.tier === b.tier ? b.prestige - a.prestige : a.tier === 'great' ? -1 : 1));
   return (
-    <Panel title="The Houses of the Archon" aside={`${rows.filter((h) => h.tier === 'great').length} Great · ${rows.filter((h) => h.tier === 'minor').length} Minor`} className={className}>
+    <Panel scroll={620} title="The Houses of the Archon" aside={`${rows.filter((h) => h.tier === 'great').length} Great · ${rows.filter((h) => h.tier === 'minor').length} Minor`} className={className}>
       <div className="body" style={{ overflowX: 'auto' }}>
         <table className="list">
           <thead><tr><th>House</th><th>Rank</th><th>People</th><th>Seat</th><th>Standing</th><th>Toward us</th><th>Known for</th></tr></thead>
@@ -172,18 +172,18 @@ export function ArchonHousePage({ id }: { id: string }) {
         </Panel>
         <ArchonPanel id={id} className="span-6" />
         {h.notables.length ? (
-          <Panel title="People of note" className="span-6">
+          <Panel scroll={320} title="People of note" className="span-6">
             <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {h.notables.map((n) => <div key={n.name}><strong>{n.name}</strong> <span className="muted">· {n.role}</span><div style={{ fontSize: 12, color: 'var(--fg-2)' }}>{n.note}</div></div>)}
             </div>
           </Panel>
         ) : null}
-        <Panel title="In the histories" className={h.notables.length ? 'span-6' : 'span-12'}>
+        <Panel scroll={320} title="In the histories" className={h.notables.length ? 'span-6' : 'span-12'}>
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
             {past.length ? past.map((e, i) => <div key={i}><span className="mono muted">{e.year > 0 ? e.year : '—'}</span> {e.text}</div>) : <span className="muted">Nothing on record.</span>}
           </div>
         </Panel>
-        <Panel title="Toward the others" className="span-12">
+        <Panel scroll={320} title="Toward the others" className="span-12">
           <div className="body" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 12 }}>
             {liveHouses(world).filter((o) => o.id !== id).sort((x, y) => regardOf(world, id, y.id) - regardOf(world, id, x.id)).map((o) => (
               <span key={o.id}><ArchonHouseLink id={o.id} /> <span className="mono" style={{ color: attitudeColor(regardOf(world, id, o.id)) }}>{regardOf(world, id, o.id)}</span>{o.id === P ? ' (us)' : ''}</span>
@@ -256,7 +256,7 @@ export function NumaradePage() {
             ) : null}
           </div>
         </Panel>
-        <Panel title="The seats" aside={`next Minor election: ${n.nextElection}`} className="span-6">
+        <Panel scroll={380} title="The seats" aside={`next Minor election: ${n.nextElection}`} className="span-6">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 13 }}>
             {n.seats.map((s) => (
               <div key={s} className="row" style={{ gap: 8 }}>
@@ -268,7 +268,7 @@ export function NumaradePage() {
             <span className="muted" style={{ fontSize: 11 }}>Right column: how each seat regards us.</span>
           </div>
         </Panel>
-        <Panel title="Bring a motion" aside={sponsor === P ? 'through our own seat' : sponsor ? `through House ${houseName(world, sponsor)}` : 'no one will bring it'} className="span-12">
+        <Panel fold="open" title="Bring a motion" aside={sponsor === P ? 'through our own seat' : sponsor ? `through House ${houseName(world, sponsor)}` : 'no one will bring it'} className="span-12">
           <div className="body" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <select className="select" aria-label="Kind of motion" value={kind} onChange={(e) => { setKind(e.target.value as OurMotion); setTarget(''); setSecond(''); }}>
               <option value="censure">Censure a house</option>
@@ -293,7 +293,7 @@ export function NumaradePage() {
             {why ? <span className="muted" style={{ fontSize: 12, flexBasis: '100%' }}>{why}</span> : null}
           </div>
         </Panel>
-        <Panel title="Before the Numarade" className="span-12">
+        <Panel scroll={480} title="Before the Numarade" className="span-12">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {open.length ? open.map((m) => <MotionRow key={m.id} m={m} />) : <span className="muted">Nothing is before them.</span>}
             {past.length ? <span className="eyebrow" style={{ marginTop: 8 }}>Lately decided</span> : null}
@@ -333,12 +333,12 @@ export function HistoryPage() {
         <Go to={{ kind: 'frontier' }} className="btn">The frontier ›</Go>
       </div>
       <div className="grid">
-        <Panel title="Lost Caiges" aside="legends; perhaps still out there" className="span-12">
+        <Panel fold title="Lost Caiges" aside="legends; perhaps still out there" className="span-12">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
             {a.legends.map((l) => <div key={l.id} className="fline2" style={{ gap: 8, alignItems: 'baseline' }}><strong>{l.name}</strong> <span className="muted">· {l.form} · <ArchonHouseLink id={l.house} />, lost {l.year} · {l.where}</span>{l.found ? <span className="tag">found {l.found}</span> : <LegendHunt id={l.id} />}</div>)}
           </div>
         </Panel>
-        <Panel title="The record" aside={`${rows.length} entries`} className="span-12">
+        <Panel scroll={540} title="The record" aside={`${rows.length} entries`} className="span-12">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
             {rows.map((e, i) => (
               <div key={i} className="row" style={{ gap: 8, alignItems: 'baseline' }}>
@@ -368,7 +368,7 @@ export function FrontierPage() {
       <Title eyebrow="Unclaimed" title="The frontier" sub={`Worlds and moons no house holds. Claim one as an outpost (${CLAIM_COST.othes.toLocaleString('en-US')} othes and ${CLAIM_COST.components} components), hold it three years, and it can be settled into a world of the house. New houses are founded out here too; there can never be more houses than worlds to hold them (${liveHouses(world).length} houses, ${total} worlds known).`} />
       {err ? <p className="error body">{err}</p> : null}
       <div className="grid">
-        <Panel title="Worlds and moons" aside={`${openWilds(world).length} unclaimed`} className="span-12">
+        <Panel scroll={560} title="Worlds and moons" aside={`${openWilds(world).length} unclaimed`} className="span-12">
           <div className="body" style={{ overflowX: 'auto' }}>
             <table className="list">
               <thead><tr><th>World</th><th>Region</th><th>Kind</th><th>Liveable</th><th>Worth</th><th>Hazard</th><th>Held by</th><th></th></tr></thead>

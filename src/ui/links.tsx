@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { displayName } from '../sim/names';
 import { ageOf } from '../sim/characters';
@@ -38,6 +38,7 @@ export function PersonLink({ c, short }: { c: Character; short?: boolean }) {
     <button
       type="button"
       className={`linklike${c.alive ? '' : ' dead'}`}
+      data-person={c.id}
       aria-haspopup="menu"
       title="Right-click for decisions"
       onContextMenu={(e) => { e.preventDefault(); hover.hide(); menu.open(c.id, e.clientX, e.clientY); }}
@@ -178,11 +179,25 @@ export function PeopleTable({ people, empty, extra }: { people: Character[]; emp
   );
 }
 
-export function Panel({ title, aside, className, children }: { title: ReactNode; aside?: ReactNode; className?: string; children: ReactNode }) {
+/**
+ * A panel. `scroll` bounds its body to that many pixels, scrolling inside, so a long list never stretches
+ * the page; `fold` lets it be folded away ('open' starts open), and remembers how it was left.
+ */
+export function Panel({ title, aside, className, children, scroll, fold }: { title: ReactNode; aside?: ReactNode; className?: string; children: ReactNode; scroll?: number; fold?: boolean | 'open' }) {
+  const key = fold && typeof title === 'string' ? `stasia.fold.${title}` : null;
+  const [open, setOpen] = useState<boolean>(() => {
+    if (!fold) return true;
+    try { const v = key ? localStorage.getItem(key) : null; if (v !== null) return v === '1'; } catch { /* storage may be blocked */ }
+    return fold === 'open';
+  });
+  const toggle = () => setOpen((o) => { try { if (key) localStorage.setItem(key, o ? '0' : '1'); } catch { /* storage may be blocked */ } return !o; });
   return (
-    <section className={`panel ${className ?? ''}`}>
-      <header><h3>{title}</h3>{aside ? <span className="aside">{aside}</span> : null}</header>
-      {children}
+    <section className={`panel ${className ?? ''}${fold && !open ? ' folded' : ''}`}>
+      <header>
+        {fold ? <h3><button type="button" className="foldbtn" aria-expanded={open} onClick={toggle}>{open ? '▾' : '▸'} {title}</button></h3> : <h3>{title}</h3>}
+        {aside ? <span className="aside">{aside}</span> : null}
+      </header>
+      {open ? (scroll ? <div className="panel-scroll" style={{ maxHeight: scroll }}>{children}</div> : children) : null}
     </section>
   );
 }

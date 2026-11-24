@@ -243,7 +243,7 @@ export function WarPage() {
         </Panel>
         {ours.length ? ours.map((w) => <WarCard key={w.id} war={w} />) : <Panel title="Our wars" className="span-12"><div className="body muted">We are at peace.</div></Panel>}
         <DeclarePanel className="span-6" />
-        <Panel title="Scores and debts" className="span-6">
+        <Panel fold="open" title="Scores and debts" className="span-6">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
             {hunted.map((n) => <div key={n.id}><strong>{n.name}</strong> <span className="muted">of <ArchonHouseLink id={n.houseId} /> hunts</span> <PersonById id={n.against} /> <span className="muted">· {n.why}</span></div>)}
             {raised.map((n) => <div key={n.id}><strong>{n.name}</strong> <span className="muted">· from the ranks: {n.why} ({n.year})</span></div>)}
@@ -253,7 +253,7 @@ export function WarPage() {
             {!hunted.length && !raised.length && !(s?.tributes ?? []).some((t) => t.from === P || t.to === P) ? <span className="muted">Nothing owed, and no one hunting us.</span> : null}
           </div>
         </Panel>
-        <Panel title="Wars across the Archon" aside={`${others.length} under way`} className="span-12">
+        <Panel scroll={360} title="Wars across the Archon" aside={`${others.length} under way`} className="span-12">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {others.length ? others.map((war) => (
               <div key={war.id} className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center', fontSize: 13 }}>
@@ -266,7 +266,7 @@ export function WarPage() {
           </div>
         </Panel>
         {past.length ? (
-          <Panel title="Wars lately ended" className="span-12">
+          <Panel fold title="Wars lately ended" className="span-12">
             <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
               {past.map((war) => <div key={war.id}><span className="mono muted">{war.since.year}–{war.result?.date.year}</span> <strong>{cap(war.name)}</strong> <span className="muted">· {war.result?.text}{war.result?.terms ? ` Terms: ${GOAL_LABEL[war.result.terms].toLowerCase()}.` : ''}</span></div>)}
             </div>

@@ -13,7 +13,7 @@ import { CareerPanel, Followed } from './careers';
 import { CrucibleGlance } from './crucible';
 import { SectorHoldings } from './holdings';
 import { EmbassyPanel, OurCourtEmbassies } from './embassies';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { RaidPanel } from './ports';
 import { Portrait } from './portrait';
 import { QuarterTerm, StatTerm, Term } from './tip';
@@ -150,7 +150,7 @@ export function ThroneRoom() {
           {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. Open anyone's sheet to look into them, or a world to scout it.</p> : null}
           {missions.map((m) => <MissionRow key={m.id} id={m.id} />)}
         </Panel>
-        <Panel title="Threads to follow" aside="Drawn from the world as it stands" className="span-12">
+        <Panel scroll={360} title="Threads to follow" aside="Drawn from the world as it stands" className="span-12">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
             {threads.map((t) => <p key={t.key} style={{ margin: 0 }}>{t.node}</p>)}
           </div>
@@ -208,7 +208,7 @@ export function PeoplePage() {
       {err ? <p className="error">{err}</p> : null}
       {ring === 'household' && (house === P || house === 'all') ? <p className="body muted" style={{ fontSize: 12 }}>The Household: people of the house with names, who age and marry and die without word reaching the Highroy. Any of them can come into view by doing something; you can also bring one into the Circle yourself.</p> : null}
       <section className="panel">
-        <div className="table-wrap">
+        <div className="table-wrap panel-scroll" style={{ maxHeight: 640 }}>
           <table className="list">
             <thead><tr><th>Name</th><th>House</th><th>Species</th><th>Age</th><th>Role</th><th>Traits</th><th>Resonance</th><th /></tr></thead>
             <tbody>
@@ -239,10 +239,15 @@ export function PeoplePage() {
 
 // ---------------------------------------------------------------- Character
 
+/** The tab last looked at on a character page, kept for the next person opened. */
+let charTab: 'overview' | 'ties' | 'career' | 'house' = 'overview';
+
 export function CharacterPage({ id }: { id: string }) {
   const world = useWorld();
   const { reveal } = useGame();
   const see = useSee();
+  const [tab, setTab] = useState<'overview' | 'ties' | 'career' | 'house'>(() => charTab);
+  useEffect(() => { charTab = tab; }, [tab]);
   const c = world.characters[id];
   if (!c) return <p className="error">That person is not in this world.</p>;
   const v = see(c);
@@ -352,6 +357,15 @@ export function CharacterPage({ id }: { id: string }) {
       </section>
       )}
 
+      <nav className="subtabs page-tabs" aria-label="About them">
+        {(['overview', 'ties', 'career', 'house'] as const).map((t) => (
+          <button key={t} type="button" className="subtab" aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>
+            {{ overview: 'Overview', ties: 'Ties & wants', career: 'Career & threads', house: 'House & family' }[t]}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'overview' ? (
       <div className="grid">
         <DecisionsPanel id={c.id} />
         <div className="span-8 stack">
@@ -363,9 +377,6 @@ export function CharacterPage({ id }: { id: string }) {
             {statCol('SPIRIT', SPIRIT_STATS)}
           </div>
         </section>
-        <CareerPanel c={c} />
-        <WantsPanel id={c.id} />
-        <TiesPanel id={c.id} limit={8} />
         </div>
         <div className="span-4 stack">
           <Panel title="Identity">
@@ -384,7 +395,6 @@ export function CharacterPage({ id }: { id: string }) {
               </dl>
             </div>
           </Panel>
-          <ThreadsPanel id={c.id} />
           <Panel title={<Term k="status">Status</Term>}>
             <div className="body chips">
               {v.flags.length === 0 ? <span className="muted" style={{ fontSize: 12 }}>Nothing of note</span> : null}
@@ -401,7 +411,25 @@ export function CharacterPage({ id }: { id: string }) {
             </Panel>
           ) : null}
         </div>
+      </div>
+      ) : null}
 
+      {tab === 'ties' ? (
+      <div className="grid">
+        <div className="span-8 stack"><TiesPanel id={c.id} limit={30} /></div>
+        <div className="span-4 stack"><WantsPanel id={c.id} /></div>
+      </div>
+      ) : null}
+
+      {tab === 'career' ? (
+      <div className="grid">
+        <div className="span-8 stack"><CareerPanel c={c} /></div>
+        <div className="span-4 stack"><ThreadsPanel id={c.id} /></div>
+      </div>
+      ) : null}
+
+      {tab === 'house' ? (
+      <div className="grid">
         <Panel title="Place in the house" className="span-6">
           <Row left={<><span className="eyebrow" style={{ marginRight: 10 }}>Answers to</span>{boss ? <PersonLink c={boss} /> : <span className="muted">No one: heads the house</span>}</>} right={boss?.role} />
           {oversees.map((o) => (
@@ -416,13 +444,13 @@ export function CharacterPage({ id }: { id: string }) {
           ) : null}
         </Panel>
 
-        <Panel title={<>Family <FamilyLink id={family.id} /></>} aside={`${kin.length} others`} className="span-6">
+        <Panel scroll={300} title={<>Family <FamilyLink id={family.id} /></>} aside={`${kin.length} others`} className="span-6">
           {kin.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No other named members.</p> : null}
           {kin.slice(0, 12).map((k) => <Row key={k.id} left={<PersonLink c={k} />} right={k.alive ? `${k.role} · ${ageOf(k, world.date)}` : 'deceased'} />)}
         </Panel>
 
         {where ? (
-          <Panel title={<>Also at <SectorLink id={where.sector.id} /></>} aside={`${neighbours.length} of the same house`} className="span-6">
+          <Panel scroll={260} title={<>Also at <SectorLink id={where.sector.id} /></>} aside={`${neighbours.length} of the same house`} className="span-6">
             {neighbours.slice(0, 10).map((k) => <Row key={k.id} left={<PersonLink c={k} />} right={k.role} />)}
             {neighbours.length > 10 ? <Row left={<SectorLink id={where.sector.id} />} right={`${neighbours.length - 10} more`} /> : null}
           </Panel>
@@ -441,6 +469,7 @@ export function CharacterPage({ id }: { id: string }) {
           </section>
         ) : null}
       </div>
+      ) : null}
     </>
   );
 }
@@ -448,30 +477,13 @@ export function CharacterPage({ id }: { id: string }) {
 // ---------------------------------------------------------------- Houses
 
 export function HousesPage() {
-  const world = useWorld();
   return (
     <>
-      <Title title="Houses" sub="Eighteen houses of the Archon. Four are simulated in full; the rest are on the register and act on their own." />
+      <Title title="Houses" sub="Eighteen houses of the Archon. Four are simulated in full; the rest are on the register and act on their own. Open any house for its card." />
       <div className="actions" style={{ marginBottom: 12 }}><Go to={{ kind: 'numarade' }} className="btn primary">The Numarade ›</Go><Go to={{ kind: 'history' }} className="btn">Annals ›</Go><Go to={{ kind: 'crucible' }} className="btn">The Crucible ›</Go></div>
       <div className="grid">
         <RegisterPanel className="span-12" />
         <HousesOverview className="span-12" />
-        {Object.values(world.houses).map((h) => {
-          const r = ruler(world, h.id);
-          return (
-            <Panel key={h.id} title={<Go to={{ kind: 'house', id: h.id }}>House {h.name}</Go>} aside={`${h.tier === 'great' ? 'Great' : 'Minor'} · ${SPECIES[h.species].name}`} className="span-6">
-              <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <p style={{ margin: 0, color: 'var(--fg-2)', fontSize: 13 }}>{h.blurb}</p>
-                <dl className="kv">
-                  <dt>Highroy</dt><dd>{r ? <PersonLink c={r} /> : 'Vacant'}</dd>
-                  <dt>Capital</dt><dd><PlanetLink id={h.capitalPlanetId} /></dd>
-                  <dt>People</dt><dd className="mono">{alive(world).filter((c) => c.houseId === h.id).length}</dd>
-                </dl>
-                <div><Go to={{ kind: 'house', id: h.id }} className="btn small">Open House {h.name} ›</Go></div>
-              </div>
-            </Panel>
-          );
-        })}
         <PoachPanel className="span-12" />
       </div>
     </>
@@ -540,7 +552,7 @@ export function HousePage({ id }: { id: string }) {
         <Panel title="Council" className="span-7">
           {council.map((c) => <Row key={c.id} left={<span style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}><span className="eyebrow gold" style={{ width: 110, flexShrink: 0 }}>{SEAT_TITLE[c.seat!]}</span><PersonLink c={c} /></span>} right={<FamilyLink id={c.familyId} />} />)}
         </Panel>
-        <Panel title="Families" aside={`${fams.length} noble families`} className="span-7">
+        <Panel scroll={360} title="Families" aside={`${fams.length} noble families`} className="span-7">
           <div className="table-wrap">
             <table className="list">
               <thead><tr><th>Family</th><th>Species</th><th>Head</th><th>Members</th><th>Holds</th><th>Standing</th></tr></thead>
@@ -562,7 +574,7 @@ export function HousePage({ id }: { id: string }) {
         <Panel title={<>Sectors of <PlanetLink id={capital.id} /></>} className="span-5">
           {capital.sectors.map((s) => <Row key={s.id} left={<SectorLink id={s.id} />} right={s.controllerFamilyId ? <FamilyLink id={s.controllerFamilyId} /> : 'unclaimed'} />)}
         </Panel>
-        <Panel title="Knights" aside={`${knights.length}`} className="span-12">
+        <Panel scroll={320} title="Knights" aside={`${knights.length}`} className="span-12">
           <PeopleTable people={knights} empty="No knights." extra={{ label: 'Traits', cell: (k) => <TraitList c={k} /> }} />
         </Panel>
       </div>
@@ -588,7 +600,7 @@ export function FamilyPage({ id }: { id: string }) {
       <Title eyebrow={<>House <HouseLink id={f.houseId} /> · {f.ruling ? 'ruling family' : f.high ? 'high family' : isCommoner(f) ? 'common family' : 'vassal family'}</>}
         title={`Family ${f.name}`} sub={<><SpeciesLink id={f.species} /> · {members.filter((m) => m.alive).length} living named members</>} />
       <div className="grid">
-        <Panel title="Members" aside={unknown ? `${unknown} more we know nothing of` : undefined} className="span-8">
+        <Panel scroll={420} title="Members" aside={unknown ? `${unknown} more we know nothing of` : undefined} className="span-8">
           <PeopleTable people={members} extra={{ label: 'Traits', cell: (k) => <TraitList c={k} /> }} />
         </Panel>
         <div className="span-4 stack">
@@ -713,7 +725,7 @@ export function SectorPage({ id }: { id: string }) {
         </Panel>
         <SectorHoldings sectorId={sector.id} />
         {Object.values(world.houses).some((x) => x.capitalPlanetId === planet.id) && planet.sectors[0]?.id === sector.id ? <CapitalEmbassies planetId={planet.id} /> : null}
-        <Panel title="Who is here" aside={`${here.length} named`} className="span-12">
+        <Panel scroll={360} title="Who is here" aside={`${here.length} named`} className="span-12">
           <PeopleTable people={here} />
         </Panel>
       </div>
@@ -743,7 +755,7 @@ export function TraitPage({ id }: { id: string }) {
             {opposite.length ? <div>Never held with: {opposite.map((o, i) => <span key={o}>{i ? ', ' : ''}<Go to={{ kind: 'trait', id: o }}>{TRAITS_BY_ID[o]?.label}</Go></span>)}</div> : null}
           </div>
         </Panel>
-        <Panel title="Who has it" aside={`${who.length} living`} className="span-8">
+        <Panel scroll={320} title="Who has it" aside={`${who.length} living`} className="span-8">
           <PeopleTable people={who} empty="No one living has this trait." extra={def.label.includes('{detail}') ? { label: 'As', cell: (c) => c.traits.filter((t) => t.id === id).map((t) => t.detail).join(', ') } : undefined} />
         </Panel>
         <Panel title="Other traits" className="span-12">
@@ -765,7 +777,7 @@ export function FlagPage({ id }: { id: string }) {
   return (
     <>
       <Title eyebrow={`Status flag · ${def.kind}`} title={def.label} sub={`Ends: ${def.endsBy}. ${def.visibility === 'secret' ? 'Secret: only those who discover it will see it.' : 'Visible to everyone.'}`} />
-      <Panel title="Who carries it" aside={`${who.length} living`}>
+      <Panel scroll={320} title="Who carries it" aside={`${who.length} living`}>
         <PeopleTable people={who} empty="No one carries this status right now." extra={{ label: 'Detail', cell: (c) => c.flags.filter((f) => f.id === id).map((f) => f.detail).filter(Boolean).join(', ') }} />
       </Panel>
     </>
@@ -834,7 +846,7 @@ export function SearchPage({ q }: { q: string }) {
           {r.places.length === 0 ? <p className="body muted" style={{ margin: 0 }}>None.</p> : null}
           {r.places.map((p) => <Row key={(p.sector?.id ?? p.planet.id)} left={p.sector ? <SectorLink id={p.sector.id} withPlanet /> : <PlanetLink id={p.planet.id} />} right={p.sector?.designation ?? 'World'} />)}
         </Panel>
-        <Panel title="Families" aside={`${r.families.length}`} className="span-6">
+        <Panel scroll={360} title="Families" aside={`${r.families.length}`} className="span-6">
           {r.families.length === 0 ? <p className="body muted" style={{ margin: 0 }}>None.</p> : null}
           {r.families.map((f) => <Row key={f.id} left={<FamilyLink id={f.id} />} right={<HouseLink id={f.houseId} />} />)}
         </Panel>

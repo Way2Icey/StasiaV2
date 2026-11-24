@@ -3,13 +3,11 @@ import { QuarterTerm, Term } from './tip';
 import {
   computingOf, credibilityMarkup, econ, netPerPhase, phaseLedger, quotaFor, setTax,
 } from '../sim/economy';
-import { absoluteCycle, addCycles, dateParts, formatDate, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from '../sim/time';
-import { shocksOf } from '../sim/arcs_economy';
+import { addCycles, dateParts, formatDate, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from '../sim/time';
 import { RESOURCE_LABEL, RESOURCE_NOTE, RESOURCES, TAX, type Resource, type TaxRate } from '../data/economy';
 import type { LedgerLine, World } from '../sim/types';
 import { useGame, useWorld } from './context';
 import { Go, Panel, PersonById, SectorLink } from './links';
-import { ExchangePanels } from './exchange';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const signed = (n: number) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `−${fmt(-n)}` : '0');
@@ -62,7 +60,7 @@ export function EconomyPage() {
       </div>
 
       <div className="grid">
-        <Panel title={<Term k="ledger">{`${RESOURCE_LABEL[sel]} ledger`}</Term>} aside="Per Phase, at today's rates" className="span-8">
+        <Panel scroll={520} title={<Term k="ledger">{`${RESOURCE_LABEL[sel]} ledger`}</Term>} aside="Per Phase, at today's rates" className="span-8">
           <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{RESOURCE_NOTE[sel]}</p>
           <div className="table-wrap">
             <table className="list">
@@ -123,24 +121,8 @@ export function EconomyPage() {
           </Panel>
         </div>
 
-        <ExchangePanels />
-        <Panel title="News on the Exchange" className="span-12">
-          {(() => {
-            const now = absoluteCycle(world.date);
-            const live = shocksOf(world).filter((x) => x.until > now);
-            const crash = world.economy.crash && world.economy.crash.stage < 3;
-            return live.length || crash ? (
-              <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 12 }}>
-                {crash ? <strong className="down">The Exchange is in a crash. Creditors are calling in loans; prices will climb back when it finds its floor.</strong> : null}
-                {live.filter((x) => x.cause !== 'the crash' && x.cause !== 'the crash, deepening').map((x, i) => (
-                  <span key={i}><strong className={x.mult > 1 ? 'up' : 'down'}>{RESOURCE_LABEL[x.good]} {x.mult > 1 ? '▲' : '▼'}</strong> on {x.cause}: {x.mult > 1 ? 'the far worlds want more and have less to sell' : 'the far worlds want less and have more to sell'} for about {Math.max(1, Math.round((x.until - now) / CYCLES_PER_ORBIT))} Orbit{Math.round((x.until - now) / CYCLES_PER_ORBIT) === 1 ? '' : 's'} more.</span>
-                ))}
-              </div>
-            ) : <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Nothing out of the ordinary.</p>;
-          })()}
-          <p className="body muted" style={{ margin: 0, fontSize: 11 }}>News out in the Archon moves what the world beyond the houses wants and has to sell: a shortage there is a seller's market here.</p>
-        </Panel>
-        <Panel title="Loans" className="span-12"><p className="body" style={{ margin: 0 }}>Lending and borrowing between houses: <Go to={{ kind: 'loans' }}>Treasury › Loans ›</Go></p></Panel>
+        <Panel title="The Exchange" className="span-12"><p className="body" style={{ margin: 0 }}>Our stores, the Steward's orders, the markets and news: <Go to={{ kind: 'exchange' }}>Treasury › The Exchange ›</Go></p></Panel>
+        <Panel scroll={360} title="Loans" className="span-12"><p className="body" style={{ margin: 0 }}>Lending and borrowing between houses: <Go to={{ kind: 'loans' }}>Treasury › Loans ›</Go></p></Panel>
       </div>
     </>
   );

@@ -642,3 +642,11 @@ table.list tr.ours td { color: var(--gold); }
 }
 .inspect-act { display: grid; gap: 6px; border-top: 1px solid var(--line-soft); padding-top: 8px; }
 .ascii.diagram { line-height: 1.08; }
+
+/* Bounded and folded panels: long lists scroll inside the panel; secondary panels fold away. */
+.panel-scroll { overflow-y: auto; overscroll-behavior: contain; }
+.panel.folded { padding-bottom: 0; }
+.foldbtn { all: unset; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+.foldbtn:hover, .foldbtn:focus-visible { color: var(--fg); text-decoration: underline; }
+.page-tabs { margin: 0 0 4px; }
+.panel-scroll table thead th { position: sticky; top: 0; background: #000; z-index: 1; }

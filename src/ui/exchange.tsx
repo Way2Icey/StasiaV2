@@ -5,6 +5,8 @@ import { Term } from './tip';
 import { useGame, useWorld } from './context';
 import { Panel } from './links';
 import { econ, tradeInPlace } from '../sim/economy';
+import { shocksOf } from '../sim/arcs_economy';
+import { absoluteCycle, CYCLES_PER_ORBIT } from '../sim/time';
 import {
   cancelOrder, ensureExchange, haul, homeRegion, localPrice, needWord, placeOrder, quote, regionName, regionsOf,
   reserveOf, setPolicy, useOf, type SellStance,
@@ -89,7 +91,7 @@ export function ExchangePanels() {
           <p className="body muted" style={{ margin: 0, fontSize: 11 }}>No one buys what they do not need. Each house bids by how short it is (a starving house pays up to two and a half times the usual price, a fed one only stocks up cheaply), and sellers come down to where the buyers are. Trading now takes the best bids and asks left on the board after the last Phase, less the haul down the lanes.</p>
         </Panel>
 
-      <Panel className="span-12" title={<Term k="markets">Markets</Term>} aside="Price per unit · ▲▼ against the usual · short = buyers left wanting · glut = sellers left holding">
+      <Panel className="span-12" scroll={460} title={<Term k="markets">Markets</Term>} aside="Price per unit · ▲▼ against the usual · short = buyers left wanting · glut = sellers left holding">
           <div className="table-wrap">
             <table className="list market">
               <thead><tr><th>Good</th>{regions.map((r) => <th key={r.id} style={{ textAlign: 'right' }}>{r.id === home ? <strong>{r.name} (ours)</strong> : r.name}</th>)}</tr></thead>
@@ -115,7 +117,7 @@ export function ExchangePanels() {
           <p className="body muted" style={{ margin: 0, fontSize: 11 }}>Each capital is a market for its own house's needs; the Exchange Docks carry the rest of the Archon, and the Outer Reach buys fuel and food dear and sells ore cheap. Hauling between them costs freight (two and a half times as much to or from a house at open war). Underneath it all the Imperial Exchange buys at {Math.round(0.38 * 100)}% of the usual price and sells at 190%, in limited amounts each Phase.</p>
         </Panel>
 
-      <Panel className="span-12" title={'Orders by hand'} aside="They stand until filled or cancelled, and fill at each Phase's clearing">
+      <Panel className="span-12" fold="open" title={'Orders by hand'} aside="They stand until filled or cancelled, and fill at each Phase's clearing">
           <div className="body" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <span className="filters">{(['sell', 'buy'] as const).map((s) => <button key={s} type="button" className="pill" aria-pressed={form.side === s} onClick={() => setForm({ ...form, side: s })}>{s === 'sell' ? 'Sell' : 'Buy'}</button>)}</span>
             <input aria-label="Quantity" className="mono" type="number" min={1} style={{ width: 80 }} value={form.qty} onChange={(ev) => setForm({ ...form, qty: Number(ev.target.value) })} />
@@ -181,4 +183,38 @@ function who(world: ReturnType<typeof useWorld>, id: string): string {
   if (id === 'floor') return 'the Imperial Exchange (its floor)';
   if (id === 'ceiling') return 'the Imperial Exchange (its reserve)';
   return `House ${world.houses[id]?.name ?? id}`;
+}
+
+/** The Exchange as its own page: our stores and the Steward, the markets, orders by hand, and the news. */
+export function ExchangePage() {
+  const world = useWorld();
+  return (
+    <>
+      <div className="page-title">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <h2>The Exchange</h2>
+          <p>What we hold against what we need, what the Steward does with the rest, and what every market will pay. Prices clear at each Phase.</p>
+        </div>
+      </div>
+      <div className="grid">
+        <ExchangePanels />
+        <Panel fold="open" scroll={300} title="News on the Exchange" className="span-12">
+          {(() => {
+            const now = absoluteCycle(world.date);
+            const live = shocksOf(world).filter((x) => x.until > now);
+            const crash = world.economy.crash && world.economy.crash.stage < 3;
+            return live.length || crash ? (
+              <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 12 }}>
+                {crash ? <strong className="down">The Exchange is in a crash. Creditors are calling in loans; prices will climb back when it finds its floor.</strong> : null}
+                {live.filter((x) => x.cause !== 'the crash' && x.cause !== 'the crash, deepening').map((x, i) => (
+                  <span key={i}><strong className={x.mult > 1 ? 'up' : 'down'}>{RESOURCE_LABEL[x.good]} {x.mult > 1 ? '▲' : '▼'}</strong> on {x.cause}: {x.mult > 1 ? 'the far worlds want more and have less to sell' : 'the far worlds want less and have more to sell'} for about {Math.max(1, Math.round((x.until - now) / CYCLES_PER_ORBIT))} Orbit{Math.round((x.until - now) / CYCLES_PER_ORBIT) === 1 ? '' : 's'} more.</span>
+                ))}
+              </div>
+            ) : <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Nothing out of the ordinary.</p>;
+          })()}
+          <p className="body muted" style={{ margin: 0, fontSize: 11 }}>News out in the Archon moves what the world beyond the houses wants and has to sell: a shortage there is a seller's market here.</p>
+        </Panel>
+      </div>
+    </>
+  );
 }

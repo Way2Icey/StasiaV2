@@ -18,6 +18,7 @@ export type Route =
   | { kind: 'council' }
   | { kind: 'seat'; id: CouncilSeat }
   | { kind: 'economy' }
+  | { kind: 'exchange' }
   | { kind: 'glossary' }
   | { kind: 'character'; id: string }
   | { kind: 'house'; id: string }
@@ -65,7 +66,7 @@ export function sectionOf(r: Route): Section | null {
     case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': case 'war': return 'arms';
     case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'lanes': case 'frontier': case 'places': return 'realm';
     case 'houses': case 'house': case 'embassies': case 'numarade': case 'history': case 'chair': return 'archon';
-    case 'economy': case 'loans': case 'vaults': case 'spend': return 'treasury';
+    case 'economy': case 'exchange': case 'loans': case 'vaults': case 'spend': return 'treasury';
     case 'missions': case 'mission': case 'plan': return 'missions';
     case 'log': return 'log';
     case 'save': case 'newgame': return 'save';
@@ -133,7 +134,8 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'Annals', to: { kind: 'history' }, on: is('history') },
   ],
   treasury: [
-    { label: 'Ledger & exchange', to: { kind: 'economy' }, on: is('economy') },
+    { label: 'Ledger', to: { kind: 'economy' }, on: is('economy') },
+    { label: 'The Exchange', to: { kind: 'exchange' }, on: is('exchange') },
     { label: 'Loans', to: { kind: 'loans' }, on: is('loans') },
     { label: 'Vaults', to: { kind: 'vaults' }, on: is('vaults') },
     { label: 'Pay & great works', to: { kind: 'spend' }, on: is('spend') },
@@ -163,6 +165,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'council': return 'Council';
     case 'seat': return SEAT_TITLE[r.id];
     case 'economy': return 'Ledger';
+    case 'exchange': return 'The Exchange';
     case 'glossary': return 'Glossary';
     case 'log': return r.person ? `Record: ${world.characters[r.person]?.name.given ?? ''}` : r.place ? `Log: ${findSector(world, r.place)?.sector.name ?? world.planets[r.place]?.name ?? ''}` : r.house ? `Log: ${world.houses[r.house]?.name ?? ''}` : 'Log';
     case 'mission': {

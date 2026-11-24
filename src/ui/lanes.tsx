@@ -88,7 +88,7 @@ export function LanesPage() {
           <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>The other houses: {Object.keys(world.houses).filter((h) => h !== P).map((h, i) => <span key={h}>{i ? ' · ' : ''}<HouseLink id={h} /> {CUSTOMS_LABEL[s.customs[h] ?? 'fair'].toLowerCase()}</span>)}</p>
         </Panel>
 
-        <Panel title="Trade compacts" aside="house to house" className="span-6">
+        <Panel fold="open" title="Trade compacts" aside="house to house" className="span-6">
           {Object.keys(world.houses).filter((h) => h !== P).map((h) => {
             const cp = compactOf(world, P, h);
             const offer = s.offers.find((o) => o.from === h);
@@ -110,7 +110,7 @@ export function LanesPage() {
       </div>
       ) : view === 'corsairs' ? (
       <div className="grid">
-        <Panel title="The companies" aside="corsairs of the outer lanes · open one for its people and history" className="span-7">
+        <Panel scroll={360} title="The companies" aside="corsairs of the outer lanes · open one for its people and history" className="span-7">
           {Object.values(s.factions).map((f) => {
             const r = f.rel[P] ?? 0;
             const ours = deals.filter((d) => d.faction === f.id);
@@ -128,7 +128,7 @@ export function LanesPage() {
           })}
           <p className="body muted" style={{ margin: '6px 0 0', fontSize: 12 }}>Pay them to leave our ships alone, post a bounty, declare them enemies, give them letters against a rival, or send our knights after their captains.</p>
         </Panel>
-        <Panel title="Lately on the lanes" aside="ours, and what we heard of others" className="span-5">
+        <Panel scroll={320} title="Lately on the lanes" aside="ours, and what we heard of others" className="span-5">
           {lately.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet.</p> : null}
           {lately.map((c) => (
             <div key={c.id} className="row">
@@ -142,7 +142,7 @@ export function LanesPage() {
       ) : (
       <div className="grid">
         <WatchPanel className="span-5" />
-        <Panel title="The lanes" aside="danger to an unescorted run of ours" className="span-7">
+        <Panel scroll={360} title="The lanes" aside="danger to an unescorted run of ours" className="span-7">
           {LANES.map((l) => {
             const t = s.tally[l.id];
             const who = Object.values(s.factions).filter((f) => f.haunts.includes(l.id)).map((f) => f.name.replace(/^the /, ''));

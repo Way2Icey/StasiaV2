@@ -73,7 +73,7 @@ export function Petitions({ className }: { className?: string }) {
   const house = world.playerHouseId;
   const list = world.courts[house]?.petitions ?? [];
   return (
-    <Panel title={<Term k="petition">Petitions</Term>} aside={list.length ? `${list.length} waiting` : 'None waiting'} className={className}>
+    <Panel scroll={300} title={<Term k="petition">Petitions</Term>} aside={list.length ? `${list.length} waiting` : 'None waiting'} className={className}>
       {list.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Your council has nothing to ask. Petitions come more often while an oath stands.</p> : null}
       {list.map((p) => {
         const from = world.characters[p.fromId];
@@ -153,7 +153,7 @@ export function CouncilPage() {
         <Petitions className="span-6" />
         <CourtPanel className="span-6" />
         <HouseholdPanel className="span-12" />
-        <Panel title="Council reports" aside="Newest first" className="span-12 feed">
+        <Panel fold="open" scroll={320} title="Council reports" aside="Newest first" className="span-12 feed">
           {court.reports.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet. Press Continue and the council gets to work.</p> : null}
           {court.reports.slice(0, 25).map((r, i) => (
             <div className="row" key={i}>
@@ -305,7 +305,7 @@ export function RelationsPanel({ className }: { className?: string }) {
   const world = useWorld();
   const house = world.playerHouseId;
   return (
-    <Panel title="The other houses" aside={<Term k="regard">How they regard us</Term>} className={className}>
+    <Panel scroll={340} title="The other houses" aside={<Term k="regard">How they regard us</Term>} className={className}>
       {Object.values(world.houses).filter((h) => h.id !== house).map((h) => (
         <div key={h.id} className="row">
           <span style={{ flex: 1 }}><HouseLink id={h.id} /> <span className="muted" style={{ fontSize: 11 }}>· {h.tier === 'great' ? 'Great' : 'Minor'}</span></span>
@@ -327,7 +327,7 @@ export function CaptivesPanel({ className, hideWhenEmpty }: { className?: string
   const held = captivesHeldBy(world, world.playerHouseId);
   if (hideWhenEmpty && !held.length) return null;
   return (
-    <Panel title={<Term k="captive">Captives</Term>} aside={held.length ? `${held.length} held` : 'Cells empty'} className={className}>
+    <Panel scroll={340} title={<Term k="captive">Captives</Term>} aside={held.length ? `${held.length} held` : 'Cells empty'} className={className}>
       {held.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is held. Agents caught spying on us end up here; a spymaster watching our own house catches more of them.</p> : null}
       {held.map((cap) => {
         const c = world.characters[cap.characterId]!;
@@ -402,7 +402,7 @@ export function ArmouryPanel({ className }: { className?: string }) {
   const candidates = alive(world).filter((c) => c.houseId === house && !cannotGrant(world, c));
   const [pick, setPick] = useState<Record<string, string>>({});
   return (
-    <Panel title={<Term k="armoury">Caige armoury</Term>} aside={`${caiges.filter((x) => !x.bondedTo).length} unbonded · ${bonded.length} bonded in the house`} className={className}>
+    <Panel scroll={360} title={<Term k="armoury">Caige armoury</Term>} aside={`${caiges.filter((x) => !x.bondedTo).length} unbonded · ${bonded.length} bonded in the house`} className={className}>
       {caiges.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No unbonded Caiges. Scouting runs sometimes hear of one; follow the lead to bring it home.</p> : null}
       {caiges.map((cg) => {
         const holder = cg.bondedTo ? world.characters[cg.bondedTo] : undefined;
@@ -441,7 +441,7 @@ export function CourtPanel({ className }: { className?: string }) {
   const t = courtTotals(world, house);
   const pct = (v: number) => `${Math.round(v * 1000) / 10}%`;
   return (
-    <Panel title={<Term k="court">The court at home</Term>} aside={`${places.filter((p) => p.home).length} of ${places.length} at home`} className={className}>
+    <Panel scroll={360} title={<Term k="court">The court at home</Term>} aside={`${places.filter((p) => p.home).length} of ${places.length} at home`} className={className}>
       <p className="body" style={{ margin: 0, fontSize: 12 }}>
         Now: othes income +{pct(t.income)} · council tasks +{pct(t.tasks)}{t.mood ? ` · retinue mood +${t.mood} a Phase` : ''}{t.respectChance ? ` · ${Math.round(t.respectChance * 100)}% chance of +1 respect a Phase` : ''}{t.presentFamilies.length ? ` · ${t.presentFamilies.length} ${t.presentFamilies.length === 1 ? 'family calms its' : 'families calm their'} sectors` : ''}.
         {highroyAway(world, house) ? <span className="down"> The Highroy is away: the council works 10% slower and no petitions come.</span> : null}
