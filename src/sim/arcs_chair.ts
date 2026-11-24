@@ -16,6 +16,8 @@ import {
   protection, shiftLegitimacy, watchChair, chairYear, seedRng, type DecreeKind,
 } from './chair';
 import { displayName } from './names';
+import { logRecord } from './records';
+import { dateParts } from './time';
 import type { Character, World } from './types';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -148,9 +150,14 @@ const ATTACKS = ['assassin', 'scandal', 'abduction', 'bribe'] as const;
 const attack: EventDef = {
   id: 'chair:attack', title: 'Envy reaches for our own', category: 'The Chair', trigger: 'home', weight: 0, stage: true, urgent: true,
   setup: (c) => {
-    const close = closeToChair(c.world).filter((x) => x.id !== c.world.houses[P(c)]?.rulerId || c.rng.chance(0.3));
-    if (!close.length) return false;
-    const t = c.rng.pick(close);
+    // The Exarchon is the one they want most: the chair passes only by death, and the lower its legitimacy
+    // the more houses decide that is a price worth paying.
+    const held = ensureChair(c.world).held;
+    const ex = held && isOurChair(c.world) ? c.world.characters[held.exarchonId] : undefined;
+    const close = closeToChair(c.world).filter((x) => x.id !== ex?.id && (x.id !== c.world.houses[P(c)]?.rulerId || c.rng.chance(0.3)));
+    const atChair = !!ex?.alive && c.rng.chance(clamp(0.15 + (60 - ensureChair(c.world).legitimacy) / 120, 0.15, 0.6));
+    if (!close.length && !atChair) return false;
+    const t = atChair ? ex! : c.rng.pick(close);
     const kind = c.rng.pick(ATTACKS);
     const from = liveHouses(c.world).filter((h) => h.id !== P(c)).sort((a, b) => envyOf(c.world, b.id, P(c)) - envyOf(c.world, a.id, P(c)))[c.rng.int(0, 2)]?.id ?? '';
     const foiled = c.rng.chance(protection(c.world, t.id));
@@ -178,12 +185,55 @@ const attack: EventDef = {
   fallback: 2,
 };
 
-addEvents([...crises, attack]);
+
+// ---------------------------------------------------------------- the only way the chair changes hands
+
+/** The blade comes for the Exarchon: protection turns it aside, or it does not. */
+function strike(c: Ctx, sure = 0): void {
+  const p = c.person;
+  if (!p?.alive) return;
+  if (c.rng.chance(protection(c.world, p.id) - sure)) { c.fx.say(`The blade came for ${displayName(p.name)} and did not reach them`); chairLog(c.world, 'An attempt on the Exarchon\'s life, turned aside'); return; }
+  if (c.rng.chance(0.6)) kill(c.world, p, c.world.date, `murdered in the Exarchon's chair, by the will of House ${houseName(c.world, str(c, 'a'))} and House ${houseName(c.world, str(c, 'b'))}`);
+  else { p.flags.push({ id: 'wounded', since: c.world.date }); legit(c, -3, 'The Exarchon wounded by an assassin'); c.fx.say(`${displayName(p.name)} lives, barely`); }
+}
+
+const plot: EventDef = {
+  id: 'chair:plot', title: 'A plot against the Exarchon', category: 'The Chair', trigger: 'home', weight: 0, stage: true, urgent: true, life: 60,
+  setup: (c) => {
+    const held = ensureChair(c.world).held;
+    if (!held || !isOurChair(c.world)) return false;
+    const ex = c.world.characters[held.exarchonId];
+    if (!ex?.alive) return false;
+    const foes = liveHouses(c.world).filter((h) => h.id !== P(c)).sort((x, y) => (envyOf(c.world, y.id, P(c)) - regardOf(c.world, y.id, P(c)) / 2) - (envyOf(c.world, x.id, P(c)) - regardOf(c.world, x.id, P(c)) / 2));
+    if (foes.length < 2) return false;
+    data(c).a = foes[0]!.id; data(c).b = foes[1]!.id;
+    return choose(c, { personId: ex.id, otherHouseId: foes[0]!.id });
+  },
+  text: (c) => `The Spymaster comes at night. ${H(c, str(c, 'a'))} and ${H(c, str(c, 'b'))} have been buying blades, and someone in the palace has been selling them the Exarchon's hours. There is no other way for the chair to change hands, and every house knows it. ${displayName(c.person!.name)} sat in it knowing it too.`,
+  options: [
+    { label: 'Unravel it before it moves', hint: 'Spymaster', check: { who: (c) => seat(c, 'spymaster'), stats: ['intrigue', 'perception'], dc: 15 },
+      resolve: (c, ok) => { if (ok) { shiftRegard(c.world, P(c), str(c, 'a'), -20); shiftRegard(c.world, P(c), str(c, 'b'), -20); legit(c, 3, `Exposed a plot by ${H(c, str(c, 'a'))} and ${H(c, str(c, 'b'))}`); c.fx.say('The blades are found, and the names behind them'); } else { c.fx.say('The Spymaster finds the rooms empty'); strike(c); } } },
+    { label: 'Surround the Exarchon with the Spymaster\'s own', hint: 'the dearest guard there is', resolve: (c) => { const p = c.person; if (p) ensureChair(c.world).guards[p.id] = 3; strike(c); } },
+    { label: 'Strike first', hint: 'their envoy will not leave the palace', resolve: (c) => { shiftRegard(c.world, str(c, 'a'), P(c), -40); shiftRegard(c.world, str(c, 'b'), P(c), -15); legit(c, -6, `Had the envoy of ${H(c, str(c, 'a'))} killed in the palace`); c.fx.dread(6).say('The plot dies with its envoy. The houses will remember how'); } },
+    { label: 'Go on as before', hint: 'the Exarchon will not hide', resolve: (c) => { c.fx.respect(1); strike(c, 0.1); } },
+  ],
+  fallback: 3,
+};
+
+addEvents([...crises, attack, plot]);
 
 const CRISES = crises.filter((d) => d.id !== 'chair:regent').map((d) => d.id);
 
 /** Each turn: the chair won or lost; each Orbit, the crises and the knives; each year, the chair's wear. */
 export function advanceChair(w: World, rng: Rng, t: { orbits: number; years: number }): void {
+  // The chair passes only by death. When ours is gone, the house remembers how long they held it.
+  const held = w.chair?.held;
+  if (held && w.characters[held.exarchonId] && !w.characters[held.exarchonId]!.alive) {
+    const p = w.characters[held.exarchonId]!;
+    const years = dateParts(w.date).year - held.since;
+    addDeed(w, p.id, 'statecraft', `Held the Exarchon's chair ${years} year${years === 1 ? '' : 's'}, and gave it up the only way it is given up`, 3);
+    logRecord(w, { kind: 'world', type: 'politics', severity: 3, text: `${displayName(p.name)} is dead, after ${years} year${years === 1 ? '' : 's'} in the Exarchon's chair. The Numarade will choose another.`, houseIds: [w.playerHouseId], source: 'the Chair' });
+  }
   watchChair(w, (ww) => fireStage(ww, rng, 'chair:regent', {}));
   const ours = isOurChair(w);
   if (t.orbits > 0) {
@@ -195,6 +245,11 @@ export function advanceChair(w: World, rng: Rng, t: { orbits: number; years: num
     // Envy reaches for our people: far more often when the chair is ours.
     const e = envyAgainst(w, w.playerHouseId);
     if (rng.chance(Math.min(0.5, (e / 300) * (ours ? 3 : 1)))) fireStage(w, rng, 'chair:attack', {});
+    // Plots against the Exarchon: never nothing, and more the lower the chair's legitimacy falls.
+    if (ours) {
+      const L = ensureChair(w).legitimacy;
+      if (rng.chance(clamp((55 - L) / 90 + e / 200, 0.03, 0.45))) fireStage(w, rng, 'chair:plot', {});
+    }
   }
   if (t.years > 0) {
     chairYear(w, (a, b, by) => shiftRegard(w, a, b, by));

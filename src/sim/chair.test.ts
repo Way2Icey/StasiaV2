@@ -5,7 +5,9 @@ import { dateParts } from './time';
 import { ensureChair, guardCost, isOurChair, promiseSeat, protection, regencyFactor, setGuard, watchChair, chooseRegent, CAPANNA_ROLES } from './chair';
 import { appointToCapanna, dismissFromCapanna, issueDecree } from './arcs_chair';
 import { envyAgainst, envyOf, topHouse } from './envy';
-import { liveHouses, regardOf, table } from './archon';
+import { liveHouses, lowestGreat, regardOf, table } from './archon';
+import { fireStage, settle } from './events';
+import { Rng } from './rng';
 import type { World } from './types';
 
 const fresh = (): World => structuredClone(createWorld('chair-test', { house: 'alerion' }));
@@ -92,4 +94,30 @@ describe('the chair', () => {
     const seen = w.events.pending.filter((p) => p.defId.startsWith('chair:')).length + (w.events.log ?? []).filter((l: { defId?: string }) => l.defId?.startsWith('chair:')).length;
     expect(seen).toBeGreaterThan(0);
   }, 120000);
+
+  it('the chair passes only by death: the Exarchon\'s house cannot be stood down, and a sentence kills', () => {
+    let w = seatUs(fresh());
+    const P = w.playerHouseId;
+    expect(lowestGreat(w)?.id).not.toBe(P);
+    const exId = w.chair!.held!.exarchonId;
+    const by = liveHouses(w).find((h) => h.id !== P)!.id;
+    const m = table(w, 'remove', by);
+    for (const s of w.archon!.numarade.seats) m.votes[s] = 'aye';
+    m.closes = 0;
+    w = advanceUntil(w, 20, false).world;
+    expect(w.characters[exId]!.alive).toBe(false);
+    expect(isOurChair(w)).toBe(false);
+  }, 120000);
+
+  it('a plot against the Exarchon can be turned aside by guards', () => {
+    let w = seatUs(fresh());
+    const exId = w.chair!.held!.exarchonId;
+    w = setGuard(w, exId, 3);
+    const rng = Rng.fromSeed('plot');
+    fireStage(w, rng, 'chair:plot', {});
+    const p = w.events.pending.find((x) => x.defId === 'chair:plot');
+    expect(p).toBeTruthy();
+    settle(w, rng, p!.id, 3);
+    expect(w.chair!.guards[exId]).toBe(3);
+  });
 });

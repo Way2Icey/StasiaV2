@@ -7,6 +7,7 @@
 // a seat or not, and they vote, feud, ally, fight in the Crucible and can be founded or fall. Turning one into
 // a fully simulated house later only means giving it people and worlds; everything here already treats it
 // as a house.
+import { kill } from './death';
 import { envyAgainst, envyOf, envyYear, topHouse } from './envy';
 import { Rng } from './rng';
 import { buildWord } from './names';
@@ -354,7 +355,7 @@ export function motionTitle(w: World, kind: MotionKind, target?: string, second?
     case 'commend': return `That ${H(target)} be commended`;
     case 'mediate': return `That ${H(target)} and ${H(second)} lay down their feud`;
     case 'raise': return `That ${H(target)} be raised a Great House, and ${H(second)} stand down`;
-    case 'remove': return `That the Exarchon be removed`;
+    case 'remove': return `That the Exarchon be condemned, and the chair made empty`;
     case 'elect': return 'The election of an Exarchon';
     case 'seats': return 'The election of the four Minor seats';
     case 'ceasefire': return `That the war between ${H(target)} and ${H(second)} stop`;
@@ -502,8 +503,15 @@ function applyMotion(w: World, rng: Rng, m: Motion, year: number): void {
     case 'raise': raise(w, m.target!, m.second!, year, 'by a vote of the Numarade'); break;
     case 'ceasefire': if (m.warId) orderCeasefire(w, m.warId); break;
     case 'remove': {
+      // The chair is held for life, and given up only by death. A removal by the Numarade is a sentence.
       const ex = a.numarade.exarchon;
-      if (ex) { a.history.push({ year, kind: 'exarchon', text: `The Numarade removed the Exarchon ${ex.name} of House ${houseName(w, ex.houseId)}.`, houses: [ex.houseId] }); shiftPrestige(w, ex.houseId, -10); }
+      if (ex) {
+        a.history.push({ year, kind: 'exarchon', text: `The Numarade condemned the Exarchon ${ex.name} of House ${houseName(w, ex.houseId)}, and the sentence was carried out.`, houses: [ex.houseId] });
+        shiftPrestige(w, ex.houseId, -10);
+        const p = ex.personId ? w.characters[ex.personId] : undefined;
+        if (p?.alive) kill(w, p, w.date, 'put to death by sentence of the Numarade');
+        logRecord(w, { kind: 'world', type: 'politics', severity: 3, text: `The Numarade has condemned the Exarchon ${ex.name}. The sentence is carried out in the chamber.`, houseIds: w.houses[ex.houseId] ? [ex.houseId] : [], source: 'the Numarade' });
+      }
       a.numarade.exarchon = null; a.numarade.capanna = [];
       callElection(w, rng);
       break;
@@ -528,7 +536,6 @@ export function raise(w: World, up: string, down: string, year: number, how: str
   a.history.push({ year, kind: 'rise', text: `House ${U.name} was raised a Great House ${how}; House ${D.name} stood down to the Minor.`, houses: [up, down] });
   shiftRegard(w, down, up, -30);
   logRecord(w, { kind: 'world', type: 'politics', severity: 3, text: `House ${U.name} is raised a Great House, and House ${D.name} stands down.`, houseIds: [up, down].filter((x) => w.houses[x]), source: 'the Numarade' });
-  if (a.numarade.exarchon?.houseId === down) { a.numarade.exarchon = null; a.numarade.capanna = []; }
 }
 
 /** The Exarchon's chair is empty: the Great Houses put forward their candidates. */
@@ -681,7 +688,8 @@ export function cannotTable(w: World, kind: OurMotion, target?: string, second?:
   return null;
 }
 
-export const lowestGreat = (w: World) => liveHouses(w).filter((h) => h.tier === 'great').sort((x, y) => x.prestige - y.prestige)[0];
+/** The weakest Great House that can be stood down: never the Exarchon's own, which the chair shields while they live. */
+export const lowestGreat = (w: World) => liveHouses(w).filter((h) => h.tier === 'great' && h.id !== w.archon?.numarade.exarchon?.houseId).sort((x, y) => x.prestige - y.prestige)[0];
 
 /** Bring a motion before the Numarade (through a friendly seat if we hold none). */
 export function tableMotion(input: World, kind: OurMotion, target?: string, second?: string): World {
@@ -891,7 +899,7 @@ function yearly(w: World, rng: Rng): void {
   if (year >= a.numarade.nextElection && !a.numarade.motions.some((m) => m.status === 'open' && m.kind === 'seats')) callSeats(w);
   envyYear(w, (x, y, by) => shiftRegard(w, x, y, by));
   // A Great House that is envied by all is pressed to stand down, by whoever stands closest below it.
-  if (tierOf(w, P) === 'great' && envyAgainst(w, P) >= 15 && year - a.numarade.lastShift >= 8 && !a.numarade.motions.some((m) => m.status === 'open' && m.kind === 'raise') && rng.chance(0.3)) {
+  if (tierOf(w, P) === 'great' && a.numarade.exarchon?.houseId !== P && envyAgainst(w, P) >= 15 && year - a.numarade.lastShift >= 8 && !a.numarade.motions.some((m) => m.status === 'open' && m.kind === 'raise') && rng.chance(0.3)) {
     const rival = houses.filter((h) => h.tier === 'minor').sort((x, y) => y.prestige - x.prestige)[0];
     const by = rival ? a.numarade.seats.filter((s) => s !== P && s !== rival.id).sort((p, q) => envyOf(w, q, P) - envyOf(w, p, P))[0] : undefined;
     if (rival && by && rival.prestige > prestigeOf(w, P) - 25) table(w, 'raise', by, rival.id, P);

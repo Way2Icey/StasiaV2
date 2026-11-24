@@ -37,7 +37,7 @@ export function ChairPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
           <span className="eyebrow gold">The Exarchon's chair</span>
           <h2>{ours ? 'The chair is ours' : ex ? <>Held by {ex.personId ? <PersonById id={ex.personId} /> : ex.name}, of <ArchonHouseLink id={ex.houseId} /></> : 'The chair stands empty'}</h2>
-          <p>{ours ? 'Every ruling makes an enemy. Every year in it wears the chair down. Envy reaches for the people nearest us.' : 'Elected by the Numarade, from among the Great Houses, for life, unless eight seats remove them.'}</p>
+          <p>{ours ? 'Held for life, and given up only by death. Every ruling makes an enemy, every year wears the chair down, and envy reaches for the Exarchon and everyone near them.' : 'Elected by the Numarade, from among the Great Houses, for life. The chair passes only by death: age, a blade, or a sentence of the Numarade.'}</p>
         </div>
       </div>
       <div className="grid">
@@ -157,7 +157,7 @@ function Held() {
       <Panel title="The weight of the chair" className="span-6">
         <div className="body" style={{ display: 'grid', gap: 6 }}>
           <span><PersonById id={H.exarchonId} /> has sat in the chair since {H.since}.</span>
-          <span><Term k="legitimacy">Legitimacy</Term> <span className="mono">{bar(C.legitimacy)} {C.legitimacy}</span>{C.legitimacy < 40 ? <span className="error"> the chamber talks of removal</span> : null}</span>
+          <span><Term k="legitimacy">Legitimacy</Term> <span className="mono">{bar(C.legitimacy)} {C.legitimacy}</span>{C.legitimacy < 40 ? <span className="error"> the knives are out: plots against the Exarchon, and talk of a sentence in the chamber</span> : null}</span>
           <span><Term k="politicalCapital">Political capital</Term> <span className="mono">{'◆'.repeat(H.capital)}{'◇'.repeat(Math.max(0, 8 - H.capital))} {H.capital}</span></span>
           <span><Term k="regent">Regent</Term>: {H.regentId ? <PersonById id={H.regentId} /> : <span className="error">none: the house runs itself, badly</span>} <span className="muted">· the council at {Math.round(regencyFactor(world, P) * 100)}%</span></span>
           <span className="actions">{fam.filter((c) => c.id !== H.regentId).map((c) => <button key={c.id} type="button" className="btn small" onClick={() => run((w) => chooseRegent(w, c.id))}>Name {c.name.given} regent</button>)}</span>
@@ -206,7 +206,7 @@ function Held() {
               <button type="button" className="btn small" disabled={disabled('strike')} onClick={() => decree('strike', m.id)}>Strike it</button>
             </span>
           )) : <span className="muted">Nothing open before the Numarade.</span>}
-          <span className="muted" style={{ fontSize: 12 }}>The Exarchon sets the agenda. Striking a motion costs capital, and legitimacy; striking a motion to remove us costs a great deal of both.</span>
+          <span className="muted" style={{ fontSize: 12 }}>The Exarchon sets the agenda. Striking a motion costs capital, and legitimacy; striking a motion to condemn the Exarchon costs a great deal of both.</span>
         </div>
       </Panel>
       <Panel title="The chair's rulings" className="span-12">
