@@ -31,7 +31,7 @@ const learn = (c: Ctx, via: string, o: Parameters<typeof discover>[2] = {}) => {
   return f;
 };
 
-const DEAL_KINDS: [RelicKind, number][] = [['echoCoin', 3], ['banner', 2], ['writ', 2], ['warNavisium', 1.5], ['stationLog', 2], ['clrch', 0.35]];
+const DEAL_KINDS: [RelicKind, number][] = [['echoCoin', 3], ['banner', 2], ['writ', 2], ['warNavisium', 1.5], ['stationLog', 2], ['clrch', 0.12]];
 
 const evs: EventDef[] = [
   {
@@ -71,7 +71,7 @@ const evs: EventDef[] = [
             c.fx.say(`${nm(k)} brings back ${r.name}`);
             if (c.rng.chance(0.45)) { const e = makeRelic(c.world, 'echoCoin', { origin: 'found in a derelict\'s chapel', rng: c.rng }); c.fx.say(`and ${e.name.toLowerCase()} from its chapel`); }
             if (k) addDeed(c.world, k.id, 'discovery', `Led the boarding of a derelict from the Silence near ${str(c, 'site')}`, 2);
-            if (c.rng.chance(0.06)) { const x = makeRelic(c.world, 'clrch', { origin: 'found in a sealed locker on a derelict, where no one had been looking', rng: c.rng }); c.fx.say(`In a sealed locker, among nothing else: ${x.name.toLowerCase()}`); }
+            if (c.rng.chance(0.03)) { const x = makeRelic(c.world, 'clrch', { origin: 'found in a sealed locker on a derelict, where no one had been looking', rng: c.rng }); c.fx.say(`In a sealed locker, among nothing else: ${x.name.toLowerCase()}`); }
           } else { c.fx.wound(k).say('The station\'s systems woke. The party came back short'); }
         } },
       { label: 'Sell the location to scavengers', resolve: (c) => { c.fx.othes(scaled(c, 400)).honour(-1); } },
@@ -142,7 +142,7 @@ const evs: EventDef[] = [
     fallback: 0,
   },
   {
-    id: 'leg:unlooked', title: 'Five letters', category: 'Legacy', trigger: 'home', weight: 0.22,
+    id: 'leg:unlooked', title: 'Five letters', category: 'Legacy', trigger: 'home', weight: 0.07,
     setup: (c) => { data(c).where = c.rng.pick(['in the pocket of a dead courier', 'at the bottom of a crate of Exchange metals', 'in a vault no one had opened since the Silence', 'in the hand of a beggar, who would not say where he got it', 'in the wreck of a corsair skiff']); return true; },
     text: (c) => `Something was found ${str(c, 'where')}: a dense grey object, cold to the touch, marked with five letters, CLRCH. Nobody was looking for it.`,
     options: [
@@ -293,7 +293,7 @@ export function legacyStories(w: World, rng: Rng, promoted: Character[]): void {
     if (e) { fireStage(w, rng, 'leg:epithet', { personId: c.id, stakes: { epithet: e } }); break; }
   }
   for (const c of promoted.filter((x) => x.houseId === P).slice(0, 2)) fireStage(w, rng, 'leg:rank', { personId: c.id });
-  if (rng.chance(0.55)) fireStage(w, rng, 'leg:scholar', {});
+  if (rng.chance(0.35)) fireStage(w, rng, 'leg:scholar', {});
   fireStage(w, rng, 'leg:forge', {});
   if (rng.chance(0.5)) fireStage(w, rng, 'leg:marshal', {});
   // A war won lately may have left something old among the spoils.

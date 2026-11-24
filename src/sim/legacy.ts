@@ -254,9 +254,9 @@ export const ANNALS: Annal[] = [
   { id: 'highroys7', title: 'Seven Highroys', text: 'Seven generations at the head of the house.', check: (_w, L) => (L.counters.highroys ?? 0) >= 6 },
   { id: 'years25', title: 'Twenty-Five Years', text: 'A quarter-century of the house in our hands.', check: (w, L) => year(w) - L.startYear >= 25 },
   { id: 'century', title: 'A Century Unbroken', text: 'A hundred years, and the house still stands.', hidden: true, check: (w, L) => year(w) - L.startYear >= 100 },
-  { id: 'great', title: 'Raised Great', text: 'The house was raised a Great House.', check: (w) => tierOf(w, P(w)) === 'great' },
+  { id: 'great', title: 'Raised Great', text: 'The house was raised a Great House.', check: (_w, L) => (L.counters.raised ?? 0) >= 1 },
   { id: 'fallen', title: 'Fallen', text: 'The house fell from the Great to the Minor.', hidden: true, check: (_w, L) => (L.counters.fallen ?? 0) >= 1 },
-  { id: 'risen', title: 'Fallen and Risen', text: 'The house fell from greatness and climbed back.', hidden: true, check: (_w, L) => (L.counters.fallen ?? 0) >= 1 && (L.counters.raised ?? 0) >= 2 },
+  { id: 'risen', title: 'Fallen and Risen', text: 'The house fell from greatness and climbed back.', hidden: true, check: (_w, L) => (L.counters.reraised ?? 0) >= 1 },
   { id: 'exarchon', title: 'The Chair', text: 'One of our blood was elected Exarchon.', check: (_w, L) => (L.counters.exarchons ?? 0) >= 1 },
   { id: 'exarchons3', title: 'Three Chairs', text: 'Three Exarchons of our blood.', hidden: true, check: (_w, L) => (L.counters.exarchons ?? 0) >= 3 },
   { id: 'vassals3', title: 'Liege of Three', text: 'Three houses sworn to ours at once.', check: (w) => Object.values(w.war?.liege ?? {}).filter((x) => x === P(w)).length >= 3 },
@@ -366,13 +366,23 @@ function watch(w: World): void {
     L.seen[`war:${x.id}`] = true;
     if (!mine) continue;
     const side = x.attacker === P(w) || x.attackers.includes(P(w)) ? 'attackers' : 'defenders';
-    if (x.result.winner === side) bump(w, 'warsWon');
+    if (x.result.winner === side) { bump(w, 'warsWon'); const r = w.houses[P(w)]?.rulerId; if (r) addDeed(w, r, 'command', `Won ${x.name}`, 3); }
   }
   const ex = exarchonOf(w);
   if (ex && ex.houseId === P(w) && !L.seen[`ex:${ex.name}:${ex.since}`]) { L.seen[`ex:${ex.name}:${ex.since}`] = true; bump(w, 'exarchons'); if (ex.personId) addDeed(w, ex.personId, 'statecraft', `Elected Exarchon of the Archon, ${ex.since}`, 6); }
   const t = tierOf(w, P(w));
+  // A house that starts Great has not been raised; only a change counts.
+  if (!L.seen.tierInit) { L.seen.tierInit = true; if (t === 'great') L.seen.tierGreat = true; }
   if (L.seen.tierGreat && t === 'minor') { delete L.seen.tierGreat; bump(w, 'fallen'); }
-  if (!L.seen.tierGreat && t === 'great') { L.seen.tierGreat = true; bump(w, 'raised'); }
+  if (!L.seen.tierGreat && t === 'great') { L.seen.tierGreat = true; bump(w, 'raised'); if (L.counters.fallen) bump(w, 'reraised'); }
+  // A Highroy's reign is a deed in itself, and so are the wars won under it.
+  const rid = w.houses[P(w)]?.rulerId;
+  if (rid) {
+    const k = `reign:${rid}`;
+    L.counters[k] ??= y;
+    const span = y - L.counters[k]!;
+    for (const n of [10, 20, 30, 40]) if (span === n && !L.seen[`${k}:${n}`]) { L.seen[`${k}:${n}`] = true; addDeed(w, rid, 'statecraft', `Held the house for ${n} years`, n >= 30 ? 4 : n >= 20 ? 3 : 2); }
+  }
   for (const s of w.story?.struggles ?? []) if (s.kind === 'debt' && s.ended?.won && !L.seen[`debt:${s.id}`]) { L.seen[`debt:${s.id}`] = true; bump(w, 'debtWon'); }
 }
 
