@@ -2,6 +2,7 @@
 // world, a sector, a holding, a house) opens as a card over whatever page you are on, never as a page
 // that runs off the screen. The card carries what matters and the actions that fit; the full page is one
 // click away for when you want everything.
+import { MarksList } from './account';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useGame, useNav, usePersonMenu, useWorld } from './context';
 import { displayName } from '../sim/names';
@@ -118,6 +119,7 @@ function PersonCard({ id }: { id: string }) {
         ['now', v.flags.length ? v.flags.map((f) => FLAGS_BY_ID[f.id]?.label ?? f.id).join(' · ') : null],
       ]} />
       <DeedsLine id={c.id} />
+      {c.marks?.length ? <div style={{ marginTop: 6, display: 'grid', gap: 2, fontSize: 13 }}><div className="eyebrow">What they carry</div><MarksList c={c} limit={3} /></div> : null}
       <div className="actions" style={{ marginTop: 8 }}>
         <Full to={{ kind: 'character', id: c.id }} label="Full record" />
         {c.alive ? <button type="button" className="btn small" onClick={(e) => { const r = (e.target as HTMLElement).getBoundingClientRect(); ins.close(); menu.open(c.id, r.left, r.bottom + 4); }}>Decisions</button> : null}

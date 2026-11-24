@@ -25,7 +25,7 @@ import { addCycles, dateParts } from './time';
 import type { Character, SpeciesId, World } from './types';
 import { personName } from './archon';
 import type { CanonNotable } from '../data/canon';
-import { createBattle, battleOf, runOut, outcomes, type FighterSpec } from './battle';
+import { createBattle, battleOf, chronicle, runOut, outcomes, type FighterSpec } from './battle';
 import { absoluteCycle } from './time';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -168,6 +168,8 @@ export interface Battle {
   fallen: string[];
   wounded: string[];
   mvp?: string;
+  /** Told by one of ours, when we were in it. */
+  account?: import('./details').Account;
 }
 
 export interface Round { orbit: number; moves: Record<string, string>; stance: Record<string, Stance | undefined>; battles: Battle[]; taken: Record<string, string>; done: boolean; /** Our clash, fought live: settled when the battle ends. */ live?: { battleId: string; locId: string; sides: string[] } }
@@ -766,7 +768,7 @@ function hearOf(w: World, r: Round, b: Battle) {
       text: `The Crucible, Orbit ${r.orbit}: ${houseLabel(w, b.winner)} took ${loc.name} from ${b.sides.filter((h) => h !== b.winner).map((h) => shortHouse(w, h)).join(' and ')}.${b.duel ? ` ${nameOf(b.duel.winner)} won the champions' duel${b.duel.rematch ? ', a rematch' : ''}.` : ''}${b.duel?.avenged && w.characters[b.duel.avenged] ? (b.duel.winner === b.duel.avenged ? ` ${shortName(w.characters[b.duel.avenged]!.name)} settles the score.` : ` ${displayName(w.characters[b.duel.avenged]!.name)} is avenged.`) : ''}`,
       detail: b.sides.map((h) => `${shortHouse(w, h)}: ${STANCE_LABEL[r.stance[h]!]}, lost ${b.losses[h]} men`).join('\n') + (b.fallen.length ? `\nFallen: ${b.fallen.map(nameOf).join(', ')}.` : '') + (b.wounded.length ? `\nWounded: ${b.wounded.map(nameOf).join(', ')}.` : ''),
       who: [...(b.mvp && w.characters[b.mvp] ? [{ id: b.mvp, part: 'best of the field' }] : []), ...b.fallen.map((id) => ({ id, part: 'fell' })), ...b.wounded.map((id) => ({ id, part: 'wounded' }))],
-      houseIds: b.sides.filter((h) => w.houses[h]), source: BATTLE_WORLD,
+      houseIds: b.sides.filter((h) => w.houses[h]), source: BATTLE_WORLD, account: b.account,
     });
     // House fever.
     for (const c of Object.values(w.characters)) {
@@ -834,6 +836,7 @@ function settleLive(w: World, rng: Rng, r: Round) {
     lossFrac,
   };
   const res = fightAt(w, rng, r, loc, lv.sides, forced);
+  res.account = chronicle(w, bt);
   r.battles.push(res);
   delete r.live;
   for (const h of cr.entrants) cr.table[h]!.held = cr.locations.filter((l) => l.holder === h).length;

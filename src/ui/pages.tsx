@@ -1,3 +1,4 @@
+import { MarksList } from './account';
 import { anchored, circleOf, CIRCLE_CAP, knownTo, letFade, pin } from '../sim/circle';
 import { HouseDealings, HousesOverview, PoachPanel } from './realm';
 import { ArchonHousePage, ArchonPanel, RegisterPanel } from './archon';
@@ -394,6 +395,9 @@ export function CharacterPage({ id }: { id: string }) {
                 <dt><Term k="resonance">Resonance</Term></dt><dd><BandLink c={c} />{res && res !== 'unknown' && res.type ? <span className="muted"> · {res.type}</span> : null}</dd>
               </dl>
             </div>
+          </Panel>
+          <Panel scroll={260} title="What they carry" aside={c.marks?.length ? `${c.marks.length}` : undefined}>
+            <div className="body" style={{ display: 'grid', gap: 2 }}><MarksList c={c} /></div>
           </Panel>
           <Panel title={<Term k="status">Status</Term>}>
             <div className="body chips">

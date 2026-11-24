@@ -17,6 +17,7 @@ import {
 } from './chair';
 import { displayName } from './names';
 import { logRecord } from './records';
+import { attemptAccount } from './details';
 import { dateParts } from './time';
 import type { Character, World } from './types';
 
@@ -162,13 +163,15 @@ const attack: EventDef = {
     const from = liveHouses(c.world).filter((h) => h.id !== P(c)).sort((a, b) => envyOf(c.world, b.id, P(c)) - envyOf(c.world, a.id, P(c)))[c.rng.int(0, 2)]?.id ?? '';
     const foiled = c.rng.chance(protection(c.world, t.id));
     data(c).kind = kind; data(c).from = from; data(c).foiled = foiled ? 1 : 0;
+    let outcome: 'dead' | 'wounded' | 'none' = 'none';
     if (!foiled) {
-      if (kind === 'assassin') { if (c.rng.chance(0.3)) kill(c.world, t, c.world.date, 'murdered, by a blade no one admits to'); else { t.flags.push({ id: 'wounded', since: c.world.date }); } }
+      if (kind === 'assassin') { if (c.rng.chance(0.3)) { kill(c.world, t, c.world.date, 'murdered, by a blade no one admits to'); outcome = 'dead'; } else { t.flags.push({ id: 'wounded', since: c.world.date }); outcome = 'wounded'; } }
       else if (kind === 'scandal') { t.mood = clamp((t.mood ?? 60) - 15, 0, 100); }
       else if (kind === 'abduction') { t.flags.push({ id: 'missing', since: c.world.date, detail: 'taken' }); }
       else { t.hidden.loyalty = clamp(t.hidden.loyalty - 5, 0, 20); addThread(c.world, t.id, 'secret', `Took money from House ${houseName(c.world, from)}`); }
     }
-    return choose(c, { personId: t.id, otherHouseId: from || undefined });
+    const account = attemptAccount(c.world, c.rng, t, kind as 'assassin' | 'scandal' | 'abduction' | 'bribe', foiled, ensureChair(c.world).guards[t.id] ?? 0, outcome);
+    return choose(c, { personId: t.id, otherHouseId: from || undefined, account });
   },
   text: (c) => {
     const n = displayName(c.person!.name);
@@ -192,9 +195,15 @@ const attack: EventDef = {
 function strike(c: Ctx, sure = 0): void {
   const p = c.person;
   if (!p?.alive) return;
-  if (c.rng.chance(protection(c.world, p.id) - sure)) { c.fx.say(`The blade came for ${displayName(p.name)} and did not reach them`); chairLog(c.world, 'An attempt on the Exarchon\'s life, turned aside'); return; }
-  if (c.rng.chance(0.6)) kill(c.world, p, c.world.date, `murdered in the Exarchon's chair, by the will of House ${houseName(c.world, str(c, 'a'))} and House ${houseName(c.world, str(c, 'b'))}`);
-  else { p.flags.push({ id: 'wounded', since: c.world.date }); legit(c, -3, 'The Exarchon wounded by an assassin'); c.fx.say(`${displayName(p.name)} lives, barely`); }
+  const guard = ensureChair(c.world).guards[p.id] ?? 0;
+  const tell = (foiled: boolean, out: 'dead' | 'wounded' | 'none') => logRecord(c.world, {
+    kind: 'world', type: 'fight', severity: 3,
+    text: foiled ? `An attempt on the Exarchon's life, turned aside.` : out === 'dead' ? `The Exarchon ${displayName(p.name)} is murdered in the chair.` : `The Exarchon ${displayName(p.name)} is wounded by an assassin, and lives.`,
+    who: [{ id: p.id, part: 'Exarchon' }], account: attemptAccount(c.world, c.rng, p, 'plot', foiled, guard, out),
+  });
+  if (c.rng.chance(protection(c.world, p.id) - sure)) { c.fx.say(`The blade came for ${displayName(p.name)} and did not reach them`); chairLog(c.world, 'An attempt on the Exarchon\'s life, turned aside'); tell(true, 'none'); return; }
+  if (c.rng.chance(0.6)) { tell(false, 'dead'); kill(c.world, p, c.world.date, `murdered in the Exarchon's chair, by the will of House ${houseName(c.world, str(c, 'a'))} and House ${houseName(c.world, str(c, 'b'))}`); }
+  else { p.flags.push({ id: 'wounded', since: c.world.date }); tell(false, 'wounded'); legit(c, -3, 'The Exarchon wounded by an assassin'); c.fx.say(`${displayName(p.name)} lives, barely`); }
 }
 
 const plot: EventDef = {

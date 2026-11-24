@@ -9,6 +9,7 @@ import { atWar, makePlanet, warsOf } from './war';
 import { econ, record } from './economy';
 import { equipPower, shiftCredibility } from './standing';
 import { logRecord } from './records';
+import { assaultAccount } from './details';
 import { displayName } from './names';
 import { ensurePlaces, grievedSites, outpostFor, siteDefence, sitesOf, transferSite, type Site } from './places';
 import { absoluteCycle, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from './time';
@@ -61,6 +62,7 @@ function resolveAssault(w: World, rng: Rng, attacker: string, s: Site, ships: Ca
     text: won ? `${s.name} falls to House ${hn(w, attacker)}: ${ships.map((x) => `the ${x.name}`).join(', ')} broke its guns and put troops aboard.` : `House ${hn(w, attacker)}'s assault on ${s.name} is thrown back.`,
     detail: won ? `House ${hn(w, holder)} will not forget where it was taken, or by whom.` : undefined, houseIds: [attacker, holder].filter((x) => w.houses[x]),
     who: ships.flatMap((x) => (x.captainId ? [{ id: x.captainId, part: `captain of the ${x.name}` }] : [])),
+    account: assaultAccount(w, rng, s.name, `House ${hn(w, holder)}`, ships.map((x) => ({ name: x.name, captainId: x.captainId ?? null })), won, s.garrison),
   });
   return won;
 }

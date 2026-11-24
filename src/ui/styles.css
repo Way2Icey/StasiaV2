@@ -650,3 +650,9 @@ table.list tr.ours td { color: var(--gold); }
 .foldbtn:hover, .foldbtn:focus-visible { color: var(--fg); text-decoration: underline; }
 .page-tabs { margin: 0 0 4px; }
 .panel-scroll table thead th { position: sticky; top: 0; background: #000; z-index: 1; }
+
+/* Details: witness accounts */
+.account { margin-top: 10px; border-left: 2px solid var(--line, currentColor); padding: 2px 0 2px 12px; display: grid; gap: 4px; }
+.account p { margin: 0; line-height: 1.5; }
+.account-by { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; opacity: .65; }
+.account.compact p { font-size: 13px; }

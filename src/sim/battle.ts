@@ -3,7 +3,9 @@
 // happens. The Highroy does not hold a blade: orders go through the commander, who decides how many can be
 // given and how well they are carried out, and through the fighters, who may not obey. Orders change which
 // fights happen; the people in them decide who wins. Key moments stop the battle and ask.
+import { battleAccount } from './details';
 import { Rng } from './rng';
+import { logRecord } from './records';
 import { caigeEdge } from './scenes_power';
 import type { Character, ResonanceBand, ResonanceType, StatId, World } from './types';
 import { barsOf } from './relationships';
@@ -124,6 +126,8 @@ export interface Battle {
   applied?: boolean;
   /** The clock has stopped for it once already. */
   prompted?: boolean;
+  /** Told once it is over, by someone who was in it. */
+  account?: import('./details').Account;
 }
 
 export interface BattlesState { list: Battle[] }
@@ -262,7 +266,7 @@ function fall(b: Battle, r: Rng, f: Fighter, by: Fighter | undefined, deathRisk:
   const side = b.sides[f.side];
   if ((f.id && f.id === side.commander.id) || (!f.id && f.name === side.commander.name)) {
     side.orders = 0; side.commander.skill *= 0.6; side.morale -= 10;
-    say(b, `${side.name} has lost its commander.`, f.side, true);
+    say(b, `${side.name.charAt(0).toUpperCase() + side.name.slice(1)} ${/(s|men|people|folk|crew)$/.test(side.name) ? "have lost their" : "has lost its"} commander.`, f.side, true);
   }
   const swing = (f.champion ? 11 : 5) * (f.side === 0 ? -1 : 1);
   b.momentum = clamp(b.momentum + swing, -100, 100);
@@ -656,9 +660,22 @@ export const fightItOut = (input: World, id: string) => onBattle(input, id, (b, 
  * What a battle did to our people, applied once: the dead are dead, the downed are wounded, scores settled.
  * Hunts and the Crucible settle their own; arcs and others use this.
  */
+/** Once a battle is over: someone tells it, and what they tell leaves its marks. Told once. */
+export function chronicle(world: World, b: Battle): import('./details').Account | undefined {
+  if (b.account || !b.result) return b.account;
+  const r = new Rng(b.rng);
+  b.account = battleAccount(world, r, b);
+  return b.account;
+}
+
 export function applyFates(world: World, b: Battle): void {
   if (b.applied) return;
   b.applied = true;
+  // A fight nobody else writes up is written up here, with its account.
+  if (!b.account && chronicle(world, b) && (b.kind === 'war' || b.kind === 'arc' || b.kind === 'raid')) {
+    logRecord(world, { kind: 'world', type: 'fight', severity: 2, text: `${b.title}: ${b.result!.text}`, account: b.account,
+      who: b.fighters.filter((f) => f.id && f.side === 0).slice(0, 6).map((f) => ({ id: f.id!, part: f.state === 'dead' ? 'killed' : f.state === 'down' ? 'wounded' : f.deeds.length ? f.deeds[0]! : 'fought' })) });
+  }
   for (const f of b.fighters) {
     const c = f.id ? world.characters[f.id] : undefined;
     if (!c?.alive) continue;

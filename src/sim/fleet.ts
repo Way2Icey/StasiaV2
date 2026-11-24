@@ -5,6 +5,7 @@ import { displayName } from './names';
 import { econ, record } from './economy';
 import { relation, shiftRelation } from './relations';
 import { logRecord } from './records';
+import { standoffAccount } from './details';
 import { findSector } from './query';
 import { shiftMood } from './mood';
 import { shiftOpinion } from './relationships';
@@ -516,6 +517,7 @@ function standoff(w: World, rng: Rng, a: CapitalShip, b: CapitalShip) {
       who: [...(wc ? [{ id: wc.id, part: `captain of the ${winner.name}` }] : []), ...(lc ? [{ id: lc.id, part: `captain of the ${loser.name}` }] : [])],
       houseIds: [a.houseId, b.houseId], placeId: where?.sector.id,
       effects: [`${loser.name} damaged`, `${H(w, winner.houseId)} dread +3`, `${H(w, loser.houseId)} regard −10`],
+      account: standoffAccount(w, rng, { name: winner.name, captainId: winner.captainId ?? null }, { name: loser.name, captainId: loser.captainId ?? null }, where?.planet.name ?? 'a blockaded world'),
     });
   } else if (a.houseId === P || b.houseId === P) {
     logRecord(w, { kind: 'world', type: 'world', severity: 1, text: `The ${b.name} came out to face the ${a.name}. Guns were run out; neither fired. They hold their stations.`, houseIds: [a.houseId, b.houseId], placeId: a.sectorId });

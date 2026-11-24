@@ -141,6 +141,8 @@ export interface Character {
   veiled?: number;
   /** Kept in the Circle by the player's choice. */
   pinned?: boolean;
+  /** What they carry from the fights they have been in: wounds, grudges, feats, habits others noticed. */
+  marks?: import('./details').Mark[];
   /** Absolute cycle they last had a part in a story. */
   seen?: number;
 }
@@ -278,6 +280,8 @@ export interface FeedEntry {
   seat?: import('./reports').Reporter;
   /** The original words of a letter: who wrote it, and what they said. */
   quote?: { from: string; text: string };
+  /** An account of what happened, from someone who was there. */
+  account?: import('./details').Account;
 }
 
 // ---------------------------------------------------------------- knowledge

@@ -8,6 +8,7 @@ import { Rng } from './rng';
 import { displayName, shortName } from './names';
 import { econ, record } from './economy';
 import { logRecord } from './records';
+import { combatant, duelAccount, type Combatant } from './details';
 import { shiftMood } from './mood';
 import { shiftRelation } from './relations';
 import { bondOf, meet, opinion, setBond, shiftOpinion, tieOf } from './relationships';
@@ -30,7 +31,7 @@ export const KIND_LABEL: Record<CircuitKind, string> = { underground: 'Undergrou
 
 /** Someone on the card: one of the houses' people (id), or a local fighter (name only). */
 export interface Entrant { id?: string; name: string; houseId?: string; skill: number; sent?: boolean }
-export interface CBout { a: string; b: string; winner: string; hurt?: string; killed?: string }
+export interface CBout { a: string; b: string; winner: string; hurt?: string; killed?: string; account?: import('./details').Account }
 
 export interface CircuitEvent {
   id: string;
@@ -223,6 +224,13 @@ function boutOf(world: World, rng: Rng, e: CircuitEvent, a: Entrant, b: Entrant,
     tally(world, L.id, 'bouts');
   }
   if (W) { tally(world, W.id, 'bouts'); tally(world, W.id, 'boutsWon'); seasoned(world, rng, W.id, true); }
+  // Only the bouts our people were in are told back home; the rest are results on a board.
+  if ((a.id && world.characters[a.id]?.houseId === world.playerHouseId) || (b.id && world.characters[b.id]?.houseId === world.playerHouseId)) {
+    const asC = (x: Entrant): Combatant => (x.id && world.characters[x.id] ? combatant(world.characters[x.id]!, fightScore(world.characters[x.id]!)) : { name: x.name, score: x.skill });
+    const pits = e.kind === 'underground' || e.kind === 'pitnight';
+    out.account = duelAccount(world, rng, asC(a), asC(b), { winner: win === a ? 'a' : 'b', hurt: !!out.hurt, killed: !!out.killed },
+      { place: `at ${e.name}`, blunt: !pits && death < 0.01, witness: pits ? rng.pick(['a bookmaker', 'a pit-hand who swept the sand after', 'someone who would rather not be named']) : rng.pick(['the ring announcer', 'a herald', 'a spectator from the stands']), crowd: pits ? rng.pick(['The crowd was thick and loud.', 'Two hundred people in a hold built for fifty.', 'Bets were still being taken when it started.']) : undefined });
+  }
   // Meet the same face often enough and it becomes personal.
   if (L && W && L.houseId !== W.houseId) {
     shiftOpinion(world, L.id, W.id, out.killed ? -60 : -5, `beaten at ${e.name}`);
@@ -381,6 +389,7 @@ function hear(world: World, rng: Rng, e: CircuitEvent, purse: Record<string, num
           : `${displayName(c.name)} comes back from ${e.name}: ${won}–${lost}${champ ? ', and the title' : ''}${purse[x.id!] ? `, ${fmt(purse[x.id!]!)} othes in winnings` : ''}${hurt ? `, and a wound from ${N(hurt.winner)}` : ''}.${killed.length ? ` They killed ${killed.join(' and ')}.` : ''}`,
         detail: bs.map((b) => `${N(b.winner)} beat ${N(b.winner === b.a ? b.b : b.a)}${b.hurt ? ' (hurt)' : ''}${b.killed ? ' (killed)' : ''}`).join('\n'),
         who: [{ id: c.id, part: fell ? 'killed' : champ ? 'won' : 'fought' }], placeId: e.sectorId, source: fell ? 'those who were there' : shortName(c.name),
+        account: (fell ?? hurt ?? bs.find((b) => b.killed) ?? bs[bs.length - 1])?.account,
       });
       // The pits keep bad company.
       if (e.shady && !fell && rng.chance(0.3)) {
