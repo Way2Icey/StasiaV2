@@ -7,6 +7,8 @@
 // a seat or not, and they vote, feud, ally, fight in the Crucible and can be founded or fall. Turning one into
 // a fully simulated house later only means giving it people and worlds; everything here already treats it
 // as a house.
+import { kill } from './death';
+import { envyAgainst, envyOf, envyYear, topHouse } from './envy';
 import { Rng } from './rng';
 import { buildWord } from './names';
 import { relation, shiftRelation } from './relations';
@@ -306,7 +308,10 @@ function merit(w: World, c: Candidate): number {
 
 export function candidatesScore(w: World, voter: string, c: Candidate): number {
   if (c.houseId === voter) return 500;
-  return regardOf(w, voter, c.houseId) + affinity(w, voter, c.houseId) * 25 + prestigeOf(w, c.houseId) * 0.35 + merit(w, c) * 0.8;
+  // A seat backs its own, then its friends; standing earns respect, and envy takes it back with interest.
+  const sworn = w.war?.liege[voter] === c.houseId ? 40 : 0;
+  const promised = (w.chair?.promises ?? []).includes(voter) && c.houseId === w.playerHouseId ? 35 : 0;
+  return regardOf(w, voter, c.houseId) + affinity(w, voter, c.houseId) * 25 + prestigeOf(w, c.houseId) * 0.2 + merit(w, c) * 0.8 - envyOf(w, voter, c.houseId) * 1.4 + sworn + promised;
 }
 
 export function seatExarchon(w: World, rng: Rng, c: Candidate, year: number): void {
@@ -350,7 +355,7 @@ export function motionTitle(w: World, kind: MotionKind, target?: string, second?
     case 'commend': return `That ${H(target)} be commended`;
     case 'mediate': return `That ${H(target)} and ${H(second)} lay down their feud`;
     case 'raise': return `That ${H(target)} be raised a Great House, and ${H(second)} stand down`;
-    case 'remove': return `That the Exarchon be removed`;
+    case 'remove': return `That the Exarchon be condemned, and the chair made empty`;
     case 'elect': return 'The election of an Exarchon';
     case 'seats': return 'The election of the four Minor seats';
     case 'ceasefire': return `That the war between ${H(target)} and ${H(second)} stop`;
@@ -398,11 +403,11 @@ export function aiVote(w: World, voter: string, m: Motion): Vote | number {
     case 'censure':
       if (voter === m.target) return 'nay';
       if (voter === m.by) return 'aye';
-      s = -regardOf(w, voter, m.target!) * 0.7 + by - affinity(w, voter, m.target!) * 15 - 4;
+      s = -regardOf(w, voter, m.target!) * 0.7 + by - affinity(w, voter, m.target!) * 15 - 4 + envyOf(w, voter, m.target!) * 0.5;
       break;
     case 'commend':
       if (voter === m.target || voter === m.by) return 'aye';
-      s = regardOf(w, voter, m.target!) * 0.6 + by - 6;
+      s = regardOf(w, voter, m.target!) * 0.6 + by - 6 - envyOf(w, voter, m.target!) * 0.5;
       break;
     case 'mediate':
       if (voter === m.target || voter === m.second) {
@@ -413,11 +418,13 @@ export function aiVote(w: World, voter: string, m: Motion): Vote | number {
     case 'raise':
       if (voter === m.target) return 'aye';
       if (voter === m.second) return 'nay';
-      s = (regardOf(w, voter, m.target!) - regardOf(w, voter, m.second!)) * 0.5 + (prestigeOf(w, m.target!) - prestigeOf(w, m.second!)) * 0.9 + v.peoples * 4 - (tierOf(w, voter) === 'great' ? 14 : -4) + by;
+      s = (regardOf(w, voter, m.target!) - regardOf(w, voter, m.second!)) * 0.5 + (prestigeOf(w, m.target!) - prestigeOf(w, m.second!)) * 0.9 + v.peoples * 4 - (tierOf(w, voter) === 'great' ? 14 : -4) + by
+        + (envyOf(w, voter, m.second!) - envyOf(w, voter, m.target!)) * 0.6;
       break;
     case 'remove':
       if (ex && voter === ex.houseId) return 'nay';
-      s = (ex ? -regardOf(w, voter, ex.houseId) * 0.7 : 0) - 22 - v.numarade * 6 + by;
+      s = (ex ? -regardOf(w, voter, ex.houseId) * 0.7 + envyOf(w, voter, ex.houseId) * 0.5 : 0) - 22 - v.numarade * 6 + by
+        + (ex && ex.houseId === w.playerHouseId && w.chair ? (50 - w.chair.legitimacy) * 0.6 : 0);
       break;
   }
   return s > 8 ? 'aye' : s < -8 ? 'nay' : 'abstain';
@@ -496,8 +503,15 @@ function applyMotion(w: World, rng: Rng, m: Motion, year: number): void {
     case 'raise': raise(w, m.target!, m.second!, year, 'by a vote of the Numarade'); break;
     case 'ceasefire': if (m.warId) orderCeasefire(w, m.warId); break;
     case 'remove': {
+      // The chair is held for life, and given up only by death. A removal by the Numarade is a sentence.
       const ex = a.numarade.exarchon;
-      if (ex) { a.history.push({ year, kind: 'exarchon', text: `The Numarade removed the Exarchon ${ex.name} of House ${houseName(w, ex.houseId)}.`, houses: [ex.houseId] }); shiftPrestige(w, ex.houseId, -10); }
+      if (ex) {
+        a.history.push({ year, kind: 'exarchon', text: `The Numarade condemned the Exarchon ${ex.name} of House ${houseName(w, ex.houseId)}, and the sentence was carried out.`, houses: [ex.houseId] });
+        shiftPrestige(w, ex.houseId, -10);
+        const p = ex.personId ? w.characters[ex.personId] : undefined;
+        if (p?.alive) kill(w, p, w.date, 'put to death by sentence of the Numarade');
+        logRecord(w, { kind: 'world', type: 'politics', severity: 3, text: `The Numarade has condemned the Exarchon ${ex.name}. The sentence is carried out in the chamber.`, houseIds: w.houses[ex.houseId] ? [ex.houseId] : [], source: 'the Numarade' });
+      }
       a.numarade.exarchon = null; a.numarade.capanna = [];
       callElection(w, rng);
       break;
@@ -522,7 +536,6 @@ export function raise(w: World, up: string, down: string, year: number, how: str
   a.history.push({ year, kind: 'rise', text: `House ${U.name} was raised a Great House ${how}; House ${D.name} stood down to the Minor.`, houses: [up, down] });
   shiftRegard(w, down, up, -30);
   logRecord(w, { kind: 'world', type: 'politics', severity: 3, text: `House ${U.name} is raised a Great House, and House ${D.name} stands down.`, houseIds: [up, down].filter((x) => w.houses[x]), source: 'the Numarade' });
-  if (a.numarade.exarchon?.houseId === down) { a.numarade.exarchon = null; a.numarade.capanna = []; }
 }
 
 /** The Exarchon's chair is empty: the Great Houses put forward their candidates. */
@@ -555,8 +568,9 @@ function closeElection(w: World, rng: Rng, m: Motion): void {
       const ours = cands.find((x) => x.i === m.swingFor)!;
       const unsure = a.numarade.seats.filter((s) => s !== w.playerHouseId && votes[s] !== ours.i && !cands.some((x) => x.i === votes[s] && x.c.houseId === s))
         .map((s) => ({ s, gap: candidatesScore(w, s, cands.find((x) => x.i === votes[s])!.c) - candidatesScore(w, s, ours.c) }))
-        .filter((x) => x.gap < 45).sort((x, y) => x.gap - y.gap);
-      for (const u of unsure.slice(0, m.swing)) votes[u.s] = ours.i;
+        .filter((x) => x.gap < 25 && envyOf(w, x.s, ours.c.houseId) < 25).sort((x, y) => x.gap - y.gap);
+      // A majority is not bought: no more than three seats come over, and the resentful do not come at all.
+      for (const u of unsure.slice(0, Math.min(3, m.swing))) votes[u.s] = ours.i;
     }
     for (const s of a.numarade.seats) count.set(votes[s] as number, (count.get(votes[s] as number) ?? 0) + 1);
     const ranked = cands.slice().sort((x, y) => (count.get(y.i) ?? 0) - (count.get(x.i) ?? 0) || prestigeOf(w, y.c.houseId) - prestigeOf(w, x.c.houseId));
@@ -674,7 +688,8 @@ export function cannotTable(w: World, kind: OurMotion, target?: string, second?:
   return null;
 }
 
-export const lowestGreat = (w: World) => liveHouses(w).filter((h) => h.tier === 'great').sort((x, y) => x.prestige - y.prestige)[0];
+/** The weakest Great House that can be stood down: never the Exarchon's own, which the chair shields while they live. */
+export const lowestGreat = (w: World) => liveHouses(w).filter((h) => h.tier === 'great' && h.id !== w.archon?.numarade.exarchon?.houseId).sort((x, y) => x.prestige - y.prestige)[0];
 
 /** Bring a motion before the Numarade (through a friendly seat if we hold none). */
 export function tableMotion(input: World, kind: OurMotion, target?: string, second?: string): World {
@@ -813,7 +828,17 @@ function aiMotion(w: World, rng: Rng): void {
     const war = w.war!.wars.find((x) => x.id === cf.warId)!;
     opts.push([() => table(w, 'ceasefire', cf.by, war.attacker, war.defender, { warId: war.id }), 1.5]);
   }
+  // Envy finds a voice: the house that stands highest is called to account.
+  const top = topHouse(w);
+  if (top && !recent('censure', top)) {
+    const accuser = n.seats.filter((s) => s !== top).sort((p, q) => envyOf(w, q, top) - envyOf(w, p, top))[0];
+    if (accuser && envyOf(w, accuser, top) >= 18 && regardOf(w, accuser, top) < 15) opts.push([() => table(w, 'censure', accuser, top), envyOf(w, accuser, top) / 30]);
+  }
   const ex = n.exarchon;
+  if (ex && ex.houseId === w.playerHouseId && w.chair && w.chair.legitimacy < 40 && !recent('remove')) {
+    const by = n.seats.filter((s) => s !== ex.houseId).sort((p, q) => regardOf(w, p, ex.houseId) - regardOf(w, q, ex.houseId))[0];
+    if (by) opts.push([() => table(w, 'remove', by), (40 - w.chair.legitimacy) / 12]);
+  }
   if (ex) {
     const dislike = n.seats.filter((s) => s !== ex.houseId).reduce((t, s) => t + regardOf(w, s, ex.houseId), 0) / Math.max(1, n.seats.length - 1);
     if (dislike < -25) { const by = n.seats.filter((s) => s !== ex.houseId).sort((p, q) => regardOf(w, p, ex.houseId) - regardOf(w, q, ex.houseId))[0]; if (by && !recent('remove')) opts.push([() => table(w, 'remove', by), 0.4]); }
@@ -872,6 +897,13 @@ function yearly(w: World, rng: Rng): void {
   if (a.numarade.capanna.some((c) => c.houseId === P) && w.realm) w.realm.favour[P] = clamp((w.realm.favour[P] ?? 50) + 3, 0, 100);
   // The Minor seats every five years.
   if (year >= a.numarade.nextElection && !a.numarade.motions.some((m) => m.status === 'open' && m.kind === 'seats')) callSeats(w);
+  envyYear(w, (x, y, by) => shiftRegard(w, x, y, by));
+  // A Great House that is envied by all is pressed to stand down, by whoever stands closest below it.
+  if (tierOf(w, P) === 'great' && a.numarade.exarchon?.houseId !== P && envyAgainst(w, P) >= 15 && year - a.numarade.lastShift >= 8 && !a.numarade.motions.some((m) => m.status === 'open' && m.kind === 'raise') && rng.chance(0.3)) {
+    const rival = houses.filter((h) => h.tier === 'minor').sort((x, y) => y.prestige - x.prestige)[0];
+    const by = rival ? a.numarade.seats.filter((s) => s !== P && s !== rival.id).sort((p, q) => envyOf(w, q, P) - envyOf(w, p, P))[0] : undefined;
+    if (rival && by && rival.prestige > prestigeOf(w, P) - 25) table(w, 'raise', by, rival.id, P);
+  }
   // Rising and falling: rare, and only when the gap is plain.
   const low = lowestGreat(w);
   const top = houses.filter((h) => h.tier === 'minor').sort((x, y) => y.prestige - x.prestige)[0];

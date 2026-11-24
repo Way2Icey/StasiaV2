@@ -37,6 +37,8 @@ export const FLAGS: FlagDef[] = [
   { id: 'blooded', label: 'Blooded', kind: 'credential', visibility: 'all', endsBy: 'Never' },
   { id: 'awakened', label: 'Awakened', kind: 'condition', visibility: 'all', endsBy: 'Never' },
   { id: 'strained', label: 'Strained resonance', kind: 'condition', visibility: 'all', endsBy: 'Time' },
+  { id: 'atChair', label: 'At the Exarchon\'s chair', kind: 'political', visibility: 'all', endsBy: 'Death, or removal by the Numarade' },
+  { id: 'regent', label: 'Regent of the house', kind: 'political', visibility: 'all', endsBy: 'The chair falling empty, or dismissal' },
   { id: 'retired', label: 'Retired from arms', kind: 'condition', visibility: 'all', endsBy: 'Never' },
   { id: 'triedCaige', label: 'Sought a Caige on the black market', kind: 'condition', visibility: 'secret', endsBy: 'Never' },
   { id: 'watch', label: 'Holding a lane', kind: 'condition', visibility: 'all', endsBy: 'The lane watch ends' },

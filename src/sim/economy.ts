@@ -3,6 +3,7 @@
 // once. Prices on the Imperial Exchange move with what the houses buy and sell.
 import { embargoMarkup } from './lanewatch';
 import { favourQuota, privilegeOf } from './houses';
+import { guardCost } from './chair';
 import { bestBuy, bestSell, clearExchange, marketOrder } from './exchange';
 import { renownOf } from './renown';
 import { Rng } from './rng';
@@ -136,6 +137,8 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
     const cut = round(takings * ((rung === 'war' ? 0.25 : 0.08) + (blockaded ? 0.15 : 0)));
     if (cut) lines.push({ resource: 'othes', amount: -cut, label: blockaded ? 'Trade lost to the war, and the blockade' : 'Trade lost to the war', kind: 'war' });
   }
+  // Guards on our people, against the envy of the Archon.
+  if (houseId === world.playerHouseId) { const g = guardCost(world); if (g) lines.push({ resource: 'othes', amount: -g, label: 'Guards on our people', kind: 'stipend' }); }
   // What we own costs to keep.
   let upkeep = 0;
   let mods = 0;

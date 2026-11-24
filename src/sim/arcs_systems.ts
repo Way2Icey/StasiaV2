@@ -163,7 +163,7 @@ const numarade: EventDef[] = [
         resolve: (c) => {
           const m = c.world.archon!.numarade.motions.find((x) => x.id === str(c, 'motion'));
           c.fx.othes(-amt(c));
-          if (m?.candidates?.length) { const idx = m.candidates.findIndex((x) => x.houseId === c.house); m.swingFor = idx >= 0 ? idx : m.candidates.map((x, i) => ({ i, r: regardOf(c.world, x.houseId, c.house) })).sort((a, b) => b.r - a.r)[0]!.i; m.swing = (m.swing ?? 0) + 3; }
+          if (m?.candidates?.length) { const idx = m.candidates.findIndex((x) => x.houseId === c.house); m.swingFor = idx >= 0 ? idx : m.candidates.map((x, i) => ({ i, r: regardOf(c.world, x.houseId, c.house) })).sort((a, b) => b.r - a.r)[0]!.i; m.swing = (m.swing ?? 0) + 2; }
           if (c.rng.chance(0.25)) c.fx.say('It comes out. The chamber is disgusted').honour(-6).respect(-3); else c.fx.say('Three seats will vote as they were paid to');
         } },
       { label: 'Lobby honestly', hint: 'Speaker', check: { who: (c) => seat(c, 'envoy'), stats: ['diplomacy', 'eloquence'], dc: 13 },

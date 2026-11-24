@@ -1,5 +1,6 @@
 // The council at work: standing tasks for each seat, the Highroy's oath,
 // petitions from the council, and the house's standing and relations.
+import { regencyFactor } from './chair';
 import { tally } from './careers';
 import { addGlory } from './ambitions';
 import { Rng } from './rng';
@@ -362,7 +363,7 @@ export function advanceCouncil(world: World, rng: Rng, phaseTurned: boolean, orb
     if (!court) continue;
     const oathTasks = new Set(court.oath ? OATHS_BY_ID[court.oath.id]?.tasks ?? [] : []);
     // Nobles at court help the council along; with the Highroy away it drifts a little.
-    const courtFactor = (1 + courtTotals(world, houseId).tasks) * (highroyAway(world, houseId) ? 0.9 : 1) * elderFactor(world, houseId);
+    const courtFactor = (1 + courtTotals(world, houseId).tasks) * (highroyAway(world, houseId) ? regencyFactor(world, houseId) : 1) * elderFactor(world, houseId);
     for (const [seat, a] of Object.entries(court.tasks) as [CouncilSeat, TaskAssignment][]) {
       const c = seatHolder(world, houseId, seat);
       const def = TASKS_BY_ID[a.task];

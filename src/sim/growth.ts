@@ -2,6 +2,7 @@
 // rises, Caiges turn up. Rival houses also roll for what their own agents
 // find. What is public reaches our Chronicle; the rest is written in each
 // house's annals, which we only read by scouting or investigating them.
+import { placeNewborn } from './circle';
 import type { Rng } from './rng';
 import { ageOf, createCharacter } from './characters';
 import { displayName, shortName } from './names';
@@ -91,7 +92,8 @@ function births(world: World, rng: Rng, houseId: string) {
     if (!adults.some((c) => c.sex === 'f') || !adults.some((c) => c.sex === 'm')) continue;
     if (!rng.chance(0.012)) continue;
     const c = bear(world, rng, fam, adults, 'Child');
-    annal(world, houseId, `A child, ${c.name.given}, is born to the ${fam.name} family of House ${house.name}.`, fam.high || houseId === world.playerHouseId, [c.id]);
+    placeNewborn(world, c);
+    if (!c.veiled) annal(world, houseId, `A child, ${c.name.given}, is born to the ${fam.name} family of House ${house.name}.`, fam.high || houseId === world.playerHouseId, [c.id]);
   }
 }
 
@@ -99,6 +101,7 @@ const CHILD_ROLES = new Set(['Child', 'Ward', 'Son of the Highroy', 'Daughter of
 
 function comingOfAge(world: World, houseId: string) {
   for (const c of alive(world)) {
+    if (c.veiled) { if (c.houseId === houseId && CHILD_ROLES.has(c.role) && ageOf(c, world.date) >= SPECIES[c.species].adulthood && !c.flags.some((f) => f.id === 'cameOfAge')) { c.flags.push({ id: 'cameOfAge', since: world.date }); c.role = 'Noble'; } continue; }
     if (c.houseId !== houseId || !CHILD_ROLES.has(c.role) || c.flags.some((f) => f.id === 'cameOfAge')) continue;
     if (ageOf(c, world.date) < SPECIES[c.species].adulthood) continue;
     c.flags.push({ id: 'cameOfAge', since: world.date });

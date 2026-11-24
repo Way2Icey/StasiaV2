@@ -130,7 +130,8 @@ function riot(c: Ctx, care: number) {
   for (const b of bs) {
     const v = b.stats.resonanceControl + b.stats.willpower + care * 2 + c.rng.gauss() * 4;
     if (v >= 24) { c.fx.thread(b, 'omen', 'Held their Caige in the riot'); continue; }
-    const victim = c.rng.pick(bs.filter((x) => x !== b)) ?? b;
+    const others = bs.filter((x) => x !== b);
+    const victim = others.length ? c.rng.pick(others) : b;
     c.fx.wound(victim).say(`${nm(b)} lost hold, and ${nm(victim)} paid for it`);
     if (victim !== b) { shiftOpinion(c.world, victim.id, b.id, -25, 'hurt in the Caige riot'); addThread(c.world, victim.id, 'grudge', `Hurt by ${nm(b)} in the Caige riot`, b.id); }
     if (c.rng.chance(0.08)) { kill(c.world, victim, c.world.date, 'the Caige riot'); c.fx.say(`${nm(victim)} did not survive it`); }
