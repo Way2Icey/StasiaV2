@@ -324,10 +324,11 @@ export function advanceRelationships(world: World, rng: Rng, phaseTurned: boolea
     if (court.length < 2) continue;
     // A handful of meetings each Phase.
     const meetings = Math.max(3, Math.round(court.length * 1.2));
+    const byId = new Map(court.map((c) => [c.id, c]));
     for (let i = 0; i < meetings; i++) {
       const a = rng.pick(court);
       // Half the time people seek out someone they already know; otherwise anyone at court.
-      const known = Object.keys(world.ties?.[a.id] ?? {}).map((id) => court.find((c) => c.id === id)).filter((c): c is Character => !!c);
+      const known = Object.keys(world.ties?.[a.id] ?? {}).map((id) => byId.get(id)).filter((c): c is Character => !!c);
       const b = known.length && rng.chance(0.5) ? rng.pick(known) : rng.pick(court);
       if (a.id === b.id) continue;
       // People who dislike each other keep apart; mostly they simply do not meet.
@@ -351,11 +352,16 @@ export function advanceRelationships(world: World, rng: Rng, phaseTurned: boolea
     }
   }
   // Feelings fade without contact: liking slowly, dislike more slowly still.
-  for (const row of Object.values(world.ties ?? {})) for (const t of Object.values(row)) {
-    const x = bars(t);
-    x.like = Math.max(0, x.like - 0.25);
-    x.dislike = Math.max(0, x.dislike - 0.15);
-    x.opinion = clamp(Math.round(x.like - x.dislike), -100, 100) || 0;
+  // The dead feel nothing more (their last feelings are kept, unchanged); feelings faded to nothing are forgotten.
+  for (const [id, row] of Object.entries(world.ties ?? {})) {
+    if (!world.characters[id]?.alive) continue;
+    for (const [o, t] of Object.entries(row)) {
+      const x = bars(t);
+      x.like = Math.max(0, x.like - 0.25);
+      x.dislike = Math.max(0, x.dislike - 0.15);
+      x.opinion = clamp(Math.round(x.like - x.dislike), -100, 100) || 0;
+      if (!t.bond && x.like < 0.5 && x.dislike < 0.5) delete row[o];
+    }
   }
   // Ties colour mood: a friend at court lifts it, a rival at court sours it.
   for (const c of Object.values(world.characters)) {

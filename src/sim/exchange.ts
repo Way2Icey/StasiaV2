@@ -204,9 +204,15 @@ export function haul(world: World, g: Good, a: string, b: string): number {
 
 // ---------------------------------------------------------------- need
 
+/** During a clearing, each house's ledger is reckoned once, not once per good per question. */
+let NETS: Map<string, ReturnType<typeof netPerPhase>> | null = null;
+const netsOf = (world: World, houseId: string) => {
+  if (NETS) { let n = NETS.get(houseId); if (!n) { n = netPerPhase(phaseLedger(world, houseId)); NETS.set(houseId, n); } return n; }
+  return netPerPhase(phaseLedger(world, houseId));
+};
 /** What a house uses of a good each Phase (0 if it makes more than it uses). */
 export function useOf(world: World, houseId: string, g: Good): number {
-  return Math.max(0, -netPerPhase(phaseLedger(world, houseId))[g]);
+  return Math.max(0, -netsOf(world, houseId)[g]);
 }
 /** What a house means to keep in store. */
 export function reserveOf(world: World, houseId: string, g: Good): number {
@@ -291,6 +297,11 @@ const tranches = (who: string, region: string, g: Good, t: [number, number][] | 
 
 /** Once a Phase: every house and world puts up its bids and asks, and the Exchange matches them. */
 export function clearExchange(world: World, rng: Rng): void {
+  NETS = new Map();
+  try { clearing(world, rng); } finally { NETS = null; }
+}
+
+function clearing(world: World, rng: Rng): void {
   const ex = ensureExchange(world);
   // The standing orders are set again; the player's own stay.
   ex.orders = ex.orders.filter((o) => !o.auto && o.qty > 0);

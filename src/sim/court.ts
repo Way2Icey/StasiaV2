@@ -27,7 +27,23 @@ export function isAway(world: World, id: string): boolean {
   const c = world.characters[id];
   if (!c) return true;
   if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing' || f.id === 'travelling' || f.id === 'posted' || f.id === 'ward' || f.id === 'aboard' || f.id === 'crucible' || f.id === 'circuit' || f.id === 'hunting' || f.id === 'watch')) return true;
-  return Object.values(world.missions).some((m) => m.stage !== 'done' && (m.leaderId === id || m.companions?.includes(id) || m.pupils?.includes(id)));
+  return onMission(world).has(id);
+}
+
+/** Everyone out on a mission, reckoned once per cycle (and again whenever a mission is added). */
+let awayCache: { missions: object; key: string; ids: Set<string> } | null = null;
+function onMission(world: World): Set<string> {
+  const key = `${world.date.year}/${world.date.cycle}/${Object.keys(world.missions).length}`;
+  if (awayCache && awayCache.missions === world.missions && awayCache.key === key) return awayCache.ids;
+  const ids = new Set<string>();
+  for (const m of Object.values(world.missions)) {
+    if (m.stage === 'done') continue;
+    ids.add(m.leaderId);
+    for (const x of m.companions ?? []) ids.add(x);
+    for (const x of m.pupils ?? []) ids.add(x);
+  }
+  awayCache = { missions: world.missions, key, ids };
+  return ids;
 }
 
 function placeOf(world: World, c: Character): Omit<CourtPlace, 'character' | 'home'> | null {
