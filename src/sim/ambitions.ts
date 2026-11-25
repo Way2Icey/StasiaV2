@@ -2,6 +2,7 @@ import { addThread } from './storystate';
 // Ambitions: what people want out of life, and what they do when they don't get it.
 // Everyone of note wants something: a seat, a ship, glory, love, a fortune, the wide Reaches.
 // Wants that go unmet sour into resentment; ours come to the Highroy in audience, and the Highroy must answer.
+import { giveKnightTitle } from './names';
 import { rivalsFrom, sting } from './grounds';
 import { award, tally, titlesOf } from './careers';
 import { Rng } from './rng';
@@ -633,6 +634,8 @@ export function knight(input: World, id: string): World {
   record(w, w.playerHouseId, { resource: 'othes', amount: -300, label: `Knighting of ${shortName(c.name)}`, kind: 'court' });
   c.role = 'Knight';
   if (!c.flags.some((f) => f.id === 'knighted')) c.flags.push({ id: 'knighted', since: w.date });
+  // They rise with the title their people give a knight.
+  giveKnightTitle(c);
   award(w, c.id, 'Knighted');
   shiftMood(c, 10);
   const lord = w.houses[w.playerHouseId]?.rulerId;

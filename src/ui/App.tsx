@@ -73,6 +73,7 @@ export function App() {
   const [history, setHistory] = useState<History>({ stack: [firstVisit ? { kind: 'newgame' } : { kind: 'throne' }], index: 0 });
   const [query, setQuery] = useState('');
   const [command, setCommand] = useState(false);
+  const [commandQ, setCommandQ] = useState('');
   const [reveal, setReveal] = useState(false);
   const [hovered, setHovered] = useState<{ id: string; x: number; y: number; above: boolean } | null>(null);
   const mainRef = useRef<HTMLElement>(null);
@@ -145,6 +146,19 @@ export function App() {
   const [scene, setScene] = useState<string | null>(null);
   const onFreeze = useCallback((ids: string[], reason: string, battleId?: string, sceneId?: string) => { if (sceneId && !ids.length && !battleId) { setScene(sceneId); return; } setMoments((m) => ({ ids: [...(m?.ids ?? []), ...ids.filter((x) => !m?.ids.includes(x))], reason, resume: true, battle: battleId ?? m?.battle })); }, []);
   const onNotice = useCallback((msg: string) => done(msg), [done]);
+  // A battle waiting for our word survives a reload, and can be called up again from the War screen.
+  useEffect(() => {
+    const call = (id: string) => { const b = world.battles?.list.find((x) => x.id === id && x.status === 'ready'); if (b) setMoments({ ids: [], reason: `Battle: ${b.title}.`, resume: false, battle: b.id }); };
+    const on = (e: Event) => call((e as CustomEvent<string>).detail);
+    window.addEventListener('stasia:battle', on);
+    return () => window.removeEventListener('stasia:battle', on);
+  }, [world]);
+  useEffect(() => {
+    const b = world.battles?.list.find((x) => x.status === 'ready');
+    if (b) setMoments({ ids: [], reason: `Battle: ${b.title}.`, resume: false, battle: b.id });
+    // Once, on load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const clock = useClock(world, setWorld, onFreeze, onNotice, !!moments || !!battle || !!scene);
   // A scene started from the page (a bonding, a talk, a rescue) opens at once.
   useEffect(() => {
@@ -198,7 +212,7 @@ export function App() {
               </div>
               <form className="search" role="search" onSubmit={(e) => { e.preventDefault(); if (query.trim()) nav.to({ kind: 'search', q: query.trim() }); }}>
                 <label htmlFor="global-search" className="sr-only">Search people and places</label>
-                <input id="global-search" className="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search people, families, places…" />
+                <input id="global-search" className="text" value={query} onChange={(e) => { const v = e.target.value; if (v.trim()) { setQuery(''); setCommandQ(v); setCommand(true); } else setQuery(v); }} placeholder="Search people, families, places…" />
               </form>
               <div className="date">
                 <strong>{formatDate(world.date)}</strong>
@@ -236,7 +250,7 @@ export function App() {
                 <Page route={current} setWorld={setWorld} />
               </main>
             </div>
-            {command ? <CommandBar onClose={() => setCommand(false)} /> : null}
+            {command ? <CommandBar initial={commandQ} onClose={() => { setCommand(false); setCommandQ(''); }} /> : null}
             {menu ? <PersonMenuLayer key={`${menu.id}-${menu.x}-${menu.y}`} id={menu.id} x={menu.x} y={menu.y} onClose={closeMenu} onDone={done} /> : null}
             {toast ? <Toast msg={toast} /> : null}
             {moments && !battle ? <MomentWindow ids={moments.ids} reason={moments.reason} battle={moments.battle} onCommand={(id) => { setMoments(null); setBattle(id); }} onClose={(resume) => { setMoments(null); if (resume && moments.resume) clock.setRunning(true); }} /> : null}

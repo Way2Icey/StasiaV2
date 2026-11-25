@@ -303,7 +303,7 @@ export function petitionPlan(world: World, p: Petition): { approach: 'careful' |
   const leader = world.characters[p.leaderId];
   const bold = !!from && (from.hidden.nerve >= 13 || from.traits.some((t) => t.id === 'hotBlooded'));
   const approach = bold ? 'quick' : 'careful';
-  return { approach, text: `${from ? shortName(from.name) : 'They'} would send ${leader ? shortName(leader.name) : 'someone'}${leader && leader.id === from?.id ? ' (themselves)' : ''}, ${bold ? 'quickly, before the chance goes' : 'carefully, and take the time it needs'}.` };
+  return { approach, text: `${from ? shortName(from.name) : 'They'} ${leader && leader.id === from?.id ? 'would go themselves' : `would send ${leader ? shortName(leader.name) : 'someone'}`}, ${bold ? 'quickly, before the chance goes' : 'carefully, and take the time it needs'}.` };
 }
 
 /** The Highroy approves a petition as the councillor planned it. */

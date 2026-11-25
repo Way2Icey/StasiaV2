@@ -110,7 +110,9 @@ function FrontRow({ war, fr }: { war: War; fr: Front }) {
         <strong>{FRONT_LABEL[fr.kind]}</strong>
         <span className="muted">{fr.where}</span>
         {fr.ended ? <span className="tag">{fr.winner === ours ? 'won' : fr.winner ? 'lost' : 'closed'}</span> : null}
-        {fr.battle ? <span className="tag">battle now</span> : null}
+        {fr.battle ? (world.battles?.list.find((x) => x.id === fr.battle)?.status === 'ready'
+          ? <button type="button" className="btn small primary" onClick={() => window.dispatchEvent(new CustomEvent('stasia:battle', { detail: fr.battle }))}>Battle now: take command ›</button>
+          : <span className="tag">battle now</span>) : null}
         {ours && !fr.ended ? <SabotageButton frontId={fr.id} /> : null}
       </div>
       <Tug v={fr.meter * flip} left={ours ? 'them' : houseName(world, war.defender)} right={ours ? 'us' : houseName(world, war.attacker)} />
@@ -182,6 +184,7 @@ function DeclarePanel({ className }: { className?: string }) {
   const [target, setTarget] = useState('');
   const [goal, setGoal] = useState<WarGoal>('tribute');
   const [rung, setRung] = useState<Rung>('clashes');
+  const [confirm, setConfirm] = useState(false);
   const houses = liveHouses(world).filter((h) => h.id !== P).sort((a, b) => regardOf(world, P, a.id) - regardOf(world, P, b.id));
   const why = target ? cannotDeclare(world, target, rung) : 'Choose a house.';
   const just = target ? grievances(world, P, target) : [];
@@ -190,11 +193,11 @@ function DeclarePanel({ className }: { className?: string }) {
       <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {err ? <p className="error">{err}</p> : null}
         <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <select className="select" aria-label="Against" value={target} onChange={(e) => setTarget(e.target.value)}>
+          <select className="select" aria-label="Against" value={target} onChange={(e) => { setTarget(e.target.value); setConfirm(false); }}>
             <option value="">Against…</option>
-            {houses.map((h) => <option key={h.id} value={h.id}>{h.name} ({regardOf(world, P, h.id)})</option>)}
+            {houses.map((h) => <option key={h.id} value={h.id}>{h.name} · regards us {regardOf(world, h.id, P)}</option>)}
           </select>
-          <select className="select" aria-label="How far" value={rung} onChange={(e) => setRung(e.target.value as Rung)}>
+          <select className="select" aria-label="How far" value={rung} onChange={(e) => { setRung(e.target.value as Rung); setConfirm(false); }}>
             <option value="clashes">Clashes on the border</option>
             <option value="war">Open war</option>
           </select>
@@ -203,8 +206,9 @@ function DeclarePanel({ className }: { className?: string }) {
               {(Object.keys(GOAL_LABEL) as WarGoal[]).map((g) => <option key={g} value={g}>{GOAL_LABEL[g]}</option>)}
             </select>
           ) : null}
-          <button type="button" className="btn primary" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => declareWar(w, target, rung === 'war' ? goal : 'humble', rung))}>{rung === 'war' ? 'Declare war' : 'Begin the clashes'}</button>
+          <button type="button" className="btn primary" disabled={!!why || confirm} title={why ?? undefined} onClick={() => setConfirm(true)}>{rung === 'war' ? 'Declare war…' : 'Begin the clashes…'}</button>
         </div>
+        {confirm && target && !why ? <WarPreview target={target} goal={rung === 'war' ? goal : 'humble'} rung={rung} grievances={just.length} onCancel={() => setConfirm(false)} onGo={() => { setConfirm(false); run((w) => declareWar(w, target, rung === 'war' ? goal : 'humble', rung)); }} /> : null}
         {target ? (
           <div style={{ fontSize: 12 }}>
             <span className="eyebrow">Our grievances</span>
@@ -253,7 +257,7 @@ export function WarPage() {
             {!hunted.length && !raised.length && !(s?.tributes ?? []).some((t) => t.from === P || t.to === P) ? <span className="muted">Nothing owed, and no one hunting us.</span> : null}
           </div>
         </Panel>
-        <Panel scroll={360} title="Wars across the Archon" aside={`${others.length} under way`} className="span-12">
+        <Panel scroll={360} title="Other houses' wars" aside={`${others.length} under way`} className="span-12">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {others.length ? others.map((war) => (
               <div key={war.id} className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center', fontSize: 13 }}>
@@ -262,7 +266,7 @@ export function WarPage() {
                 <button type="button" className="btn small" disabled={!!cannotJoin(world, war.id, 'attackers')} title={cannotJoin(world, war.id, 'attackers') ?? undefined} onClick={() => run((w) => joinWar(w, war.id, 'attackers'))}>Join {houseName(world, war.attacker)}</button>
                 <button type="button" className="btn small" disabled={!!cannotJoin(world, war.id, 'defenders')} title={cannotJoin(world, war.id, 'defenders') ?? undefined} onClick={() => run((w) => joinWar(w, war.id, 'defenders'))}>Join {houseName(world, war.defender)}</button>
               </div>
-            )) : <span className="muted">The Archon is at peace, for now.</span>}
+            )) : <span className="muted">{activeWars(world).length ? 'No other wars: ours is the only one.' : 'The Archon is at peace, for now.'}</span>}
           </div>
         </Panel>
         {past.length ? (
@@ -275,5 +279,28 @@ export function WarPage() {
         <div className="span-12"><Go to={{ kind: 'numarade' }} className="btn">The Numarade ›</Go></div>
       </div>
     </>
+  );
+}
+
+/** Before the word is given: what the war will cost, how long the coffers last, and who marches. */
+function WarPreview({ target, goal, rung, grievances: g, onCancel, onGo }: { target: string; goal: WarGoal; rung: Rung; grievances: number; onCancel: () => void; onGo: () => void }) {
+  const world = useWorld();
+  const P = world.playerHouseId;
+  let after: World | null = null;
+  try { after = declareWar(world, target, goal, rung); } catch { after = null; }
+  if (!after) return null;
+  const cost = -phaseLedger(after, P).filter((l) => l.kind === 'war').reduce((t, l) => t + l.amount, 0);
+  const net = netPerPhase(phaseLedger(after, P)).othes;
+  const stock = econ(world, P).stock.othes;
+  const lasts = net < 0 ? (stock > 0 ? Math.floor(stock / -net / 5) : 0) : null;
+  const moved = Object.values(after.war?.formations ?? {}).filter((f) => f.houseId === P && f.strength > 0 && JSON.stringify(f) !== JSON.stringify(world.war?.formations?.[f.id]));
+  return (
+    <div className="record-card" style={{ display: 'grid', gap: 6 }}>
+      <strong>{rung === 'war' ? 'Open war' : 'Clashes on the border'} against <ArchonHouseLink id={target} />?</strong>
+      <div style={{ fontSize: 13 }}>It costs us <strong className="down">{fmt(cost)}</strong> othes a Phase{net < 0 ? <> · we lose <span className="down">{fmt(-net)}</span> a Phase all told · {lasts === 0 ? 'the coffers are already empty' : `the coffers last about ${lasts} Orbit${lasts === 1 ? '' : 's'}`}</> : ' · our income still covers it'}.</div>
+      <div style={{ fontSize: 13 }}>{moved.length ? <>Marching: {moved.map((f, i) => <span key={f.id}>{i ? ', ' : ''}{f.name} <span className="muted">({fmt(f.strength)})</span></span>)}.</> : 'No formations need to move.'}</div>
+      {g ? null : <div className="error" style={{ fontSize: 12 }}>No grievance anyone would accept: honour and the others' good opinion will suffer.</div>}
+      <div className="actions"><button type="button" className="btn small primary" onClick={onGo}>{rung === 'war' ? 'Declare war' : 'Begin the clashes'}</button><button type="button" className="btn small" onClick={onCancel}>Not yet</button></div>
+    </div>
   );
 }

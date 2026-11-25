@@ -563,7 +563,7 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
   logRecord(world, {
     kind: 'council', type: 'decision',
     severity: ctx.fx.lines.some((l) => l.includes('wounded')) ? 2 : 1,
-    text: `${title}: ${choice === null ? 'left to the council, who chose to' : 'we chose to'} ${use.label.toLowerCase()}.`,
+    text: `${title}: ${choice === null ? 'left to the council, who chose' : 'we chose'} “${use.label.replace(/[.…]+$/, '')}”.`,
     detail: p.text, effects: ctx.fx.lines, who, missionId: p.missionId, account: p.account,
     placeId: p.sectorId ?? (m ? m.targetSectorId ?? m.targetPlanetId : undefined),
     houseIds: p.otherHouseId ? [p.otherHouseId] : undefined,

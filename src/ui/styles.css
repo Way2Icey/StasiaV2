@@ -656,3 +656,6 @@ table.list tr.ours td { color: var(--gold); }
 .account p { margin: 0; line-height: 1.5; }
 .account-by { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; opacity: .65; }
 .account.compact p { font-size: 13px; }
+.continue-stops { border-top: 1px solid var(--line); padding: 8px 12px; display: grid; gap: 4px; font-size: 12px; text-align: left; }
+.continue-stops label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.clock .btn.step { padding: 0 10px; background: #000; color: var(--fg); border-left: 1px solid var(--line); }

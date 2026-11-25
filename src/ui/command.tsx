@@ -103,10 +103,10 @@ function score(h: Hit, q: string[]): number {
   return n + (h.hint === 'do' ? 2 : 0);
 }
 
-export function CommandBar({ onClose }: { onClose: () => void }) {
+export function CommandBar({ onClose, initial = '' }: { onClose: () => void; initial?: string }) {
   const world = useWorld();
   const nav = useNav();
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(initial);
   const [sel, setSel] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const all = useMemo(() => index(world), [world]);

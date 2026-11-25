@@ -878,7 +878,7 @@ export function SavePage({ setWorld }: { setWorld: (w: World) => void }) {
 
   return (
     <>
-      <Title title="Save & Load" sub="The game also saves itself in this browser after every Continue." />
+      <Title title="Save & Load" sub="The game also saves itself in this browser whenever time moves." />
       {message ? <p className={message.kind}>{message.text}</p> : null}
       <div className="grid">
         <Panel title="Save slot" className="span-6">

@@ -93,7 +93,7 @@ function StandingPanels({ run }: { run: (fn: (w: World) => World) => void }) {
         <div className="actions body">
           {([0, 1, 2, 3] as EquipLevel[]).map((l) => <button key={l} type="button" className={`btn small${eq === l ? ' primary' : ''}`} title={`${EQUIP_NOTE[l]} ${fmt(soldiers * EQUIP_COST[l])} othes a Phase.`} onClick={() => run((w) => setEquip(w, l))}>{EQUIP_LABEL[l]}</button>)}
         </div>
-        <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{EQUIP_NOTE[eq]} {eq < want ? <span className="error">Below what the Archon expects of a house of our rank: our standing falls every year it stays so.</span> : eq > want ? 'Above our rank: our standing rises a little each year, and the legions fight harder.' : 'What the Archon expects of a house of our rank.'}</p>
+        <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{EQUIP_NOTE[eq]} {eq < want ? <span className="error">Below what the Archon expects of a house of our rank: our standing falls every year it stays so.</span> : eq > want ? 'Above our rank: our standing rises a little each year, and the legions fight harder.' : 'Right for our rank.'}</p>
       </Panel>
       <Panel title="Ceremonies owed" className="span-6">
         <div className="actions body">

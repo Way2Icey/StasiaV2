@@ -1,9 +1,9 @@
 // Embassies: ours abroad and theirs at our court.
+import { regardOf } from '../sim/archon';
 import { useState } from 'react';
 import { useGame, useWorld } from './context';
 import { HouseLink, Panel, PersonById, PersonLink } from './links';
 import { appointAmbassador, cannotAppoint, embassy, expelAmbassador } from '../sim/embassies';
-import { relation } from '../sim/relations';
 import { isAway } from '../sim/court';
 import { formatDate } from '../sim/time';
 import type { World } from '../sim/types';
@@ -30,7 +30,7 @@ export function EmbassyPanel({ houseId, className }: { houseId: string; classNam
     .sort((a, b) => b.stats.diplomacy + b.stats.eloquence - a.stats.diplomacy - a.stats.eloquence);
   const why = pick ? cannotAppoint(world, houseId, pick) : 'Choose who to send first';
   return (
-    <Panel title="Embassies" aside={`regard ${relation(world, houseId, P)}`} className={className}>
+    <Panel title="Embassies" aside={`regards us ${regardOf(world, houseId, P)}`} className={className}>
       <p className="body muted" style={{ margin: 0 }}>Every house keeps an embassy in every other capital. An ambassador learns about the host's council each Phase and, if they have the tongue for it, warms the host toward their house. A clumsy one does the opposite. Embassies empty themselves when regard falls below −60.</p>
       <dl className="kv body">
         <dt>Ours, at their capital</dt>

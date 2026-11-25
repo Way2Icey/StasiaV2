@@ -71,7 +71,7 @@ export function Decision({ p }: { p: PendingEvent }) {
           })}
         </span>
         <span className="muted" style={{ fontSize: 11 }}>
-          Lapses {formatDate(p.expires)}. If you say nothing, the council will <em>{optionLabel(opts[def.fallback] ?? def.options[def.fallback]!, ctx).toLowerCase()}</em>.
+          Lapses {formatDate(p.expires)}. If you say nothing, the council decides: <em>{optionLabel(opts[def.fallback] ?? def.options[def.fallback]!, ctx)}</em>.
         </span>
       </span>
     </div>

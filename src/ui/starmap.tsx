@@ -1,5 +1,6 @@
 // The star map, drawn in text. Worlds, the jump lanes between them, and our
 // missions in flight, all taken from the world as it stands.
+import { regardOf } from '../sim/archon';
 import { useState, type ReactNode } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { agentAvailable, coverOf, postAgent, postAt, postRisk, watchOf } from '../sim/ports';
@@ -11,7 +12,7 @@ import { Go, HouseLink, Panel, PersonLink, PlanetLink, SectorLink } from './link
 import { Term } from './tip';
 import { bar } from './hall';
 import { activeMissions, travelCycles } from '../sim/missions';
-import { attitude, relation } from '../sim/relations';
+import { attitude } from '../sim/relations';
 import { knowledgeOf } from '../sim/knowledge';
 import { absoluteCycle } from '../sim/time';
 import type { World } from '../sim/types';
@@ -147,7 +148,7 @@ function layout(world: World, selected: string, pick: (id: string) => void) {
     const right = id === home ? 7 : 4;
     const leftSide = c + right + 20 > W;
     const name = ` ${p.name.toUpperCase()} `;
-    const att = p.houseId === P ? 'home' : attitude(relation(world, p.houseId, P)).toLowerCase();
+    const att = p.houseId === P ? 'home' : attitude(regardOf(world, p.houseId, P)).toLowerCase();
     const sub = ` ${world.houses[p.houseId]?.name ?? ''} · ${att} `;
     const col = leftSide ? c - right - Math.max(name.length, sub.length) : c + right;
     spans.push({
@@ -187,14 +188,14 @@ export function StarMapPage() {
   const [selected, setSelected] = useState<string>(Object.keys(world.planets).find((id) => id !== home) ?? home);
   const p = world.planets[selected]!;
   const isHome = p.houseId === P;
-  const rel = relation(world, p.houseId, P);
+  const rel = regardOf(world, p.houseId, P);
   const council = Object.values(world.characters).filter((c) => c.alive && c.houseId === p.houseId && c.seat);
   const known = council.length ? council.reduce((s, c) => s + knowledgeOf(world, P, c.id).depth, 0) / council.length : 0;
   const ours = activeMissions(world, P).filter((m) => m.targetPlanetId === selected);
   const ports = p.sectors.filter((s) => s.port !== 'none');
   return (
     <>
-      <div className="page-title"><h2>Star map</h2><p>The Reaches as your people know them. Pick a world; press 0–9 to change screens.</p></div>
+      <div className="page-title"><h2>Star map</h2><p>The Reaches as your people know them. Pick a world to open it. Keys 1–9 change screens.</p></div>
       <div className="grid">
         <Panel title="The Reaches" aside={`${Object.keys(world.planets).length} worlds · ${activeMissions(world, P).length} of ours in flight`} className="major span-8">
           <div className="body map-wrap"><MapText world={world} selected={selected} pick={setSelected} /></div>

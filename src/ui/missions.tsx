@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { regardOf } from '../sim/archon';
 import { DecisionsPanel } from './events';
 import { Term } from './tip';
 import { displayName } from '../sim/names';
@@ -12,7 +13,7 @@ import { closePetition } from '../sim/council';
 import { averageMood, moodColor, moodLabel, moodOf } from '../sim/mood';
 import { dismissLead, leadsOf, recruit } from '../sim/discovery';
 import { answerPupilOffer } from '../sim/training';
-import { attitude, attitudeColor, relation } from '../sim/relations';
+import { attitude, attitudeColor } from '../sim/relations';
 import type { Approach, Character, Mission, MissionKind, Outcome } from '../sim/types';
 import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
@@ -102,7 +103,7 @@ export function MissionsPage() {
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <h2>Missions</h2>
-          <p>Send your people out to learn what others would rather keep. Every press of Continue moves them along.</p>
+          <p>Send your people out to learn what others would rather keep. They travel while the clock runs.</p>
         </div>
       </div>
       <div className="actions">
@@ -372,7 +373,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
             ) : kind === 'envoy' ? (
               <div className="body choices">
                 {Object.values(world.houses).filter((h) => h.id !== house).map((h) => {
-                  const r = relation(world, h.id, house);
+                  const r = regardOf(world, h.id, house);
                   return (
                     <button key={h.id} type="button" className="choice" aria-pressed={target === h.id} onClick={() => setTarget(h.id)}>
                       <span>House {h.name}</span>

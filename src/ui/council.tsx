@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { regardOf } from '../sim/archon';
 import { DecisionLog } from './events';
 import type { ReactNode } from 'react';
 import { Term } from './tip';
@@ -6,7 +7,7 @@ import { SEAT_TITLE } from '../sim/world';
 import {
   abandonOath, assignTask, dismissPetition, OATHS, OATHS_BY_ID, oathProgress, swearOath, TASKS_BY_ID,
   taskFit, taskScore, tasksForSeat, approvePetition, petitionPlan } from '../sim/council';
-import { attitude, attitudeColor, relation } from '../sim/relations';
+import { attitude, attitudeColor } from '../sim/relations';
 import { activeMissionOf, MISSION_LABEL } from '../sim/missions';
 import { formatDate } from '../sim/time';
 import { captivesHeldBy, executeCaptive, interrogateCaptive, releaseCaptive } from '../sim/captives';
@@ -45,8 +46,8 @@ export function StandingPanel({ houseId, className }: { houseId: string; classNa
         <Meter label={<Term k="dread" />} value={h.standing.dread} color="var(--orange)" />
         {houseId !== me ? (
           <dl className="kv" style={{ marginTop: 6 }}>
-            <dt><Term k="regard">Regards us</Term></dt><dd><Regard v={relation(world, houseId, me)} /></dd>
-            <dt>We regard them</dt><dd><Regard v={relation(world, me, houseId)} /></dd>
+            <dt><Term k="regard">Regards us</Term></dt><dd><Regard v={regardOf(world, houseId, me)} /></dd>
+            <dt>We regard them</dt><dd><Regard v={regardOf(world, me, houseId)} /></dd>
           </dl>
         ) : null}
       </div>
@@ -154,7 +155,7 @@ export function CouncilPage() {
         <CourtPanel className="span-6" />
         <HouseholdPanel className="span-12" />
         <Panel fold="open" scroll={320} title="Council reports" aside="Newest first" className="span-12 feed">
-          {court.reports.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet. Press Continue and the council gets to work.</p> : null}
+          {court.reports.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet. Press Play and the council gets to work.</p> : null}
           {court.reports.slice(0, 25).map((r, i) => (
             <div className="row" key={i}>
               <time>{formatDate(r.date)}</time>
@@ -279,7 +280,7 @@ function OathPanel({ className }: { className?: string }) {
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
             <span className="eyebrow">Which house</span>
             <select className="select" value={target} onChange={(e) => setTarget(e.target.value)}>
-              {rivals.map((h) => <option key={h.id} value={h.id}>House {h.name} — {attitude(relation(world, h.id, house))} ({relation(world, h.id, house)})</option>)}
+              {rivals.map((h) => <option key={h.id} value={h.id}>House {h.name} — {attitude(regardOf(world, h.id, house))} ({regardOf(world, h.id, house)})</option>)}
             </select>
           </label>
         ) : null}
@@ -309,7 +310,7 @@ export function RelationsPanel({ className }: { className?: string }) {
       {Object.values(world.houses).filter((h) => h.id !== house).map((h) => (
         <div key={h.id} className="row">
           <span style={{ flex: 1 }}><HouseLink id={h.id} /> <span className="muted" style={{ fontSize: 11 }}>· {h.tier === 'great' ? 'Great' : 'Minor'}</span></span>
-          <Regard v={relation(world, h.id, house)} />
+          <Regard v={regardOf(world, h.id, house)} />
           <Go to={{ kind: 'plan', mission: 'envoy', target: h.id }} className="btn small">Send envoy</Go>
         </div>
       ))}

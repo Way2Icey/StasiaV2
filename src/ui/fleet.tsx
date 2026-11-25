@@ -1,4 +1,5 @@
 // Great ships: the fleet list, a ship's own page, and ships at a world.
+import { regardOf } from '../sim/archon';
 import { Peek } from './links';
 import { useState } from 'react';
 import { useGame, useWorld } from './context';
@@ -12,7 +13,6 @@ import { findSector } from '../sim/query';
 import { heldSectors as heldSectorsOf } from '../sim/economy';
 import { isAway } from '../sim/court';
 import { formatDate } from '../sim/time';
-import { relation } from '../sim/relations';
 import type { World } from '../sim/types';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
@@ -165,7 +165,7 @@ export function ShipPage({ id }: { id: string }) {
               ) : duty === 'show' || duty === 'blockade' ? (
                 <select className="select" aria-label="Which house" value={target} onChange={(e) => setTarget(e.target.value)}>
                   <option value="">House…</option>
-                  {others.map((h) => <option key={h.id} value={h.id}>House {h.name} · regard {relation(world, h.id, P)}</option>)}
+                  {others.map((h) => <option key={h.id} value={h.id}>House {h.name} · regard {regardOf(world, h.id, P)}</option>)}
                 </select>
               ) : null}
               <button type="button" className="btn small primary" disabled={needsTarget && !target} onClick={() => run((w) => setDuty(w, s.id, duty, target || undefined))}>

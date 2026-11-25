@@ -397,10 +397,11 @@ function aiAsks(w: World, rng: Rng) {
         ? rng.pick(['to pay their knights', 'after a poor harvest', 'to cover a shortfall at the Exchange', 'to rebuild after a raid', 'to keep their council paid'])
         : rng.pick(['to fit out a new warship', 'to found an academy', 'to buy navisium ahead of the quota', 'for a dowry', 'to build a new quarter', 'for a war chest, they say, against corsairs']),
     };
+    // One open request at a time from any house: a second ask while the first waits is just noise.
+    if (to.id === P && w.loans.asks.some((a) => a.from === h.id && a.to === P)) continue;
     if (to.id === P) {
       w.loans.asks.push(ask);
       logRecord(w, { kind: 'world', type: 'economy', severity: 1, text: `${H(w, h.id)} asks to borrow ${fmt(amount)} othes from us, ${ask.reason}.`, houseIds: [h.id], detail: `They offer ${(ask.rate * 100).toFixed(1)}% a Phase over ${ask.orbits} Orbits, with ${COLLATERAL_LABEL[collateral.kind].toLowerCase()}${collateral.label ? ` (${collateral.label})` : ''} as security.` });
-      w.ports && (w.ports.alerts += 1);
     } else {
       // Between other houses: the lender decides.
       const yes = creditworthiness(w, h.id, to.id) > 0.3 && rng.chance(0.4 + to.personality.greed * 0.4);

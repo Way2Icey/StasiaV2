@@ -141,7 +141,7 @@ export function KnightsPage() {
           {could.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one at court is ready.</p> : null}
           {could.slice(0, 12).map((c) => (
             <div key={c.id} className="row" style={{ gap: 10 }}>
-              <span style={{ flex: 1 }}><PersonLink c={c} /> <span className="muted">· {c.role} · {Math.floor(ageOf(c, world.date))} · fight {fightScore(c).toFixed(1)}{world.ladder?.of[c.id]?.stage === 'blooded' ? ` · blooded ${Math.round((absoluteCycle(world.date) - absoluteCycle(world.ladder.of[c.id]!.since)) / 80)} Orbits ago` : ''}</span></span>
+              <span style={{ flex: 1 }}><PersonLink c={c} /> <span className="muted">· {c.role} · {Math.floor(ageOf(c, world.date))} · fight {fightScore(c).toFixed(1)}{world.ladder?.of[c.id]?.stage === 'blooded' ? ` · blooded ${((n) => `${n} Orbit${n === 1 ? '' : 's'} ago`)(Math.round((absoluteCycle(world.date) - absoluteCycle(world.ladder.of[c.id]!.since)) / 80))}` : ''}</span></span>
               <button type="button" className="btn small primary" onClick={() => run((w) => knight(w, c.id))}>Knight them</button>
             </div>
           ))}

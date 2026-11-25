@@ -1,5 +1,6 @@
 // The Council of Designers as a set of seats you open, each running its own
 // part of the house.
+import { regardOf } from '../sim/archon';
 import { appointToSeat } from '../sim/ambitions';
 import { attend, ATTEND_COST, cannotAttend, frail, patients, physicianSkill, TREAT_COST } from '../sim/infirmary';
 import { useState } from 'react';
@@ -10,7 +11,6 @@ import { moodColor, moodLabel, moodOf } from '../sim/mood';
 import { ageOf } from '../sim/characters';
 import { alive } from '../sim/query';
 import { knowledgeOf } from '../sim/knowledge';
-import { relation } from '../sim/relations';
 import { formatDate } from '../sim/time';
 import { econ, netPerPhase, phaseLedger } from '../sim/economy';
 import { isAway } from '../sim/court';
@@ -267,7 +267,7 @@ function Speaker() {
           const s = stanceOf(world, house, h.id);
           return (
             <div key={h.id} className="row" style={{ flexWrap: 'wrap' }}>
-              <span style={{ flex: 1, minWidth: 140 }}><HouseLink id={h.id} /> <span className="muted" style={{ fontSize: 12 }}>regards us <Regard v={relation(world, h.id, house)} /></span></span>
+              <span style={{ flex: 1, minWidth: 140 }}><HouseLink id={h.id} /> <span className="muted" style={{ fontSize: 12 }}>regards us <Regard v={regardOf(world, h.id, house)} /></span></span>
               <span className="filters">
                 {(['friendly', 'neutral', 'opposed'] as Stance[]).map((x) => (
                   <button key={x} type="button" className="pill" aria-pressed={s === x} onClick={() => game.update((w) => setStance(w, house, h.id, x))}>{STANCE_LABEL[x]}</button>

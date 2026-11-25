@@ -189,7 +189,9 @@ export function CouncilTable({ className }: { className?: string }) {
 
 // ---------------------------------------------------------------- the desk
 
-interface DeskAct { label: string; run: (w: World) => World; primary?: boolean; title?: string; disabled?: boolean }
+interface DeskAct { label: string; run: (w: World) => World; primary?: boolean; title?: string; disabled?: boolean   /** Instead of acting here, go where it is done. */
+  go?: () => void;
+}
 interface DeskItem {
   id: string;
   mark: string;
@@ -233,9 +235,9 @@ export function Desk({ className }: { className?: string }) {
     });
   }
   const cr = world.crucible;
-  if (cr?.stage === 'drawn' && cr.entrants.includes(P) && !cr.contingents[P]) items.push({ id: 'crucible-open', mark: '[⚔]', kind: 'CRUCIBLE', text: <>We are drawn for the Crucible: raise our contingent</>, when: `by Orbit ${CLOSES}`, open: () => nav.to({ kind: 'crucible' }) });
+  if (cr?.stage === 'drawn' && cr.entrants.includes(P) && !cr.contingents[P]) items.push({ id: 'crucible-open', mark: '[⚔]', kind: 'CRUCIBLE', text: <>We are drawn for the Crucible: raise our contingent</>, when: `by Orbit ${CLOSES}`, open: () => nav.to({ kind: 'crucible' }), acts: [{ label: 'Muster ›', primary: true, run: (w) => w, go: () => nav.to({ kind: 'crucible' }) }] });
   const round = cr?.stage === 'campaign' && cr.contingents[P] && !cr.contingents[P]!.out ? currentRound(world) : undefined;
-  if (round && !round.stance[P]) items.push({ id: `cs-${round.orbit}`, mark: '[⚔]', kind: 'CRUCIBLE', text: <>Orbit {round.orbit} on the battle world: choose the Marshal's stance</>, when: `Orbit ${round.orbit}`, open: () => nav.to({ kind: 'crucible' }) });
+  if (round && !round.stance[P]) items.push({ id: `cs-${round.orbit}`, mark: '[⚔]', kind: 'CRUCIBLE', text: <>Orbit {round.orbit} on the battle world: choose the Marshal's stance</>, when: `Orbit ${round.orbit}`, open: () => nav.to({ kind: 'crucible' }), acts: [{ label: 'Choose ›', primary: true, run: (w) => w, go: () => nav.to({ kind: 'crucible' }) }] });
   for (const au of world.ambitions?.audiences ?? []) {
     const c = world.characters[au.characterId];
     items.push({ id: au.id, mark: '[»]', kind: 'AUDIENCE', text: <>{c ? displayName(c.name) : 'Someone'} · {AMBITION_LABEL[au.kind].toLowerCase()}</>, when: inCycles(world, au.expires), open: () => setOpen((o) => (o === au.id ? null : au.id)) });
@@ -345,7 +347,7 @@ export function Desk({ className }: { className?: string }) {
   }
   for (const e of (world.grounds?.circuit ?? []).filter((x) => !x.done && x.host !== P && (x.invited?.includes(P) || x.kind === 'public') && !x.entrants.some((y) => y.houseId === P))) {
     const inv = e.invited?.includes(P);
-    items.push({ id: e.id, mark: '[»]', kind: inv ? 'INVITATION' : 'TOURNEY', text: <>{inv ? `House ${world.houses[e.host!]?.name} invites us: ` : ''}{e.name}</>, quiet: !inv, when: inCycles(world, e.held), open: () => nav.to({ kind: 'grounds' }), acts: inv ? [{ label: 'Decline', run: (w) => declineCircuit(w, e.id) }] : undefined });
+    items.push({ id: e.id, mark: '[»]', kind: inv ? 'INVITATION' : 'TOURNEY', text: <>{inv ? `House ${world.houses[e.host!]?.name} invites us: ` : ''}{e.name}</>, quiet: !inv, when: inCycles(world, e.held), open: () => nav.to({ kind: 'grounds' }), acts: inv ? [{ label: 'Enter a fighter ›', primary: true, run: (w) => w, go: () => nav.to({ kind: 'grounds' }) }, { label: 'Decline', run: (w) => declineCircuit(w, e.id) }] : undefined });
   }
   for (const b of world.ladder?.proposals ?? []) {
     const c = world.characters[b.aspirantId];
@@ -392,14 +394,14 @@ export function Desk({ className }: { className?: string }) {
         ))}
       </div>
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
-      {tab === 'news' ? <Letters letters={news} /> : shownItems.length === 0 ? <p className="body muted" style={{ margin: 0 }}>{tab === 'needs' ? 'Nothing needs you. Press Continue and the world will fill the desk.' : 'No openings just now.'}</p> : null}
+      {tab === 'news' ? <Letters letters={news} /> : shownItems.length === 0 ? <p className="body muted" style={{ margin: 0 }}>{tab === 'needs' ? 'Nothing needs you. Press Play and the world will fill the desk.' : 'No openings just now.'}</p> : null}
       <div className="desk-list">
         {shownItems.map((it) => (
           <div key={it.id} className="desk-row">
             <button type="button" className={`desk-item${it.quiet ? ' quiet' : ''}`} aria-pressed={open === it.id} onClick={it.open} title="Open">
               <span>{it.mark}</span><span>{it.kind}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.text}</span><span className="when">{it.when ?? ''}</span>
             </button>
-            {it.acts ? <span className="desk-acts">{it.acts.map((a) => <button key={a.label} type="button" className={`btn small${a.primary ? ' primary' : ''}`} disabled={a.disabled} title={a.title} onClick={() => act(a.run)}>{a.label}</button>)}</span> : null}
+            {it.acts ? <span className="desk-acts">{it.acts.map((a) => <button key={a.label} type="button" className={`btn small${a.primary ? ' primary' : ''}`} disabled={a.disabled} title={a.title} onClick={() => (a.go ? a.go() : act(a.run))}>{a.label}</button>)}</span> : null}
             {open === it.id && (it.detail || opened || audience) ? (
               <div style={{ flexBasis: '100%', padding: '6px 10px 10px 38px' }}>
                 {it.detail ?? null}

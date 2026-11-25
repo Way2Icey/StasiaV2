@@ -1,4 +1,5 @@
 // Batch B: knights and arms (K1–K8), and the godglass struggle (S5).
+import { giveKnightTitle } from './names';
 import { addEvents, choose, type Ctx, type EventDef } from './events';
 import { at, athome, away, band, best, cast, CYCLES, data, days, defect, fighters, fought, full, H, hasFlag, highroy, knights, need, nm, pickRival, seat, stranger, toBattle, who } from './arckit';
 import { endStruggle, pushStruggle, startStruggle } from './story';
@@ -256,7 +257,7 @@ const defs: EventDef[] = [
     setup: (c) => !!at(c, c.arc?.data?.blade)?.alive && at(c, c.arc?.data?.blade)!.houseId === c.house,
     text: (c) => `${full(at(c, c.arc?.data?.blade))} asks to stay: not for pay, but as a knight of the house.`,
     options: [
-      { label: 'Knight them', resolve: (c) => { const p = at(c, data(c).blade)!; p.role = 'Knight'; if (!hasFlag(p, 'knighted')) p.flags.push({ id: 'knighted', since: c.world.date }); p.hidden.loyalty += 3; c.fx.say(`${nm(p)} kneels`).mood(p, 12); } },
+      { label: 'Knight them', resolve: (c) => { const p = at(c, data(c).blade)!; p.role = 'Knight'; if (!hasFlag(p, 'knighted')) p.flags.push({ id: 'knighted', since: c.world.date }); giveKnightTitle(p); p.hidden.loyalty += 3; c.fx.say(`${nm(p)} kneels`).mood(p, 12); } },
       { label: 'Keep them as a blade for hire', resolve: (c) => c.fx.mood(at(c, data(c).blade), -4) },
     ],
     fallback: 1,

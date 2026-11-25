@@ -116,7 +116,7 @@ export function RegisterPanel({ className }: { className?: string }) {
               <tr key={h.id} className={h.id === P ? 'ours' : undefined}>
                 <td><ArchonHouseLink id={h.id} />{h.simulated ? '' : <span className="muted" title="On the register: not simulated in full"> ·</span>}</td>
                 <td>{h.tier === 'great' ? 'Great' : 'Minor'}</td>
-                <td>{SPECIES[h.species].name}{h.speciesKnown ? '' : '?'}{h.vassals?.length ? ` (+${h.vassals.map((v) => SPECIES[v].name).join(', ')})` : ''}</td>
+                <td>{h.speciesKnown ? SPECIES[h.species].name : <span className="muted">unknown</span>}{h.vassals?.length ? ` (+${h.vassals.map((v) => SPECIES[v].name).join(', ')})` : ''}</td>
                 <td>{n?.exarchon?.houseId === h.id ? 'Exarchon' : n?.seats.includes(h.id) ? 'Seated' : '—'}</td>
                 <td className="mono">{Math.round(h.prestige)}</td>
                 <td style={{ color: h.id === P ? undefined : attitudeColor(regardOf(world, h.id, P)) }}>{h.id === P ? 'us' : regardOf(world, h.id, P)}</td>

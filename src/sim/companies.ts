@@ -203,7 +203,7 @@ export function huntShips(world: World): string[] {
 const worth = (c: { stats: Record<string, number> }) => (c.stats.duelling! + c.stats.valor! + c.stats.tactics!) / 3;
 
 /**
- * Both sides of a hunt, before the dice. Ours: the leader, a fifth of each companion, the leader's command,
+ * Both sides of a hunt, before the dice. Ours: the leader, a third of each companion, the leader's command,
  * and the ship (a hired cutter if none). Theirs: the captain's blade and tactics, the crew, the hull, any
  * other captain sailing with them, and how well they know the lanes they are found on.
  */
@@ -214,7 +214,7 @@ export function huntOdds(world: World, factionId: string, memberId: string, lead
   if (!lead) return { ours: 0, theirs: 0, win: 0, find: 0 };
   const mates = companions.map((id) => world.characters[id]).filter((c) => c?.alive);
   const ship = shipId ? world.fleet?.ships[shipId] : undefined;
-  const ours = worth(lead) + mates.reduce((n, c) => n + worth(c!) / 5, 0) + (lead.stats.leadership + lead.stats.tactics - 20) / 5 + (ship ? powerOf(world, ship) / 4 : HULL.cutter.power / 2);
+  const ours = worth(lead) + mates.reduce((n, c) => n + worth(c!) / 3, 0) + (lead.stats.leadership + lead.stats.tactics - 20) / 5 + (ship ? powerOf(world, ship) / 3 : HULL.cutter.power / 2);
   const wild = f.haunts.reduce((n, id) => n + (LANE_BY_ID[id]?.wild ?? 0.3), 0) / Math.max(1, f.haunts.length);
   const second = m.role === 'chief' ? alive(f).filter((x) => x.role === 'captain').sort((a, b) => b.skill - a.skill)[0] : undefined;
   const theirs = m.skill * 0.6 + (m.tactics ?? 10) * 0.4 + (m.crew ?? 40) / 10 + HULL[m.hull ?? 'raider'].power / 2 + (second ? second.skill / 3 : 0) + wild * 3;

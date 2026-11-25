@@ -11,7 +11,7 @@ export interface GlossaryEntry {
 
 export const GLOSSARY: Record<string, GlossaryEntry> = {
   // ---------------------------------------------------------------- time
-  cycle: { term: 'Cycle', group: 'Time', text: 'The smallest unit of LPS time, about a couple of days. Each Continue moves two cycles.' },
+  cycle: { term: 'Cycle', group: 'Time', text: 'The smallest unit of LPS time, about a couple of days. Each Step moves two cycles.' },
   phase: { term: 'Phase', group: 'Time', text: '16 cycles. The economy settles at the start of each Phase: output, taxes, food and stipends.' },
   orbit: { term: 'Orbit', group: 'Time', text: '80 cycles, five Phases. Oaths last an Orbit, and the Numarade grants Navisium once per Orbit.' },
   year: { term: 'Standard Year', group: 'Time', text: 'Ten Orbits (800 cycles). Ages and lifespans are counted in years.' },
@@ -20,8 +20,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   struggle: { term: 'Struggle', group: 'Time', text: 'A long contest with a meter from −100 to +100. Each Phase both sides push: ours by the skill of the people set to it, theirs by their strength. Turning points along the way ask for a decision; at either end it is over.' },
   thread: { term: 'Thread', group: 'Time', text: 'Something left hanging on a person: a grudge, a debt, a secret, a vow, an omen. Later stories pick threads up.' },
   battle: { term: 'Battle', group: 'Missions', text: 'A fight fought live, in a theatre: surface, atmosphere, space, a station or aboard ship. Each theatre favours different skills and resonance types. The commander decides how many orders can be given and how well; fighters may not obey, and those with a score to settle go after it. Orders change which fights happen; the fighters decide who wins them. Momentum runs from −100 to +100.' },
-  stopOnEvents: { term: 'Stop when something needs me', group: 'Time', text: 'Long stretches of time stop early when a mission comes home, a petition or ransom demand arrives, someone is caught, a lead turns up, a decision arrives, the oath ends, or someone of the house dies.' },
-  continue: { term: 'Continue', group: 'Time', text: 'Advances the world two cycles. The arrow beside it skips further: to the next Phase or Orbit, a year, five years, or until something happens.' },
+  stopOnEvents: { term: 'Stop when something needs me', group: 'Time', text: 'Choose what stops the clock in the ▾ menu beside Play: decisions, missions coming home, captives and ransoms, deaths, word from the docks, loan requests, petitions, leads, the end of an oath, news from the shadows. Battles and urgent matters always stop it; anything else waits on the desk.' },
+  continue: { term: 'Play', group: 'Time', text: 'Play runs the clock; Space pauses it. The three arrows are speeds. Step advances two cycles and stops. The ▾ menu skips further (to the next Phase, the next Orbit, or until something happens) and sets what stops the clock.' },
 
   // ---------------------------------------------------------------- houses
   house: { term: 'House', group: 'Houses', text: 'A dynasty of the Houses of Archon: a ruling family, the noble families sworn to it, its worlds and its people.' },

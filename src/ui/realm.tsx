@@ -1,10 +1,10 @@
 // The houses as players (aims, alliances, feuds, the Numarade's favour, poaching), renown, veterans, and
 // the lane watch, embargo and convoy-intelligence panels.
+import { regardOf } from '../sim/archon';
 import { useState } from 'react';
 import { useGame, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, PersonLink } from './links';
 import { bar } from './hall';
-import { relation } from '../sim/relations';
 import {
   AIM_LABEL, allied, alliesOf, answerAlliance, cannotAlly, cannotMakePeace, cannotPoach, endAlliance, favourOf, favourWord, feuding, makePeace,
   poach, poachable, poachOdds, POACH_APPROACH, privilegeOf, proposeAlliance, REPARATIONS,
@@ -49,7 +49,7 @@ export function HousesOverview({ className }: { className?: string }) {
               return (
                 <tr key={h.id}>
                   <td><HouseLink id={h.id} />{h.id === P ? <span className="muted"> (us)</span> : null}</td>
-                  <td className="mono">{h.id === P ? '' : Math.round(relation(world, h.id, P))}</td>
+                  <td className="mono">{h.id === P ? '' : Math.round(regardOf(world, h.id, P))}</td>
                   <td>{h.id === P ? '' : aim?.known ? <>{AIM_LABEL[aim.kind]}{aim.target ? <> · <HouseLink id={aim.target} /></> : null}</> : <span className="muted">unknown</span>}</td>
                   <td>{h.id === P ? '' : allied(world, P, h.id) ? 'Allied' : feuding(world, P, h.id) ? 'IN FEUD' : compactOf(world, P, h.id) ? 'Compact' : embargoed(world, P, h.id) ? 'We embargo them' : embargoed(world, h.id, P) ? 'They embargo us' : '·'}</td>
                   <td>{alliesOf(world, h.id).map((a, i) => <span key={a}>{i ? ', ' : ''}<HouseLink id={a} /></span>)}</td>
@@ -83,7 +83,7 @@ export function HouseDealings({ id, className }: { id: string; className?: strin
   const peace = cannotMakePeace(world, id);
   const emb = cannotEmbargo(world, id);
   return (
-    <Panel title="Between our houses" aside={allied(world, P, id) ? 'allies' : feuding(world, P, id) ? 'in feud' : `regard ${Math.round(relation(world, id, P))}`} className={className}>
+    <Panel title="Between our houses" aside={allied(world, P, id) ? 'allies' : feuding(world, P, id) ? 'in feud' : `regards us ${Math.round(regardOf(world, id, P))}`} className={className}>
       {err ? <p className="body error">{err}</p> : null}
       <p className="body" style={{ margin: 0 }}>{aim?.known ? <>They are after <strong>{AIM_LABEL[aim.kind].toLowerCase()}</strong>{aim.target ? <> ({aim.target === P ? 'us' : <HouseLink id={aim.target} />})</> : null}.</> : 'We do not know what they are after.'} The Numarade thinks them {favourWord(favourOf(world, id))}.</p>
       <div className="actions">

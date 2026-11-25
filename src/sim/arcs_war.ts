@@ -1,5 +1,6 @@
 // War comes to the Highroy: being attacked, choosing terms, the Numarade's ceasefire, and the people the
 // ranks give names to (the soldier who carried a knight out; the survivor who comes back for one).
+import { giveKnightTitle } from './names';
 import { addEvents, type Ctx, type EventDef } from './events';
 import { closeThread } from './storystate';
 import { econ } from './economy';
@@ -84,7 +85,7 @@ const defs: EventDef[] = [
       { label: 'Take them into the household', resolve: (c) => { c.person!.role = 'Man-at-arms'; c.fx.mood(c.person, 10).mood(c.second, 3); } },
       {
         label: 'Knight them', hint: 'the Grand Master will grumble', available: (c) => (econ(c.world, c.house).stock.othes < 300 ? 'Needs 300 othes.' : null),
-        resolve: (c) => { const p = c.person!; p.role = 'Knight'; if (!p.flags.some((f) => f.id === 'knighted')) p.flags.push({ id: 'knighted', since: c.world.date }); c.fx.othes(-300).mood(p, 18).thread(p, 'vow', 'Knighted from the ranks after the battle'); c.fx.mood(seat(c, 'grandMaster'), -4); },
+        resolve: (c) => { const p = c.person!; p.role = 'Knight'; if (!p.flags.some((f) => f.id === 'knighted')) p.flags.push({ id: 'knighted', since: c.world.date }); giveKnightTitle(p); c.fx.othes(-300).mood(p, 18).thread(p, 'vow', 'Knighted from the ranks after the battle'); c.fx.mood(seat(c, 'grandMaster'), -4); },
       },
       { label: 'A purse and our thanks', resolve: (c) => c.fx.othes(-200).mood(c.person, 5) },
     ],

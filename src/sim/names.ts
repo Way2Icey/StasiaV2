@@ -96,3 +96,9 @@ export function displayName(name: PersonName): string {
 export function shortName(name: PersonName): string {
   return name.family ? `${name.given} ${name.family}` : name.given;
 }
+
+/** A new knight takes the title their people give one (Ser, Dame), if they have none yet. */
+export function giveKnightTitle(c: { species: keyof typeof CULTURES; sex: 'm' | 'f'; name: PersonName }): void {
+  const kt = CULTURES[c.species]?.knightTitle;
+  if (kt && !c.name.title) c.name.title = kt[c.sex];
+}

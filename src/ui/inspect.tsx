@@ -2,6 +2,8 @@
 // world, a sector, a holding, a house) opens as a card over whatever page you are on, never as a page
 // that runs off the screen. The card carries what matters and the actions that fit; the full page is one
 // click away for when you want everything.
+import { regardOf } from '../sim/archon';
+import { AIM_LABEL } from '../sim/houses';
 import { MarksList } from './account';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useGame, useNav, usePersonMenu, useWorld } from './context';
@@ -357,8 +359,9 @@ function HouseCard({ id }: { id: string }) {
   if (!a && !h) return <p className="muted">No such house.</p>;
   const P = world.playerHouseId;
   const ruler = h?.rulerId ? world.characters[h.rulerId] : undefined;
-  const regard = world.archon?.regard[id]?.[P] ?? 0;
+  const regard = regardOf(world, id, P);
   const e = id === P ? 0 : envyOf(world, id, P);
+  const aim = world.realm?.aims[id];
   return (
     <>
       <div className="eyebrow gold">{(a?.tier ?? h?.tier) === 'great' ? 'Great House' : 'Minor House'}{a?.speciesKnown ? ` · ${SPECIES[a.species].name}` : ''}</div>
@@ -368,7 +371,8 @@ function HouseCard({ id }: { id: string }) {
         ['Highroy', ruler ? <Peek t={{ k: 'person', id: ruler.id }}>{displayName(ruler.name)}</Peek> : a?.notables?.[0]?.name ?? null],
         ['standing', a ? String(Math.round(a.prestige)) : null],
         ['worlds', a ? String(a.worlds) : null],
-        ['toward us', id === P ? null : `${regard > 0 ? '+' : ''}${Math.round(regard)}`],
+        ['regards us', id === P ? null : `${regard > 0 ? '+' : ''}${Math.round(regard)}`],
+        ['what they want', id === P || !aim ? null : aim.known ? <>{AIM_LABEL[aim.kind]}{aim.target ? <> · <Peek t={{ k: 'house', id: aim.target }}>{world.houses[aim.target]?.name ?? aim.target}</Peek></> : null}</> : 'unknown: an investigation of their Highroy would tell us'],
         ['envy of us', id === P ? null : `${e} · ${envyWord(e)}`],
         ['places', Object.values(world.places?.sites ?? {}).filter((s) => s.holder === id && s.known).map((s) => s.name).join(' · ') || null],
       ]} />

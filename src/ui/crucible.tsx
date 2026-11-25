@@ -53,9 +53,9 @@ export function CruciblePage() {
         <p>The houses' answer to having no war. Each year five to eight houses are drawn to {BATTLE_WORLD}. Every house fields one champion and {FORCE} men's worth of troops, where a knight counts as {KNIGHT_WEIGHT} men, with a Marshal directing from orbit. They fight over the battle world's sites and the prizes in them. The battles are real. {stage}</p>
       </div>
       <div className="grid">
+        {cr.stage === 'drawn' && cr.entrants.includes(P) && !ours ? <Muster className="span-12" /> : null}
         {cr.stage === 'drawn' && cr.entrants.includes(P) ? <Reports className="span-12" /> : null}
         {cr.stage === 'drawn' && cr.entrants.includes(P) ? <Orders className="span-12" /> : null}
-        {cr.stage === 'drawn' && cr.entrants.includes(P) && !ours ? <Muster className="span-12" /> : null}
         {cr.stage !== 'drawn' && (cr.nemeses ?? []).some((n) => !n.settled) ? <Scores className="span-12" /> : null}
         {cr.stage === 'campaign' && ours && !ours.out && currentRound(world) ? <StancePicker className="span-12" /> : null}
         {cr.stage !== 'quiet' && cr.locations.length ? <BattleWorld className="span-7" /> : null}
