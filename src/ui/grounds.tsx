@@ -4,7 +4,8 @@ import { useGame, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, PersonLink } from './links';
 import { Term } from './tip';
 import { Diamonds } from './careers';
-import { answerChallenge, callTourney, cannotCallTourney, fighters, fightScore, TOURNEY_COST, type Bout } from '../sim/grounds';
+import { answerChallenge, callTourney, cannotCallTourney, fighters, fightScore, oldEnough, TOURNEY_COST, type Bout } from '../sim/grounds';
+import { AccountBlock } from './account';
 import {
   cannotEnter, cannotHost, declineCircuit, enterCircuit, entrantName, HOST_COST, hostTourney, isLocal, KIND_LABEL, knownEvents, MAX_SENT, setPitsForbidden,
   type CBout, type CircuitEvent,
@@ -54,14 +55,28 @@ function Tourney({ className }: { className?: string }) {
   const { run, err } = usePlay();
   const why = cannotCallTourney(world);
   const pool = fighters(world, world.playerHouseId).sort((a, b) => fightScore(b) - fightScore(a)).slice(0, 8);
+  // The best of the house who cannot fight this one: away, wounded or ill.
+  const inPool = new Set(fighters(world, world.playerHouseId).map((c) => c.id));
+  const missing = Object.values(world.characters).filter((c) => c.alive && c.houseId === world.playerHouseId && c.tier === 'full' && c.seat !== 'highroy' && oldEnough(world, c) && !inPool.has(c.id) && fightScore(c) >= (pool[pool.length - 1] ? fightScore(pool[pool.length - 1]!) : 0))
+    .sort((a, b) => fightScore(b) - fightScore(a)).slice(0, 4);
+  const last = world.grounds.tourneys[0];
+  const fresh = last && last.year === world.date.year ? last : undefined;
   return (
     <Panel title={<Term k="tourney">The house tourney</Term>} aside={`${TOURNEY_COST} othes · once a year`} className={className}>
       <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Blunted weapons, a bracket of eight: the house's best and the young who want it most. The court loves it, the winner is remembered, and a youngling who goes deep is talked about for a year.</p>
       <div className="body" style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 12px', fontSize: 13 }}>
         {pool.map((c) => <span key={c.id}><PersonLink c={c} /> <span className="muted mono">{fightScore(c).toFixed(1)}{young(world, c.id) ? ' · young' : ''}</span></span>)}
       </div>
+      {missing.length && !fresh ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Not in the bracket: {missing.map((c, i) => <span key={c.id}>{i ? ', ' : ''}<PersonLink c={c} /> <span className="muted">({c.flags.some((f) => f.id === 'wounded') ? 'wounded' : c.flags.some((f) => f.id === 'ill') ? 'ill' : 'away'})</span></span>)}. Wait for them, or call it without them.</p> : null}
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
       <div className="actions"><button type="button" className="btn small primary" disabled={!!why} title={why ?? ''} onClick={() => run(callTourney)}>{why ?? 'Call the tourney'}</button></div>
+      {fresh ? (
+        <div className="record-card" style={{ display: 'grid', gap: 4 }}>
+          <strong>The tourney of {fresh.year}: <PersonById id={fresh.champion} /> is champion.</strong>
+          {fresh.rounds.map((r, i) => <div key={i} style={{ fontSize: 12 }}><span className="muted">{['First round', 'Semi-finals', 'Final'][i + 3 - fresh.rounds.length] ?? `Round ${i + 1}`}:</span> {r.map((b, j) => <span key={j}>{j ? ' · ' : ''}<BoutLine b={b} /></span>)}</div>)}
+          {fresh.rounds[fresh.rounds.length - 1]?.[0]?.account ? <AccountBlock compact account={fresh.rounds[fresh.rounds.length - 1]![0]!.account!} /> : null}
+        </div>
+      ) : null}
     </Panel>
   );
 }

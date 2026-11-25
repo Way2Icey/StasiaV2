@@ -5,7 +5,7 @@
 import { placeNewborn } from './circle';
 import type { Rng } from './rng';
 import { ageOf, createCharacter } from './characters';
-import { displayName, shortName } from './names';
+import { displayName, shortName, giveKnightTitle } from './names';
 import { alive } from './query';
 import { learn } from './knowledge';
 import { shiftMood } from './mood';
@@ -109,7 +109,7 @@ function comingOfAge(world: World, houseId: string) {
     if (c.role === 'Child' || c.role === 'Ward') {
       if (martial >= 36) {
         c.role = 'Knight';
-        c.flags.push({ id: 'knighted', since: world.date });
+        c.flags.push({ id: 'knighted', since: world.date }); giveKnightTitle(c);
         annal(world, houseId, `${displayName(c.name)} comes of age and is knighted in House ${world.houses[houseId]!.name}.`, true, [c.id]);
       } else {
         c.role = 'Noble';

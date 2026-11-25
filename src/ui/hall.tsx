@@ -1,6 +1,7 @@
 // The Hall: the home screen in the terminal look. A drawing of the throne room
 // that follows the house's state, the council as a table, and the Desk, where
 // everything waiting on the Highroy lands.
+import { Peek } from './links';
 import { readyForCommand } from '../sim/missions';
 import { answerBlooding, LOCAL_COST, readinessText } from '../sim/ladder';
 import { councilViews, tally as tallyViews } from '../sim/views';
@@ -17,7 +18,7 @@ import { answerAsk } from '../sim/loans';
 import { dismissLead, recruit } from '../sim/discovery';
 import { ageOf } from '../sim/characters';
 import { useState, type ReactNode } from 'react';
-import { useGame, useNav, useWorld } from './context';
+import { useGame, useInspect, useNav, useWorld } from './context';
 import { AudienceCard } from './ambitions';
 import { AMBITION_LABEL } from '../sim/ambitions';
 import { CLOSES, currentRound } from '../sim/crucible';
@@ -188,7 +189,9 @@ export function CouncilTable({ className }: { className?: string }) {
 
 // ---------------------------------------------------------------- the desk
 
-interface DeskAct { label: string; run: (w: World) => World; primary?: boolean; title?: string; disabled?: boolean }
+interface DeskAct { label: string; run: (w: World) => World; primary?: boolean; title?: string; disabled?: boolean   /** Instead of acting here, go where it is done. */
+  go?: () => void;
+}
 interface DeskItem {
   id: string;
   mark: string;
@@ -215,6 +218,7 @@ export function Desk({ className }: { className?: string }) {
   const world = useWorld();
   const game = useGame();
   const nav = useNav();
+  const ins = useInspect();
   const P = world.playerHouseId;
   const [open, setOpen] = useState<string | null>(null);
   const [tabPick, setTabPick] = useState<DeskTab | null>(null);
@@ -231,9 +235,9 @@ export function Desk({ className }: { className?: string }) {
     });
   }
   const cr = world.crucible;
-  if (cr?.stage === 'drawn' && cr.entrants.includes(P) && !cr.contingents[P]) items.push({ id: 'crucible-open', mark: '[⚔]', kind: 'CRUCIBLE', text: <>We are drawn for the Crucible: raise our contingent</>, when: `by Orbit ${CLOSES}`, open: () => nav.to({ kind: 'crucible' }) });
+  if (cr?.stage === 'drawn' && cr.entrants.includes(P) && !cr.contingents[P]) items.push({ id: 'crucible-open', mark: '[⚔]', kind: 'CRUCIBLE', text: <>We are drawn for the Crucible: raise our contingent</>, when: `by Orbit ${CLOSES}`, open: () => nav.to({ kind: 'crucible' }), acts: [{ label: 'Muster ›', primary: true, run: (w) => w, go: () => nav.to({ kind: 'crucible' }) }] });
   const round = cr?.stage === 'campaign' && cr.contingents[P] && !cr.contingents[P]!.out ? currentRound(world) : undefined;
-  if (round && !round.stance[P]) items.push({ id: `cs-${round.orbit}`, mark: '[⚔]', kind: 'CRUCIBLE', text: <>Orbit {round.orbit} on the battle world: choose the Marshal's stance</>, when: `Orbit ${round.orbit}`, open: () => nav.to({ kind: 'crucible' }) });
+  if (round && !round.stance[P]) items.push({ id: `cs-${round.orbit}`, mark: '[⚔]', kind: 'CRUCIBLE', text: <>Orbit {round.orbit} on the battle world: choose the Marshal's stance</>, when: `Orbit ${round.orbit}`, open: () => nav.to({ kind: 'crucible' }), acts: [{ label: 'Choose ›', primary: true, run: (w) => w, go: () => nav.to({ kind: 'crucible' }) }] });
   for (const au of world.ambitions?.audiences ?? []) {
     const c = world.characters[au.characterId];
     items.push({ id: au.id, mark: '[»]', kind: 'AUDIENCE', text: <>{c ? displayName(c.name) : 'Someone'} · {AMBITION_LABEL[au.kind].toLowerCase()}</>, when: inCycles(world, au.expires), open: () => setOpen((o) => (o === au.id ? null : au.id)) });
@@ -283,12 +287,12 @@ export function Desk({ className }: { className?: string }) {
       const hm = harbourmaster(world, s.sectorId);
       const found = s.cargo.filter((c) => c.found && c.hidden).map((c) => c.label);
       items.push({ id: s.id, mark: '[⚓]', kind: 'HELD', text: <>{hm ? `${hm.name.given}, harbourmaster: ` : 'Customs: '}we hold the {s.name} at {findSector(world, s.sectorId)?.sector.name}</>, open: () => setOpen((o) => (o === s.id ? null : s.id)),
-        detail: <span className="muted" style={{ fontSize: 12 }}>Sent up through the Steward. {found.length ? `Found aboard: ${found.join(', ')}.` : 'Papers out of order.'} Fine them and let them go, release them, or jail the captain. <button type="button" className="linklike" onClick={() => nav.to({ kind: 'port', id: s.sectorId, ship: s.id })}>The ship ›</button></span>,
+        detail: <span className="muted" style={{ fontSize: 12 }}>Sent up through the Steward. {found.length ? `Found aboard: ${found.join(', ')}.` : 'Papers out of order.'} Fine them and let them go, release them, or jail the captain. <Peek t={{ k: 'portShip', id: s.id }}>The ship ›</Peek></span>,
         acts: [{ label: 'Fine', primary: true, run: (w) => fineShip(w, s.id) }, { label: 'Release', run: (w) => releaseShip(w, s.id) }, { label: 'Jail captain', run: (w) => jailCaptain(w, s.id) }] });
     }
     else if (s.status === 'docked' && s.aboard.some((a) => a.characterId && world.ports.watch.includes(a.characterId))) {
       const a = s.aboard.find((x) => x.characterId && world.ports.watch.includes(x.characterId))!;
-      items.push({ id: `w-${s.id}`, mark: '[●]', kind: 'WATCH', text: <>{a.name} docked · {s.name}</>, open: () => nav.to({ kind: 'port', id: s.sectorId, ship: s.id }) });
+      items.push({ id: `w-${s.id}`, mark: '[●]', kind: 'WATCH', text: <>{a.name} docked · {s.name}</>, open: () => ins.open({ k: 'portShip', id: s.id }) });
     }
   }
   for (const pet of world.courts[P]?.petitions ?? []) {
@@ -343,7 +347,7 @@ export function Desk({ className }: { className?: string }) {
   }
   for (const e of (world.grounds?.circuit ?? []).filter((x) => !x.done && x.host !== P && (x.invited?.includes(P) || x.kind === 'public') && !x.entrants.some((y) => y.houseId === P))) {
     const inv = e.invited?.includes(P);
-    items.push({ id: e.id, mark: '[»]', kind: inv ? 'INVITATION' : 'TOURNEY', text: <>{inv ? `House ${world.houses[e.host!]?.name} invites us: ` : ''}{e.name}</>, quiet: !inv, when: inCycles(world, e.held), open: () => nav.to({ kind: 'grounds' }), acts: inv ? [{ label: 'Decline', run: (w) => declineCircuit(w, e.id) }] : undefined });
+    items.push({ id: e.id, mark: '[»]', kind: inv ? 'INVITATION' : 'TOURNEY', text: <>{inv ? `House ${world.houses[e.host!]?.name} invites us: ` : ''}{e.name}</>, quiet: !inv, when: inCycles(world, e.held), open: () => nav.to({ kind: 'grounds' }), acts: inv ? [{ label: 'Enter a fighter ›', primary: true, run: (w) => w, go: () => nav.to({ kind: 'grounds' }) }, { label: 'Decline', run: (w) => declineCircuit(w, e.id) }] : undefined });
   }
   for (const b of world.ladder?.proposals ?? []) {
     const c = world.characters[b.aspirantId];
@@ -383,21 +387,21 @@ export function Desk({ className }: { className?: string }) {
   const act = (fn: (w: World) => World) => { setErr(null); game.update((w) => { try { return fn(w); } catch (e) { setErr((e as Error).message); return w; } }); };
   const LABEL: Record<DeskTab, string> = { needs: 'Needs you', chances: 'Opportunities', news: 'Letters' };
   return (
-    <Panel title={<Term k="decision">The desk</Term>} aside={`${counts.needs} need you`} className={`major ${className ?? ''}`}>
+    <Panel scroll={560} title={<Term k="decision">The desk</Term>} aside={`${counts.needs} need you`} className={`major ${className ?? ''}`}>
       <div className="desk-filters">
         {(['needs', 'chances', 'news'] as DeskTab[]).map((t) => (
           <button key={t} type="button" className="subtab" aria-current={tab === t ? 'page' : undefined} onClick={() => setTabPick(t)}>{LABEL[t]} ({counts[t]})</button>
         ))}
       </div>
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
-      {tab === 'news' ? <Letters letters={news} /> : shownItems.length === 0 ? <p className="body muted" style={{ margin: 0 }}>{tab === 'needs' ? 'Nothing needs you. Press Continue and the world will fill the desk.' : 'No openings just now.'}</p> : null}
+      {tab === 'news' ? <Letters letters={news} /> : shownItems.length === 0 ? <p className="body muted" style={{ margin: 0 }}>{tab === 'needs' ? 'Nothing needs you. Press Play and the world will fill the desk.' : 'No openings just now.'}</p> : null}
       <div className="desk-list">
         {shownItems.map((it) => (
           <div key={it.id} className="desk-row">
             <button type="button" className={`desk-item${it.quiet ? ' quiet' : ''}`} aria-pressed={open === it.id} onClick={it.open} title="Open">
               <span>{it.mark}</span><span>{it.kind}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.text}</span><span className="when">{it.when ?? ''}</span>
             </button>
-            {it.acts ? <span className="desk-acts">{it.acts.map((a) => <button key={a.label} type="button" className={`btn small${a.primary ? ' primary' : ''}`} disabled={a.disabled} title={a.title} onClick={() => act(a.run)}>{a.label}</button>)}</span> : null}
+            {it.acts ? <span className="desk-acts">{it.acts.map((a) => <button key={a.label} type="button" className={`btn small${a.primary ? ' primary' : ''}`} disabled={a.disabled} title={a.title} onClick={() => (a.go ? a.go() : act(a.run))}>{a.label}</button>)}</span> : null}
             {open === it.id && (it.detail || opened || audience) ? (
               <div style={{ flexBasis: '100%', padding: '6px 10px 10px 38px' }}>
                 {it.detail ?? null}

@@ -71,7 +71,7 @@ export function Decision({ p }: { p: PendingEvent }) {
           })}
         </span>
         <span className="muted" style={{ fontSize: 11 }}>
-          Lapses {formatDate(p.expires)}. If you say nothing, the council will <em>{optionLabel(opts[def.fallback] ?? def.options[def.fallback]!, ctx).toLowerCase()}</em>.
+          Lapses {formatDate(p.expires)}. If you say nothing, the council decides: <em>{optionLabel(opts[def.fallback] ?? def.options[def.fallback]!, ctx)}</em>.
         </span>
       </span>
     </div>
@@ -113,7 +113,7 @@ export function DecisionLog({ className }: { className?: string }) {
   const world = useWorld();
   const log = (world.events?.log ?? []).slice(0, 12);
   return (
-    <Panel title="Past decisions" aside="Newest first" className={className}>
+    <Panel fold scroll={360} title="Past decisions" aside="Newest first" className={className}>
       {log.length === 0 ? <p className="body muted" style={{ margin: 0 }}>None yet.</p> : null}
       {log.map((r) => (
         <div key={r.id} className="row">

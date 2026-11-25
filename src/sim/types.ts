@@ -141,6 +141,8 @@ export interface Character {
   veiled?: number;
   /** Kept in the Circle by the player's choice. */
   pinned?: boolean;
+  /** What they carry from the fights they have been in: wounds, grudges, feats, habits others noticed. */
+  marks?: import('./details').Mark[];
   /** Absolute cycle they last had a part in a story. */
   seen?: number;
 }
@@ -278,6 +280,8 @@ export interface FeedEntry {
   seat?: import('./reports').Reporter;
   /** The original words of a letter: who wrote it, and what they said. */
   quote?: { from: string; text: string };
+  /** An account of what happened, from someone who was there. */
+  account?: import('./details').Account;
 }
 
 // ---------------------------------------------------------------- knowledge
@@ -436,6 +440,17 @@ export interface HouseEconomy {
   lastPhase: LedgerLine[];
   /** Temporary income from deals and finds. */
   boons: Boon[];
+  /** How the house arms its legions: 0 old issue .. 3 the finest in the Archon. */
+  equip?: 0 | 1 | 2 | 3;
+  /** What the house spends on the ceremonies its station owes. */
+  ceremony?: 'modest' | 'fitting' | 'lavish';
+  /** 0..100: the credibility of the house's othes, which are bound commitments. Defaults cost it. */
+  credibility?: number;
+  /** The year the house last held a festival for the Realm. */
+  festivalYear?: number;
+  /** Othes in and out this year and last, by kind. */
+  tally?: Record<string, number>;
+  lastTally?: Record<string, number>;
 }
 
 export interface MarketGood {
@@ -449,6 +464,8 @@ export interface MarketGood {
 export interface Economy {
   houses: Record<string, HouseEconomy>;
   market: Record<GoodId, MarketGood>;
+  /** Where the last scan for ceremonies owed left off (absolute cycle), and the ranks it saw. */
+  ceremonyScan?: { at: number; ranks: Record<string, string> };
   /** How the house pays its knights, champion and councillors. */
   payScale?: 'meagre' | 'fair' | 'generous';
   /** Events out in the Archon pulling prices away from the usual. */
@@ -596,6 +613,7 @@ export interface World {
   story?: import('./storystate').StoryState;
   /** The Exarchon's chair: promises, legitimacy, guards on our people, and the chair itself when it is ours. */
   chair?: import('./chair').ChairState;
+  places?: import('./places').PlacesState;
   /** Battles under way or waiting to be watched. */
   battles?: import('./battle').BattlesState;
 }

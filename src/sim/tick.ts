@@ -1,3 +1,4 @@
+import { advancePlaces } from './arcs_places';
 import { advanceEvents } from './events';
 import { advanceStory } from './story';
 import { advanceCrash, checkDebt, marketShocks, maybeCrash } from './arcs_economy';
@@ -39,6 +40,8 @@ import { yearlyStories } from './arcs_systems';
 import { advanceLegacy } from './legacy';
 import { tendCircles } from './circle';
 import './arcs_circle';
+import { shipStories } from './arcs_ships';
+import { standingYear } from './standing';
 import { advanceChair } from './arcs_chair';
 import { legacyStories } from './arcs_legacy';
 import { displayName } from './names';
@@ -101,10 +104,11 @@ function stepInPlace(world: World): void {
   advanceEconomy(world, rng, crossed.phases > 0, crossed.orbits > 0);
   if (crossed.orbits > 0) marketShocks(world, rng);
   if (crossed.phases > 0) advanceCrash(world, rng);
-  if (crossed.years > 0) { maybeCrash(world, rng); checkDebt(world); yearlyStories(world, rng); }
+  if (crossed.years > 0) { maybeCrash(world, rng); checkDebt(world); yearlyStories(world, rng); shipStories(world, rng); }
   { const promoted = advanceLegacy(world, rng, crossed); if (crossed.years > 0) legacyStories(world, rng, promoted); }
   advanceChair(world, rng, crossed);
-  if (crossed.years > 0) tendCircles(world);
+  advancePlaces(world, rng, crossed);
+  if (crossed.years > 0) { tendCircles(world); standingYear(world); }
   lapseRansoms(world);
   advanceCouncil(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceRivals(world, rng, crossed.phases > 0);
@@ -155,20 +159,34 @@ export function advanceTurns(world: World, turns: number): World {
 }
 
 /** Why the clock stopped early: something the player should see. */
-export interface Interruption { reason: string }
+export interface Interruption { reason: string; kind?: StopKind }
+
+/** The kinds of news that can stop the clock. Battles, scenes and urgent decisions always do. */
+export type StopKind = 'decision' | 'mission' | 'captive' | 'death' | 'word' | 'loan' | 'petition' | 'lead' | 'oath' | 'news';
+export type StopPrefs = Record<StopKind, boolean>;
+export const STOP_LABEL: Record<StopKind, string> = {
+  decision: 'A decision arrives', mission: 'A mission comes home', captive: 'Captives and ransoms', death: 'A death in the house',
+  word: 'Raids and word from the docks', loan: 'A house asks for a loan', petition: 'A councillor petitions', lead: 'A new lead',
+  oath: 'The oath ends', news: 'News from the shadows',
+};
+/** By default the clock stops for what needs an answer, and lets the rest wait on the desk. */
+export const DEFAULT_STOPS: StopPrefs = { decision: true, mission: true, captive: true, death: true, word: true, loan: false, petition: false, lead: false, oath: true, news: false };
+const stopsOf = (p: boolean | Partial<StopPrefs> | undefined): StopPrefs => (p === false ? Object.fromEntries(Object.keys(DEFAULT_STOPS).map((k) => [k, false])) as StopPrefs : p === true || p === undefined ? DEFAULT_STOPS : { ...DEFAULT_STOPS, ...p });
 
 /**
  * Advance up to `turns` turns, stopping early (after the turn it happened)
- * when something needs the player, if `stopOnEvents`. The input is untouched.
+ * when something needs the player, by the player's stops. The input is untouched.
  */
-export function advanceUntil(input: World, turns: number, stopOnEvents: boolean): { world: World; ran: number; stop?: Interruption } {
+export function advanceUntil(input: World, turns: number, stops: boolean | Partial<StopPrefs> = true): { world: World; ran: number; stop?: Interruption } {
   const w = structuredClone(input);
+  const prefs = stopsOf(stops);
+  const any = stops !== false;
   for (let i = 0; i < turns; i++) {
     const before = snapshotOfAttention(w);
     stepInPlace(w);
-    if (stopOnEvents) {
-      const reason = needsAttention(w, before);
-      if (reason) return { world: w, ran: i + 1, stop: { reason } };
+    if (any) {
+      const hit = needsAttention(w, before, prefs);
+      if (hit) return { world: w, ran: i + 1, stop: hit };
     }
   }
   return { world: w, ran: turns };
@@ -178,17 +196,15 @@ export function advanceUntil(input: World, turns: number, stopOnEvents: boolean)
 export interface ClockStep { world: World; freeze?: { reason: string; events: string[]; battle?: string; scene?: string }; notice?: string }
 
 /**
- * One tick of the real-time clock. Decisions freeze it (as events do in CK); urgent ones always do.
- * Other news is a notice: the clock runs on.
+ * One tick of the real-time clock. Battles, scenes and urgent decisions always freeze it (as events do
+ * in CK); everything else freezes it only if the player asked to be stopped for it. The rest is a notice.
  */
-export function stepClock(input: World, pauseOnDecisions = true): ClockStep {
+export function stepClock(input: World, stops: boolean | Partial<StopPrefs> = true): ClockStep {
+  const prefs = stopsOf(stops === false ? { decision: false } : stops);
   const w = structuredClone(input);
   const before = snapshotOfAttention(w);
   const had = new Set((w.events?.pending ?? []).map((p) => p.id));
-  const fought = new Set((w.battles?.list ?? []).map((b) => b.id));
   stepInPlace(w);
-  // A battle of ours has begun: everything stops for it.
-  void fought;
   const scene = (w.scenes?.list ?? []).find((x) => x.status === 'ready' && !x.prompted);
   if (scene) { scene.prompted = true; return { world: w, freeze: { reason: `${scene.eyebrow}: ${scene.title}.`, events: [], scene: scene.id } }; }
   const battle = (w.battles?.list ?? []).find((b) => b.status === 'ready' && !b.prompted);
@@ -197,19 +213,23 @@ export function stepClock(input: World, pauseOnDecisions = true): ClockStep {
   const fresh = (w.events?.pending ?? []).filter((p) => !had.has(p.id));
   const urgent = fresh.filter((p) => p.urgent);
   if (urgent.length) return { world: w, freeze: { reason: 'Something needs you now.', events: urgent.map((p) => p.id) } };
-  if (fresh.length && pauseOnDecisions) return { world: w, freeze: { reason: 'A decision awaits your word.', events: fresh.map((p) => p.id) } };
+  if (fresh.length && prefs.decision) return { world: w, freeze: { reason: 'A decision awaits your word.', events: fresh.map((p) => p.id) } };
   const P = w.playerHouseId;
   const news = w.feed.slice(before.last ? w.feed.indexOf(before.last) + 1 : 0);
   const death = news.find((f) => f.kind === 'death' && f.characterIds?.some((id) => w.characters[id]?.houseId === P && w.characters[id]?.tier === 'full'));
-  if (death) return { world: w, freeze: { reason: death.text, events: [] } };
+  if (death && prefs.death) return { world: w, freeze: { reason: death.text, events: [] } };
   const raidsBefore = new Set((input.ports?.raids ?? []).filter((r) => r.status === 'revealed').map((r) => r.id));
   const raid = (w.ports?.raids ?? []).find((r) => r.status === 'revealed' && !raidsBefore.has(r.id));
-  if (raid) return { world: w, freeze: { reason: 'Raiders are coming for one of our worlds. See the Hall.', events: [] } };
-  const reason = needsAttention(w, before);
-  return reason ? { world: w, notice: reason } : { world: w };
+  if (raid && prefs.word) return { world: w, freeze: { reason: 'Raiders are coming for one of our worlds. See the Hall.', events: [] } };
+  // Everything else is a notice either way: the clock runs on, and it waits on the desk.
+  const stop = needsAttention(w, before, { ...prefs, decision: false });
+  if (stop) return { world: w, freeze: { reason: stop.reason, events: [] } };
+  const all = Object.fromEntries(Object.keys(DEFAULT_STOPS).map((k) => [k, true])) as StopPrefs;
+  const hit = needsAttention(w, before, all);
+  return hit ? { world: w, notice: hit.reason } : { world: w };
 }
 
-interface Attention { battles: number; petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null; decisions: number; alerts: number }
+interface Attention { battles: number; petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null; decisions: number; alerts: number; asks: number }
 
 function snapshotOfAttention(w: World): Attention {
   const P = w.playerHouseId;
@@ -224,24 +244,31 @@ function snapshotOfAttention(w: World): Attention {
     oath: w.courts[P]?.oath?.id ?? null,
     decisions: w.events?.pending.length ?? 0,
     alerts: w.ports?.alerts ?? 0,
+    asks: (w.loans?.asks ?? []).filter((a) => a.to === P).length,
   };
 }
 
-function needsAttention(w: World, b: Attention): string | null {
+function needsAttention(w: World, b: Attention, prefs: StopPrefs = DEFAULT_STOPS): Interruption | null {
   const a = snapshotOfAttention(w);
-  if (a.battles > b.battles) return 'A battle has begun.';
-  if (a.decisions > b.decisions) return 'A decision awaits your word.';
-  if (a.alerts > b.alerts) return 'Word has come that needs you.';
-  if (a.done > b.done) return 'A mission has come home.';
-  if (a.demands > b.demands) return 'A ransom demand has arrived.';
-  if (a.held > b.held) return 'We have caught someone.';
-  if (a.petitions > b.petitions) return 'A councillor has a petition.';
-  if (a.leads > b.leads) return 'Something new to follow up.';
-  if (b.oath && !a.oath) return 'The oath has ended.';
   const fresh = w.feed.slice(b.last ? w.feed.indexOf(b.last) + 1 : 0);
   const P = w.playerHouseId;
-  if (fresh.some((f) => f.kind === 'death' && f.characterIds?.some((id) => w.characters[id]?.houseId === P))) return 'Someone of our house has died.';
-  if (fresh.some((f) => f.kind === 'intrigue')) return 'News from the shadows.';
+  const hits: [boolean, StopKind, string][] = [
+    [a.battles > b.battles, 'decision', 'A battle has begun.'],
+    [a.decisions > b.decisions, 'decision', 'A decision awaits your word.'],
+    [a.alerts > b.alerts, 'word', 'Word has come that needs you.'],
+    [a.done > b.done, 'mission', 'A mission has come home.'],
+    [a.demands > b.demands, 'captive', 'A ransom demand has arrived.'],
+    [a.held > b.held, 'captive', 'We have caught someone.'],
+    [a.asks > b.asks, 'loan', 'A house asks to borrow from us.'],
+    [a.petitions > b.petitions, 'petition', 'A councillor has a petition.'],
+    [a.leads > b.leads, 'lead', 'Something new to follow up.'],
+    [!!b.oath && !a.oath, 'oath', 'The oath has ended.'],
+    [fresh.some((f) => f.kind === 'death' && f.characterIds?.some((id) => w.characters[id]?.houseId === P)), 'death', 'Someone of our house has died.'],
+    [fresh.some((f) => f.kind === 'intrigue'), 'news', 'News from the shadows.'],
+  ];
+  // A battle always stops the clock.
+  if (hits[0]![0]) return { reason: hits[0]![2], kind: 'decision' };
+  for (const [hit, kind, reason] of hits.slice(1)) if (hit && prefs[kind]) return { reason, kind };
   return null;
 }
 

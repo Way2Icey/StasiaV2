@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { regardOf } from '../sim/archon';
 import { DecisionsPanel } from './events';
 import { Term } from './tip';
 import { displayName } from '../sim/names';
@@ -12,7 +13,7 @@ import { closePetition } from '../sim/council';
 import { averageMood, moodColor, moodLabel, moodOf } from '../sim/mood';
 import { dismissLead, leadsOf, recruit } from '../sim/discovery';
 import { answerPupilOffer } from '../sim/training';
-import { attitude, attitudeColor, relation } from '../sim/relations';
+import { attitude, attitudeColor } from '../sim/relations';
 import type { Approach, Character, Mission, MissionKind, Outcome } from '../sim/types';
 import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
@@ -102,7 +103,7 @@ export function MissionsPage() {
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <h2>Missions</h2>
-          <p>Send your people out to learn what others would rather keep. Every press of Continue moves them along.</p>
+          <p>Send your people out to learn what others would rather keep. They travel while the clock runs.</p>
         </div>
       </div>
       <div className="actions">
@@ -112,11 +113,11 @@ export function MissionsPage() {
       </div>
       <FieldSlots />
       <LeadsPanel />
-      <Panel title="In the field" aside={`${active.length} out`}>
+      <Panel scroll={360} title="In the field" aside={`${active.length} out`}>
         {active.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out right now.</p> : null}
         {active.map((m) => <MissionRow key={m.id} id={m.id} />)}
       </Panel>
-      <Panel title="Reports" aside={`${past.length} filed`}>
+      <Panel scroll={440} title="Reports" aside={`${past.length} filed`}>
         {past.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No reports yet.</p> : (
           <div className="table-wrap">
             <table className="list">
@@ -197,7 +198,7 @@ export function MissionPage({ id }: { id: string }) {
       </div>
 
       <div className="grid">
-        <Panel title="Timeline" className="span-5">
+        <Panel scroll={360} title="Timeline" className="span-5">
           <div className="body stages">
             {stages.map((st, i) => (
               <div key={st.key} className={`stage ${i < at ? 'past' : i === at ? 'now' : ''}`}>
@@ -237,7 +238,7 @@ export function MissionPage({ id }: { id: string }) {
           )}
         </Panel>
 
-        <Panel title="Log" aside="What reached you" className="span-12 feed">
+        <Panel scroll={360} title="Log" aside="What reached you" className="span-12 feed">
           {[...m.log].reverse().map((e, i) => (
             <div className="row" key={i}>
               <time>{formatDate(e.date)}</time>
@@ -340,7 +341,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
 
       <div className="grid">
         <div className="span-7 stack">
-          <Panel title="1 · Target">
+          <Panel scroll={460} title="1 · Target">
             {lead && kind === 'scout' ? (
               <div className="body" style={{ display: 'grid', gap: 4 }}>
                 <span><SectorLink id={lead.sectorId} withPlanet /></span>
@@ -372,7 +373,7 @@ export function PlanPage({ kind: initialKind, target: initialTarget, leader: ini
             ) : kind === 'envoy' ? (
               <div className="body choices">
                 {Object.values(world.houses).filter((h) => h.id !== house).map((h) => {
-                  const r = relation(world, h.id, house);
+                  const r = regardOf(world, h.id, house);
                   return (
                     <button key={h.id} type="button" className="choice" aria-pressed={target === h.id} onClick={() => setTarget(h.id)}>
                       <span>House {h.name}</span>
@@ -536,7 +537,7 @@ export function LeadsPanel({ className }: { className?: string }) {
   const othes = world.economy.houses[house]!.stock.othes;
   const [err, setErr] = useState<string | null>(null);
   return (
-    <Panel title={<Term k="lead">Leads and finds</Term>} aside={leads.length ? `${leads.length} waiting` : 'Nothing yet'} className={className}>
+    <Panel scroll={340} title={<Term k="lead">Leads and finds</Term>} aside={leads.length ? `${leads.length} waiting` : 'Nothing yet'} className={className}>
       {leads.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Missions turn things up: talented people, rumours of Caiges, secrets, sites worth working. They wait here.</p> : null}
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
       {leads.map((l) => {

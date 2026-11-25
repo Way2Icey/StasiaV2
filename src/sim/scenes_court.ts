@@ -227,7 +227,7 @@ registerScene('negotiation', {
     talkView(s);
     const envoy = envoyOf(w);
     const mean = t.kind === 'peace' ? peaceMeaning : pactMeaning;
-    s.prompt = `We ask for ${mean(t.ask)} (${Math.round(t.ask)}). They offer ${mean(t.offer)} (${Math.round(t.offer)}).`;
+    s.prompt = `Our ask: ${mean(t.ask)} (${Math.round(t.ask)}). Their offer: ${mean(t.offer)} (${Math.round(t.offer)}).`;
     s.options = [
       { key: 'take', label: `Take their offer: ${mean(t.offer)}` },
       { key: 'hold', label: 'Hold to our terms', hint: 'they may come up; patience runs down' },

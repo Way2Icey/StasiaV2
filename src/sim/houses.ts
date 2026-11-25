@@ -24,7 +24,7 @@ const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const H = (w: World, id: string) => `House ${w.houses[id]?.name ?? id}`;
 
 export type AimKind = 'revenge' | 'alliance' | 'wealth' | 'expand' | 'glory';
-export const AIM_LABEL: Record<AimKind, string> = { revenge: 'Revenge', alliance: 'An ally', wealth: 'Wealth', expand: 'Strength at sea', glory: 'Glory' };
+export const AIM_LABEL: Record<AimKind, string> = { revenge: 'Revenge', alliance: 'An ally', wealth: 'Wealth', expand: 'A greater fleet', glory: 'Glory' };
 export interface Aim { kind: AimKind; target?: string; since: GameDate; /** Whether our Spymaster has learned it. */ known: boolean }
 export interface Pact { id: string; a: string; b: string; since: GameDate }
 export interface Feud { id: string; a: string; b: string; since: GameDate; cause: string }

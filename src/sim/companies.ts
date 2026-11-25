@@ -15,7 +15,7 @@ import { tally } from './careers';
 import { meet } from './relationships';
 import { seasoned } from './ladder';
 import { powerOf } from './fleet';
-import { createBattle, battleOf, runOut, outcomes } from './battle';
+import { createBattle, battleOf, runOut, outcomes, chronicle as tellBattle } from './battle';
 import { LANE_BY_ID } from './lanes';
 import { competence } from './reports';
 import { absoluteCycle, addCycles, CYCLES_PER_PHASE, type GameDate } from './time';
@@ -203,7 +203,7 @@ export function huntShips(world: World): string[] {
 const worth = (c: { stats: Record<string, number> }) => (c.stats.duelling! + c.stats.valor! + c.stats.tactics!) / 3;
 
 /**
- * Both sides of a hunt, before the dice. Ours: the leader, a fifth of each companion, the leader's command,
+ * Both sides of a hunt, before the dice. Ours: the leader, a third of each companion, the leader's command,
  * and the ship (a hired cutter if none). Theirs: the captain's blade and tactics, the crew, the hull, any
  * other captain sailing with them, and how well they know the lanes they are found on.
  */
@@ -214,7 +214,7 @@ export function huntOdds(world: World, factionId: string, memberId: string, lead
   if (!lead) return { ours: 0, theirs: 0, win: 0, find: 0 };
   const mates = companions.map((id) => world.characters[id]).filter((c) => c?.alive);
   const ship = shipId ? world.fleet?.ships[shipId] : undefined;
-  const ours = worth(lead) + mates.reduce((n, c) => n + worth(c!) / 5, 0) + (lead.stats.leadership + lead.stats.tactics - 20) / 5 + (ship ? powerOf(world, ship) / 4 : HULL.cutter.power / 2);
+  const ours = worth(lead) + mates.reduce((n, c) => n + worth(c!) / 3, 0) + (lead.stats.leadership + lead.stats.tactics - 20) / 5 + (ship ? powerOf(world, ship) / 3 : HULL.cutter.power / 2);
   const wild = f.haunts.reduce((n, id) => n + (LANE_BY_ID[id]?.wild ?? 0.3), 0) / Math.max(1, f.haunts.length);
   const second = m.role === 'chief' ? alive(f).filter((x) => x.role === 'captain').sort((a, b) => b.skill - a.skill)[0] : undefined;
   const theirs = m.skill * 0.6 + (m.tactics ?? 10) * 0.4 + (m.crew ?? 40) / 10 + HULL[m.hull ?? 'raider'].power / 2 + (second ? second.skill / 3 : 0) + wild * 3;
@@ -310,6 +310,7 @@ function finishHunt(world: World, rng: Rng, h: Hunt) {
   const ship = h.shipId ? world.fleet?.ships[h.shipId] : undefined;
   if (!f || !m || !b || !lead) return;
   b.applied = true;
+  const account = tellBattle(world, b);
   const party = [h.leaderId, ...h.companions].map((id) => world.characters[id]).filter((c) => c?.alive);
   const who = [{ id: lead.id, part: 'led the hunt' }, ...h.companions.map((id) => ({ id, part: 'went with them' }))];
   const aboard = ship ? ` aboard the ${ship.name}` : '';
@@ -342,7 +343,7 @@ function finishHunt(world: World, rng: Rng, h: Hunt) {
     shiftFavour(world, P, 3);
     if (taken) imprison(world, P, m.name, `corsair ${m.role} of ${f.name}`, null, 'crime', 10 + rng.int(0, 6));
     chronicle(world, f, `${lead.name.given} ${taken ? 'took' : 'killed'} ${m.name}${m.ship ? ` aboard the ${m.ship}` : ''}.`);
-    logRecord(world, { kind: 'world', type: 'fight', severity: 2, seat: 'grandMaster', houseIds: [P], text: `${lead.name.given} ran down ${m.name} of ${f.name}${m.ship ? ` and the ${m.ship}` : ''}${aboard} and ${taken ? 'brought them home in chains' : 'killed them'}.${hurt.length ? ` ${hurt.join('; ')}.` : ''}`, who, effects: ['Respect +2', 'Dread +1', `${cap(f.name)} weakened`, `${cap(f.name)} regard −30`], quote: { from: lead.id, text: taken ? 'Alive, as you see. They will have plenty to say.' : 'They would not strike. So.' } });
+    logRecord(world, { kind: 'world', type: 'fight', severity: 2, seat: 'grandMaster', houseIds: [P], text: `${lead.name.given} ran down ${m.name} of ${f.name}${m.ship ? ` and the ${m.ship}` : ''}${aboard} and ${taken ? 'brought them home in chains' : 'killed them'}.${hurt.length ? ` ${hurt.join('; ')}.` : ''}`, who, effects: ['Respect +2', 'Dread +1', `${cap(f.name)} weakened`, `${cap(f.name)} regard −30`], quote: { from: lead.id, text: taken ? 'Alive, as you see. They will have plenty to say.' : 'They would not strike. So.' }, account });
     return;
   }
   // Beaten.
@@ -350,7 +351,7 @@ function finishHunt(world: World, rng: Rng, h: Hunt) {
   m.notes.push(`Beat off a hunt led by ${lead.name.given}${aboard}.`);
   const how = hurt.length ? hurt.join('; ') : `${lead.name.given} brought everyone home, beaten`;
   chronicle(world, f, `${m.name} beat off our hunt${aboard}: ${how.toLowerCase()}.`);
-  logRecord(world, { kind: 'world', type: 'fight', severity: 2, seat: 'grandMaster', houseIds: [P], text: `${m.name} was ready for us${aboard ? `, and the ${ship!.name} came home scarred` : ''}. The hunt ${b.result?.brokeOff ? 'broke off' : margin < -5 ? 'was routed' : 'fell just short'}: ${how}.`, who });
+  logRecord(world, { kind: 'world', type: 'fight', severity: 2, seat: 'grandMaster', houseIds: [P], text: `${m.name} was ready for us${aboard ? `, and the ${ship!.name} came home scarred` : ''}. The hunt ${b.result?.brokeOff ? 'broke off' : margin < -5 ? 'was routed' : 'fell just short'}: ${how}.`, who, account });
 }
 
 export function advanceHunts(world: World, rng: Rng): void {

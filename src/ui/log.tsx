@@ -1,4 +1,6 @@
 // The Log: every record in one place, one line each, the same card for all.
+import { Peek } from './links';
+import { AccountBlock } from './account';
 import { useMemo, useState } from 'react';
 import { useNav, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, PlanetLink, SectorLink } from './links';
@@ -61,7 +63,7 @@ export function LogPage({ person, place, house, open: initial }: { person?: stri
         <p>Every happening the house knows of, newest first, on the same card. Each says who told us.</p>
       </div>
       <div className="grid">
-        <Panel title={scope ? <>Log · {scope}</> : 'The log'} aside={`${list.length} of ${scoped.length} records`} className="major span-12">
+        <Panel scroll={640} title={scope ? <>Log · {scope}</> : 'The log'} aside={`${list.length} of ${scoped.length} records`} className="major span-12">
           <div className="body" style={{ display: 'grid', gap: 8, paddingBottom: 4 }}>
             {scope ? (
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -92,7 +94,7 @@ export function LogPage({ person, place, house, open: initial }: { person?: stri
                   <span className="when">{short(r.e.date)}</span>
                   <span className="mark" aria-label={SEVERITY_LABEL[r.severity]}>{SEVERITY_MARK[r.severity]}</span>
                   <span className="type">{TYPE_LABEL[r.type].toUpperCase()}</span>
-                  <span className="head">{r.e.text}</span>
+                  <span className="head">{r.e.text}{r.e.account ? <span className="muted" title="A witness's account"> ¶</span> : null}</span>
                   <span className="where">{placeName(world, r.e.placeId)}</span>
                 </button>
                 {open === r.key ? <RecordCard row={r} /> : null}
@@ -121,13 +123,14 @@ export function RecordCard({ row }: { row: Row }) {
         <dt>What</dt><dd>{TYPE_LABEL[row.type]} · {SEVERITY_LABEL[row.severity]}</dd>
         {people.length ? <><dt>Who</dt><dd style={{ display: 'grid', gap: 2 }}>{people.map((p) => <span key={p.id + p.part}><PersonById id={p.id} /> <span className="muted">— {p.part}</span></span>)}</dd></> : null}
         {e.houseIds?.length ? <><dt>Houses</dt><dd>{e.houseIds.map((h, i) => <span key={h}>{i ? ', ' : ''}<HouseLink id={h} /></span>)}</dd></> : null}
-        {e.detail ? <><dt>Account</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{e.detail}</dd></> : null}
+        {e.detail ? <><dt>{e.account ? 'Note' : 'Account'}</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{e.detail}</dd></> : null}
         {e.effects?.length ? <><dt>Effects</dt><dd style={{ display: 'grid', gap: 2 }}>{e.effects.map((x, i) => <span key={i}>› {x}</span>)}</dd></> : null}
         <dt>Source</dt><dd>{e.source ?? "the house's own people"}</dd>
         {e.missionId && world.missions[e.missionId] ? <><dt>Mission</dt><dd><Go to={{ kind: 'mission', id: e.missionId }}>open the mission ›</Go></dd></> : null}
-        {ship ? <><dt>Ship</dt><dd><Go to={{ kind: 'port', id: ship.sectorId, ship: ship.id }}>{ship.name} ›</Go></dd></> : null}
+        {ship ? <><dt>Ship</dt><dd><Peek t={{ k: 'portShip', id: ship.id }}>{ship.name} ›</Peek></dd></> : null}
         {cause ? <><dt>Follows from</dt><dd>{cause.text}</dd></> : null}
       </dl>
+      {e.account ? <AccountBlock account={e.account} /> : null}
     </div>
   );
 }

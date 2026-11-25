@@ -44,6 +44,8 @@ export interface PendingEvent {
   variant?: string;
   /** What setup chose that the options need later: amounts, names, places. */
   stakes?: Record<string, string | number>;
+  /** A witness's account of what happened, when setup decided it. */
+  account?: import('./details').Account;
 }
 
 export interface ResolvedEvent {
@@ -475,7 +477,7 @@ function startArc(world: World, p: PendingEvent, title: string): ArcRun {
 }
 
 /** Choose who/where an event is about, from inside `setup`. */
-export function choose(c: Ctx, set: Partial<Pick<PendingEvent, 'personId' | 'secondId' | 'otherHouseId' | 'sectorId'>>): true {
+export function choose(c: Ctx, set: Partial<Pick<PendingEvent, 'personId' | 'secondId' | 'otherHouseId' | 'sectorId' | 'account'>>): true {
   if (c.set) Object.assign(c.set, set);
   if (set.personId) c.person = c.world.characters[set.personId];
   if (set.secondId) c.second = c.world.characters[set.secondId];
@@ -561,8 +563,8 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
   logRecord(world, {
     kind: 'council', type: 'decision',
     severity: ctx.fx.lines.some((l) => l.includes('wounded')) ? 2 : 1,
-    text: `${title}: ${choice === null ? 'left to the council, who chose to' : 'we chose to'} ${use.label.toLowerCase()}.`,
-    detail: p.text, effects: ctx.fx.lines, who, missionId: p.missionId,
+    text: `${title}: ${choice === null ? 'left to the council, who chose' : 'we chose'} “${use.label.replace(/[.…]+$/, '')}”.`,
+    detail: p.text, effects: ctx.fx.lines, who, missionId: p.missionId, account: p.account,
     placeId: p.sectorId ?? (m ? m.targetSectorId ?? m.targetPlanetId : undefined),
     houseIds: p.otherHouseId ? [p.otherHouseId] : undefined,
     source: m ? `${ctx.leader ? ctx.leader.name.given : 'the party'}'s report` : 'the court',

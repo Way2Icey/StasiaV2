@@ -1,6 +1,7 @@
 // Missions: the house sends one of its people to do something somewhere.
 // Milestone 2 has two kinds: Investigate (look into a person) and Scout
 // (survey a world). Everything resolves turn by turn, deterministically.
+import { AIM_LABEL } from './houses';
 import { touch } from './circle';
 import { rivalsFrom } from './grounds';
 import { award, tally } from './careers';
@@ -658,6 +659,14 @@ function deliver(world: World, m: Mission, leader: Character, rng: Rng) {
     }
     const after = viewOf(world, m.houseId, t);
     findings.push(...diffViews(before, after));
+    // Whoever sits close to a Highroy knows what the house is after: get near them and we learn it too.
+    const aim = world.realm?.aims[t.houseId];
+    const close = world.houses[t.houseId]?.rulerId === t.id || !!t.seat;
+    if (aim && !aim.known && close && (outcome === 'success' || outcome === 'triumph') && t.houseId !== m.houseId) {
+      aim.known = true;
+      findings.push(`House ${world.houses[t.houseId]?.name} wants ${AIM_LABEL[aim.kind].toLowerCase()}${aim.target ? `, and it is aimed at House ${world.houses[aim.target]?.name ?? aim.target}` : ''}.`);
+    }
+    if (!findings.length) findings.push(outcome === 'failure' ? 'Nothing we could use.' : 'Nothing we did not already know.');
   } else if (m.kind === 'envoy' && m.targetHouseId) {
     const h = world.houses[m.targetHouseId]!;
     const before = relation(world, h.id, m.houseId);

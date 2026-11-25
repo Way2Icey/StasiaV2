@@ -5,6 +5,7 @@ import { displayName } from './names';
 import { econ, record } from './economy';
 import { relation, shiftRelation } from './relations';
 import { logRecord } from './records';
+import { standoffAccount } from './details';
 import { findSector } from './query';
 import { shiftMood } from './mood';
 import { shiftOpinion } from './relationships';
@@ -18,15 +19,31 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 const H = (w: World, id: string) => `House ${w.houses[id]?.name ?? id}`;
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 
-// Placeholder class names until the house's own ship-class list is wired in.
-export type CapitalClass = 'cruiser' | 'battlecruiser' | 'carrier' | 'dreadnought';
-export interface CapitalClassDef { label: string; crew: number; upkeep: number; power: number; cost: number; components: number; slots: number; note: string }
+// The classes of the Archon's great ships, after the house fleets of the canon: a cruiser at the heart of
+// a Minor House's fleet, destroyers to screen and strike, carriers that fight through their wings and carry
+// troops to an assault, and for a Great House a flagship. Gunships and fighters are the numbered fleet
+// (see war.ts), not named here.
+export type CapitalClass = 'flagship' | 'carrier' | 'cruiser' | 'destroyer';
+export interface CapitalClassDef { label: string; crew: number; upkeep: number; power: number; cost: number; components: number; slots: number; refits: number; note: string }
 export const CAPITAL_CLASSES: Record<CapitalClass, CapitalClassDef> = {
-  cruiser: { label: 'Cruiser', crew: 320, upkeep: 400, power: 20, cost: 25000, components: 120, slots: 2, note: 'Fast and cheap to keep. The workhorse of a minor house.' },
-  battlecruiser: { label: 'Battlecruiser', crew: 600, upkeep: 700, power: 35, cost: 45000, components: 220, slots: 2, note: 'Heavy guns on a cruiser\'s legs.' },
-  carrier: { label: 'Carrier', crew: 800, upkeep: 800, power: 28, cost: 50000, components: 250, slots: 3, note: 'Fights through its wings: a hangar makes it.' },
-  dreadnought: { label: 'Dreadnought', crew: 1200, upkeep: 1200, power: 50, cost: 80000, components: 400, slots: 3, note: 'A house\'s pride and its whole treasury, afloat.' },
+  flagship: { label: 'Flagship', crew: 2000, upkeep: 900, power: 55, cost: 140000, components: 600, slots: 4, refits: 3, note: 'A Great House\'s command ship and its pride: the Grand Master\'s deck, a city\'s worth of crew, the house\'s whole treasury afloat. Only one at a time, and only for a Great House.' },
+  carrier: { label: 'Carrier', crew: 800, upkeep: 500, power: 26, cost: 50000, components: 250, slots: 3, refits: 2, note: 'Fights through its fighter wings, and carries troops to an assault: a hangar makes it.' },
+  cruiser: { label: 'Cruiser', crew: 400, upkeep: 300, power: 20, cost: 26000, components: 120, slots: 2, refits: 2, note: 'The heart of a house\'s fleet: a command ship for a Minor House, a ship of the line for a Great one.' },
+  destroyer: { label: 'Destroyer', crew: 300, upkeep: 100, power: 11, cost: 12000, components: 60, slots: 1, refits: 1, note: 'Escort and fast strike: screens the heavier ships, hunts corsairs, and goes where it is sent.' },
 };
+/** Old saves named their ships by older classes. */
+const OLD_CLASS: Record<string, CapitalClass> = { dreadnought: 'flagship', battlecruiser: 'cruiser' };
+
+// ---------------------------------------------------------------- refits
+
+export type Fit = 'shields' | 'shardCannons' | 'armour' | 'quarters';
+export const FITS: Record<Fit, { label: string; cost: number; components: number; upkeep: number; power: number; note: string }> = {
+  shields: { label: 'Energy shields', cost: 8000, components: 40, upkeep: 60, power: 0.1, note: 'Damage in a fight is halved, and the ship fights a tenth stronger.' },
+  shardCannons: { label: 'Shard cannons', cost: 10000, components: 50, upkeep: 50, power: 0.2, note: 'Navisium shard batteries: a fifth stronger in a fight.' },
+  armour: { label: 'Armour plating', cost: 6000, components: 60, upkeep: 30, power: 0.05, note: 'Wears more slowly on station, and holds together when others would not.' },
+  quarters: { label: 'Crew quarters', cost: 5000, components: 20, upkeep: 20, power: 0, note: 'A crew that sleeps well grumbles less on long stations.' },
+};
+export const hasFit = (s: CapitalShip, f: Fit) => !!s.fits?.includes(f);
 
 export type Duty = 'harbour' | 'patrol' | 'show' | 'blockade' | 'escort';
 export const DUTY_LABEL: Record<Duty, string> = { harbour: 'In harbour', patrol: 'Patrol', show: 'Show the flag', blockade: 'Blockade', escort: 'Convoy escort' };
@@ -70,9 +87,23 @@ export interface CapitalShip {
   /** Sent to the Crucible for the season. */
   crucible?: boolean;
   unpaid?: number;
+  /** Refits aboard. */
+  fits?: Fit[];
+  /** Her service: what she has done, in her own record. */
+  log?: { year: number; text: string }[];
+  /** What her service has made of her name. */
+  renown?: number;
+  /** The name the Archon calls her by, once she has earned one. */
+  epithet?: string;
+  /** Raised from a wreck rather than built. */
+  raised?: string;
 }
 
-export interface FleetState { ships: Record<string, CapitalShip> }
+export interface FleetState {
+  ships: Record<string, CapitalShip>;
+  /** Ships laid up with honour, or broken up: the house's past at sea between the worlds. */
+  past?: { name: string; cls: CapitalClass; houseId: string; from: number; to: number; how: string; epithet?: string; renown: number }[];
+}
 
 const GRAND = ['Resolve', 'Sovereign', 'Aegis', 'Dominion', 'Vigil', 'Requiem', 'Ascendant', 'Bastion', 'Herald', 'Tempest', 'Covenant', 'Meridian', 'Paragon', 'Reckoning', 'Lodestar', 'Equinox'];
 
@@ -98,30 +129,66 @@ function bestCaptain(world: World, houseId: string, except: Set<string>): Charac
     .sort((a, b) => b.stats.fleetCommand + b.stats.leadership + (b.role === 'Knight' ? 6 : 0) - (a.stats.fleetCommand + a.stats.leadership + (a.role === 'Knight' ? 6 : 0)))[0];
 }
 
+/** The fleets of the canon where the canon gives them; otherwise, a fleet fitting the house's rank and temper. */
+const CANON_FLEETS: Record<string, CapitalClass[]> = {
+  alerion: ['cruiser', 'destroyer', 'destroyer', 'destroyer'],
+  endama: ['carrier', 'cruiser', 'destroyer', 'destroyer', 'destroyer', 'destroyer', 'destroyer'],
+};
+function startingFleet(h: World['houses'][string]): CapitalClass[] {
+  if (CANON_FLEETS[h.id]) return CANON_FLEETS[h.id]!;
+  if (h.tier === 'great') return ['flagship', 'cruiser', 'destroyer'];
+  return h.personality.aggression > 0.6 ? ['cruiser', 'destroyer', 'destroyer'] : ['cruiser', 'destroyer'];
+}
+
 export function ensureFleet(world: World): void {
   if (world.fleet?.ships) {
-    for (const s of Object.values(world.fleet.ships)) if (!s.lost && world.holdings) ensureBrig(world, s.id, s.houseId);
+    for (const s of Object.values(world.fleet.ships)) {
+      if (OLD_CLASS[s.cls as string]) s.cls = OLD_CLASS[s.cls as string]!;
+      if (!s.lost && world.holdings) ensureBrig(world, s.id, s.houseId);
+    }
     return;
   }
   world.fleet = { ships: {} };
   const rng = new Rng(world.rng);
   for (const h of Object.values(world.houses)) {
-    const n = h.tier === 'great' ? 2 : 1;
     const used = new Set<string>();
-    for (let i = 0; i < n; i++) {
-      const cls: CapitalClass = h.tier === 'great' ? (i === 0 ? 'dreadnought' : 'carrier') : (h.personality.aggression > 0.6 ? 'battlecruiser' : 'cruiser');
-      const cap = bestCaptain(world, h.id, used);
+    for (const cls of startingFleet(h)) {
+      const cap = cls === 'destroyer' && rng.chance(0.4) ? undefined : bestCaptain(world, h.id, used);
       if (cap) used.add(cap.id);
       const id = `cs${world.nextId++}`;
+      // Some of the house's ships are old: they have served longer than anyone at court.
+      const years = cls === 'flagship' ? rng.int(4, 30) : rng.int(0, 40);
       world.fleet.ships[id] = {
         id, houseId: h.id, name: shipName(world, rng, h.id), cls, captainId: cap?.id ?? null, crew: CAPITAL_CLASSES[cls].crew,
         crewMood: 55 + Math.round(rng.next() * 20), condition: 80 + Math.round(rng.next() * 20), sectorId: capitalSector(world, h.id),
-        duty: 'harbour', built: world.date,
+        duty: 'harbour', built: { ...world.date, year: world.date.year - years }, renown: Math.round(years / 6), log: [],
       };
     }
   }
   world.rng = rng.state;
   if (world.holdings) for (const s of Object.values(world.fleet.ships)) ensureBrig(world, s.id, s.houseId);
+}
+
+/** Years since she was built. */
+export const shipAge = (world: World, s: CapitalShip): number => Math.max(0, world.date.year - s.built.year);
+/** An old ship can no longer be brought all the way back. */
+export const conditionCap = (world: World, s: CapitalShip): number => clamp(100 - Math.max(0, shipAge(world, s) - 30) * 2, 40, 100);
+
+const EPITHETS = ['the Unyielding', 'the Long Watch', 'the Iron Return', 'the Last Light', 'the Patient', 'the Widowmaker', 'the Faithful', 'the Unbroken', 'the Grey Lady', 'the Lantern', 'the Hammer of the Reach', 'the Old Oath'];
+
+/** Write into a ship's record; enough of it, and she earns a name. */
+export function shipLog(w: World, s: CapitalShip, text: string, renown = 0): void {
+  s.log = [{ year: w.date.year, text }, ...(s.log ?? [])].slice(0, 40);
+  s.renown = (s.renown ?? 0) + renown;
+  if (!s.epithet && (s.renown ?? 0) >= 12) {
+    const taken = new Set(Object.values(w.fleet?.ships ?? {}).map((x) => x.epithet));
+    const rng = Rng.fromSeed(`${s.id}/${w.nextId}`);
+    s.epithet = rng.pick(EPITHETS.filter((e) => !taken.has(e))) ?? EPITHETS[0]!;
+    s.log.unshift({ year: w.date.year, text: `The Archon has begun to call her ${s.epithet}.` });
+    if (s.houseId === w.playerHouseId) logRecord(w, { kind: 'world', type: 'world', severity: 3, text: `The ${s.name} has a name now: they call her ${s.epithet}, in every port of the Archon.`, placeId: s.sectorId });
+    const a = w.archon?.houses[s.houseId];
+    if (a) a.prestige = clamp(a.prestige + 1, 0, 100);
+  }
 }
 
 // ---------------------------------------------------------------- queries
@@ -142,7 +209,8 @@ export function powerOf(world: World, s: CapitalShip): number {
   const cap = s.captainId ? world.characters[s.captainId] : undefined;
   const lead = cap?.alive ? (cap.stats.fleetCommand + cap.stats.tactics) / 20 : 0.6;
   const hangar = Object.values(world.holdings?.modules ?? {}).filter((m) => m.shipId === s.id && m.kind === 'hangar').reduce((n, m) => n + m.level * 6, 0);
-  return Math.round((def.power + hangar) * (0.5 + s.condition / 200) * (0.6 + s.crewMood / 250) * (0.7 + lead * 0.5) * (s.crew / def.crew));
+  const fits = 1 + (s.fits ?? []).reduce((t, f) => t + FITS[f].power, 0);
+  return Math.round((def.power + hangar) * fits * (0.5 + s.condition / 200) * (0.6 + s.crewMood / 250) * (0.7 + lead * 0.5) * (s.crew / def.crew));
 }
 
 /** What our ships add to a sector's defence against raiders. */
@@ -150,9 +218,11 @@ export function fleetDefence(world: World, sectorId: string): number {
   return shipsAt(world, sectorId).filter((s) => s.houseId === world.playerHouseId && (s.duty === 'patrol' || s.duty === 'harbour')).reduce((n, s) => n + powerOf(world, s), 0);
 }
 
-export function upkeepOf(s: CapitalShip): number {
-  const u = CAPITAL_CLASSES[s.cls].upkeep;
-  return s.duty === 'harbour' ? Math.round(u * 0.6) : u;
+export function upkeepOf(s: CapitalShip, world?: World): number {
+  // Old ships cost more to keep flying; every refit has its crew and its spares.
+  const age = world ? Math.max(0, shipAge(world, s) - 20) : 0;
+  const u = (CAPITAL_CLASSES[s.cls].upkeep + (s.fits ?? []).reduce((t, f) => t + FITS[f].upkeep, 0)) * (1 + age * 0.015);
+  return s.duty === 'harbour' ? Math.round(u * 0.6) : Math.round(u);
 }
 
 export function moodWord(m: number): string {
@@ -253,6 +323,11 @@ export function cannotCommission(world: World, cls: CapitalClass, yardId: string
   if (onSlips(world, yard).length >= yard.level) return `The slips are full (${yard.level})`;
   const e = econ(world, world.playerHouseId);
   const d = CAPITAL_CLASSES[cls];
+  if (cls === 'flagship') {
+    if (world.houses[world.playerHouseId]?.tier !== 'great') return 'Only a Great House keeps a flagship';
+    if (yard.level < 3) return 'A flagship needs a yard of the third level';
+    if (Object.values(world.fleet?.ships ?? {}).some((x) => x.houseId === world.playerHouseId && x.cls === 'flagship' && !x.lost)) return 'The house already has its flagship';
+  }
   if (e.stock.othes < d.cost) return `Needs ${fmt(d.cost)} othes`;
   if (e.stock.components < d.components) return `Needs ${d.components} components`;
   return null;
@@ -268,10 +343,10 @@ export function commission(input: World, cls: CapitalClass, yardId: string): Wor
     record(w, P, { resource: 'othes', amount: -d.cost, label: `Laid down a ${d.label.toLowerCase()}`, kind: 'develop', sectorId: yard.sectorId });
     record(w, P, { resource: 'components', amount: -d.components, label: `Laid down a ${d.label.toLowerCase()}`, kind: 'develop', sectorId: yard.sectorId });
     const id = `cs${w.nextId++}`;
-    const orbits = buildOrbits(yard);
+    const orbits = buildOrbits(yard) * (cls === 'flagship' ? 4 : 1);
     w.fleet.ships[id] = {
       id, houseId: P, name: shipName(w, rng, P), cls, captainId: null, crew: d.crew, crewMood: 60, condition: 100,
-      sectorId: yard.sectorId!, duty: 'harbour', built: w.date, ready: addCycles(w.date, Math.round(CYCLES_PER_ORBIT * orbits)), yardId: yard.id,
+      sectorId: yard.sectorId!, duty: 'harbour', built: w.date, ready: addCycles(w.date, Math.round(CYCLES_PER_ORBIT * orbits)), yardId: yard.id, log: [],
     };
     ensureBrig(w, id, P);
     logRecord(w, { kind: 'world', type: 'economy', severity: 2, text: `The keel of a new ${d.label.toLowerCase()}, the ${w.fleet.ships[id]!.name}, is laid at the yards of ${findSector(w, yard.sectorId!)?.sector.name}.`, effects: [`−${fmt(d.cost)} othes`, `−${d.components} components`, `Ready in ${orbits} Orbits`], placeId: yard.sectorId });
@@ -298,31 +373,36 @@ function arrive(w: World, s: CapitalShip) {
 }
 
 function payUpkeep(w: World, s: CapitalShip) {
-  const cost = upkeepOf(s);
+  const cost = upkeepOf(s, w);
   const e = econ(w, s.houseId);
-  if (e.stock.othes >= cost) {
+  // A house will go into debt to pay its crews before it lets them starve; deep in debt, it cannot.
+  if (e.stock.othes - cost > -10000) {
     record(w, s.houseId, { resource: 'othes', amount: -cost, label: `Upkeep: the ${s.name}`, kind: 'stipend' });
     s.unpaid = 0;
   } else {
+    // A crew will wait a Phase or two for its pay; after that, every Phase unpaid sours it faster.
     s.unpaid = (s.unpaid ?? 0) + 1;
-    s.crewMood = clamp(s.crewMood - 10, 0, 100);
-    if (s.houseId === w.playerHouseId) logRecord(w, { kind: 'world', type: 'economy', severity: 2, text: `The crew of the ${s.name} went unpaid this Phase.`, effects: ['Crew mood −10'] });
+    const hit = Math.min(10, 2 + s.unpaid * 2);
+    s.crewMood = clamp(s.crewMood - hit, 0, 100);
+    if (s.houseId === w.playerHouseId) logRecord(w, { kind: 'world', type: 'economy', severity: 2, text: `The crew of the ${s.name} went unpaid this Phase${s.unpaid > 1 ? `, ${s.unpaid} Phases running` : ''}.`, effects: [`Crew mood −${hit}`] });
   }
 }
 
 function crewLife(w: World, rng: Rng, s: CapitalShip) {
   const cap = s.captainId ? w.characters[s.captainId] : undefined;
   if (s.captainId && !cap?.alive) s.captainId = null;
-  let d = (cap?.alive ? (cap.stats.leadership - 10) / 4 : -2) + rng.gauss();
+  // Without a captain, a lieutenant keeps order in harbour, if not at sea.
+  let d = (cap?.alive ? (cap.stats.leadership - 10) / 4 : s.duty === 'harbour' && !s.arrives ? -0.3 : -2) + rng.gauss();
   if (s.duty === 'harbour' && !s.arrives) {
     d -= 0.8;
     const yard = Object.values(w.holdings?.modules ?? {}).some((m) => m.kind === 'shipyard' && m.sectorId === s.sectorId && m.houseId === s.houseId && m.level > 0);
-    s.condition = clamp(s.condition + (yard ? 8 : 4), 0, 100);
+    s.condition = clamp(s.condition + (yard ? 8 : 4), 0, conditionCap(w, s));
     // New hands sign on at home.
     s.crew = Math.min(CAPITAL_CLASSES[s.cls].crew, s.crew + Math.round(CAPITAL_CLASSES[s.cls].crew * 0.05));
   }
-  else if (s.duty === 'escort' && !s.arrives) s.condition = clamp(s.condition + 2, 0, 100); // refits at home between runs
-  else s.condition = clamp(s.condition - 0.6, 0, 100);
+  else if (s.duty === 'escort' && !s.arrives) s.condition = clamp(s.condition + 2, 0, conditionCap(w, s)); // refits at home between runs
+  else s.condition = clamp(s.condition - (hasFit(s, 'armour') ? 0.3 : 0.6), 0, 100);
+  if (hasFit(s, 'quarters')) d += 0.5;
   if (s.duty === 'escort') d += 0.5;
   const out = s.deployed ? (absoluteCycle(w.date) - absoluteCycle(s.deployed)) / CYCLES_PER_ORBIT : 0;
   // Escorts come home between runs; it is the long stations away that wear a crew down.
@@ -356,6 +436,7 @@ function mutiny(w: World, rng: Rng, s: CapitalShip) {
   } else {
     // The ship is gone: turned corsair.
     s.lost = { date: w.date, how: 'mutiny: turned corsair' };
+    lostShip(w, s, 'lost to mutiny');
     st.respect = clamp(st.respect - 8, 0, 100);
     st.dread = clamp(st.dread - 4, 0, 100);
     if (cap?.alive) {
@@ -416,8 +497,10 @@ function standoff(w: World, rng: Rng, a: CapitalShip, b: CapitalShip) {
   const loser = pa >= pb ? b : a;
   const winner = loser === a ? b : a;
   if (shots) {
-    loser.condition = clamp(loser.condition - (10 + rng.next() * 20), 0, 100);
-    winner.condition = clamp(winner.condition - rng.next() * 8, 0, 100);
+    loser.condition = clamp(loser.condition - (10 + rng.next() * 20) * (hasFit(loser, 'shields') ? 0.5 : 1), 0, 100);
+    winner.condition = clamp(winner.condition - rng.next() * 8 * (hasFit(winner, 'shields') ? 0.5 : 1), 0, 100);
+    shipLog(w, winner, `Outfought the ${loser.name} of ${H(w, loser.houseId)} over ${where?.planet.name ?? 'a blockaded world'}`, 3);
+    shipLog(w, loser, `Came off worse against the ${winner.name} of ${H(w, winner.houseId)} over ${where?.planet.name ?? 'a blockaded world'}`, 1);
     winner.crewMood = clamp(winner.crewMood + 8, 0, 100);
     if (winner.captainId) { addGlory(w, winner.captainId, 2); tally(w, winner.captainId, 'standoffsWon'); }
     loser.crewMood = clamp(loser.crewMood - 6, 0, 100);
@@ -434,6 +517,7 @@ function standoff(w: World, rng: Rng, a: CapitalShip, b: CapitalShip) {
       who: [...(wc ? [{ id: wc.id, part: `captain of the ${winner.name}` }] : []), ...(lc ? [{ id: lc.id, part: `captain of the ${loser.name}` }] : [])],
       houseIds: [a.houseId, b.houseId], placeId: where?.sector.id,
       effects: [`${loser.name} damaged`, `${H(w, winner.houseId)} dread +3`, `${H(w, loser.houseId)} regard −10`],
+      account: standoffAccount(w, rng, { name: winner.name, captainId: winner.captainId ?? null }, { name: loser.name, captainId: loser.captainId ?? null }, where?.planet.name ?? 'a blockaded world'),
     });
   } else if (a.houseId === P || b.houseId === P) {
     logRecord(w, { kind: 'world', type: 'world', severity: 1, text: `The ${b.name} came out to face the ${a.name}. Guns were run out; neither fired. They hold their stations.`, houseIds: [a.houseId, b.houseId], placeId: a.sectorId });
@@ -463,11 +547,11 @@ function aiFleet(w: World, rng: Rng) {
     if (h.id === P) continue;
     const e = econ(w, h.id);
     const n = shipsOf(w, h.id).length;
-    if (n >= (h.tier === 'great' ? 3 : 2) || e.stock.othes < 30000 || !rng.chance(0.15)) continue;
-    const cls: CapitalClass = h.tier === 'great' ? 'battlecruiser' : 'cruiser';
+    if (n >= (h.tier === 'great' ? 5 : 4) || e.stock.othes < 30000 || !rng.chance(0.15)) continue;
+    const cls: CapitalClass = h.tier === 'great' && rng.chance(0.4) ? 'cruiser' : 'destroyer';
     e.stock.othes -= CAPITAL_CLASSES[cls].cost;
     const id = `cs${w.nextId++}`;
-    w.fleet.ships[id] = { id, houseId: h.id, name: shipName(w, rng, h.id), cls, captainId: null, crew: CAPITAL_CLASSES[cls].crew, crewMood: 60, condition: 100, sectorId: capitalSector(w, h.id), duty: 'harbour', built: w.date, ready: addCycles(w.date, CYCLES_PER_ORBIT * 2) };
+    w.fleet.ships[id] = { id, houseId: h.id, name: shipName(w, rng, h.id), cls, captainId: null, crew: CAPITAL_CLASSES[cls].crew, crewMood: 60, condition: 100, sectorId: capitalSector(w, h.id), duty: 'harbour', built: w.date, ready: addCycles(w.date, CYCLES_PER_ORBIT * 2), log: [] };
     logRecord(w, { kind: 'world', type: 'world', severity: 1, text: `${H(w, h.id)} is building a new ${cls}.`, houseIds: [h.id], source: 'shipyard talk' });
   }
 }
@@ -479,7 +563,10 @@ export function advanceFleet(world: World, rng: Rng, phaseTurned: boolean): void
     if (s.lost) continue;
     if (s.ready && absoluteCycle(s.ready) <= now) {
       delete s.ready;
-      if (s.houseId === world.playerHouseId) logRecord(world, { kind: 'world', type: 'world', severity: 2, text: `The ${s.name} is launched and ready for a captain.`, placeId: s.sectorId });
+      s.built = world.date;
+      shipLog(world, s, `Launched from the yards of ${findSector(world, s.sectorId)?.sector.name ?? 'the house'}`);
+      if (s.cls === 'flagship') launchFlagship(world, s);
+      else if (s.houseId === world.playerHouseId) logRecord(world, { kind: 'world', type: 'world', severity: 2, text: `The ${s.name} is launched and ready for a captain.`, placeId: s.sectorId });
     }
     if (s.arrives && absoluteCycle(s.arrives) <= now) arrive(world, s);
   }
@@ -493,3 +580,94 @@ export function advanceFleet(world: World, rng: Rng, phaseTurned: boolean): void
   aiFleet(world, rng);
 }
 
+
+// ---------------------------------------------------------------- flagships, refits, and the end of a ship
+
+function launchFlagship(w: World, s: CapitalShip): void {
+  const a = w.archon?.houses[s.houseId];
+  if (a) a.prestige = clamp(a.prestige + 3, 0, 100);
+  const st = w.houses[s.houseId]?.standing;
+  if (st) st.respect = clamp(st.respect + 3, 0, 100);
+  s.renown = (s.renown ?? 0) + 4;
+  logRecord(w, {
+    kind: 'world', type: 'world', severity: 3, text: `${s.houseId === w.playerHouseId ? 'Our' : `${H(w, s.houseId)}'s`} flagship, the ${s.name}, is launched before the whole house. Every court in the Archon has sent someone to watch, and to count her guns.`,
+    houseIds: [s.houseId], placeId: s.sectorId, effects: s.houseId === w.playerHouseId ? ['Standing +3', 'Respect +3', 'Envy grows'] : undefined,
+  });
+}
+
+/** A ship of the house is gone: the house remembers what she was. */
+export function lostShip(w: World, s: CapitalShip, how: string): void {
+  (w.fleet.past ??= []).unshift({ name: s.name, cls: s.cls, houseId: s.houseId, from: s.built.year, to: w.date.year, how, epithet: s.epithet, renown: s.renown ?? 0 });
+  w.fleet.past = w.fleet.past.slice(0, 80);
+  if (s.cls === 'flagship') {
+    const a = w.archon?.houses[s.houseId];
+    if (a) a.prestige = clamp(a.prestige - 5, 0, 100);
+    const st = w.houses[s.houseId]?.standing;
+    if (st) st.respect = clamp(st.respect - 5, 0, 100);
+    logRecord(w, { kind: 'world', type: 'condition', severity: 3, text: `The flagship of ${H(w, s.houseId)}, the ${s.name}, is ${how}. The house has lost its pride.`, houseIds: [s.houseId], effects: ['Standing −5', 'Respect −5'] });
+  }
+}
+
+export function cannotRefit(world: World, shipId: string, f: Fit): string | null {
+  const s = world.fleet?.ships[shipId];
+  if (!s || s.houseId !== world.playerHouseId || s.lost) return 'Not our ship';
+  if (s.ready) return 'Still on the slips';
+  if (hasFit(s, f)) return 'Already fitted';
+  if ((s.fits?.length ?? 0) >= CAPITAL_CLASSES[s.cls].refits) return 'No room for another refit';
+  if (s.duty !== 'harbour' || s.arrives) return 'Bring her into harbour first';
+  const yard = Object.values(world.holdings?.modules ?? {}).some((m) => m.kind === 'shipyard' && m.sectorId === s.sectorId && m.houseId === s.houseId && m.level > 0);
+  if (!yard) return 'Needs our shipyard where she lies';
+  const e = econ(world, world.playerHouseId);
+  if (e.stock.othes < FITS[f].cost) return `Needs ${fmt(FITS[f].cost)} othes`;
+  if (e.stock.components < FITS[f].components) return `Needs ${FITS[f].components} components`;
+  return null;
+}
+
+export function refit(input: World, shipId: string, f: Fit): World {
+  return act(input, (w) => {
+    const why = cannotRefit(w, shipId, f);
+    if (why) throw new Error(why);
+    const s = w.fleet.ships[shipId]!;
+    const P = w.playerHouseId;
+    record(w, P, { resource: 'othes', amount: -FITS[f].cost, label: `${FITS[f].label} for the ${s.name}`, kind: 'develop' });
+    record(w, P, { resource: 'components', amount: -FITS[f].components, label: `${FITS[f].label} for the ${s.name}`, kind: 'develop' });
+    s.fits = [...(s.fits ?? []), f];
+    shipLog(w, s, `Refitted with ${FITS[f].label.toLowerCase()}`);
+  });
+}
+
+export function stripFit(input: World, shipId: string, f: Fit): World {
+  return act(input, (w) => {
+    const s = w.fleet.ships[shipId];
+    if (!s || s.houseId !== w.playerHouseId || !hasFit(s, f)) throw new Error('Nothing to strip.');
+    s.fits = s.fits!.filter((x) => x !== f);
+    record(w, w.playerHouseId, { resource: 'components', amount: Math.round(FITS[f].components / 2), label: `${FITS[f].label} stripped from the ${s.name}`, kind: 'develop' });
+  });
+}
+
+/** Lay her up with honour, or break her for parts. Either way she is gone from the line. */
+export function retireShip(input: World, shipId: string, how: 'honour' | 'break'): World {
+  return act(input, (w) => {
+    const s = w.fleet.ships[shipId];
+    if (!s || s.houseId !== w.playerHouseId || s.lost) throw new Error('Not our ship.');
+    if (s.duty !== 'harbour' || s.arrives) throw new Error('Bring her into harbour first.');
+    const cap = s.captainId ? w.characters[s.captainId] : undefined;
+    if (cap) { cap.flags = cap.flags.filter((x) => x.id !== 'aboard'); shiftMood(cap, how === 'honour' ? -4 : -10); }
+    s.captainId = null;
+    for (const m of Object.values(w.holdings?.modules ?? {})) if (m.shipId === s.id) delete w.holdings.modules[m.id];
+    s.lost = { date: w.date, how: how === 'honour' ? 'laid up with honour' : 'broken up for parts' };
+    lostShip(w, s, s.lost.how);
+    const P = w.playerHouseId;
+    if (how === 'break') {
+      const parts = Math.round(CAPITAL_CLASSES[s.cls].components * 0.4 * (s.condition / 100));
+      record(w, P, { resource: 'components', amount: parts, label: `The ${s.name}, broken up`, kind: 'develop' });
+      if ((s.renown ?? 0) >= 12) { const st = w.houses[P]!.standing; st.respect = clamp(st.respect - 2, 0, 100); }
+    } else if ((s.renown ?? 0) >= 12) {
+      const a = w.archon?.houses[P];
+      if (a) a.prestige = clamp(a.prestige + 1, 0, 100);
+    }
+    logRecord(w, { kind: 'world', type: 'world', severity: 2, text: how === 'honour'
+      ? `The ${s.name}${s.epithet ? `, ${s.epithet},` : ''} is laid up with honour after ${shipAge(w, s)} years. Her crew stand on the dock as the lights go out along her hull.`
+      : `The ${s.name} is broken up for parts. ${s.epithet ? 'The old crews do not come to watch.' : 'It is done quickly.'}`, placeId: s.sectorId });
+  });
+}

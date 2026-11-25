@@ -1,7 +1,7 @@
 // What the nobles of a house do with themselves, the Elder's counsel, and the
 // Spymaster's agents among the envoys.
 import { alive, seatHolder } from './query';
-import { shortName } from './names';
+import { shortName, giveKnightTitle } from './names';
 import { shiftMood } from './mood';
 import { isAway } from './court';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, formatDate } from './time';
@@ -54,7 +54,7 @@ export function setOccupation(input: World, houseId: string, id: string, occ: Oc
     const why = knightReady(c);
     if (why) throw new Error(why);
     c.role = 'Knight';
-    c.flags.push({ id: 'knighted', since: world.date });
+    c.flags.push({ id: 'knighted', since: world.date }); giveKnightTitle(c);
     shiftMood(c, 8);
     world.feed.push({ date: world.date, kind: 'council', text: `${shortName(c.name)} kneels before the Highroy and rises a knight of the house.`, characterIds: [c.id] });
     return world;

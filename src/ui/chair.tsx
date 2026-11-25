@@ -56,7 +56,7 @@ function EnvyPanel() {
   const top = topHouse(world);
   const rows = liveHouses(world).filter((h) => h.id !== P).map((h) => ({ id: h.id, e: envyOf(world, h.id, P), r: regardOf(world, h.id, P), tier: h.tier })).sort((a, b) => b.e - a.e).slice(0, 8);
   return (
-    <Panel title={<Term k="envy">Envy against us</Term>} aside={envyWord(e)} className="span-6">
+    <Panel fold="open" title={<Term k="envy">Envy against us</Term>} aside={envyWord(e)} className="span-6">
       <div className="body" style={{ display: 'grid', gap: 6 }}>
         <span className="mono">{bar(e / 0.6)} {e}</span>
         <span className="muted" style={{ fontSize: 12 }}>{top === P ? 'We stand highest in the Archon, and every house below us knows it.' : <>The house that stands highest is <ArchonHouseLink id={top ?? ''} />.</>}</span>
@@ -75,7 +75,7 @@ function GuardsPanel() {
   const C = ensureChair(world);
   const close = closeToChair(world).slice(0, 16);
   return (
-    <Panel title={<Term k="guards">Guards on our people</Term>} aside={`${guardCost(world).toLocaleString('en-US')} othes a Phase`} className="span-12">
+    <Panel scroll={380} title={<Term k="guards">Guards on our people</Term>} aside={`${guardCost(world).toLocaleString('en-US')} othes a Phase`} className="span-12">
       <div className="body" style={{ display: 'grid', gap: 6 }}>
         <span className="muted" style={{ fontSize: 12 }}>The people nearest the house are the ones envy reaches for{isOurChair(world) ? ', and with the chair ours it reaches often' : ''}. A guard and a good Spymaster turn the knife aside; nothing makes anyone safe.</span>
         <div className="table-wrap"><table className="list">

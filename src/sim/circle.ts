@@ -62,6 +62,8 @@ export function anchored(w: World, c: Character): boolean {
   if ((w.story?.struggles ?? []).some((s) => !s.ended && (s.ours.includes(c.id) || s.theirs.personId === c.id || s.cast.personId === c.id || s.cast.secondId === c.id))) return true;
   if ((w.story?.threads ?? []).some((t) => !t.closed && t.personId === c.id)) return true;
   if (w.events.pending.some((p) => p.personId === c.id || p.secondId === c.id)) return true;
+  // Away on an expedition, or overseeing one of the house's places.
+  if (flag(c, 'expedition') || Object.values(w.places?.sites ?? {}).some((s) => s.overseerId === c.id)) return true;
   return false;
 }
 

@@ -13,6 +13,7 @@ import { shiftRelation } from './relations';
 import { barsOf, bondOf, opinion, setBond, shiftOpinion } from './relationships';
 import { kill } from './death';
 import { lastingWound, seasoned } from './ladder';
+import { combatant, duelAccount } from './details';
 import { addGlory } from './ambitions';
 import { award, tally } from './careers';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, dateParts, type GameDate } from './time';
@@ -20,7 +21,7 @@ import type { Character, World } from './types';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-export interface Bout { a: string; b: string; winner: string; hurt?: string; killed?: string }
+export interface Bout { a: string; b: string; winner: string; hurt?: string; killed?: string; account?: import('./details').Account }
 export interface TourneyResult { year: number; date: GameDate; rounds: Bout[][]; champion: string }
 export interface Challenge { id: string; challenger: string; challenged: string; cause: string; expires: GameDate; foreign?: boolean }
 
@@ -81,8 +82,13 @@ function bout(w: World, rng: Rng, a: Character, b: Character, hurt: number, deat
   const lose = win === a ? b : a;
   const out: Bout = { a: a.id, b: b.id, winner: win.id };
   const roll = rng.next();
+  let lasting: string | null = null;
   if (roll < death) { kill(w, lose, w.date, `killed by ${displayName(win.name)} ${place}`); out.killed = lose.id; }
-  else if (roll < hurt) { lose.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, CYCLES_PER_PHASE * 2), detail: place }); out.hurt = lose.id; if (hurt >= 0.2) lastingWound(w, rng, lose.id, place); }
+  else if (roll < hurt) { lose.flags.push({ id: 'wounded', since: w.date, until: addCycles(w.date, CYCLES_PER_PHASE * 2), detail: place }); out.hurt = lose.id; if (hurt >= 0.2) lasting = lastingWound(w, rng, lose.id, place); }
+  // Someone saw it, and will tell it: the marks it leaves are written as they tell it.
+  const blunt = hurt < 0.1;
+  out.account = duelAccount(w, rng, combatant(a, fightScore(a)), combatant(b, fightScore(b)), { winner: win === a ? 'a' : 'b', hurt: !!out.hurt, killed: !!out.killed, lasting },
+    { place, blunt, witness: blunt ? 'a squire at the rail' : rng.pick(['the yard-master', 'a herald of the house', 'a soldier who held the ring', 'one of the seconds']) });
   seasoned(w, rng, win.id, true);
   if (!out.killed) seasoned(w, rng, lose.id, false);
   // An upset stings.
@@ -154,6 +160,7 @@ export function callTourney(input: World): World {
     text: `The house tourney of ${year}: ${displayName(champ.name)} takes it${rounds.length ? `, beating ${N(rounds[rounds.length - 1]![0]!.a === champ.id ? rounds[rounds.length - 1]![0]!.b : rounds[rounds.length - 1]![0]!.a)} in the final` : ''}.${deep.filter((c) => c.id !== champ.id).length ? ` ${deep.filter((c) => c.id !== champ.id).map((c) => shortName(c.name)).join(' and ')}, still young, went further than anyone expected.` : ''}${deep.some((c) => c.id === champ.id) ? ' And they are not yet of age.' : ''}`,
     detail: rounds.map((r, i) => `${['First round', 'Semi-finals', 'Final'][i + 3 - rounds.length] ?? `Round ${i + 1}`}: ${r.map((b) => `${N(b.winner)} beat ${N(b.winner === b.a ? b.b : b.a)}${b.hurt ? ' (hurt)' : ''}${b.killed ? ' (killed)' : ''}`).join('; ')}`).join('\n'),
     who: [{ id: champ.id, part: 'tourney champion' }, ...deep.filter((c) => c.id !== champ.id).map((c) => ({ id: c.id, part: 'went deep' }))],
+    account: fin?.account ? { by: fin.account.by, lines: [`The final.`, ...fin.account.lines] } : undefined,
   });
   w.rng = rng.state;
   return w;
@@ -267,6 +274,7 @@ function fightChallenge(w: World, rng: Rng, c: Challenge, sanctioned: boolean): 
     text: `${displayName(win.name)} beats ${displayName(lose.name)} in a duel over ${c.cause}${sanctioned ? '' : ', fought without the Highroy\'s leave'}.${out.killed ? ` ${shortName(lose.name)} is dead.` : out.hurt ? ` ${shortName(lose.name)} is hurt.` : ' First blood, and no worse.'}`,
     who: [{ id: win.id, part: 'won' }, { id: lose.id, part: out.killed ? 'killed' : 'lost' }],
     effects: sanctioned ? [] : ['Honour −1'],
+    account: out.account,
   });
   return out;
 }

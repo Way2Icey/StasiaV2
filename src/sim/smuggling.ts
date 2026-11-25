@@ -43,7 +43,7 @@ function motive(world: World, rng: Rng, c: Character): { goods: SmuggleKind; why
   }
   if (!greedy) return undefined;
   const goods = rng.weighted([['slaves', 1 + (c.hidden.greed - 13) * 0.3], ['prisoners', 1], ['navisium', 2], ['relics', 1.5], ['contraband', 2.5]] as const);
-  const why = rng.pick(['wants money, and more of it than the house pays', 'has debts nobody knows about', 'wants a fortune of their own before they are old', 'thinks the house owes them']);
+  const why = rng.pick(['want money, and more of it than the house pays', 'have debts nobody knows about', 'want a fortune of their own before they are old', 'think the house owes them']);
   return { goods, why, p: 0.006 * (c.hidden.greed - 12) };
 }
 

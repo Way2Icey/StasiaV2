@@ -1,19 +1,25 @@
 // Great expenses: what a rich house spends on when the bills are paid. A fully funded Crucible bid,
 // a quiet word (and purse) for the Numarade's draw, and great works that stand for generations.
 import { Rng } from './rng';
-import { econ, record } from './economy';
+
 import { logRecord } from './records';
 import { dateParts } from './time';
 import type { World } from './types';
+import { cannotHoldFestival, festivalCost, shiftCredibility } from './standing';
+import { isOurChair, shiftLegitimacy } from './chair';
+import { econ, heldSectors, record } from './economy';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 export interface Work { id: WorkId; paid: number; done?: boolean; started: number }
-export type WorkId = 'spire' | 'archive' | 'arena';
+export type WorkId = 'spire' | 'archive' | 'arena' | 'citadel' | 'monument' | 'temple';
 export const WORKS: Record<WorkId, { name: string; cost: number; note: string; effect: string }> = {
   spire: { name: 'The Spire', cost: 40000, note: 'A tower over the capital that every ship sees on approach.', effect: 'Respect +6, honour +2, for good.' },
   archive: { name: 'The Great Archive', cost: 30000, note: 'Every record of the house, kept and taught from.', effect: 'Pupils pass the trials more often; the Elder misses nothing.' },
   arena: { name: 'The House Arena', cost: 35000, note: 'A proper ground for tourneys and the circuit, at home.', effect: 'Our fighters improve faster; hosting tourneys costs half.' },
+  citadel: { name: 'The Shielded Citadel', cost: 120000, note: 'Energy shields and automated turrets over the capital: the stronghold a Great House is meant to have.', effect: 'The capital is far harder to take; standing +4; the credibility of our othes +10.' },
+  monument: { name: 'The Monument to the Hall', cost: 60000, note: 'A monument to the house\'s honoured dead, raised where the Archon can see it.', effect: 'Standing +3, respect +3; if the chair is ours, legitimacy +12.' },
+  temple: { name: 'The Temple of the Weight', cost: 45000, note: 'A temple for the faithful of the Realm, and for the war-priests who keep them.', effect: 'Unrest falls across our worlds, for good; if the chair is ours, legitimacy +6.' },
 };
 export const WORK_RATE = 2500;
 
@@ -124,7 +130,31 @@ export function advanceTreasury(world: World, phaseTurned: boolean): void {
       x.done = true;
       const st = world.houses[P]!.standing;
       if (x.id === 'spire') { st.respect = clamp(st.respect + 6, 0, 100); st.honour = clamp(st.honour + 2, 0, 100); }
+      const a = world.archon?.houses[P];
+      if (x.id === 'citadel') { if (a) a.prestige = clamp(a.prestige + 4, 0, 100); shiftCredibility(world, P, 10); }
+      if (x.id === 'monument') { if (a) a.prestige = clamp(a.prestige + 3, 0, 100); st.respect = clamp(st.respect + 3, 0, 100); if (isOurChair(world)) shiftLegitimacy(world, 12, 'Raised the Monument to the Hall'); }
+      if (x.id === 'temple' && isOurChair(world)) shiftLegitimacy(world, 6, 'Raised the Temple of the Weight');
       logRecord(world, { kind: 'world', type: 'world', severity: 3, seat: 'steward', text: `${def.name} is finished. ${def.effect}` });
     }
   }
+}
+
+// ---------------------------------------------------------------- festivals for the Realm
+
+/** Once a year: a festival for the Realm. Unrest falls, the court is glad of it, and the chair is seen to be generous. */
+export function holdFestival(input: World): World {
+  const w = structuredClone(input);
+  const why = cannotHoldFestival(w);
+  if (why) throw new Error(why);
+  const P = w.playerHouseId;
+  const cost = festivalCost(w);
+  record(w, P, { resource: 'othes', amount: -cost, label: 'A festival for the Realm', kind: 'court' });
+  econ(w, P).festivalYear = dateParts(w.date).year;
+  for (const s of heldSectors(w, P)) s.unrest = clamp(s.unrest - 10, 0, 100);
+  const st = w.houses[P]!.standing;
+  st.respect = clamp(st.respect + 2, 0, 100);
+  for (const c of Object.values(w.characters)) if (c.alive && c.houseId === P && !c.veiled) c.mood = clamp((c.mood ?? 60) + 4, 0, 100);
+  if (isOurChair(w)) shiftLegitimacy(w, 4, 'Held a festival for the Realm');
+  logRecord(w, { kind: 'world', type: 'world', severity: 2, seat: 'steward', text: `A festival for the Realm: ${cost.toLocaleString('en-US')} othes of food, music and fireworks over the capital. The lower cities will talk of it for a year.` });
+  return w;
 }

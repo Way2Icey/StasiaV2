@@ -397,7 +397,7 @@ export function cannotFit(world: World, kind: ModuleKind, shipId: string): strin
   if (kind === 'academy') return 'No room for a school aboard';
   const fitted = Object.values(world.holdings.modules).filter((m) => m.shipId === shipId);
   if (fitted.some((m) => m.kind === kind)) return 'Already fitted';
-  const slots = ({ cruiser: 2, battlecruiser: 2, carrier: 3, dreadnought: 3 } as Record<string, number>)[s.cls] ?? 2;
+  const slots = ({ flagship: 4, carrier: 3, cruiser: 2, destroyer: 1 } as Record<string, number>)[s.cls] ?? 2;
   if (fitted.length >= slots) return 'No slots left';
   if (econ(world, world.playerHouseId).stock.othes < buildCost(kind, 1)) return 'Not enough othes';
   return null;

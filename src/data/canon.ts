@@ -167,7 +167,7 @@ export const CANON_HOUSES: CanonHouse[] = [
   },
   {
     id: 'serath', name: 'Serath', tier: 'minor', species: 'serathi', speciesKnown: true, focus: 'Scouts, analysts and strike teams',
-    blurb: 'Scouts, analysts and mobile strike teams. Alerion\'s ally.',
+    blurb: 'Scouts, analysts and mobile strike teams. Alerion\'s ally of old.',
     worlds: [1, 2], might: 0.9, views: v(0, 0, 0, 1, 0, -1, 1, -1, 0), personality: P(0.4, 0.5, 0.4, 0.6, 0.2, 0.2), simulated: true,
   },
   {

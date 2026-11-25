@@ -1,5 +1,6 @@
 // The house's legacy: the Hall of its honoured dead, the Annals of what it has done, the Reliquary, the
 // Archive of the past, and the road to greatness (with the tide of the Drift and the ages it names).
+import { Peek } from './links';
 import { useState } from 'react';
 import { useGame, useWorld } from './context';
 import { Go, Panel, PersonById } from './links';
@@ -136,7 +137,7 @@ function ReliquaryTab() {
             <thead><tr><th>Relic</th><th>Kind</th><th>Came to us</th><th /></tr></thead>
             <tbody>{rs.map((r) => (
               <tr key={r.id}>
-                <td><strong>{r.name}</strong><div className="muted" style={{ fontSize: 12 }}>{r.note}</div>{r.bearer ? <div style={{ fontSize: 11 }}>Borne by <PersonById id={r.bearer} /></div> : null}{r.history.length > 1 ? <div className="muted" style={{ fontSize: 11 }}>{r.history.slice(1).map((h) => `${h.year}: ${h.text}`).join(' · ')}</div> : null}</td>
+                <td><strong><Peek t={{ k: 'relic', id: r.id }}>{r.name}</Peek></strong><div className="muted" style={{ fontSize: 12 }}>{r.note}</div>{r.bearer ? <div style={{ fontSize: 11 }}>Borne by <PersonById id={r.bearer} /></div> : null}{r.history.length > 1 ? <div className="muted" style={{ fontSize: 11 }}>{r.history.slice(1).map((h) => `${h.year}: ${h.text}`).join(' · ')}</div> : null}</td>
                 <td>{KIND_LABEL[r.kind]}</td>
                 <td className="mono" style={{ fontSize: 12 }}>{r.found.year}<div className="muted" style={{ fontFamily: 'inherit' }}>{r.origin}</div></td>
                 <td>
@@ -162,7 +163,7 @@ function ReliquaryTab() {
       {elsewhere.length ? (
         <Panel title="Known to be elsewhere" className="span-12">
           <div className="table-wrap"><table className="list"><tbody>{elsewhere.map((r) => (
-            <tr key={r.id}><td>{r.name}</td><td>{r.houseId ? <ArchonHouseLink id={r.houseId} /> : <span className="muted">lost</span>}</td><td className="muted" style={{ fontSize: 12 }}>{r.history[r.history.length - 1]?.text}</td></tr>
+            <tr key={r.id}><td><Peek t={{ k: 'relic', id: r.id }}>{r.name}</Peek></td><td>{r.houseId ? <ArchonHouseLink id={r.houseId} /> : <span className="muted">lost</span>}</td><td className="muted" style={{ fontSize: 12 }}>{r.history[r.history.length - 1]?.text}</td></tr>
           ))}</tbody></table></div>
         </Panel>
       ) : null}
