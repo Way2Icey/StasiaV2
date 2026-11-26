@@ -74,6 +74,7 @@ const VERBS: [string, string, Route][] = [
   ['Our holdings', 'holdings modules', { kind: 'holdings' }],
   ['The log', 'chronicle history records', { kind: 'log' }],
   ['Save or load', 'save load new game', { kind: 'save' }],
+  ['Change the house colours', 'theme colour color amber green blue phosphor settings', { kind: 'save' }],
   ['Glossary', 'help terms rules', { kind: 'glossary' }],
 ];
 

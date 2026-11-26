@@ -1,4 +1,5 @@
 import { ExchangePage } from './exchange';
+import { useHouseTheme } from './theme';
 import { InspectLayer, PortShipHead } from './inspect';
 import { InspectContext, type Inspect, type Inspector } from './context';
 import { Dossier } from './ports';
@@ -70,6 +71,7 @@ interface History { stack: Route[]; index: number }
 
 export function App() {
   const [world, setWorld] = useState<World>(initialWorld);
+  useHouseTheme(world.playerHouseId);
   const [history, setHistory] = useState<History>({ stack: [firstVisit ? { kind: 'newgame' } : { kind: 'throne' }], index: 0 });
   const [query, setQuery] = useState('');
   const [command, setCommand] = useState(false);

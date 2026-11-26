@@ -1,4 +1,5 @@
 import { MarksList } from './account';
+import { ThemePicker } from './theme';
 import { anchored, circleOf, CIRCLE_CAP, knownTo, letFade, pin } from '../sim/circle';
 import { HouseDealings, HousesOverview, PoachPanel } from './realm';
 import { ArchonHousePage, ArchonPanel, RegisterPanel } from './archon';
@@ -878,9 +879,12 @@ export function SavePage({ setWorld }: { setWorld: (w: World) => void }) {
 
   return (
     <>
-      <Title title="Save & Load" sub="The game also saves itself in this browser whenever time moves." />
+      <Title title="Save, load & colours" sub="The game also saves itself in this browser whenever time moves." />
       {message ? <p className={message.kind}>{message.text}</p> : null}
       <div className="grid">
+        <Panel title="House colours" aside="kept for each house" className="span-12">
+          <div className="body"><ThemePicker /></div>
+        </Panel>
         <Panel title="Save slot" className="span-6">
           <div className="body" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button type="button" className="btn" onClick={() => say(storage.set(SLOT, serialize(world)) ? 'notice' : 'error', storage.get(SLOT) ? `Saved at ${formatDate(world.date)}.` : 'This browser blocked saving.')}>Save to slot</button>

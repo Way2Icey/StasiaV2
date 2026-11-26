@@ -399,7 +399,7 @@ export function Desk({ className }: { className?: string }) {
         {shownItems.map((it) => (
           <div key={it.id} className="desk-row">
             <button type="button" className={`desk-item${it.quiet ? ' quiet' : ''}`} aria-pressed={open === it.id} onClick={it.open} title="Open">
-              <span>{it.mark}</span><span>{it.kind}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.text}</span><span className="when">{it.when ?? ''}</span>
+              <span className="glyph">{it.mark}</span><span className="kind">{it.kind}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.text}</span><span className="when">{it.when ?? ''}</span>
             </button>
             {it.acts ? <span className="desk-acts">{it.acts.map((a) => <button key={a.label} type="button" className={`btn small${a.primary ? ' primary' : ''}`} disabled={a.disabled} title={a.title} onClick={() => (a.go ? a.go() : act(a.run))}>{a.label}</button>)}</span> : null}
             {open === it.id && (it.detail || opened || audience) ? (
