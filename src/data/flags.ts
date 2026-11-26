@@ -54,6 +54,7 @@ export const FLAGS: FlagDef[] = [
   { id: 'travelling', label: 'Travelling', kind: 'condition', visibility: 'all', endsBy: 'Comes home when the trip is done' },
   { id: 'crucible', label: 'In the Crucible', kind: 'condition', visibility: 'all', endsBy: 'Their house is out, or the final is fought' },
   { id: 'circuit', label: 'On the circuit', kind: 'condition', visibility: 'all', endsBy: 'The fights are over and they are home' },
+  { id: 'bounty', label: 'After a bounty', kind: 'condition', visibility: 'all', endsBy: 'The price is collected, or they come home without it' },
   { id: 'hunting', label: 'Hunting corsairs', kind: 'condition', visibility: 'all', endsBy: 'The hunt ends, one way or another' },
   { id: 'aboard', label: 'At sea', kind: 'condition', visibility: 'all', endsBy: 'The ship comes home' },
   { id: 'turncoat', label: 'Turncoat', kind: 'relation', visibility: 'all', endsBy: 'Permanent' },

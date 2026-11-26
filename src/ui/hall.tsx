@@ -1,6 +1,7 @@
 // The Hall: the home screen in the terminal look. A drawing of the throne room
 // that follows the house's state, the council as a table, and the Desk, where
 // everything waiting on the Highroy lands.
+import { board, buyOff, buyOffCost, onOurHeads, viewTarget } from '../sim/bounties';
 import { musterByCouncil } from '../sim/crucible';
 import { econ } from '../sim/economy';
 import { Peek } from './links';
@@ -209,7 +210,7 @@ interface DeskItem {
 }
 
 type DeskTab = 'needs' | 'chances' | 'news';
-const NEEDS = new Set(['SMUGGLER', 'SMUGGLED', 'CREW', 'BLOODING', 'DECISION', 'AUDIENCE', 'PETITION', 'RAID', 'RANSOM', 'LOAN', 'DEFAULT', 'CAIGE', 'CRUCIBLE', 'CHALLENGE', 'INTAKE', 'PUPIL', 'INVITATION', 'WARD']);
+const NEEDS = new Set(['SMUGGLER', 'SMUGGLED', 'CREW', 'BLOODING', 'DECISION', 'AUDIENCE', 'PETITION', 'RAID', 'RANSOM', 'LOAN', 'DEFAULT', 'CAIGE', 'CRUCIBLE', 'CHALLENGE', 'INTAKE', 'PUPIL', 'INVITATION', 'WARD', 'PRICE']);
 const tabOf = (k: string): DeskTab => (NEEDS.has(k) ? 'needs' : k === 'NEWS' ? 'news' : 'chances');
 
 function scrollTo(id: string) {
@@ -347,6 +348,14 @@ export function Desk({ className }: { className?: string }) {
     const b = world.characters[c.challenged];
     if (a && b) items.push({ id: c.id, mark: '[!]', kind: 'CHALLENGE', text: <>{a.name.given} has challenged {b.name.given} over {c.cause}</>, when: inCycles(world, c.expires), open: () => nav.to({ kind: 'knights' }), acts: [{ label: 'Allow', primary: true, run: (w) => answerChallenge(w, c.id, true) }, { label: 'Forbid', run: (w) => answerChallenge(w, c.id, false) }] });
   }
+  for (const b of onOurHeads(world)) {
+    const t = b.target.kind === 'person' ? world.characters[b.target.id] : undefined;
+    if (!t) continue;
+    items.push({ id: b.id, mark: '[✕]', kind: 'PRICE', text: <>A price on {t.name.given}'s head: {b.reward.toLocaleString('en-US')} · {b.status === 'hunted' ? 'a hunter is on them' : 'no hunter yet'}</>, open: () => nav.to({ kind: 'bounties' }),
+      acts: [{ label: `Buy it off · ${buyOffCost(b).toLocaleString('en-US')}`, primary: true, disabled: econ(world, P).stock.othes < buyOffCost(b), run: (w) => buyOff(w, b.id) }, { label: 'Guard them ›', run: (w) => w, go: () => nav.to({ kind: 'bounties' }) }] });
+  }
+  { const best = board(world).filter((b) => b.status === 'open' && !(b.poster.kind === 'house' && b.poster.houseId === P)).sort((a, c) => c.reward - a.reward)[0];
+    if (best) items.push({ id: best.id, mark: '[$]', kind: 'BOUNTY', quiet: true, text: <>On the board: {best.reward.toLocaleString('en-US')} for {viewTarget(world, best.target)?.name}</>, when: inCycles(world, best.expires), open: () => nav.to({ kind: 'bounties' }) }); }
   for (const e of (world.grounds?.circuit ?? []).filter((x) => !x.done && x.host !== P && (x.invited?.includes(P) || x.kind === 'public') && !x.entrants.some((y) => y.houseId === P))) {
     const inv = e.invited?.includes(P);
     items.push({ id: e.id, mark: '[»]', kind: inv ? 'INVITATION' : 'TOURNEY', text: <>{inv ? `House ${world.houses[e.host!]?.name} invites us: ` : ''}{e.name}</>, quiet: !inv, when: inCycles(world, e.held), open: () => nav.to({ kind: 'grounds' }), detail: e.kind === 'underground' ? <span className="muted" style={{ fontSize: 12 }}>No one is sent to the pits. Those who want to fight will go on their own; forbid it on the grounds if the house will not have it.</span> : undefined,

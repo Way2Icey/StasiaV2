@@ -300,3 +300,36 @@ export function attemptAccount(w: World, r: Rng, target: Character, kind: 'assas
   if (foiled && outcome === 'none') addMark(w, target, { kind: 'feat', text: `lived through an attempt on their life`, place: where });
   return told(kind === 'scandal' || kind === 'bribe' ? 'the Spymaster' : 'the captain of the guard', lines);
 }
+
+/** A price collected or a hunter beaten off, as told by someone who saw it. */
+export function bountyAccount(w: World, r: Rng, o: { hunter: string; hunterShort?: string; hunterC?: Character; style?: string; kit?: string; target: string; targetShort?: string; targetC?: Character; where: string; outcome: 'taken' | 'killed' | 'escaped' | 'hunterDown' | 'hunterDead'; poster: string }): Account {
+  const lines: string[] = [];
+  // Full names once; after that, the way people at the bar would say them.
+  let H = o.hunter, T = o.target;
+  const shorten = () => { H = o.hunterShort ?? o.hunter; T = o.targetShort ?? o.target; };
+  const ow = o.targetC ? oldWound(o.targetC) : undefined;
+  lines.push(r.pick([
+    `${H} had been on ${T}'s trail for weeks, ${o.where}.`,
+    `${T} was ${o.where} when ${H} found them.`,
+    `${H} sat two tables away from ${T} for most of a night before doing anything.`,
+    `Word on the board was that ${T} had gone to ground. ${H} found the ground.`,
+  ]));
+  shorten();
+  if (o.kit && r.chance(0.6)) lines.push(`${H} came with ${o.kit}.`);
+  if (o.style === 'showman' && r.chance(0.7)) lines.push(`${H} wanted it seen, and chose a crowded concourse for it.`);
+  if (o.style === 'patient' && r.chance(0.7)) lines.push(`${H} waited out three good chances for the one that could not go wrong.`);
+  if (ow && r.chance(0.6)) lines.push(`${H} went for the side ${T} still favours, the old ${ow.part}.`);
+  if (o.targetC && o.targetC.stats.reflexes >= 14 && r.chance(0.5)) lines.push(`${T} saw it coming a heartbeat early. It nearly mattered.`);
+  const end: Record<typeof o.outcome, string[]> = {
+    taken: [`${T} went down hard and woke up in restraints.`, `It was over before the dock crew looked up. ${T} was in the hold by the change of shift.`, `${H} talked ${T} out of a fight nobody would have won, and walked them to the ship.`],
+    killed: [`${T} drew. That was the last thing ${T} did.`, `${H} did not give ${T} the chance to surrender, and did not pretend to.`, `One shot, from further away than anyone thought possible.`],
+    escaped: [`${T} went out through a maintenance shaft and was three decks down before ${H} reached it.`, `${T} had a friend on the docks. The ship was gone when ${H} got there.`],
+    hunterDown: [`${T} put ${H} on the floor and walked away.`, `${H} misjudged the room. ${T}'s people were in it.`],
+    hunterDead: [`${H} was found the next morning. ${T} was not.`, `${T} had been waiting for a hunter for a long time, and was ready.`],
+  };
+  lines.push(r.pick(end[o.outcome]));
+  if (o.outcome === 'taken' || o.outcome === 'killed') lines.push(`The brokers paid out for ${o.poster} the same day.`);
+  if (o.targetC && o.outcome === 'hunterDown') addMark(w, o.targetC, { kind: 'feat', text: `beat off a hunter`, place: o.where });
+  if (o.hunterC && o.outcome === 'hunterDown') addMark(w, o.hunterC, { kind: 'wound', text: `beaten off by ${T}`, place: o.where });
+  return told(r.pick(['a dock hand who saw it', 'a broker of the Ghost Ledger', 'someone at the next table', 'the hunter, over a drink']), lines);
+}

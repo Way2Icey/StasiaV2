@@ -1,4 +1,5 @@
 import { advancePlaces } from './arcs_places';
+import { advanceBounties } from './bounties';
 import { advanceEvents } from './events';
 import { advanceStory } from './story';
 import { advanceCrash, checkDebt, marketShocks, maybeCrash } from './arcs_economy';
@@ -113,6 +114,7 @@ function stepInPlace(world: World): void {
   advanceCouncil(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceRivals(world, rng, crossed.phases > 0);
   advanceCaptives(world, rng, crossed.phases > 0);
+  advanceBounties(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceMood(world, crossed.phases > 0, new Set(Object.values(world.missions).filter((m) => m.stage !== 'done').flatMap((m) => [m.leaderId, ...(m.companions ?? [])])));
   advanceCourt(world, rng, crossed.phases > 0);
   advanceDiscovery(world);

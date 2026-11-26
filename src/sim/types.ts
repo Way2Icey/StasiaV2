@@ -614,6 +614,8 @@ export interface World {
   /** The Exarchon's chair: promises, legitimacy, guards on our people, and the chair itself when it is ours. */
   chair?: import('./chair').ChairState;
   places?: import('./places').PlacesState;
+  /** Prices on heads, and the people who collect them. */
+  bounties?: import('./bounties').BountyState;
   /** Battles under way or waiting to be watched. */
   battles?: import('./battle').BattlesState;
 }
