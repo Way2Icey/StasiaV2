@@ -46,9 +46,14 @@ export interface PendingEvent {
   stakes?: Record<string, string | number>;
   /** A witness's account of what happened, when setup decided it. */
   account?: import('./details').Account;
+  /** Answered, and being carried out: the choice, who sees to it, and when word comes back. */
+  ordered?: { choice: number; at: World['date']; by?: string };
 }
 
 export interface ResolvedEvent {
+  /** Set when the order was carried out over time: who saw to it. */
+  orderedBy?: string;
+  ordered?: boolean;
   id: string;
   defId: string;
   title: string;
@@ -495,6 +500,7 @@ export function advanceEvents(world: World, rng: Rng, phaseTurned: boolean): voi
   const now = absoluteCycle(world.date);
   for (const p of [...ev.pending]) {
     const m = p.missionId ? world.missions[p.missionId] : undefined;
+    if (p.ordered) { if (absoluteCycle(p.ordered.at) <= now || (m && m.stage === 'done')) settle(world, rng, p.id, p.ordered.choice); continue; }
     if (absoluteCycle(p.expires) <= now || (m && m.stage === 'done')) settle(world, rng, p.id, null);
   }
   // On the road and at the target.
@@ -550,7 +556,7 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
   }
   const r: ResolvedEvent = {
     id: p.id, defId: def.id, title: title, date: world.date, choice: use.label, byCouncil: choice === null,
-    lines: ctx.fx.lines, missionId: p.missionId,
+    lines: ctx.fx.lines, missionId: p.missionId, ordered: !!p.ordered, orderedBy: p.ordered?.by,
   };
   ev.log.unshift(r);
   ev.log = ev.log.slice(0, 40);
@@ -573,6 +579,22 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
 }
 
 /** Player action (pure). */
+/** Give the order: the choice is made now, but it takes time to carry out, and word of how it went comes back later. */
+export function orderEvent(input: World, eventId: string, choice: number, byId?: string): World {
+  const p0 = input.events.pending.find((x) => x.id === eventId);
+  if (!p0 || p0.urgent) return answerEvent(input, eventId, choice);
+  const world = structuredClone(input);
+  const p = world.events.pending.find((x) => x.id === eventId)!;
+  const rng = new Rng(world.rng);
+  const days = p.missionId ? rng.int(2, 4) : rng.int(6, 14);
+  p.ordered = { choice, at: addCycles(world.date, days), by: byId };
+  world.rng = rng.state;
+  return world;
+}
+
+/** Waiting on the Highroy: answered decisions are being carried out and no longer wait. */
+export const awaiting = (world: World): PendingEvent[] => (world.events?.pending ?? []).filter((p) => !p.ordered);
+
 export function answerEvent(input: World, eventId: string, choice: number): World {
   const world = structuredClone(input);
   const rng = new Rng(world.rng);

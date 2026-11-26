@@ -3,7 +3,7 @@ import { useGame, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, SectorLink } from './links';
 import { Term } from './tip';
 import { formatDate } from '../sim/time';
-import { answerEvent, checkBand, checkChance, eventDef, makeCtx, oddsWord, optionLabel, optionsFor, shown, titleFor, type Check, type Ctx, type PendingEvent } from '../sim/events';
+import { orderEvent, awaiting, checkBand, checkChance, eventDef, makeCtx, oddsWord, optionLabel, optionsFor, shown, titleFor, type Check, type Ctx, type PendingEvent } from '../sim/events';
 import { useSee } from './fog';
 import { shortName } from '../sim/names';
 import '../sim/eventDefs';
@@ -89,7 +89,7 @@ export function Decision({ p }: { p: PendingEvent }) {
             return (
               <button key={i} type="button" className={`btn small option${i === def.fallback ? ' fallback' : ''}${i === pick ? ' counsel' : ''}`} disabled={!!why}
                 title={why ?? (o.check ? `${tester ? tester.name.given : 'Our people'}: ${o.check.stats.map((s) => STAT_LABEL[s]).join(' + ')}` : undefined)}
-                onClick={() => game.update((w) => answerEvent(w, p.id, i))}>
+                onClick={() => game.update((w) => orderEvent(w, p.id, i, voice?.id))}>
                 <span>{i === pick ? '★ ' : ''}{optionLabel(o, ctx)}</span>
                 {o.hint || chance !== null || why ? (
                   <span className="opt-sub">
@@ -109,7 +109,7 @@ export function Decision({ p }: { p: PendingEvent }) {
 }
 
 export function pendingFor(world: World, missionId?: string): PendingEvent[] {
-  const all = world.events?.pending ?? [];
+  const all = awaiting(world);
   return missionId ? all.filter((p) => p.missionId === missionId) : all;
 }
 

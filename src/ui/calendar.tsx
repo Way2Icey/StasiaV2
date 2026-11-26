@@ -46,7 +46,7 @@ export function upcoming(world: World, horizon = CYCLES_PER_ORBIT * 1.5): Due[] 
   for (const r of world.ports?.raids ?? []) if (r.status === 'revealed' && !r.answer) out.push({ at: r.arrives, text: <>Corsairs arrive</>, to: { kind: 'port', id: r.sectorId } });
   for (const c of ourConvoys(world)) if (c.kind === 'quota' || c.value >= 3000) { const l = convoyLabel(world, c); out.push({ at: c.arrives, text: <>{l[0]!.toUpperCase() + l.slice(1)} due at {placeName(world, c.to)}</>, to: { kind: 'lanes' } }); }
   for (const h of (world.lanes?.held ?? []).filter((x) => x.owner === P)) out.push({ at: h.expires, text: <>Last day to ransom the crew of {h.what}</>, to: { kind: 'throne' } });
-  for (const p of world.events?.pending ?? []) out.push({ at: p.expires, text: <>A decision lapses</>, to: { kind: 'throne' } });
+  for (const p of world.events?.pending ?? []) out.push(p.ordered ? { at: p.ordered.at, text: <>Word due on an order</>, to: { kind: 'throne' } } : { at: p.expires, text: <>A decision lapses</>, to: { kind: 'throne' } });
   for (const a of world.ambitions?.audiences ?? []) { const c = world.characters[a.characterId]; out.push({ at: a.expires, text: <>{c ? displayName(c.name) : 'Someone'} stops waiting for an audience</>, to: { kind: 'throne' } }); }
   return out.filter((x) => { const t = absoluteCycle(x.at); return t >= now && t <= now + horizon; }).sort((a, b) => absoluteCycle(a.at) - absoluteCycle(b.at));
 }

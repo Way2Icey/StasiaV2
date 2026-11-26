@@ -19,6 +19,8 @@ import { equipOf, setEquip, setCeremony, EQUIP_LABEL, type EquipLevel } from './
 import { SEAT_TITLE } from './world';
 import { ensureIntel } from './turning';
 import { told } from './details';
+import { reportBack } from './briefings';
+import { seatHolder } from './query';
 import { ageOf } from './characters';
 import { SPECIES } from '../data/species';
 import type { Character, World } from './types';
@@ -148,63 +150,133 @@ function settle(w: World, c: Concern, yes: boolean | null): void {
   for (const id of c.against) { shiftOpinion(w, id, lord, yes ? -3 : 2, yes ? 'went against them in court' : 'heeded them in court'); }
 }
 
+/** Who on the council carries out each kind of order. */
+const CARRIER: Record<ConcernKind, import('./types').CouncilSeat> = {
+  unrest: 'grandMaster', stipends: 'steward', thrift: 'steward', arms: 'grandMaster', knight: 'grandMaster', buyoff: 'spymaster', reparation: 'envoy', court: 'envoy',
+};
+/** How long each takes, in cycles: a Phase is 16. */
+const TAKES: Record<ConcernKind, [number, number]> = {
+  unrest: [10, 20], stipends: [4, 8], thrift: [8, 16], arms: [24, 40], knight: [8, 16], buyoff: [6, 14], reparation: [16, 32], court: [12, 24],
+};
+
+export interface Order { id: string; concern: Concern; at: import('./time').GameDate; by?: string; since: import('./time').GameDate }
+
+/** The Highroy's word on a concern. The court reacts now; the thing itself takes time, and word comes back. */
 export function answerConcern(input: World, id: string, yes: boolean): World {
-  const w0 = structuredClone(input);
-  const c = (w0.concerns ?? []).find((x) => x.id === id);
+  const w = structuredClone(input);
+  const c = (w.concerns ?? []).find((x) => x.id === id);
   if (!c) throw new Error('That has passed');
-  const P = w0.playerHouseId;
-  const effects: string[] = [];
-  let w = w0;
+  const P = w.playerHouseId;
+  if (yes && c.kind === 'unrest' && econ(w, P).stock.othes < 400) throw new Error('Not enough othes');
+  if (yes && c.kind === 'stipends' && econ(w, P).stock.othes < Math.round(courtiers(w).length * 60 / 50) * 50) throw new Error('Not enough othes');
+  settle(w, c, yes);
+  w.concerns = (w.concerns ?? []).filter((x) => x.id !== id);
+  const by = w.characters[c.raisedBy];
+  const carrier = seatHolder(w, P, CARRIER[c.kind]) ?? by;
+  const react = (ids: string[], glad: boolean) => ids.slice(0, 2).map((x) => w.characters[x]).filter(Boolean).map((k) => glad ? `${shortName(k!.name)} ${['nods', 'looks satisfied', 'thanks you after'][k!.id.length % 3]}.` : `${shortName(k!.name)} ${['says nothing, pointedly', 'looks away', 'will remember this'][k!.id.length % 3]}.`);
+  const lines = [...react(yes ? c.backers : c.against, true), ...react(yes ? c.against : c.backers, false)];
+  if (yes && carrier) lines.push(`${shortName(carrier.name)} will see to it. Word will come back.`);
+  logRecord(w, { account: told('the hall', lines), kind: 'council', type: 'decision', severity: 1, text: `${yes ? c.yes : c.no}: the court's concern${by ? `, raised by ${shortName(by.name)}${by.seat ? `, ${SEAT_TITLE[by.seat]}` : ''}` : ''}.`, effects: [`${c.backers.length} for · ${c.against.length} against`] });
   if (yes) {
-    const e = econ(w, P);
-    switch (c.kind) {
-      case 'unrest': {
-        const s = Object.values(w.planets).flatMap((p) => p.sectors).find((x) => x.id === c.subject);
-        if (e.stock.othes < 400) throw new Error('Not enough othes');
-        record(w, P, { resource: 'othes', amount: -400, label: 'Soldiers sent to restore order', kind: 'forces' });
-        if (s) s.unrest = Math.max(0, s.unrest - 20);
+    const rng = new Rng(w.rng);
+    const [lo, hi] = TAKES[c.kind];
+    (w.orders ??= []).push({ id: `or${w.nextId++}`, concern: c, at: addCycles(w.date, rng.int(lo, hi)), by: carrier?.id, since: w.date });
+    w.rng = rng.state;
+  }
+  return w;
+}
+
+/** Orders being carried out: when one is done, it lands, and whoever saw to it comes back to say how it went. */
+export function advanceOrders(w: World, rng: Rng): void {
+  const now = absoluteCycle(w.date);
+  const due = (w.orders ?? []).filter((o) => absoluteCycle(o.at) <= now);
+  if (!due.length) return;
+  w.orders = (w.orders ?? []).filter((o) => absoluteCycle(o.at) > now);
+  for (const o of due) {
+    const before = w.feed.length;
+    let effects: string[] = [];
+    let story: string[] = [];
+    try { const r = applyConcern(w, rng, o); effects = r.effects; story = r.story; } catch (e) { story = [`It could not be done: ${(e as Error).message.toLowerCase()}.`]; }
+    const by = o.by ? w.characters[o.by] : undefined;
+    logRecord(w, { kind: 'council', type: 'decision', severity: 2, text: `Done: ${o.concern.yes.toLowerCase()}.`, effects, account: told(by ? shortName(by.name) : 'the council', story) });
+    if (by?.alive) reportBack(w, { personId: by.id, seat: by.seat ?? undefined, ref: o.id, title: `${o.concern.yes}: it is done`, approved: o.concern.yes, summary: [...story, ...effects], lines: [] });
+    void before;
+  }
+}
+
+/** Carry out the order, as the person seeing to it manages. */
+function applyConcern(w: World, rng: Rng, o: Order): { effects: string[]; story: string[] } {
+  const c = o.concern;
+  const P = w.playerHouseId;
+  const e = econ(w, P);
+  const by = o.by ? w.characters[o.by] : undefined;
+  const B = by ? shortName(by.name) : 'The council';
+  const effects: string[] = [];
+  const story: string[] = [];
+  switch (c.kind) {
+    case 'unrest': {
+      const s = Object.values(w.planets).flatMap((p) => p.sectors).find((x) => x.id === c.subject);
+      record(w, P, { resource: 'othes', amount: -400, label: 'Soldiers sent to restore order', kind: 'forces' });
+      effects.push('−400 othes');
+      const skill = by ? (by.stats.tactics + by.stats.composure) / 2 : 8;
+      if (rng.chance(Math.max(0.05, 0.25 - skill / 80))) {
+        if (s) s.unrest = Math.max(0, s.unrest - 5);
+        w.houses[P]!.standing.dread = Math.min(100, w.houses[P]!.standing.dread + 4);
+        w.houses[P]!.standing.honour = Math.max(0, w.houses[P]!.standing.honour - 1);
+        story.push(`It went badly in ${s?.name ?? 'the sector'}. A crowd would not disperse, and the soldiers did not wait for an order.`, `${B} has the names of the dead.`);
+        effects.push(`${s?.name ?? 'The sector'}: unrest −5`, 'Dread +4', 'Honour −1');
+      } else {
+        const cut = Math.round(Math.max(8, Math.min(30, 10 + skill * 0.8 + rng.int(-4, 4))));
+        if (s) s.unrest = Math.max(0, s.unrest - cut);
         w.houses[P]!.standing.dread = Math.min(100, w.houses[P]!.standing.dread + 2);
-        effects.push('−400 othes', `${s?.name ?? 'The sector'}: unrest −20`, 'Dread +2');
-        break;
+        story.push(rng.pick([`The soldiers walked ${s?.name ?? 'the streets'} for days. Shops opened again by the end of it.`, `${B} put guards on the markets and the water. It settled, slowly.`, `There was shouting the first night. After that, nothing.`]));
+        effects.push(`${s?.name ?? 'The sector'}: unrest −${cut}`, 'Dread +2');
       }
-      case 'stipends': {
-        const gift = Math.round(courtiers(w).length * 60 / 50) * 50;
-        if (e.stock.othes < gift) throw new Error('Not enough othes');
-        record(w, P, { resource: 'othes', amount: -gift, label: 'A gift to the court', kind: 'stipend' });
-        for (const k of courtiers(w)) shiftMood(k, 6);
-        effects.push(`−${gift.toLocaleString('en-US')} othes`, 'The court\'s mood +6');
-        break;
+      break;
+    }
+    case 'stipends': {
+      const gift = Math.round(courtiers(w).length * 60 / 50) * 50;
+      if (e.stock.othes < gift) throw new Error('Not enough othes by then');
+      record(w, P, { resource: 'othes', amount: -gift, label: 'A gift to the court', kind: 'stipend' });
+      for (const k of courtiers(w)) shiftMood(k, 6);
+      story.push(`${B} handed it out at a dinner. People will talk about the wine for a while.`);
+      effects.push(`−${gift.toLocaleString('en-US')} othes`, 'The court\'s mood +6');
+      break;
+    }
+    case 'thrift': {
+      const x = setCeremony(w, 'modest'); Object.assign(w, x);
+      for (const k of courtiers(w)) shiftMood(k, -2);
+      story.push(`${B} has struck the feasts from the books. The court has noticed.`);
+      effects.push('Ceremonies modest', 'The court\'s mood −2');
+      break;
+    }
+    case 'arms': {
+      const eq = equipOf(w, P);
+      if (eq < 3) { Object.assign(w, setEquip(w, (eq + 1) as EquipLevel)); effects.push(`Equipment: ${EQUIP_LABEL[(eq + 1) as EquipLevel]}`); }
+      story.push(`The new kit has come in from the forges and been handed out. ${B} has the legions drilling in it.`);
+      break;
+    }
+    case 'knight': Object.assign(w, knight(w, c.subject!)); story.push(`The ceremony was held in the hall. ${B} gave the words.`); effects.push('A new knight'); break;
+    case 'buyoff': Object.assign(w, buyOff(w, c.subject!)); story.push(`${B} found the broker. The price is off the board.`); effects.push('The price is bought off'); break;
+    case 'court': Object.assign(w, courtHouse(w, c.subject!)); story.push(`${B} spent the purse on gifts and dinners at their court. They were received.`); effects.push(`House ${w.houses[c.subject!]?.name} courted`); break;
+    case 'reparation': {
+      const h = c.subject!;
+      const pull = by ? (by.stats.negotiation + by.stats.diplomacy) / 2 : 8;
+      const pays = rng.chance(Math.max(0.15, Math.min(0.8, 0.25 + pull / 60 + w.houses[P]!.standing.dread / 200 + w.houses[P]!.standing.respect / 300 + (w.houses[h]?.standing.honour ?? 50) / 400 - (w.houses[h]?.tier === 'great' ? 0.15 : 0))));
+      if (pays) {
+        const amt = Math.round(Math.min(econ(w, h).stock.othes * 0.05 + 800, 4000) / 50) * 50;
+        econ(w, h).stock.othes -= amt; record(w, P, { resource: 'othes', amount: amt, label: `Reparation from House ${w.houses[h]?.name}`, kind: 'boon' });
+        shiftRegard(w, h, P, -10);
+        story.push(`${B} argued it for days in their hall. In the end they paid, and hated paying.`);
+        effects.push(`+${amt.toLocaleString('en-US')} othes from House ${w.houses[h]?.name}`, 'Their regard −10');
+      } else {
+        shiftRegard(w, h, P, -8);
+        ensureIntel(w).wrongs.push({ by: h, against: P, text: 'They refused us reparation for a wrong.', year: w.date.year });
+        story.push(`${B} was kept waiting, then shown the door. They will not pay.`);
+        effects.push(`House ${w.houses[h]?.name} refused`, 'Their regard −8', 'A new grievance against them');
       }
-      case 'thrift': w = setCeremony(w, 'modest'); for (const k of courtiers(w)) shiftMood(k, -2); effects.push('Ceremonies modest', 'The court\'s mood −2'); break;
-      case 'arms': { const eq = equipOf(w, P); if (eq < 3) { w = setEquip(w, (eq + 1) as EquipLevel); effects.push(`Equipment: ${EQUIP_LABEL[(eq + 1) as EquipLevel]}`); } break; }
-      case 'knight': w = knight(w, c.subject!); effects.push('A new knight'); break;
-      case 'buyoff': w = buyOff(w, c.subject!); effects.push('The price is bought off'); break;
-      case 'court': w = courtHouse(w, c.subject!); effects.push(`House ${w.houses[c.subject!]?.name} courted`); break;
-      case 'reparation': {
-        const h = c.subject!;
-        const rng = new Rng(w.rng);
-        const pays = rng.chance(Math.max(0.15, Math.min(0.75, 0.35 + w.houses[P]!.standing.dread / 200 + w.houses[P]!.standing.respect / 300 + (w.houses[h]?.standing.honour ?? 50) / 400 - (w.houses[h]?.tier === 'great' ? 0.15 : 0))));
-        if (pays) {
-          const amt = Math.round(Math.min(econ(w, h).stock.othes * 0.05 + 800, 4000) / 50) * 50;
-          econ(w, h).stock.othes -= amt; record(w, P, { resource: 'othes', amount: amt, label: `Reparation from House ${w.houses[h]?.name}`, kind: 'boon' });
-          shiftRegard(w, h, P, -10);
-          effects.push(`+${amt.toLocaleString('en-US')} othes from House ${w.houses[h]?.name}`, 'Their regard −10');
-        } else {
-          shiftRegard(w, h, P, -8);
-          ensureIntel(w).wrongs.push({ by: h, against: P, text: 'They refused us reparation for a wrong.', year: w.date.year });
-          effects.push(`House ${w.houses[h]?.name} refused`, 'Their regard −8', 'A new grievance against them');
-        }
-        w.rng = rng.state;
-        break;
-      }
+      break;
     }
   }
-  const cc = (w.concerns ?? []).find((x) => x.id === id)!;
-  settle(w, cc, yes);
-  w.concerns = (w.concerns ?? []).filter((x) => x.id !== id);
-  const by = w.characters[cc.raisedBy];
-  const react = (ids: string[], glad: boolean) => ids.slice(0, 2).map((id) => w.characters[id]).filter(Boolean).map((k) => glad ? `${shortName(k!.name)} ${['nods', 'looks satisfied', 'thanks you after'][k!.id.length % 3]}.` : `${shortName(k!.name)} ${['says nothing, pointedly', 'looks away', 'will remember this'][k!.id.length % 3]}.`);
-  const lines = [...react(yes ? cc.backers : cc.against, true), ...react(yes ? cc.against : cc.backers, false)];
-  logRecord(w, { account: told('the hall', lines), kind: 'council', type: 'decision', severity: 1, text: `${yes ? cc.yes : cc.no}: the court's concern${by ? `, raised by ${shortName(by.name)}${by.seat ? `, ${SEAT_TITLE[by.seat]}` : ''}` : ''}.`, effects: [...effects, `${cc.backers.length} for · ${cc.against.length} against`] });
-  return w;
+  return { effects, story };
 }

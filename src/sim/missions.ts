@@ -540,6 +540,40 @@ export function advanceMissions(world: World, rng: Rng): void {
   }
 }
 
+/** Word to a mission in the field: change how they go about it. Quick is faster, and easier to notice. */
+export function setMissionApproach(input: World, id: string, approach: Approach): World {
+  const w = structuredClone(input);
+  const m = w.missions[id];
+  if (!m || m.stage === 'done' || m.stage === 'return' || m.approach === approach) return w;
+  if (m.stage === 'task') {
+    const left = absoluteCycle(m.stageEnds) - absoluteCycle(w.date);
+    const scaled = Math.max(2, Math.round(left * (approach === 'quick' ? 0.6 : 1.5)));
+    m.stageEnds = addCycles(w.date, scaled);
+  }
+  m.approach = approach;
+  m.log.push({ date: w.date, text: approach === 'quick' ? 'Word from home: press on, and faster.' : 'Word from home: slow down, take care.' });
+  return w;
+}
+
+/** Call a mission home now: they keep what they have learned so far. */
+export function recallMission(input: World, id: string): World {
+  const w = structuredClone(input);
+  const m = w.missions[id];
+  if (!m || m.stage === 'done' || m.stage === 'return') return w;
+  if (m.stage === 'travel') {
+    const gone = Math.max(2, m.travelCycles - (absoluteCycle(m.stageEnds) - absoluteCycle(w.date)));
+    m.outcome = 'failure';
+    m.stage = 'return';
+    m.stageEnds = addCycles(w.date, gone);
+  } else {
+    m.outcome = outcomeFor(m.progress * 0.85, m.noticed);
+    m.stage = 'return';
+    m.stageEnds = addCycles(w.date, m.travelCycles);
+  }
+  m.log.push({ date: w.date, text: 'Called home. They turn back with what they have.' });
+  return w;
+}
+
 function taskTurn(world: World, m: Mission, leader: Character, rng: Rng) {
   const r = resolveSpec({ ...world, missions: {} }, {
     kind: m.kind, houseId: m.houseId, leaderId: m.leaderId, targetId: m.targetId, targetPlanetId: m.targetPlanetId, targetHouseId: m.targetHouseId, targetSectorId: m.targetSectorId, companions: m.companions, approach: m.approach,

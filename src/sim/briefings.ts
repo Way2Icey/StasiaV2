@@ -8,7 +8,7 @@ import { reporterOf } from './reports';
 import { MISSION_LABEL, OUTCOME_LABEL, describeJob } from './missions';
 import type { CouncilSeat, World } from './types';
 
-export type BriefKind = 'concern' | 'petition' | 'mission' | 'request' | 'word';
+export type BriefKind = 'concern' | 'petition' | 'mission' | 'request' | 'word' | 'checkin' | 'report';
 
 export interface Briefing {
   id: string;
@@ -53,6 +53,15 @@ function push(w: World, b: Omit<Briefing, 'id' | 'date'>): void {
   s.queue.push({ ...b, id: `br${w.nextId++}`, date: w.date });
 }
 
+/** Someone you gave an order to comes back to say how it went. */
+export function reportBack(w: World, r: { personId: string; seat?: CouncilSeat; ref: string; title: string; approved: string; summary: string[]; lines: string[] }): void {
+  push(w, { kind: 'report', ref: r.ref, personId: r.personId, seat: r.seat, title: r.title, lines: r.lines });
+  const b = ensureBriefings(w).queue.find((x) => x.kind === 'report' && x.ref === r.ref);
+  if (b) b.done = { approved: r.approved, summary: r.summary };
+}
+
+const PROGRESS_WORD = (p: number) => (p >= 30 ? 'It is going better than I hoped.' : p >= 18 ? 'It is going well enough.' : p >= 8 ? 'Slow going, but something is coming.' : 'Nothing yet. Doors stay shut.');
+
 /** Each turn: anything new that needs the Highroy is turned into a councillor at the door. */
 export function advanceBriefings(w: World, phaseTurned: boolean): void {
   const P = w.playerHouseId;
@@ -74,6 +83,23 @@ export function advanceBriefings(w: World, phaseTurned: boolean): void {
     if (!by) continue;
     const lines = (m.report ?? '').split(/(?<=[.!?])\s+/).filter(Boolean).slice(0, 6);
     push(w, { kind: 'mission', ref: m.id, ...by, title: `Home from ${describeJob(w, m)}: ${OUTCOME_LABEL[m.outcome!].toLowerCase()}`, lines: [...lines, ...(m.findings ?? []).slice(0, 4)] });
+  }
+  // Missions in the field send word: when they arrive, and halfway through the work.
+  const now = absoluteCycle(w.date);
+  for (const m of Object.values(w.missions)) {
+    if (m.houseId !== P || m.stage !== 'task') continue;
+    const leader = w.characters[m.leaderId];
+    if (!leader?.alive || w.captives[leader.id]) continue;
+    const left = absoluteCycle(m.stageEnds) - now;
+    const job = describeJob(w, m);
+    const last = m.log.slice(-3).map((l) => l.text).filter((t) => !/^Word from home/.test(t));
+    if (left > m.taskCycles / 2) push(w, { kind: 'checkin', ref: `${m.id}:arrived`, personId: leader.id, seat: leader.seat as CouncilSeat | undefined, title: `Word from the field: arrived`, lines: [`We are there, and at work: ${job}.`, ...last.slice(-1), `I am going ${m.approach === 'quick' ? 'fast, and not quietly' : 'carefully'}. Say if you want it otherwise.`] });
+    else push(w, { kind: 'checkin', ref: `${m.id}:half`, personId: leader.id, seat: leader.seat as CouncilSeat | undefined, title: `Word from the field: halfway`, lines: [PROGRESS_WORD(m.progress), ...last.slice(-2), m.leaderKnowsNoticed ? 'I think we have been seen. If you want us home, say so now.' : 'No one has noticed us, as far as I can tell.'] });
+  }
+  // Decisions you gave as orders come back done, in the mouth of whoever saw to them.
+  for (const r of (w.events?.log ?? []).filter((x) => x.ordered && absoluteCycle(x.date) >= now - 4)) {
+    const by = r.orderedBy && w.characters[r.orderedBy]?.alive ? { personId: r.orderedBy, seat: w.characters[r.orderedBy]!.seat as CouncilSeat | undefined } : bringer(w, 'envoy');
+    if (by) reportBack(w, { ...by, ref: r.id, title: `${r.title}: it is done`, approved: r.choice, summary: r.lines.map((l) => `${l}.`), lines: [] });
   }
   for (const r of w.talkRequests ?? []) {
     const c = w.characters[r.personId];
@@ -99,6 +125,7 @@ function stillOpen(w: World, b: Briefing): boolean {
     case 'concern': return (w.concerns ?? []).some((c) => c.id === b.ref);
     case 'petition': return (w.courts[w.playerHouseId]?.petitions ?? []).some((p) => p.id === b.ref);
     case 'request': return (w.talkRequests ?? []).some((r) => r.id === b.ref);
+    case 'checkin': { const m = w.missions[b.ref.split(':')[0]!]; return !!m && (m.stage === 'task' || m.stage === 'travel'); }
     default: return true;
   }
 }

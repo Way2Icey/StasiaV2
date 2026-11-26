@@ -58,7 +58,7 @@ export function railCount(world: World, s: Section): { gold?: number; plain?: nu
   const P = world.playerHouseId;
   if (s === 'hall') {
     const g = world.grounds;
-    const n = (world.events?.pending.length ?? 0) + (world.ambitions?.audiences.length ?? 0) + (world.courts[P]?.petitions.length ?? 0)
+    const n = (world.events?.pending.filter((p) => !p.ordered).length ?? 0) + (world.ambitions?.audiences.length ?? 0) + (world.courts[P]?.petitions.length ?? 0)
       + (g?.challenges.length ?? 0) + (world.training?.intake?.length ?? 0) + (world.training?.pupilOffers?.length ?? 0)
       + (g?.circuit.filter((e) => !e.done && e.invited?.includes(P) && !e.entrants.some((x) => x.houseId === P)).length ?? 0)
       + (world.ports?.raids.filter((r) => r.status === 'revealed' && !r.answer).length ?? 0)

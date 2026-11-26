@@ -1,6 +1,7 @@
 // A moment: the clock has stopped for something. Decisions are answered here, over whatever page is open;
 // when the last is answered, time runs on by itself.
 import { useEffect } from 'react';
+import { formatDate } from '../sim/time';
 import { AtTheDoor, Speaker } from './briefing';
 import { bringer, openBriefings, SEAT_FOR_CATEGORY } from '../sim/briefings';
 import { eventDef, type ResolvedEvent } from '../sim/events';
@@ -14,9 +15,10 @@ export function MomentWindow({ ids, reason, battle, onClose, onCommand }: { ids:
   const game = useGame();
   const nav = useNav();
   const bt = battle ? battleOf(world, battle) : undefined;
-  const live = ids.map((id) => world.events.pending.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p);
+  const live = ids.map((id) => world.events.pending.find((p) => p.id === id && !p.ordered)).filter((p): p is NonNullable<typeof p> => !!p);
+  const ordered = ids.map((id) => world.events.pending.find((p) => p.id === id && p.ordered)).filter((p): p is NonNullable<typeof p> => !!p);
   // What was answered here, as the councillor tells it back.
-  const answered = ids.filter((id) => !live.some((p) => p.id === id)).map((id) => world.events.log.find((r) => r.id === id)).filter((r): r is NonNullable<typeof r> => !!r);
+  const answered = ids.filter((id) => !world.events.pending.some((p) => p.id === id)).map((id) => world.events.log.find((r) => r.id === id)).filter((r): r is NonNullable<typeof r> => !!r);
   const door = openBriefings(world);
   useEffect(() => {
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(false); };
@@ -32,6 +34,7 @@ export function MomentWindow({ ids, reason, battle, onClose, onCommand }: { ids:
           <button type="button" className="btn small" onClick={() => onClose(false)} title="Esc: look around first; the clock stays paused">Look around</button>
         </header>
         {live.map((p) => <Decision key={p.id} p={p} />)}
+        {ordered.map((p) => <Ordered key={p.id} p={p} />)}
         {answered.map((r) => <Answered key={r.id} r={r} />)}
         {!live.length ? <AtTheDoor /> : null}
         {bt ? (
@@ -63,6 +66,25 @@ function Answered({ r }: { r: ResolvedEvent }) {
         <span className="eyebrow">You approved</span>
         <strong>{r.choice}</strong>
         {r.lines.length ? <ul>{r.lines.map((l, i) => <li key={i}>{l}.</li>)}</ul> : null}
+      </div>
+    </div>
+  );
+}
+
+/** An order given: who will see to it, and when word comes back. */
+function Ordered({ p }: { p: import('../sim/events').PendingEvent }) {
+  const world = useWorld();
+  const def = eventDef(p.defId);
+  const by = p.ordered?.by ? world.characters[p.ordered.by] : undefined;
+  const opt = def ? (def.options[p.ordered!.choice] ?? def.options[def.fallback]) : undefined;
+  return (
+    <div className="briefing">
+      {by ? <Speaker c={by} seat={by.seat ?? undefined} note="takes your order" /> : null}
+      <strong className="brief-title">{def?.title ?? 'An order'}</strong>
+      <div className="brief-done">
+        <span className="eyebrow">You ordered</span>
+        <strong>{typeof opt?.label === 'string' ? opt.label : 'As you said'}</strong>
+        <span className="muted" style={{ fontSize: 12 }}>“It will be done. You will have word by {formatDate(p.ordered!.at)}.”</span>
       </div>
     </div>
   );

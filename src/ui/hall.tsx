@@ -7,6 +7,7 @@ import { econ } from '../sim/economy';
 import { cannotTurn, liveIntel } from '../sim/turning';
 import { answerConcern, concernsOf } from '../sim/concerns';
 import { openBriefings } from '../sim/briefings';
+import { awaiting } from '../sim/events';
 import { receiveRequest, turnAway } from '../sim/talk';
 import { captivesHeldBy } from '../sim/captives';
 import { Peek } from './links';
@@ -229,7 +230,7 @@ export function Desk({ className }: { className?: string }) {
   const [tabPick, setTabPick] = useState<DeskTab | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const items: DeskItem[] = [];
-  for (const p of [...(world.events?.pending ?? [])].reverse()) {
+  for (const p of [...awaiting(world)].reverse()) {
     const m = p.missionId ? world.missions[p.missionId] : undefined;
     const lead = m ? world.characters[m.leaderId] : undefined;
     items.push({

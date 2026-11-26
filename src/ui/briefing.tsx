@@ -7,6 +7,7 @@ import { briefDone, dismissBriefing, openBriefings, summarySince, type Briefing 
 import { answerConcern } from '../sim/concerns';
 import { approvePetition, dismissPetition, petitionPlan } from '../sim/council';
 import { receiveRequest, turnAway } from '../sim/talk';
+import { recallMission, setMissionApproach } from '../sim/missions';
 import { SEAT_TITLE } from '../sim/world';
 import type { Character, World } from '../sim/types';
 
@@ -50,7 +51,7 @@ export function BriefingCard({ b }: { b: Briefing }) {
   const con = b.kind === 'concern' ? (world.concerns ?? []).find((x) => x.id === b.ref) : undefined;
   const pet = b.kind === 'petition' ? world.courts[P]?.petitions.find((x) => x.id === b.ref) : undefined;
   const req = b.kind === 'request' ? (world.talkRequests ?? []).find((x) => x.id === b.ref) : undefined;
-  const voice = b.kind === 'mission' ? 'reports' : b.kind === 'word' ? 'brings word' : b.kind === 'request' ? 'at the door' : 'asks your leave';
+  const voice = b.kind === 'checkin' ? 'sends word from the field' : b.kind === 'report' ? 'reports back' : b.kind === 'mission' ? 'reports' : b.kind === 'word' ? 'brings word' : b.kind === 'request' ? 'at the door' : 'asks your leave';
   return (
     <div className="briefing">
       <Speaker c={c} seat={b.seat} note={voice} />
@@ -80,11 +81,17 @@ export function BriefingCard({ b }: { b: Briefing }) {
             <button type="button" className="btn primary" onClick={() => { game.update((w) => { try { return dismissBriefing(receiveRequest(w, req.id, 'warm'), b.id); } catch { return w; } }); nav.to({ kind: 'talk', id: req.personId }); }}>Show them in</button>
             <button type="button" className="btn" onClick={() => act('Turned them away', (w) => turnAway(w, req.id))}>Turn them away</button>
           </> : null}
+          {b.kind === 'checkin' ? (() => { const mid = b.ref.split(':')[0]!; const m = world.missions[mid]; return <>
+            <button type="button" className="btn primary" onClick={() => act('Carry on as you are', (w) => w)}>Carry on as you are</button>
+            {m?.approach === 'careful' ? <button type="button" className="btn" title="Faster, and easier to notice" onClick={() => act('Press harder, and faster', (w) => setMissionApproach(w, mid, 'quick'))}>Press harder</button>
+              : <button type="button" className="btn" title="Slower, and quieter" onClick={() => act('Slow down and take care', (w) => setMissionApproach(w, mid, 'careful'))}>Take more care</button>}
+            <button type="button" className="btn" title="They come home with what they have" onClick={() => act('Come home now', (w) => recallMission(w, mid))}>Come home now</button>
+          </>; })() : null}
           {b.kind === 'mission' || b.kind === 'word' ? <>
             <button type="button" className="btn primary" onClick={close}>Understood</button>
             {b.kind === 'mission' ? <button type="button" className="btn" onClick={() => { close(); nav.to({ kind: 'mission', id: b.ref }); }}>The full report ›</button> : null}
           </> : null}
-          {!con && !pet && !req && b.kind !== 'mission' && b.kind !== 'word' ? <button type="button" className="btn" onClick={close}>It has passed</button> : null}
+          {!con && !pet && !req && b.kind !== 'mission' && b.kind !== 'word' && b.kind !== 'checkin' ? <button type="button" className="btn" onClick={close}>It has passed</button> : null}
         </div>
       )}
     </div>

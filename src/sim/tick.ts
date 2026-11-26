@@ -1,7 +1,7 @@
 import { advancePlaces } from './arcs_places';
 import { advanceBounties } from './bounties';
 import { advanceIntel } from './turning';
-import { advanceConcerns } from './concerns';
+import { advanceConcerns, advanceOrders } from './concerns';
 import { advanceQuests } from './quests';
 import { advanceBriefings } from './briefings';
 import { advanceTalkRequests } from './talk';
@@ -122,6 +122,7 @@ function stepInPlace(world: World): void {
   advanceBounties(world, rng, crossed.phases > 0, crossed.orbits > 0);
   advanceIntel(world, rng, crossed.phases > 0);
   advanceConcerns(world, rng, crossed.phases > 0);
+  advanceOrders(world, rng);
   advanceQuests(world, rng, crossed.phases > 0);
   advanceTalkRequests(world, rng, crossed.phases > 0);
   advanceBriefings(world, crossed.phases > 0);
