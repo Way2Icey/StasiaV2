@@ -25,7 +25,7 @@ import type { Character, World } from './types';
 export type Terms = 'alive' | 'dead' | 'either';
 export const TERMS_LABEL: Record<Terms, string> = { alive: 'Alive', dead: 'Dead', either: 'Dead or alive' };
 
-export type BountyTarget = { kind: 'person'; id: string } | { kind: 'corsair'; factionId: string; memberId: string };
+export type BountyTarget = { kind: 'person'; id: string } | { kind: 'corsair'; factionId: string; memberId: string } | { kind: 'hunter'; id: string };
 export type Poster = { kind: 'house'; houseId: string } | { kind: 'underworld'; name: string; title: string; factionId?: string };
 
 export interface Bounty {
@@ -70,7 +70,11 @@ export interface Hunter {
   style: HunterStyle;
   /** The tool of the trade, if they carry something worth naming. */
   kit: string;
-  status: 'free' | 'hunting' | 'hurt' | 'dead' | 'retired';
+  status: 'free' | 'hunting' | 'hurt' | 'dead' | 'retired' | 'held';
+  /** A soul-bound weapon, for the few who carry one. Breakline will not trade them; some hunters took theirs off the dead. */
+  caige?: { name: string; form: string; cdi: number };
+  /** The house that keeps them on retainer. */
+  retainedBy?: string;
   hurtUntil?: import('./time').GameDate;
   taken: number;
   killed: number;
@@ -88,6 +92,7 @@ export const BOUNTY_ORBITS = 4;
 
 const KITS = ['a Caige residue lens', 'gravitic anchor spikes', 'a pulse cage folded into a case', 'a tracker\'s CDI analyser', 'a long rifle with a cracked stock', 'a borrowed Caige that does not like them', 'thermal cuffs and a lot of patience', 'nothing but a knife and a ship'];
 const EPITHETS = ['the Quiet', 'Lantern', 'the Ledger', 'Glasshand', 'the Ninth', 'Driftwake', 'the Collector', 'Old Iron', 'Seven Doors', 'the Long Count', 'Hollow', 'Ashlight'];
+const FORMS = ['a greatblade', 'a spear', 'twin daggers', 'a war-hammer', 'a chain-whip', 'claws', 'a bow of light', 'a long axe', 'a hooked glaive'];
 const SPECIES_POOL = ['human', 'serathi', 'torvann', 'shaaliin', 'doven', 'fokari', 'gholari', 'thessari'];
 
 export function ensureBounties(w: World): BountyState {
@@ -115,6 +120,10 @@ function newHunter(w: World, r: Rng, epithet: string, renown: number): Hunter {
     style: r.pick(['clean', 'brutal', 'patient', 'showman'] as const), kit: r.pick(KITS),
     status: 'free', taken: Math.round(renown / 12), killed: Math.round(renown / 20), failed: r.int(0, 3), notes: [],
   };
+  if (r.chance(0.3 + renown / 250)) {
+    h.caige = { name: buildWord(r, c.given), form: r.pick(FORMS), cdi: Math.round((0.35 + r.next() * 0.55) * 1000) / 1000 };
+    h.notes.push(r.pick(['Took the Caige off a dead Knight on Ossin, and it took to them.', 'Bonded young, in a house that no longer exists.', 'The Caige came with the ship. So did its last owner\'s debts.']));
+  }
   w.bounties!.hunters[h.id] = h;
   return h;
 }
@@ -130,6 +139,11 @@ export function viewTarget(w: World, t: BountyTarget): TargetView | null {
     const c = w.characters[t.id];
     if (!c) return null;
     return { name: displayName(c.name), houseId: c.houseId, strength: fightScore(c) + (c.houseId === w.playerHouseId ? protection(w, c.id) * 20 : guardOf(w, c) * 4), cunning: (c.stats.stealth + c.stats.intrigue + c.stats.perception) / 3, alive: c.alive, where: c.seat ? 'at court' : 'about the house\'s business' };
+  }
+  if (t.kind === 'hunter') {
+    const h = w.bounties?.hunters[t.id];
+    if (!h) return null;
+    return { name: hunterName(h), houseId: null, strength: h.skill + h.nerve / 4 + caigeEdge(h), cunning: h.tracking, alive: h.status !== 'dead' && h.status !== 'held' && h.status !== 'retired', where: h.status === 'hunting' ? 'on a job' : 'between jobs, on the Virella' };
   }
   const f = w.lanes?.factions[t.factionId];
   const m = f?.members.find((x) => x.id === t.memberId);
@@ -147,7 +161,7 @@ function guardOf(w: World, c: Character): number {
 export function fairPrice(w: World, t: BountyTarget): number {
   const v = viewTarget(w, t);
   if (!v) return 0;
-  const rank = t.kind === 'person' ? (w.houses[v.houseId ?? '']?.rulerId === t.id ? 3 : w.characters[t.id]?.seat ? 1.8 : w.characters[t.id]?.role === 'Knight' ? 1.3 : 1) : (w.lanes.factions[t.factionId]?.members.find((m) => m.id === t.memberId)?.role === 'chief' ? 2.2 : 1.2);
+  const rank = t.kind === 'hunter' ? 1.2 + (w.bounties?.hunters[t.id]?.renown ?? 0) / 60 : t.kind === 'person' ? (w.houses[v.houseId ?? '']?.rulerId === t.id ? 3 : w.characters[t.id]?.seat ? 1.8 : w.characters[t.id]?.role === 'Knight' ? 1.3 : 1) : (w.lanes.factions[t.factionId]?.members.find((m) => m.id === t.memberId)?.role === 'chief' ? 2.2 : 1.2);
   return Math.round(((600 + v.strength * 140 + v.cunning * 60) * rank) / 50) * 50;
 }
 
@@ -160,13 +174,16 @@ export function cannotPlace(w: World, t: BountyTarget, reward: number): string |
     if (c.houseId === P) return 'One of our own';
     if (w.houses[c.houseId ?? '']?.rulerId === t.id && !atWar(w, P, c.houseId!)) return 'A price on a Highroy is war; we are not at war with them';
   }
+  if (t.kind === 'hunter' && w.bounties?.hunters[t.id]?.retainedBy === P) return 'Our own hunter';
   if ((w.bounties?.list ?? []).some((b) => (b.status === 'open' || b.status === 'hunted') && sameTarget(b.target, t) && b.poster.kind === 'house' && b.poster.houseId === P)) return 'We already have a price on them';
   if (reward < 300) return 'The brokers will not post less than 300';
   if (econ(w, P).stock.othes < Math.ceil(reward * (1 + BROKER_CUT))) return 'Not enough othes for the purse and the tithe';
   return null;
 }
 
-const sameTarget = (a: BountyTarget, b: BountyTarget) => a.kind === b.kind && (a.kind === 'person' ? a.id === (b as typeof a).id : a.memberId === (b as { memberId: string }).memberId);
+const sameTarget = (a: BountyTarget, b: BountyTarget) => a.kind === b.kind && (a.kind === 'corsair' ? a.memberId === (b as { memberId: string }).memberId : a.id === (b as { id: string }).id);
+/** What a Caige adds in a fight: more the deeper the bond. */
+export const caigeEdge = (h: Hunter) => (h.caige ? 1.5 + h.caige.cdi * 4 : 0);
 export const isLive = (b: Bounty) => b.status === 'open' || b.status === 'hunted';
 
 function post(w: World, b: Omit<Bounty, 'id' | 'posted' | 'expires' | 'status' | 'trail'> & { orbits?: number }): Bounty {
@@ -270,7 +287,7 @@ function hunterSide(w: World, b: Bounty): Side | null {
   }
   const h = w.bounties!.hunters[b.hunterId];
   if (!h || h.status === 'dead') return null;
-  return { name: hunterName(h), short: h.epithet.replace(/^the /, 'the '), strength: h.skill + h.nerve / 4 + h.renown / 25, tracking: h.tracking, nerve: h.nerve, h };
+  return { name: hunterName(h), short: h.epithet.replace(/^the /, 'the '), strength: h.skill + h.nerve / 4 + h.renown / 25 + caigeEdge(h), tracking: h.tracking, nerve: h.nerve, h };
 }
 
 /** Each turn: hunters take prices, close in, and settle them; the underworld and the houses post new ones. */
@@ -294,6 +311,9 @@ export function advanceBounties(w: World, rng: Rng, phaseTurned: boolean, orbitT
       logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 2, text: `The Spymaster has word: there is a price on ${shortName(w.characters[(b.target as { id: string }).id]!.name)}'s head.`, who: [{ id: (b.target as { id: string }).id, part: 'the mark' }], detail: `${posterName(w, b.poster)} posted it, ${b.reward.toLocaleString('en-US')} othes, ${TERMS_LABEL[b.terms].toLowerCase()}.`, source: spy ? `${shortName(spy.name)}, Spymaster` : undefined });
     }
   }
+  while (deferred.length) post(w, deferred.shift()!);
+  // Retained hunters are paid by the Phase, in the ledger; one left unpaid walks.
+  for (const h of Object.values(s.hunters)) if (h.retainedBy && (h.status === 'dead' || h.status === 'held' || h.status === 'retired')) h.retainedBy = undefined;
   if (orbitTurned) { underworldPosts(w, rng); housePosts(w, rng); newBlood(w, rng); }
 }
 
@@ -316,7 +336,13 @@ function expire(w: World, b: Bounty) {
 /** A free hunter takes the best price they think they can collect. */
 function pickUp(w: World, rng: Rng, b: Bounty) {
   const v = viewTarget(w, b.target)!;
-  const free = Object.values(w.bounties!.hunters).filter((h) => h.status === 'free' && !b.beaten?.includes(h.id));
+  const mine = b.poster.kind === 'house' ? Object.values(w.bounties!.hunters).find((h) => h.status === 'free' && h.retainedBy === (b.poster as { houseId: string }).houseId && !b.beaten?.includes(h.id)) : undefined;
+  if (mine) { mine.status = 'hunting'; b.status = 'hunted'; b.hunterId = mine.id; return; }
+  // A price on a hunter: their rival wants it more than anyone.
+  const prey = b.target.kind === 'hunter' ? w.bounties!.hunters[b.target.id] : undefined;
+  const free = Object.values(w.bounties!.hunters).filter((h) => h.status === 'free' && !h.retainedBy && !b.beaten?.includes(h.id) && h.id !== prey?.id);
+  const rival = prey?.rivalId ? free.find((h) => h.id === prey.rivalId) : undefined;
+  if (rival && rng.chance(0.8)) { rival.status = 'hunting'; b.status = 'hunted'; b.hunterId = rival.id; rival.notes.push(`Took the price on ${prey!.name} the day it was posted.`); return; }
   // What a hunter wants for the risk: their renown sets their price.
   const willing = free.filter((h) => b.reward >= fairPrice(w, b.target) * (0.45 + h.renown / 160) && h.skill + h.nerve / 2 >= v.strength * 0.85 - 2);
   if (!willing.length || !rng.chance(b.open ? 0.6 : 0.4)) return;
@@ -335,10 +361,14 @@ function hunt(w: World, rng: Rng, b: Bounty) {
   confront(w, rng, b, hs, v);
 }
 
+const deferred: Parameters<typeof post>[1][] = [];
+
 function confront(w: World, rng: Rng, b: Bounty, hs: Side, v: TargetView) {
   const P = w.playerHouseId;
   const tc = b.target.kind === 'person' ? w.characters[b.target.id] : undefined;
-  const margin = hs.strength - v.strength;
+  // A hunter we keep on retainer stands between our people and anyone sent for them.
+  const guard = tc && tc.houseId === P ? Object.values(w.bounties!.hunters).find((h) => h.retainedBy === P && h.status === 'free') : undefined;
+  const margin = hs.strength - v.strength - (guard ? guard.skill / 2 + caigeEdge(guard) : 0);
   const win = rng.chance(1 / (1 + Math.exp(-margin / 3)));
   const ours = (tc && tc.houseId === P) || hs.c?.houseId === P || (b.poster.kind === 'house' && b.poster.houseId === P);
   let outcome: 'taken' | 'killed' | 'escaped' | 'hunterDown' | 'hunterDead';
@@ -347,7 +377,8 @@ function confront(w: World, rng: Rng, b: Bounty, hs: Side, v: TargetView) {
     outcome = alive && rng.chance(hs.h?.style === 'brutal' ? 0.7 : 0.9) ? 'taken' : b.terms === 'alive' ? 'escaped' : 'killed';
   } else outcome = rng.chance(0.15 + Math.max(0, -margin) * 0.03) ? 'hunterDead' : rng.chance(0.6) ? 'hunterDown' : 'escaped';
 
-  const account: Account = bountyAccount(w, rng, { hunter: hs.name, hunterShort: hs.short, targetShort: tc ? tc.name.given : v.name.split(' of ')[0]!.split(' ')[0], hunterC: hs.c, style: hs.h?.style, kit: hs.h?.kit, target: v.name, targetC: tc, where: v.where, outcome, poster: posterName(w, b.poster) });
+  const prey = b.target.kind === 'hunter' ? w.bounties!.hunters[b.target.id] : undefined;
+  const account: Account = bountyAccount(w, rng, { hunter: hs.name, hunterShort: hs.short, targetShort: tc ? tc.name.given : prey ? prey.epithet : v.name.split(' of ')[0]!.split(' ')[0], hunterC: hs.c, style: hs.h?.style, kit: hs.h?.kit, caige: hs.h?.caige, targetCaige: prey?.caige, guard: guard ? hunterName(guard) : undefined, target: v.name, targetC: tc, where: v.where, outcome, poster: posterName(w, b.poster) });
   const head = `${hs.name} ${outcome === 'taken' ? `took ${v.name} alive` : outcome === 'killed' ? `killed ${v.name}` : outcome === 'escaped' ? `came close to ${v.name}, and lost them` : outcome === 'hunterDead' ? `went after ${v.name} and did not come back` : `went after ${v.name} and was beaten off`}.`;
   const effects: string[] = [];
 
@@ -357,8 +388,21 @@ function confront(w: World, rng: Rng, b: Bounty, hs: Side, v: TargetView) {
       if (outcome === 'killed') kill(w, tc, w.date, `killed for a price posted by ${posterName(w, b.poster)}`);
       else if (b.poster.kind === 'house') { w.captives[tc.id] = { characterId: tc.id, heldBy: b.poster.houseId, since: w.date, interrogated: false, reason: 'leverage' }; effects.push(`Held by ${posterName(w, b.poster)}`); }
       else { kill(w, tc, w.date, `taken by hunters for ${b.poster.name}, and never seen again`); }
+      // A house that loses its own to a hunter may put a price on the hunter.
+      if (outcome === 'killed' && hs.h && tc.houseId && tc.houseId !== P && w.economy.houses[tc.houseId] && rng.chance(0.4)) {
+        const ht: BountyTarget = { kind: 'hunter', id: hs.h.id };
+        const reward = Math.round(fairPrice(w, ht) * 1.2 / 50) * 50;
+        if (w.economy.houses[tc.houseId]!.stock.othes > reward * 1.5) { w.economy.houses[tc.houseId]!.stock.othes -= Math.ceil(reward * (1 + BROKER_CUT)); deferred.push({ target: ht, poster: { kind: 'house', houseId: tc.houseId }, reward, terms: 'dead', reason: `for ${shortName(tc.name)}`, open: true, known: true }); }
+      }
       // Kin remember who posted it, when they can find out.
       if (b.poster.kind === 'house' && tc.houseId && b.open) { shiftRelation(w, tc.houseId, b.poster.houseId, -20); shiftRegard(w, tc.houseId, b.poster.houseId, -20); }
+    } else if (prey) {
+      prey.status = outcome === 'taken' ? 'held' : 'dead';
+      prey.notes.push(`${outcome === 'taken' ? 'Taken' : 'Killed'} by ${hs.name}, for ${posterName(w, b.poster)}.`);
+      if (prey.retainedBy) prey.retainedBy = undefined;
+      if (outcome === 'taken' && b.poster.kind === 'house') imprison(w, b.poster.houseId, hunterName(prey), 'a bounty hunter', null, 'crime', prey.tracking);
+      // Some of them carried a Caige. It does not go to the hunter who took them; it goes to the ledger, and then nobody knows where.
+      if (prey.caige) effects.push(`${prey.caige.name}, ${prey.epithet}'s Caige, has gone quiet`);
     } else if (b.target.kind === 'corsair') {
       const f = w.lanes.factions[b.target.factionId];
       const mid = b.target.memberId;
@@ -472,6 +516,76 @@ function newBlood(w: World, rng: Rng) {
     const h = newHunter(w, rng, ep, rng.int(3, 20));
     h.notes.push('New on the board this year.');
   }
+}
+
+// ---------------------------------------------------------------- hunters on retainer
+
+/** What a hunter asks to sign on, and what they cost each Phase after: more the better known they are. */
+export const retainerFee = (h: Hunter) => Math.round((800 + h.renown * 45) / 50) * 50;
+export const retainerPhase = (h: Hunter) => Math.round((120 + h.renown * 5) / 10) * 10;
+export const MAX_RETAINED = 2;
+
+export function cannotRetain(w: World, id: string): string | null {
+  const h = w.bounties?.hunters[id];
+  const P = w.playerHouseId;
+  if (!h || h.status === 'dead' || h.status === 'held' || h.status === 'retired') return 'Not to be had';
+  if (h.retainedBy === P) return 'Already ours';
+  if (h.retainedBy) return 'Kept by another house';
+  if (h.status !== 'free') return 'On a job';
+  if (Object.values(w.bounties!.hunters).filter((x) => x.retainedBy === P).length >= MAX_RETAINED) return `We keep ${MAX_RETAINED} already`;
+  if ((w.bounties?.list ?? []).some((b) => isLive(b) && b.target.kind === 'hunter' && b.target.id === id && b.poster.kind === 'house' && b.poster.houseId === P)) return 'We have a price on them';
+  if (econ(w, P).stock.othes < retainerFee(h)) return 'Not enough othes';
+  return null;
+}
+
+/** Sign a hunter to the house: they take our prices first, go where we send them, and stand by our people. */
+export function retainHunter(input: World, id: string): World {
+  const w = structuredClone(input);
+  ensureBounties(w);
+  const why = cannotRetain(w, id);
+  if (why) throw new Error(why);
+  const h = w.bounties!.hunters[id]!;
+  const P = w.playerHouseId;
+  econ(w, P).stock.othes -= retainerFee(h);
+  h.retainedBy = P;
+  h.notes.push(`Signed to House ${w.houses[P]?.name}.`);
+  logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 1, text: `${hunterName(h)} is on our retainer.`, effects: [`−${retainerFee(h).toLocaleString('en-US')} othes`, `${retainerPhase(h).toLocaleString('en-US')} othes a Phase`] });
+  return w;
+}
+
+export function dismissHunter(input: World, id: string): World {
+  const w = structuredClone(input);
+  const h = ensureBounties(w).hunters[id];
+  if (!h || h.retainedBy !== w.playerHouseId) throw new Error('Not ours');
+  h.retainedBy = undefined;
+  h.notes.push(`Let go by House ${w.houses[w.playerHouseId]?.name}.`);
+  logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 1, text: `We let ${hunterName(h)} go.` });
+  return w;
+}
+
+/** Send a retained hunter straight at someone: no board, no brokers, no tithe. The purse is theirs if they bring it off. */
+export function sendRetained(input: World, hunterId: string, t: BountyTarget, reward: number, terms: Terms): World {
+  const w = structuredClone(input);
+  ensureBounties(w);
+  const h = w.bounties!.hunters[hunterId];
+  const P = w.playerHouseId;
+  if (!h || h.retainedBy !== P) throw new Error('Not ours to send');
+  if (h.status !== 'free') throw new Error('On a job already');
+  const v = viewTarget(w, t);
+  if (!v || !v.alive) throw new Error('They are beyond any price');
+  if (t.kind === 'person' && w.characters[t.id]?.houseId === P) throw new Error('One of our own');
+  if (t.kind === 'hunter' && t.id === hunterId) throw new Error('Not themselves');
+  if (econ(w, P).stock.othes < reward) throw new Error('Not enough othes');
+  econ(w, P).stock.othes -= reward;
+  const b = post(w, { target: t, poster: { kind: 'house', houseId: P }, reward, terms, reason: 'a private contract', open: false, known: true });
+  b.status = 'hunted'; b.hunterId = h.id; h.status = 'hunting';
+  logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 1, text: `We sent ${hunterName(h)} after ${v.name}, quietly.`, effects: [`−${reward.toLocaleString('en-US')} othes, held until it is done`] });
+  return w;
+}
+
+/** The ledger lines for hunters on our retainer. */
+export function hunterLines(w: World, houseId: string): { resource: 'othes'; amount: number; label: string; kind: 'stipend' }[] {
+  return Object.values(w.bounties?.hunters ?? {}).filter((h) => h.retainedBy === houseId).map((h) => ({ resource: 'othes' as const, amount: -retainerPhase(h), label: `Retainer · ${hunterName(h)}`, kind: 'stipend' as const }));
 }
 
 /** Prices on our people that we know of. */

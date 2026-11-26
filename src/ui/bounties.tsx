@@ -7,6 +7,7 @@ import { ArchonHouseLink } from './archon';
 import {
   board, BROKER_CUT, buyOff, buyOffCost, cannotClaim, cannotPlace, claimBounty, fairPrice, hunterName, onOurHeads, ourBounties, placeBounty,
   posterName, STYLE_LABEL, TERMS_LABEL, viewTarget, withdrawBounty, type Bounty, type BountyTarget, type Terms,
+  cannotRetain, dismissHunter, MAX_RETAINED, retainerFee, retainerPhase, retainHunter, sendRetained,
 } from '../sim/bounties';
 import { setGuard, GUARD_LABEL, type GuardLevel } from '../sim/chair';
 import { fightScore } from '../sim/grounds';
@@ -119,16 +120,19 @@ export function BountiesPage() {
             </div>
           )) : <div className="body muted">We have put no price on anyone.</div>}
         </Panel>
-        <Panel scroll={360} title="The hunters" aside={`${hunters.filter((h) => h.status !== 'dead' && h.status !== 'retired').length} working`} className="span-6">
+        <Panel scroll={420} title="The hunters" aside={`${hunters.filter((h) => h.status !== 'dead' && h.status !== 'retired' && h.status !== 'held').length} working · we keep ${hunters.filter((h) => h.retainedBy === P).length} of ${MAX_RETAINED}`} className="span-12">
           <table className="ctable">
-            <thead><tr><th>Name</th><th>Renown</th><th>Record</th><th>Now</th></tr></thead>
+            <thead><tr><th>Name</th><th>Renown</th><th>Record</th><th>Now</th><th>Retainer</th></tr></thead>
             <tbody>
               {hunters.map((h) => (
                 <tr key={h.id} className={h.status === 'dead' || h.status === 'retired' ? 'gone' : ''} title={`${STYLE_LABEL[h.style]}. Carries ${h.kit}.${h.notes.length ? ' ' + h.notes.join(' ') : ''}`}>
-                  <td>{hunterName(h)}<br /><span className="muted" style={{ fontSize: 11 }}>{h.style} · fights {h.skill} · tracks {h.tracking}{h.rivalId ? ` · rival of ${world.bounties!.hunters[h.rivalId]?.epithet}` : ''}</span></td>
+                  <td>{hunterName(h)}{h.retainedBy === P ? <span className="tag" style={{ marginLeft: 8 }}>ours</span> : h.retainedBy ? <span className="muted" style={{ fontSize: 11 }}> · kept by <ArchonHouseLink id={h.retainedBy} /></span> : null}<br /><span className="muted" style={{ fontSize: 11 }}>{h.style} · fights {h.skill} · tracks {h.tracking}{h.caige ? ` · Caige ${h.caige.name}, ${h.caige.form}, CDI ${h.caige.cdi.toFixed(3)}` : ''}{h.rivalId ? ` · rival of ${world.bounties!.hunters[h.rivalId]?.epithet}` : ''}</span></td>
                   <td className="mono">{bar(h.renown)}</td>
                   <td className="mono" style={{ fontSize: 12 }}>{h.taken} taken · {h.killed} killed · {h.failed} failed</td>
-                  <td className="muted">{h.status === 'hurt' ? 'healing' : h.status}</td>
+                  <td className="muted">{h.status === 'hurt' ? 'healing' : h.status === 'held' ? 'in someone\'s cells' : h.status}</td>
+                  <td>{h.retainedBy === P ? <><span className="mono muted" style={{ fontSize: 11 }}>{fmt(retainerPhase(h))}/Phase </span><button type="button" className="btn small" onClick={() => run((w) => dismissHunter(w, h.id))}>Let go</button></>
+                    : h.status === 'dead' || h.status === 'held' || h.status === 'retired' ? null
+                    : <button type="button" className="btn small" disabled={!!cannotRetain(world, h.id)} title={cannotRetain(world, h.id) ?? `${fmt(retainerFee(h))} to sign, then ${fmt(retainerPhase(h))} a Phase`} onClick={() => run((w) => retainHunter(w, h.id))}>Retain · {fmt(retainerFee(h))}</button>}</td>
                 </tr>
               ))}
             </tbody>
@@ -147,7 +151,10 @@ function PlaceBounty({ className, run }: { className: string; run: (fn: (w: Worl
   const [key, setKey] = useState('');
   const [terms, setTerms] = useState<Terms>('either');
   const [open, setOpen] = useState(true);
-  const t: BountyTarget | null = key.startsWith('p:') ? { kind: 'person', id: key.slice(2) } : key.startsWith('c:') ? { kind: 'corsair', factionId: key.split(':')[1]!, memberId: key.split(':')[2]! } : null;
+  const [via, setVia] = useState('');
+  const retained = Object.values(world.bounties?.hunters ?? {}).filter((h) => h.retainedBy === P && h.status === 'free');
+  const viaH = retained.find((h) => h.id === via);
+  const t: BountyTarget | null = key.startsWith('p:') ? { kind: 'person', id: key.slice(2) } : key.startsWith('h:') ? { kind: 'hunter', id: key.slice(2) } : key.startsWith('c:') ? { kind: 'corsair', factionId: key.split(':')[1]!, memberId: key.split(':')[2]! } : null;
   const fair = t ? fairPrice(world, t) : 0;
   const [reward, setReward] = useState(0);
   const r = reward || fair;
@@ -164,19 +171,28 @@ function PlaceBounty({ className, run }: { className: string; run: (fn: (w: Worl
           <optgroup label="Corsairs we know by name">
             {corsairs.map(({ f, m }) => <option key={m.id} value={`c:${f.id}:${m.id}`}>{m.name} · {m.role} of {f.name}</option>)}
           </optgroup>
+          <optgroup label="Hunters">
+            {Object.values(world.bounties?.hunters ?? {}).filter((h) => h.status !== 'dead' && h.status !== 'held' && h.status !== 'retired' && h.retainedBy !== P).map((h) => <option key={h.id} value={`h:${h.id}`}>{hunterName(h)} · renown {h.renown}</option>)}
+          </optgroup>
         </select>
         {t ? <>
           {tc ? <span className="muted" style={{ fontSize: 12 }}><PersonLink c={tc} /> of House {world.houses[tc.houseId!]?.name}</span> : null}
           <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>Purse <input className="text" type="number" min={300} step={50} value={r} onChange={(e) => setReward(Math.max(0, Number(e.target.value)))} style={{ width: 120 }} /> <span className="muted" style={{ fontSize: 12 }}>the brokers call {fmt(fair)} fair</span></label>
           <div className="actions">{(['alive', 'either', 'dead'] as Terms[]).map((k) => <button key={k} type="button" className={`btn small${terms === k ? ' primary' : ''}`} onClick={() => setTerms(k)}>{TERMS_LABEL[k]}</button>)}</div>
-          <div className="actions"><button type="button" className={`btn small${open ? ' primary' : ''}`} onClick={() => setOpen(true)}>On the open board</button><button type="button" className={`btn small${!open ? ' primary' : ''}`} onClick={() => setOpen(false)}>Quietly, through a broker</button></div>
+          <div className="actions">
+            <button type="button" className={`btn small${!viaH && open ? ' primary' : ''}`} onClick={() => { setVia(''); setOpen(true); }}>On the open board</button>
+            <button type="button" className={`btn small${!viaH && !open ? ' primary' : ''}`} onClick={() => { setVia(''); setOpen(false); }}>Quietly, through a broker</button>
+            {retained.map((h) => <button key={h.id} type="button" className={`btn small${via === h.id ? ' primary' : ''}`} onClick={() => setVia(h.id)}>Send {h.epithet}</button>)}
+          </div>
           <p className="muted" style={{ margin: 0, fontSize: 12 }}>
-            Costs {fmt(Math.ceil(r * (1 + BROKER_CUT)))} now: the purse, and the brokers' tithe of {Math.round(BROKER_CUT * 100)} in a hundred. The purse comes back if no one takes it.
+            {viaH ? <>Costs {fmt(r)}: no board, no brokers, no tithe. {hunterName(viaH)} goes straight after them, and the purse is theirs if they bring it off.</> : <>Costs {fmt(Math.ceil(r * (1 + BROKER_CUT)))} now: the purse, and the brokers' tithe of {Math.round(BROKER_CUT * 100)} in a hundred. The purse comes back if no one takes it.</>}
             {' '}{r < fair * 0.7 ? 'Below what good hunters take: only the hungry will go.' : r > fair * 1.3 ? 'Generous: the best on the board will want it.' : ''}
             {' '}{open && tc ? `House ${world.houses[tc.houseId!]?.name} will know it was us, and will not forgive it.` : !open && tc ? 'Quiet prices leak, now and then.' : ''}
             {' '}{terms === 'alive' && tc ? 'Alive, they come to our cells.' : ''}
           </p>
-          <button type="button" className="btn primary" disabled={!!why} title={why ?? ''} onClick={() => { run((w) => placeBounty(w, t, r, terms, open)); setKey(''); setReward(0); }}>{why ?? `Post it · ${fmt(Math.ceil(r * (1 + BROKER_CUT)))}`}</button>
+          {viaH
+            ? <button type="button" className="btn primary" disabled={(world.economy.houses[P]?.stock.othes ?? 0) < r || r < 100} onClick={() => { run((w) => sendRetained(w, viaH.id, t, r, terms)); setKey(''); setReward(0); setVia(''); }}>Send {viaH.epithet} · {fmt(r)}</button>
+            : <button type="button" className="btn primary" disabled={!!why} title={why ?? ''} onClick={() => { run((w) => placeBounty(w, t, r, terms, open)); setKey(''); setReward(0); }}>{why ?? `Post it · ${fmt(Math.ceil(r * (1 + BROKER_CUT)))}`}</button>}
         </> : <p className="muted" style={{ margin: 0, fontSize: 12 }}>People of standing in other houses, and the corsairs we know by name.</p>}
       </div>
     </Panel>

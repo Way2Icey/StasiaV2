@@ -1,6 +1,7 @@
 // The economy: othes and five resources. Standing flows (quarters, taxes,
 // food, stipends) settle once a Phase; trades, missions and ransoms settle at
 // once. Prices on the Imperial Exchange move with what the houses buy and sell.
+import { hunterLines } from './bounties';
 import { siteLines } from './places';
 import { embargoMarkup } from './lanewatch';
 import { favourQuota, privilegeOf } from './houses';
@@ -149,7 +150,7 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
   const pupils = Object.values(world.training?.enrolments ?? {}).filter((e) => e.houseId === houseId && e.program === 'academy').length;
   upkeep += pupils * 8;
   if (upkeep) lines.push({ resource: 'othes', amount: -upkeep, label: `Upkeep of holdings (${mods})${pupils ? ` and ${pupils} academy places` : ''}`, kind: 'stipend' });
-  lines.push(...standingLines(world, houseId), ...siteLines(world, houseId));
+  lines.push(...standingLines(world, houseId), ...siteLines(world, houseId), ...hunterLines(world, houseId));
   return lines;
 }
 

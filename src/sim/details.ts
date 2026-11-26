@@ -302,7 +302,7 @@ export function attemptAccount(w: World, r: Rng, target: Character, kind: 'assas
 }
 
 /** A price collected or a hunter beaten off, as told by someone who saw it. */
-export function bountyAccount(w: World, r: Rng, o: { hunter: string; hunterShort?: string; hunterC?: Character; style?: string; kit?: string; target: string; targetShort?: string; targetC?: Character; where: string; outcome: 'taken' | 'killed' | 'escaped' | 'hunterDown' | 'hunterDead'; poster: string }): Account {
+export function bountyAccount(w: World, r: Rng, o: { hunter: string; hunterShort?: string; hunterC?: Character; style?: string; kit?: string; caige?: { name: string; form: string }; targetCaige?: { name: string; form: string }; guard?: string; target: string; targetShort?: string; targetC?: Character; where: string; outcome: 'taken' | 'killed' | 'escaped' | 'hunterDown' | 'hunterDead'; poster: string }): Account {
   const lines: string[] = [];
   // Full names once; after that, the way people at the bar would say them.
   let H = o.hunter, T = o.target;
@@ -315,7 +315,10 @@ export function bountyAccount(w: World, r: Rng, o: { hunter: string; hunterShort
     `Word on the board was that ${T} had gone to ground. ${H} found the ground.`,
   ]));
   shorten();
-  if (o.kit && r.chance(0.6)) lines.push(`${H} came with ${o.kit}.`);
+  if (o.caige) lines.push(`${H}'s Caige, ${o.caige.name}, came up as ${o.caige.form}${r.chance(0.5) ? ', and the room went quiet' : ''}.`);
+  else if (o.kit && r.chance(0.6)) lines.push(`${H} came with ${o.kit}.`);
+  if (o.targetCaige) lines.push(`${T} had ${o.targetCaige.name} out before ${H} was through the door: ${o.targetCaige.form}, and bonded deep.`);
+  if (o.guard) lines.push(`${o.guard}, on the house's retainer, was already in the room.`);
   if (o.style === 'showman' && r.chance(0.7)) lines.push(`${H} wanted it seen, and chose a crowded concourse for it.`);
   if (o.style === 'patient' && r.chance(0.7)) lines.push(`${H} waited out three good chances for the one that could not go wrong.`);
   if (ow && r.chance(0.6)) lines.push(`${H} went for the side ${T} still favours, the old ${ow.part}.`);

@@ -2,7 +2,8 @@ import { createWorld } from './world';
 import { advanceTurns } from './tick';
 import { econ } from './economy';
 import { deserialize, serialize } from './save';
-import { board, buyOff, cannotPlace, claimBounty, ensureBounties, fairPrice, placeBounty, withdrawBounty, type BountyTarget } from './bounties';
+import { board, buyOff, cannotPlace, claimBounty, ensureBounties, fairPrice, placeBounty, withdrawBounty, retainHunter, sendRetained, retainerFee, cannotRetain, caigeEdge, type BountyTarget } from './bounties';
+import { phaseLedger } from './economy';
 import type { World } from './types';
 
 const corsair = (w: World): BountyTarget => { const f = Object.values(w.lanes.factions)[0]!; const m = f.members.find((x) => x.role === 'captain' && !x.fate)!; return { kind: 'corsair', factionId: f.id, memberId: m.id }; };
@@ -70,5 +71,34 @@ describe('bounties', () => {
     w = buyOff(w, 'btx');
     expect(w.bounties!.list.find((b) => b.id === 'btx')!.status).toBe('withdrawn');
     expect(econ(w, w.playerHouseId).stock.othes).toBe(7000);
+  });
+
+  it('a hunter can be retained, costs by the Phase, and can be sent quietly', () => {
+    let w = structuredClone(createWorld());
+    econ(w, w.playerHouseId).stock.othes = 50000;
+    const s = ensureBounties(w);
+    const h = Object.values(s.hunters).find((x) => x.status === 'free')!;
+    expect(cannotRetain(w, h.id)).toBeNull();
+    w = retainHunter(w, h.id);
+    expect(econ(w, w.playerHouseId).stock.othes).toBe(50000 - retainerFee(h));
+    expect(phaseLedger(w, w.playerHouseId).some((l) => l.label.includes(h.epithet))).toBe(true);
+    const t = corsair(w);
+    w = sendRetained(w, h.id, t, 2000, 'either');
+    const b = w.bounties!.list[0]!;
+    expect(b.hunterId).toBe(h.id);
+    expect(b.open).toBe(false);
+  });
+
+  it('a price on a hunter brings their rival first, and Caiges count in a fight', () => {
+    let w = structuredClone(createWorld());
+    econ(w, w.playerHouseId).stock.othes = 80000;
+    const s = ensureBounties(w);
+    const prey = Object.values(s.hunters).find((x) => x.rivalId)!;
+    const t: BountyTarget = { kind: 'hunter', id: prey.id };
+    w = placeBounty(w, t, fairPrice(w, t) * 2, 'dead', true);
+    w = advanceTurns(w, 120);
+    const b = w.bounties!.list.find((x) => x.target.kind === 'hunter')!;
+    expect(b.status === 'hunted' || b.status === 'done' || b.beaten?.length).toBeTruthy();
+    expect(caigeEdge({ ...prey, caige: { name: 'x', form: 'a spear', cdi: 0.9 } })).toBeGreaterThan(caigeEdge({ ...prey, caige: undefined }));
   });
 });
