@@ -705,3 +705,12 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .ctable.council-t { table-layout: fixed; }
 .ctable.council-t td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ctable.council-t th:nth-child(1) { width: 24%; } .ctable.council-t th:nth-child(2) { width: 26%; } .ctable.council-t th:nth-child(3) { width: 10%; } .ctable.council-t th:nth-child(4) { width: 26%; } .ctable.council-t th:nth-child(5) { width: 14%; }
+
+/* audiences */
+.btn.talk-line { height: auto; min-height: 34px; padding: 8px 12px; text-align: left; justify-content: flex-start; white-space: normal; text-transform: none; letter-spacing: 0; line-height: 1.4; display: block; width: 100%; font-weight: 400; }
+.talk-log { display: flex; flex-direction: column; gap: 6px; padding: 8px 0 4px; border-bottom: 1px dashed var(--line); margin-bottom: 6px; }
+.talk-said { margin: 0; font-size: 13px; line-height: 1.5; }
+.talk-said.them { color: var(--fg); padding-left: 12px; border-left: 2px solid var(--line); }
+.talk-said.us { color: var(--hi); }
+.talk-said.good { border-left-color: var(--gold); }
+.talk-said.bad { border-left-style: dashed; color: var(--muted); }

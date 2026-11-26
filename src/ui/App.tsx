@@ -1,6 +1,7 @@
 import { ExchangePage } from './exchange';
 import { BountiesPage } from './bounties';
 import { IntelPage } from './intel';
+import { TalkPage } from './talk';
 import { useHouseTheme } from './theme';
 import { InspectLayer, PortShipHead } from './inspect';
 import { InspectContext, type Inspect, type Inspector } from './context';
@@ -293,6 +294,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'missions': return <MissionsPage />;
     case 'bounties': return <BountiesPage />;
     case 'intel': return <IntelPage />;
+    case 'talk': return <TalkPage id={route.id} />;
     case 'mission': return <MissionPage id={route.id} />;
     case 'plan': return <PlanPage key={`${route.mission}-${route.target ?? ''}-${route.petition ?? ''}-${route.lead ?? ''}`} kind={route.mission} target={route.target} leader={route.leader} petition={route.petition} lead={route.lead} />;
     case 'council': return <CouncilPage />;

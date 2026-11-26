@@ -358,6 +358,7 @@ export function Desk({ className }: { className?: string }) {
   }
   { const best = board(world).filter((b) => b.status === 'open' && !(b.poster.kind === 'house' && b.poster.houseId === P)).sort((a, c) => c.reward - a.reward)[0];
     if (best) items.push({ id: best.id, mark: '[$]', kind: 'BOUNTY', quiet: true, text: <>On the board: {best.reward.toLocaleString('en-US')} for {viewTarget(world, best.target)?.name}</>, when: inCycles(world, best.expires), open: () => nav.to({ kind: 'bounties' }) }); }
+  if (world.talk && !world.talk.done) { const g = world.characters[world.talk.with]; if (g) items.push({ id: 'talk', mark: '["]', kind: 'AUDIENCE', text: <>{g.name.given} is waiting for you to finish the audience</>, open: () => nav.to({ kind: 'talk', id: g.id }), acts: [{ label: 'Go back ›', primary: true, run: (w) => w, go: () => nav.to({ kind: 'talk', id: g.id }) }] }); }
   {
     // The cells and what they have given us.
     for (const cap of captivesHeldBy(world, P)) {

@@ -1,4 +1,5 @@
 import { MarksList } from './account';
+import { cannotTalk } from '../sim/talk';
 import { ThemePicker } from './theme';
 import { anchored, circleOf, CIRCLE_CAP, knownTo, letFade, pin } from '../sim/circle';
 import { HouseDealings, HousesOverview, PoachPanel } from './realm';
@@ -315,6 +316,12 @@ export function CharacterPage({ id }: { id: string }) {
               {v.hiddenTraits > 0 ? <span className="chip unknown" title="Your people have not learned this yet">{v.hiddenTraits} unknown</span> : null}
               {onMission ? <Go to={{ kind: 'mission', id: onMission.id }} className="chip link mission">On mission · {MISSION_LABEL[onMission.kind]}</Go> : null}
             </div>
+            {c.alive && c.id !== lordId ? (() => { const why = cannotTalk(world, c.id); return (
+              <span className="actions">
+                <Go to={{ kind: 'talk', id: c.id }} className="btn small primary" title={why ?? 'Sit down with them: three exchanges'}>{world.talk && !world.talk.done && world.talk.with === c.id ? 'Back to the audience ›' : 'Ask for an audience ›'}</Go>
+                {why && !(world.talk?.with === c.id) ? <span className="muted" style={{ fontSize: 12 }}>{why}</span> : null}
+              </span>
+            ); })() : null}
           </div>
         </div>
       </section>

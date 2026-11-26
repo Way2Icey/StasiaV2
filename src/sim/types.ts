@@ -620,6 +620,10 @@ export interface World {
   bounties?: import('./bounties').BountyState;
   /** What our cells and our agents have given us, and the wrongs that give a reason for war. */
   intel?: import('./turning').IntelState;
+  /** The audience under way, if any. */
+  talk?: import('./talk').Talk;
+  /** What each person remembers of talking with us. */
+  talks?: Record<string, import('./talk').TalkMemory>;
   /** Battles under way or waiting to be watched. */
   battles?: import('./battle').BattlesState;
 }

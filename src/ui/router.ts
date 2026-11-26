@@ -15,6 +15,7 @@ export type Route =
   | { kind: 'missions' }
   | { kind: 'bounties' }
   | { kind: 'intel' }
+  | { kind: 'talk'; id: string }
   | { kind: 'mission'; id: string }
   | { kind: 'plan'; mission: 'investigate' | 'scout' | 'envoy'; target?: string; leader?: string; petition?: string; lead?: string }
   | { kind: 'council' }
@@ -64,7 +65,7 @@ export function sectionOf(r: Route): Section | null {
     case 'throne': case 'legacy': return 'hall';
     case 'council': case 'seat': return 'court';
     case 'people': return r.view === 'ambitions' ? 'court' : 'people';
-    case 'training': case 'character': case 'trait': case 'flag': case 'species': case 'band': case 'family': return 'people';
+    case 'training': case 'character': case 'talk': case 'trait': case 'flag': case 'species': case 'band': case 'family': return 'people';
     case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': case 'war': return 'arms';
     case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'lanes': case 'frontier': case 'places': return 'realm';
     case 'houses': case 'house': case 'embassies': case 'numarade': case 'history': case 'chair': return 'archon';
@@ -168,6 +169,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'missions': return 'Missions';
     case 'bounties': return 'Bounties';
     case 'intel': return 'Cells & intel';
+    case 'talk': return `Audience · ${world.characters[r.id]?.name.given ?? ''}`;
     case 'council': return 'Council';
     case 'seat': return SEAT_TITLE[r.id];
     case 'economy': return 'Ledger';
