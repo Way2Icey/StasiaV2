@@ -36,7 +36,7 @@ export function cannotAssault(w: World, siteId: string, shipIds: string[]): stri
   return null;
 }
 
-function assaultPower(w: World, houseId: string, ships: CapitalShip[]): number {
+export function assaultPower(w: World, houseId: string, ships: CapitalShip[]): number {
   return ships.reduce((t, s) => t + powerOf(w, s), 0) / 4 * equipPower(w, houseId);
 }
 

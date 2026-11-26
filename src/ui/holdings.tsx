@@ -157,6 +157,7 @@ export function ModuleView({ m }: { m: Module }) {
 function CellsView({ m }: { m: Module }) {
   const world = useWorld();
   const { run } = usePlay();
+  const nav = useNav();
   const [confirm, setConfirm] = useState<string | null>(null);
   const { captives, prisoners } = inmates(world, m.id);
   const load = captives.length + prisoners.length;
@@ -200,7 +201,8 @@ function CellsView({ m }: { m: Module }) {
                           <button type="button" className="btn small" disabled={cap.interrogated || cap.treatment === 'isolation'} onClick={() => run((w) => interrogateCaptive(w, c.id))}>Question</button>{' '}
                           <button type="button" className="btn small" disabled={!!cap.ransom} title={`About ${fmt(ransomValue(world, c))} othes`} onClick={() => run((w) => demandRansom(w, c.id))}>Ransom</button>{' '}
                           <button type="button" className="btn small" onClick={() => run((w) => releaseCaptive(w, c.id))}>Release</button>{' '}
-                          <button type="button" className="btn small" onClick={() => setConfirm(c.id)}>Execute…</button>
+                          <button type="button" className="btn small" onClick={() => setConfirm(c.id)}>Execute…</button>{' '}
+<button type="button" className="btn small" onClick={() => nav.to({ kind: 'intel' })}>Cells ›</button>
                         </>
                       )}
                     </td>

@@ -4,6 +4,8 @@
 import { board, buyOff, buyOffCost, onOurHeads, viewTarget } from '../sim/bounties';
 import { musterByCouncil } from '../sim/crucible';
 import { econ } from '../sim/economy';
+import { cannotTurn, liveIntel } from '../sim/turning';
+import { captivesHeldBy } from '../sim/captives';
 import { Peek } from './links';
 import { readyForCommand } from '../sim/missions';
 import { answerBlooding, LOCAL_COST, readinessText } from '../sim/ladder';
@@ -356,6 +358,15 @@ export function Desk({ className }: { className?: string }) {
   }
   { const best = board(world).filter((b) => b.status === 'open' && !(b.poster.kind === 'house' && b.poster.houseId === P)).sort((a, c) => c.reward - a.reward)[0];
     if (best) items.push({ id: best.id, mark: '[$]', kind: 'BOUNTY', quiet: true, text: <>On the board: {best.reward.toLocaleString('en-US')} for {viewTarget(world, best.target)?.name}</>, when: inCycles(world, best.expires), open: () => nav.to({ kind: 'bounties' }) }); }
+  {
+    // The cells and what they have given us.
+    for (const cap of captivesHeldBy(world, P)) {
+      const c = world.characters[cap.characterId];
+      if (c && !cannotTurn(world, c.id)) items.push({ id: `turn:${c.id}`, mark: '[⇄]', kind: 'CELLS', quiet: true, text: <>{c.name.given} is worn down far enough to turn</>, open: () => nav.to({ kind: 'intel' }), acts: [{ label: 'Cells ›', run: (w) => w, go: () => nav.to({ kind: 'intel' }) }] });
+    }
+    const way = liveIntel(world, 'site')[0];
+    if (way) items.push({ id: `intel:${way.id}`, mark: '[◎]', kind: 'INTEL', quiet: true, text: <>A way into {world.places?.sites[way.siteId ?? '']?.name ?? 'a station'}, before it goes stale</>, when: inCycles(world, way.expires), open: () => nav.to({ kind: 'intel' }) });
+  }
   for (const e of (world.grounds?.circuit ?? []).filter((x) => !x.done && x.host !== P && (x.invited?.includes(P) || x.kind === 'public') && !x.entrants.some((y) => y.houseId === P))) {
     const inv = e.invited?.includes(P);
     items.push({ id: e.id, mark: '[»]', kind: inv ? 'INVITATION' : 'TOURNEY', text: <>{inv ? `House ${world.houses[e.host!]?.name} invites us: ` : ''}{e.name}</>, quiet: !inv, when: inCycles(world, e.held), open: () => nav.to({ kind: 'grounds' }), detail: e.kind === 'underground' ? <span className="muted" style={{ fontSize: 12 }}>No one is sent to the pits. Those who want to fight will go on their own; forbid it on the grounds if the house will not have it.</span> : undefined,

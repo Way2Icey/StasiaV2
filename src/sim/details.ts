@@ -33,7 +33,7 @@ export interface Account {
 const MAX_MARKS = 16;
 
 /** Accounts are told in sentences: each line starts with a capital, whoever it starts with. */
-const told = (by: string, lines: string[]): Account => ({ by, lines: lines.filter(Boolean).map((l) => l.charAt(0).toUpperCase() + l.slice(1)) });
+export const told = (by: string, lines: string[]): Account => ({ by, lines: lines.filter(Boolean).map((l) => l.charAt(0).toUpperCase() + l.slice(1)) });
 /** Nameless fighters are numbered in the fight ("a soldier 2"); in the telling they are just soldiers. */
 const plain = (t: string) => t.replace(/ \d+\b/g, '');
 const KEEP: MarkKind[] = ['kill', 'scar', 'grudge', 'shame'];

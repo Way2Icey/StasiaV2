@@ -14,6 +14,7 @@ export type Route =
   | { kind: 'save' }
   | { kind: 'missions' }
   | { kind: 'bounties' }
+  | { kind: 'intel' }
   | { kind: 'mission'; id: string }
   | { kind: 'plan'; mission: 'investigate' | 'scout' | 'envoy'; target?: string; leader?: string; petition?: string; lead?: string }
   | { kind: 'council' }
@@ -68,7 +69,7 @@ export function sectionOf(r: Route): Section | null {
     case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'lanes': case 'frontier': case 'places': return 'realm';
     case 'houses': case 'house': case 'embassies': case 'numarade': case 'history': case 'chair': return 'archon';
     case 'economy': case 'exchange': case 'loans': case 'vaults': case 'spend': return 'treasury';
-    case 'missions': case 'mission': case 'plan': case 'bounties': return 'missions';
+    case 'missions': case 'mission': case 'plan': case 'bounties': case 'intel': return 'missions';
     case 'log': return 'log';
     case 'save': case 'newgame': return 'save';
     case 'glossary': return 'glossary';
@@ -147,6 +148,7 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'Scout', to: { kind: 'plan', mission: 'scout' }, on: (r) => r.kind === 'plan' && r.mission === 'scout' },
     { label: 'Envoy', to: { kind: 'plan', mission: 'envoy' }, on: (r) => r.kind === 'plan' && r.mission === 'envoy' },
     { label: 'Bounties', to: { kind: 'bounties' }, on: (r) => r.kind === 'bounties' },
+    { label: 'Cells & intel', to: { kind: 'intel' }, on: (r) => r.kind === 'intel' },
   ],
 };
 
@@ -165,6 +167,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'save': return 'Save & Load';
     case 'missions': return 'Missions';
     case 'bounties': return 'Bounties';
+    case 'intel': return 'Cells & intel';
     case 'council': return 'Council';
     case 'seat': return SEAT_TITLE[r.id];
     case 'economy': return 'Ledger';

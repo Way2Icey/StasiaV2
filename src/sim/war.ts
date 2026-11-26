@@ -10,6 +10,7 @@
 // counted, not named, until a battle gives one of them a reason to matter: the survivor who fled and comes
 // back for the knight who broke the line, the wounded soldier who carried a knight out. Then the game names
 // them, and they carry it.
+import { wrongsAgainst } from './turning';
 import { grievedSites, transferSite } from './places';
 import { equipPower } from './standing';
 import { hasWork } from './treasury';
@@ -306,6 +307,7 @@ export function grievances(w: World, us: string, them: string): string[] {
   if ((w.war?.named ?? []).some((n) => n.houseId === them && n.against && w.characters[n.against]?.houseId === us)) out.push('One of theirs hunts one of ours.');
   if (w.war?.liege[them] === us) out.push('They are sworn to us.');
   for (const s of grievedSites(w, us, them)) out.push(`They hold ${s.name}, which was ours.`);
+  out.push(...wrongsAgainst(w, us, them));
   return out;
 }
 

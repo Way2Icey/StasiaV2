@@ -18,7 +18,7 @@ import { alive } from '../sim/query';
 import { BAND_COLOR, SectorLink } from './links';
 import { shortName } from '../sim/names';
 import type { Character, CouncilSeat, Petition, World } from '../sim/types';
-import { useGame, useWorld } from './context';
+import { useGame, useNav, useWorld } from './context';
 import { CouncilGrid, HouseholdPanel } from './seats';
 import { Go, HouseLink, Panel, PersonById, PersonLink, PlanetLink } from './links';
 
@@ -324,6 +324,7 @@ export function RelationsPanel({ className }: { className?: string }) {
 export function CaptivesPanel({ className, hideWhenEmpty }: { className?: string; hideWhenEmpty?: boolean }) {
   const world = useWorld();
   const game = useGame();
+  const nav = useNav();
   const [confirm, setConfirm] = useState<string | null>(null);
   const held = captivesHeldBy(world, world.playerHouseId);
   if (hideWhenEmpty && !held.length) return null;
@@ -352,7 +353,8 @@ export function CaptivesPanel({ className, hideWhenEmpty }: { className?: string
                   <button type="button" className="btn small primary" disabled={cap.interrogated} onClick={() => game.update((w) => interrogateCaptive(w, c.id))}>Interrogate</button>
                   <button type="button" className="btn small" disabled={!!cap.ransom} onClick={() => game.update((w) => demandRansom(w, c.id))}>Demand ransom</button>
                   <button type="button" className="btn small" onClick={() => game.update((w) => releaseCaptive(w, c.id))}>Release</button>
-                  <button type="button" className="btn small" onClick={() => setConfirm(c.id)}>Execute…</button>
+                  <button type="button" className="btn small" onClick={() => setConfirm(c.id)}>Execute…</button>{' '}
+<button type="button" className="btn small" onClick={() => nav.to({ kind: 'intel' })}>Cells ›</button>
                 </>
               )}
             </span>

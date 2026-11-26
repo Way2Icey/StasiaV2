@@ -411,6 +411,8 @@ export interface Captive {
   cellId?: string;
   treatment?: import('./holdings').Treatment;
   reason?: import('./holdings').HoldReason;
+  /** Questioning: how much resolve they have left, and how it was worn down. */
+  cell?: import('./turning').Cell;
 }
 
 // ---------------------------------------------------------------- economy
@@ -616,6 +618,8 @@ export interface World {
   places?: import('./places').PlacesState;
   /** Prices on heads, and the people who collect them. */
   bounties?: import('./bounties').BountyState;
+  /** What our cells and our agents have given us, and the wrongs that give a reason for war. */
+  intel?: import('./turning').IntelState;
   /** Battles under way or waiting to be watched. */
   battles?: import('./battle').BattlesState;
 }
