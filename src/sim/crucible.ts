@@ -575,23 +575,8 @@ function aiContingent(w: World, rng: Rng, houseId: string): Contingent {
 function land(w: World, rng: Rng) {
   const P = w.playerHouseId;
   const cr = w.crucible;
-  // Left too long, the council musters for us, as it answers any decision left to it: the best it can
-  // find, three knights, our own ship if one is free. Only if it cannot be done do we send no one.
-  if (cr.entrants.includes(P) && !cr.contingents[P]) {
-    const pool = eligible(w, P);
-    const taken = new Set<string>();
-    const pick = (score: (c: Character) => number) => { const c = pool.filter((x) => !taken.has(x.id)).sort((a, b) => score(b) - score(a))[0]; if (c) taken.add(c.id); return c; };
-    const marshal = pick(marshalScore), champion = pick(championScore);
-    const knights = [pick(knightScore), pick(knightScore), pick(knightScore)].filter((k): k is Character => !!k);
-    const ship = Object.values(w.fleet?.ships ?? {}).find((s) => s.houseId === P && !s.lost && !s.ready && s.duty === 'harbour' && !s.arrives);
-    const c: Contingent = { houseId: P, marshalId: marshal?.id ?? null, championId: champion?.id ?? null, knights: knights.map((k) => k.id), men: menFor(knights.length), shipId: ship?.id, menLost: 0 };
-    if (!cannotEnter(w, c)) {
-      pay(w, P, c);
-      cr.contingents[P] = c;
-      commit(w, c);
-      logRecord(w, { kind: 'world', type: 'politics', severity: 2, text: `Left to the council, our contingent sails for ${BATTLE_WORLD}: ${shortName(champion!.name)} as champion, ${knights.length} knights, ${displayName(marshal!.name)} as Marshal.`, who: contingentPeople(c).map((id) => ({ id, part: id === c.marshalId ? 'Marshal' : id === c.championId ? 'champion' : 'knight' })), effects: [`−${fmt(contingentCost(c).othes)} othes`] });
-    }
-  }
+  // Left too long, the council musters for us, as it answers any decision left to it.
+  if (cr.entrants.includes(P) && !cr.contingents[P]) councilMuster(w, 'Left to the council');
   if (cr.entrants.includes(P) && !cr.contingents[P]) {
     cr.entrants = cr.entrants.filter((h) => h !== P);
     const st = w.houses[P]!.standing;
@@ -987,4 +972,32 @@ export function advanceCrucible(world: World, rng: Rng, phaseTurned: boolean): v
 export function standings(world: World): string[] {
   const T = world.crucible.table;
   return Object.keys(T).sort((a, b) => T[b]!.held - T[a]!.held || T[b]!.won - T[a]!.won || T[a]!.menLost - T[b]!.menLost);
+}
+
+/** The council musters our contingent: the best it can find, three knights, our own ship if one is free. */
+function councilMuster(w: World, why: string): boolean {
+  const cr = w.crucible!;
+  const P = w.playerHouseId;
+  const pool = eligible(w, P);
+  const taken = new Set<string>();
+  const pick = (score: (c: Character) => number) => { const c = pool.filter((x) => !taken.has(x.id)).sort((a, b) => score(b) - score(a))[0]; if (c) taken.add(c.id); return c; };
+  const marshal = pick(marshalScore), champion = pick(championScore);
+  const knights = [pick(knightScore), pick(knightScore), pick(knightScore)].filter((k): k is Character => !!k);
+  const ship = Object.values(w.fleet?.ships ?? {}).find((s) => s.houseId === P && !s.lost && !s.ready && s.duty === 'harbour' && !s.arrives);
+  const c: Contingent = { houseId: P, marshalId: marshal?.id ?? null, championId: champion?.id ?? null, knights: knights.map((k) => k.id), men: menFor(knights.length), shipId: ship?.id, menLost: 0 };
+  if (cannotEnter(w, c)) return false;
+  pay(w, P, c);
+  cr.contingents[P] = c;
+  commit(w, c);
+  logRecord(w, { kind: 'world', type: 'politics', severity: 2, text: `${why}, our contingent sails for ${BATTLE_WORLD}: ${shortName(champion!.name)} as champion, ${knights.length} knights, ${displayName(marshal!.name)} as Marshal.`, who: contingentPeople(c).map((id) => ({ id, part: id === c.marshalId ? 'Marshal' : id === c.championId ? 'champion' : 'knight' })), effects: [`−${fmt(contingentCost(c).othes)} othes`] });
+  return true;
+}
+
+/** The player hands the muster to the council now, instead of choosing each place. */
+export function musterByCouncil(input: World): World {
+  const w = structuredClone(input);
+  const P = w.playerHouseId;
+  if (!w.crucible?.entrants.includes(P) || w.crucible.contingents[P]) throw new Error('There is no muster to make');
+  if (!councilMuster(w, 'At the Highroy\'s word')) throw new Error('The council cannot raise a contingent we can pay for');
+  return w;
 }

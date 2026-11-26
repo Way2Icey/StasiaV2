@@ -255,7 +255,7 @@ function needsAttention(w: World, b: Attention, prefs: StopPrefs = DEFAULT_STOPS
   const hits: [boolean, StopKind, string][] = [
     [a.battles > b.battles, 'decision', 'A battle has begun.'],
     [a.decisions > b.decisions, 'decision', 'A decision awaits your word.'],
-    [a.alerts > b.alerts, 'word', 'Word has come that needs you.'],
+    [a.alerts > b.alerts, 'word', 'Something new is on the desk.'],
     [a.done > b.done, 'mission', 'A mission has come home.'],
     [a.demands > b.demands, 'captive', 'A ransom demand has arrived.'],
     [a.held > b.held, 'captive', 'We have caught someone.'],

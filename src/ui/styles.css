@@ -702,3 +702,6 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .desk-item .kind { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; }
 .desk-item.quiet .glyph { color: var(--muted); }
 .desk-item[aria-pressed='true'] .glyph, .desk-item[aria-pressed='true'] .kind { color: var(--ink); }
+.ctable.council-t { table-layout: fixed; }
+.ctable.council-t td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctable.council-t th:nth-child(1) { width: 24%; } .ctable.council-t th:nth-child(2) { width: 26%; } .ctable.council-t th:nth-child(3) { width: 10%; } .ctable.council-t th:nth-child(4) { width: 26%; } .ctable.council-t th:nth-child(5) { width: 14%; }

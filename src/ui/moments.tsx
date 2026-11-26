@@ -3,12 +3,13 @@
 import { useEffect, useRef } from 'react';
 import { useWorld } from './context';
 import { Decision } from './events';
-import { useGame } from './context';
+import { useGame, useNav } from './context';
 import { battleOf, fightItOut, THEATRES } from '../sim/battle';
 
 export function MomentWindow({ ids, reason, battle, onClose, onCommand }: { ids: string[]; reason: string; battle?: string; onClose: (resume: boolean) => void; onCommand: (id: string) => void }) {
   const world = useWorld();
   const game = useGame();
+  const nav = useNav();
   const bt = battle ? battleOf(world, battle) : undefined;
   const live = ids.map((id) => world.events.pending.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p);
   const answered = useRef(false);
@@ -39,7 +40,7 @@ export function MomentWindow({ ids, reason, battle, onClose, onCommand }: { ids:
             </div>
           </div>
         ) : !ids.length ? (
-          <div className="actions body"><button type="button" className="btn primary" onClick={() => onClose(true)}>Carry on ▶</button></div>
+          <div className="actions body"><button type="button" className="btn primary" onClick={() => onClose(true)}>Carry on ▶</button><button type="button" className="btn" onClick={() => { nav.to({ kind: 'throne' }); onClose(false); }}>See the desk ›</button></div>
         ) : null}
       </div>
     </div>

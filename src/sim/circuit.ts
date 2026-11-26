@@ -165,6 +165,16 @@ export function enterCircuit(input: World, eventId: string, ids: string[]): Worl
   return w;
 }
 
+/** The best of ours who can go, up to the limit: what the Grand Master would send if asked. */
+export function bestFor(world: World, eventId: string): string[] {
+  const e = world.grounds?.circuit.find((x) => x.id === eventId);
+  if (!e) return [];
+  const P = world.playerHouseId;
+  const room = MAX_SENT - e.entrants.filter((x) => x.houseId === P).length;
+  return fighters(world, P).filter((c) => world.ladder?.of[c.id]?.stage !== 'pupil' && !e.entrants.some((x) => x.id === c.id))
+    .sort((a, b) => fightScore(b) - fightScore(a)).slice(0, Math.max(0, room)).map((c) => c.id);
+}
+
 export function declineCircuit(input: World, eventId: string): World {
   const w = structuredClone(input);
   ensureGrounds(w);
@@ -172,7 +182,8 @@ export function declineCircuit(input: World, eventId: string): World {
   if (!e) return w;
   const P = w.playerHouseId;
   e.invited = e.invited?.filter((h) => h !== P);
-  if (e.host && w.houses[e.host]) shiftRelation(w, P, e.host, -1);
+  // Turning down a pit night is no slight: no house sends anyone to the pits.
+  if (e.host && w.houses[e.host] && e.kind !== 'underground') shiftRelation(w, P, e.host, -1);
   return w;
 }
 

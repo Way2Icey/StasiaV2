@@ -77,6 +77,7 @@ export function useClock(world: World, setWorld: (fn: (w: World) => World) => vo
 export function ClockControl({ world, setWorld, clock, onFreeze }: { world: World; setWorld: (fn: (w: World) => World) => void; clock: ClockApi; onFreeze: (events: string[], reason: string, battle?: string, scene?: string) => void }) {
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => { if (!notice) return; const t = window.setTimeout(() => setNotice(null), 9000); return () => window.clearTimeout(t); }, [notice]);
   const menuRef = useRef<HTMLDivElement>(null);
   const latest = useRef(world);
   latest.current = world;

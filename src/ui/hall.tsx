@@ -1,6 +1,8 @@
 // The Hall: the home screen in the terminal look. A drawing of the throne room
 // that follows the house's state, the council as a table, and the Desk, where
 // everything waiting on the Highroy lands.
+import { musterByCouncil } from '../sim/crucible';
+import { econ } from '../sim/economy';
 import { Peek } from './links';
 import { readyForCommand } from '../sim/missions';
 import { answerBlooding, LOCAL_COST, readinessText } from '../sim/ladder';
@@ -12,7 +14,7 @@ import { petitionTarget } from './council';
 import { lettersFor, noteOn, REPORTER_LABEL, REPORTER_REACH, reporterOf, REPORTERS, type Reporter } from '../sim/reports';
 import { seasonLine, titlesOf, totals } from '../sim/careers';
 import { answerChallenge } from '../sim/grounds';
-import { declineCircuit } from '../sim/circuit';
+import { bestFor, cannotEnter, declineCircuit, enterCircuit } from '../sim/circuit';
 import { answerIntake, answerPupilOffer, cannotTakeIntake } from '../sim/training';
 import { answerAsk } from '../sim/loans';
 import { dismissLead, recruit } from '../sim/discovery';
@@ -162,7 +164,7 @@ export function CouncilTable({ className }: { className?: string }) {
   return (
     <Panel title={<Term k="council">The council</Term>} aside={`${council.length - away} home · ${away} away`} className={className}>
       <div className="table-wrap">
-        <table className="ctable">
+        <table className="ctable council-t">
           <thead><tr><th>SEAT</th><th>NAME</th><th>WHERE</th><th>TASK</th><th>MOOD</th></tr></thead>
           <tbody>
             {council.map((c) => {
@@ -235,7 +237,7 @@ export function Desk({ className }: { className?: string }) {
     });
   }
   const cr = world.crucible;
-  if (cr?.stage === 'drawn' && cr.entrants.includes(P) && !cr.contingents[P]) items.push({ id: 'crucible-open', mark: '[⚔]', kind: 'CRUCIBLE', text: <>We are drawn for the Crucible: raise our contingent</>, when: `by Orbit ${CLOSES}`, open: () => nav.to({ kind: 'crucible' }), acts: [{ label: 'Muster ›', primary: true, run: (w) => w, go: () => nav.to({ kind: 'crucible' }) }] });
+  if (cr?.stage === 'drawn' && cr.entrants.includes(P) && !cr.contingents[P]) items.push({ id: 'crucible-open', mark: '[⚔]', kind: 'CRUCIBLE', text: <>We are drawn for the Crucible: raise our contingent</>, when: `by Orbit ${CLOSES}`, open: () => nav.to({ kind: 'crucible' }), acts: [{ label: 'Muster ›', primary: true, run: (w) => w, go: () => nav.to({ kind: 'crucible' }) }, { label: 'Leave it to the council', title: 'They choose the Marshal, champion and knights, and pay for them', run: (w) => musterByCouncil(w) }] });
   const round = cr?.stage === 'campaign' && cr.contingents[P] && !cr.contingents[P]!.out ? currentRound(world) : undefined;
   if (round && !round.stance[P]) items.push({ id: `cs-${round.orbit}`, mark: '[⚔]', kind: 'CRUCIBLE', text: <>Orbit {round.orbit} on the battle world: choose the Marshal's stance</>, when: `Orbit ${round.orbit}`, open: () => nav.to({ kind: 'crucible' }), acts: [{ label: 'Choose ›', primary: true, run: (w) => w, go: () => nav.to({ kind: 'crucible' }) }] });
   for (const au of world.ambitions?.audiences ?? []) {
@@ -276,7 +278,7 @@ export function Desk({ className }: { className?: string }) {
     items.push({ id: h.id, mark: '[$]', kind: 'CREW', text: <>{f ? f.name[0]!.toUpperCase() + f.name.slice(1) : 'Corsairs'} hold the {h.crew} crew of {h.what} · {h.ransom.toLocaleString('en-US')}</>, when: inCycles(world, h.expires),
       open: () => setOpen((o) => (o === h.id ? null : h.id)),
       detail: <span className="muted" style={{ fontSize: 12 }}>Sent up through the Steward. Pay, and they come home and the company thinks better of us. Refuse, and they are sold to the deep mines. <button type="button" className="linklike" onClick={() => nav.to({ kind: 'lanes' })}>The lanes ›</button></span>,
-      acts: [{ label: `Pay · ${h.ransom.toLocaleString('en-US')}`, primary: true, run: (w) => answerCrew(w, h.id, true) }, { label: 'Refuse', run: (w) => answerCrew(w, h.id, false) }] });
+      acts: [{ label: `Pay · ${h.ransom.toLocaleString('en-US')}`, primary: true, disabled: econ(world, P).stock.othes < h.ransom, title: econ(world, P).stock.othes < h.ransom ? `We have ${Math.floor(econ(world, P).stock.othes).toLocaleString('en-US')} othes` : undefined, run: (w) => answerCrew(w, h.id, true) }, { label: 'Refuse', run: (w) => answerCrew(w, h.id, false) }] });
   }
   for (const o of world.lanes?.offers ?? []) {
     items.push({ id: o.id, mark: '[$]', kind: 'COMPACT', text: <>House {world.houses[o.from]?.name} offers a trade compact</>, when: inCycles(world, o.expires), open: () => nav.to({ kind: 'lanes' }),
@@ -313,7 +315,7 @@ export function Desk({ className }: { className?: string }) {
     items.push({ id: `r-${c.id}`, mark: '[$]', kind: 'RANSOM', text: <>{world.houses[cap.heldBy]?.name} holds {c.name.given} · {cap.ransom.amount.toLocaleString('en-US')}</>, when: inCycles(world, cap.ransom.expires), open: () => scrollTo('ransoms') });
   }
   for (const a of (world.loans?.asks ?? []).filter((x) => x.to === P)) {
-    items.push({ id: a.id, mark: '[$]', kind: 'LOAN', text: <>{world.houses[a.from]?.name} asks to borrow {a.amount.toLocaleString('en-US')}</>, when: inCycles(world, a.expires), open: () => nav.to({ kind: 'loans' }), acts: [{ label: 'Lend', primary: true, run: (w) => answerAsk(w, a.id, true) }, { label: 'Refuse', run: (w) => answerAsk(w, a.id, false) }] });
+    items.push({ id: a.id, mark: '[$]', kind: 'LOAN', text: <>{world.houses[a.from]?.name} asks to borrow {a.amount.toLocaleString('en-US')}</>, when: inCycles(world, a.expires), open: () => nav.to({ kind: 'loans' }), acts: [{ label: 'Lend', primary: true, disabled: econ(world, P).stock.othes < a.amount, title: econ(world, P).stock.othes < a.amount ? `We have ${Math.floor(econ(world, P).stock.othes).toLocaleString('en-US')} othes` : undefined, run: (w) => answerAsk(w, a.id, true) }, { label: 'Refuse', run: (w) => answerAsk(w, a.id, false) }] });
   }
   for (const l of Object.values(world.loans?.loans ?? {}).filter((x) => x.lender === P && x.overdue)) {
     items.push({ id: `d-${l.id}`, mark: '[$]', kind: 'DEFAULT', text: <>{world.houses[l.borrower]?.name} has not paid · {l.owed.toLocaleString('en-US')}</>, open: () => nav.to({ kind: 'loans' }) });
@@ -347,7 +349,8 @@ export function Desk({ className }: { className?: string }) {
   }
   for (const e of (world.grounds?.circuit ?? []).filter((x) => !x.done && x.host !== P && (x.invited?.includes(P) || x.kind === 'public') && !x.entrants.some((y) => y.houseId === P))) {
     const inv = e.invited?.includes(P);
-    items.push({ id: e.id, mark: '[»]', kind: inv ? 'INVITATION' : 'TOURNEY', text: <>{inv ? `House ${world.houses[e.host!]?.name} invites us: ` : ''}{e.name}</>, quiet: !inv, when: inCycles(world, e.held), open: () => nav.to({ kind: 'grounds' }), acts: inv ? [{ label: 'Enter a fighter ›', primary: true, run: (w) => w, go: () => nav.to({ kind: 'grounds' }) }, { label: 'Decline', run: (w) => declineCircuit(w, e.id) }] : undefined });
+    items.push({ id: e.id, mark: '[»]', kind: inv ? 'INVITATION' : 'TOURNEY', text: <>{inv ? `House ${world.houses[e.host!]?.name} invites us: ` : ''}{e.name}</>, quiet: !inv, when: inCycles(world, e.held), open: () => nav.to({ kind: 'grounds' }), detail: e.kind === 'underground' ? <span className="muted" style={{ fontSize: 12 }}>No one is sent to the pits. Those who want to fight will go on their own; forbid it on the grounds if the house will not have it.</span> : undefined,
+      acts: !inv ? undefined : e.kind === 'underground' ? [{ label: 'Noted', run: (w) => declineCircuit(w, e.id) }] : (() => { const best = bestFor(world, e.id); const why = cannotEnter(world, e.id, best); return [{ label: best.length ? `Send our best (${best.length})` : 'No one to send', primary: true, disabled: !!why, title: why ?? best.map((id) => world.characters[id]?.name.given).join(', '), run: (w: World) => enterCircuit(w, e.id, bestFor(w, e.id)) }, { label: 'Choose ›', run: (w: World) => w, go: () => nav.to({ kind: 'grounds' }) }, { label: 'Decline', run: (w: World) => declineCircuit(w, e.id) }]; })() });
   }
   for (const b of world.ladder?.proposals ?? []) {
     const c = world.characters[b.aspirantId];
