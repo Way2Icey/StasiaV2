@@ -5,7 +5,7 @@ import { cannotTalk } from '../sim/talk';
 import { ThemePicker } from './theme';
 import { anchored, circleOf, CIRCLE_CAP, knownTo, letFade, pin } from '../sim/circle';
 import { HouseDealings } from './realm';
-import { ArchonHousePage, ArchonPanel, RegisterPanel } from './archon';
+import { ArchonHousePage, ArchonPanel } from './archon';
 import { beginHeist, beginPact, whyNoAgent } from '../sim/scenes_api';
 import { CalendarPanel } from './calendar';
 import { DecisionsPanel } from './sections';
@@ -480,7 +480,6 @@ export function HousesPage({ open: openId }: { open?: string } = {}) {
           </Panel>
         ) : null}
         <Panel title="The houses" aside="open one" className="span-12"><HouseList open={d.open} /></Panel>
-        <RegisterPanel className="span-12" />
       </div>
       {openId ? <HouseDossier key={openId} id={openId} onClose={d.close} /> : null}
     </>

@@ -7,6 +7,7 @@ import { ArchonHouseLink, ArchonPanel } from './archon';
 import { HouseDealings, PoachPanel } from './realm';
 import { EmbassyPanel } from './embassies';
 import { DeclarePanel } from './war';
+import { RivalVaults } from './holdings';
 import { Regard } from './council';
 import { cannotCourt, courtHouse, COURT_COST, houseName, liveHouses, regardOf } from '../sim/archon';
 import { attitudeColor, relation } from '../sim/relations';
@@ -283,6 +284,7 @@ function Shadows({ id }: { id: string }) {
         {held.map((c) => <div key={c.characterId} className="row" style={{ fontSize: 13 }}><span style={{ flex: 1 }}>In our cells: <PersonById id={c.characterId} /></span></div>)}
         {intel.length || held.length ? <div className="body"><Go to={{ kind: 'intel' }} className="btn small">Cells & intel ›</Go></div> : null}
       </Panel>
+      <RivalVaults houseId={id} className="span-12" />
       {h ? <PoachPanel houseId={id} className="span-12" /> : null}
     </>
   );

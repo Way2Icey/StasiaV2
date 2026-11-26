@@ -43,7 +43,6 @@ export function ChairPage() {
       <div className="grid">
         {ours ? <Held /> : <Seeking />}
         <EnvyPanel />
-        <GuardsPanel />
       </div>
     </>
   );
@@ -69,13 +68,13 @@ function EnvyPanel() {
   );
 }
 
-function GuardsPanel() {
+export function GuardsPanel({ className = 'span-12' }: { className?: string }) {
   const world = useWorld();
   const { run, err } = usePlay();
   const C = ensureChair(world);
   const close = closeToChair(world).slice(0, 16);
   return (
-    <Panel scroll={380} title={<Term k="guards">Guards on our people</Term>} aside={`${guardCost(world).toLocaleString('en-US')} othes a Phase`} className="span-12">
+    <Panel scroll={380} title={<Term k="guards">Guards on our people</Term>} aside={`${guardCost(world).toLocaleString('en-US')} othes a Phase`} className={className}>
       <div className="body" style={{ display: 'grid', gap: 6 }}>
         <span className="muted" style={{ fontSize: 12 }}>The people nearest the house are the ones envy reaches for{isOurChair(world) ? ', and with the chair ours it reaches often' : ''}. A guard and a good Spymaster turn the knife aside; nothing makes anyone safe.</span>
         <div className="table-wrap"><table className="list">

@@ -1,6 +1,6 @@
 // Lanes & corsairs: our convoys under way, the danger on every lane, our customs post, and what we
 // have to do with the corsair companies.
-import { KnownConvoysPanel, TradeTermsPanel, WatchPanel } from './realm';
+import { KnownConvoysPanel, WatchPanel } from './realm';
 import { watchOf } from '../sim/lanewatch';
 import { useState } from 'react';
 import { useGame, useWorld } from './context';
@@ -106,7 +106,6 @@ export function LanesPage() {
         </Panel>
 
         <KnownConvoysPanel className="span-6" />
-        <TradeTermsPanel className="span-12" />
       </div>
       ) : view === 'corsairs' ? (
       <div className="grid">

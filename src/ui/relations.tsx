@@ -11,9 +11,10 @@ import { knowledgeOf } from '../sim/knowledge';
 import { isAway } from '../sim/court';
 import { SEAT_TITLE } from '../sim/world';
 import { shipsOf } from '../sim/fleet';
+import { GuardsPanel } from './chair';
 import type { Character, World } from '../sim/types';
 
-type View = 'opinions' | 'web' | 'factions' | 'ambitions' | 'young' | 'everyone';
+type View = 'opinions' | 'guards' | 'web' | 'factions' | 'ambitions' | 'young' | 'everyone';
 
 /** An opinion as a bar from -100 to +100, centred. */
 export function opinionBar(v: number): string {
@@ -63,10 +64,10 @@ export function RelationsPage({ focus: initial, view: initialView }: { focus?: s
   return (
     <>
       <div className="page-title">
-        <h2>{view === 'opinions' ? 'What the house thinks of you' : view === 'ambitions' ? 'Audiences & ambitions' : view === 'factions' ? 'Factions' : view === 'young' ? 'Younglings & wards' : view === 'everyone' ? 'Everyone' : 'Ties'}</h2>
-        <p>{view === 'opinions' ? 'What each of our people thinks of you, by where they stand in the house. Least fond first.' : 'Who feels what about whom. Pick anyone to see the house through their eyes. You see other houses\' ties only as far as you know their people.'}</p>
+        <h2>{view === 'guards' ? 'Guards on our people' : view === 'opinions' ? 'What the house thinks of you' : view === 'ambitions' ? 'Audiences & ambitions' : view === 'factions' ? 'Factions' : view === 'young' ? 'Younglings & wards' : view === 'everyone' ? 'Everyone' : 'Ties'}</h2>
+        <p>{view === 'guards' ? 'Envy reaches for the people nearest the house. Set a guard on each; it costs every Phase.' : view === 'opinions' ? 'What each of our people thinks of you, by where they stand in the house. Least fond first.' : 'Who feels what about whom. Pick anyone to see the house through their eyes. You see other houses\' ties only as far as you know their people.'}</p>
       </div>
-      {view === 'opinions' ? <OpinionsView /> : view === 'everyone' ? <PeoplePage /> : view === 'factions' ? <Factions /> : view === 'young' ? <Younglings /> : view === 'ambitions' ? <AmbitionsView /> : (
+      {view === 'guards' ? <div className="grid"><GuardsPanel /></div> : view === 'opinions' ? <OpinionsView /> : view === 'everyone' ? <PeoplePage /> : view === 'factions' ? <Factions /> : view === 'young' ? <Younglings /> : view === 'ambitions' ? <AmbitionsView /> : (
         <div className="grid">
           <Panel title="Our people" aside="by circle" className="span-4">
             {circles(world).map((g) => (

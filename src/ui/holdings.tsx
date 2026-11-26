@@ -71,7 +71,6 @@ export function HoldingsPage({ id }: { id?: string }) {
           {sel ? <ModuleView m={sel} /> : null}
         </div>
         <HeldAbroad className="span-6" />
-        <RivalVaults className="span-6" />
       </div>
     </>
   );
@@ -348,15 +347,17 @@ function HeldAbroad({ className }: { className?: string }) {
   );
 }
 
-function RivalVaults({ className }: { className?: string }) {
+export function RivalVaults({ className, houseId }: { className?: string; houseId: string }) {
   const world = useWorld();
   const { run, err } = usePlay();
   const P = world.playerHouseId;
-  const vaults = Object.values(world.holdings.modules).filter((m) => m.kind === 'vault' && m.houseId !== P && m.level > 0);
-  const [agent, setAgent] = useState<Record<string, string>>({});
   const spy = (h: string) => Object.values(world.characters).filter((c) => c.houseId === h && c.seat).reduce((n, c) => Math.max(n, knowledgeOf(world, P, c.id).depth), 0);
+  // We see a vault only once we know the house well enough to know where it keeps one.
+  const vaults = Object.values(world.holdings.modules).filter((m) => m.kind === 'vault' && m.houseId === houseId && m.level > 0 && spy(houseId) >= 25);
+  if (!vaults.length) return null;
+  const [agent, setAgent] = useState<Record<string, string>>({});
   return (
-    <Panel title="Other houses' vaults" aside="what our people have seen" className={className}>
+    <Panel title="Their vault" aside="what our people have seen" className={className}>
       {vaults.map((v) => {
         const a = agent[v.id] ?? '';
         const why = a ? cannotHeist(world, v.id, a) : null;
