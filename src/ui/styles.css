@@ -740,3 +740,19 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .hall-chip.gone { border-style: dashed; opacity: 0.6; }
 
 .standing-fx { margin: -2px 0 4px 14px; padding: 0; font-size: 11px; color: var(--muted); line-height: 1.45; }
+
+/* the council table */
+.council-table { display: flex; flex-direction: column; gap: 12px; }
+.ct-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; align-items: stretch; }
+.ct-row.ct-wrap { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.ct-board { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); border-radius: 50% / 38%; padding: 18px; min-height: 170px; text-align: center; background: var(--panel-2); }
+.ct-count { font: 700 34px var(--display); color: var(--gold); line-height: 1; }
+.table-seat.head { border-color: var(--gold); }
+.seat-voice { font-size: 12px; font-style: italic; color: var(--fg-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.seat-foot { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+.seat-votes { display: flex; gap: 4px; flex-wrap: wrap; }
+.vote { font-size: 10px; padding: 1px 5px; border: 1px solid var(--line); text-transform: none; }
+.vote.for { border-color: var(--gold); color: var(--gold); }
+.vote.against { border-style: dashed; color: var(--muted); }
+@media (max-width: 760px) { .ct-row { grid-template-columns: 1fr; } .ct-board { min-height: 100px; border-radius: 12px; } }
+.table-seat .bar { flex: none; height: 6px; align-self: stretch; max-width: none; }

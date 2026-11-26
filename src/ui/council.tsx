@@ -22,7 +22,7 @@ import { BAND_COLOR, SectorLink } from './links';
 import { shortName } from '../sim/names';
 import type { Character, CouncilSeat, Petition, World } from '../sim/types';
 import { useGame, useNav, useWorld } from './context';
-import { CouncilGrid, HouseholdPanel } from './seats';
+import { CouncilTable } from './seats';
 import { Go, HouseLink, Panel, PersonById, PersonLink, PlanetLink } from './links';
 
 // ---------------------------------------------------------------- shared bits
@@ -38,12 +38,16 @@ function Meter({ label, value, color, hint }: { label: ReactNode; value: number;
 }
 
 export function StandingPanel({ houseId, className }: { houseId: string; className?: string }) {
+  return <Panel title={<Term k="standing">Standing</Term>} aside={houseId === useWorld().playerHouseId ? '0–100 · what each does now' : '0–100'} className={className}><StandingBody houseId={houseId} /></Panel>;
+}
+
+export function StandingBody({ houseId }: { houseId: string }) {
   const world = useWorld();
   const h = world.houses[houseId]!;
   const me = world.playerHouseId;
   const fx = houseId === me ? standingFx(world, me) : null;
   return (
-    <Panel title={<Term k="standing">Standing</Term>} aside="0–100 · what each does now" className={className}>
+    <>
       <div className="body" style={{ display: 'grid', gap: 8 }}>
         <Meter label={<Term k="honour" />} value={h.standing.honour} color="var(--gold)" />
         {fx ? <ul className="standing-fx">{fx.honour.map((l) => <li key={l}>{l}</li>)}</ul> : null}
@@ -58,7 +62,7 @@ export function StandingPanel({ houseId, className }: { houseId: string; classNa
           </dl>
         ) : null}
       </div>
-    </Panel>
+    </>
   );
 }
 
@@ -118,8 +122,9 @@ export function CourtConcerns({ className }: { className?: string }) {
   const run = (fn: (w: World) => World) => game.update((w) => { try { setErr(null); return fn(w); } catch (e) { setErr((e as Error).message); return w; } });
   const names = (ids: string[]) => ids.map((id, i) => <span key={id}>{i ? ', ' : ''}<PersonById id={id} /></span>);
   return (
-    <Panel scroll={420} title={<Term k="petition">Concerns of the court</Term>} aside={list.length + pets.length ? `${list.length + pets.length} before you` : 'None'} className={className}>
+    <Panel scroll={420} title={<Term k="petition">Before you</Term>} aside={list.length + pets.length ? `${list.length + pets.length} before you` : 'None'} className={className}>
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
+      {(() => { const last = world.feed.find((f) => f.type === 'decision' && f.account && /court's concern/.test(f.text)); return last ? <p className="body" style={{ margin: 0, fontSize: 12 }}><span className="eyebrow">Last answered</span> {last.text} <span className="muted">{last.account!.lines.join(' ')}</span></p> : null; })()}
       {list.length + pets.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing has enough voices behind it. A matter comes before you when three or more of the court want the same thing; how you answer, they remember.</p> : null}
       {list.map((c) => {
         const by = world.characters[c.raisedBy];
@@ -129,7 +134,8 @@ export function CourtConcerns({ className }: { className?: string }) {
               <span style={{ fontSize: 12 }}>{by ? <PersonLink c={by} /> : null} <span className="muted">· {by?.seat ? SEAT_TITLE[by.seat] : by?.role} · speaks for {c.backers.length}</span></span>
               <span className="quote">“{c.text}”</span>
               <span className="muted" style={{ fontSize: 11 }}>For: {names(c.backers)}{c.against.length ? <> · Against: {names(c.against)}</> : null} · Lapses {formatDate(c.expires)}</span>
-              <span className="muted" style={{ fontSize: 11 }}>{c.cost}</span>
+              <span style={{ fontSize: 11 }}><strong>{c.yes}:</strong> <span className="muted">{c.cost}; pleases {c.backers.length}, angers {c.against.length}</span> · <strong>{c.no}:</strong> <span className="muted">the other way about.</span> <span className="muted">Left unanswered, its backers take it worse.</span></span>
+              {(() => { const cs = c.backers.concat(c.against).map((id) => world.characters[id]).filter((x) => x?.seat); return cs.length ? <span style={{ fontSize: 11 }}>At the table: {cs.map((x, i) => <span key={x!.id}>{i ? ', ' : ''}{x!.name.given} <span className={c.backers.includes(x!.id) ? 'gold' : 'muted'}>{c.backers.includes(x!.id) ? 'for' : 'against'}</span></span>)}</span> : null; })()}
             </span>
             <span style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
               <button type="button" className="btn small primary" onClick={() => run((w) => answerConcern(w, c.id, true))}>{c.yes}</button>
@@ -156,33 +162,6 @@ export function CourtConcerns({ className }: { className?: string }) {
         );
       })}
     </Panel>
-  );
-}
-
-/** The oath in one line; the full panel only when asked for. */
-function OathStrip({ className }: { className?: string }) {
-  const world = useWorld();
-  const [open, setOpen] = useState(false);
-  const house = world.playerHouseId;
-  const oath = world.courts[house]?.oath;
-  const p = oathProgress(world, house);
-  if (open) return <div className={`${className ?? ''} stack`}><OathPanel /><div><button type="button" className="btn small" onClick={() => setOpen(false)}>Fold the oath away</button></div></div>;
-  const def = oath ? OATHS_BY_ID[oath.id] : undefined;
-  return (
-    <section className={`panel ${className ?? ''}`}>
-      <div className="body" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span className="eyebrow"><Term k="oath">The oath</Term></span>
-        {def && p ? (
-          <>
-            <strong>{def.label}{oath!.target ? <> · House <HouseLink id={oath!.target} /></> : null}</strong>
-            <span className="bar" style={{ maxWidth: 160 }}><span style={{ width: `${Math.round(p.fraction * 100)}%`, background: 'var(--gold)' }} /></span>
-            <span className="mono muted" style={{ fontSize: 11 }}>{p.value}/{p.goal} {def.unit} · by {formatDate(oath!.ends)}</span>
-          </>
-        ) : <span className="muted">No oath stands.</span>}
-        <span style={{ flex: 1 }} />
-        <button type="button" className={`btn small${def ? '' : ' primary'}`} onClick={() => setOpen(true)}>{def ? 'The oath ›' : 'Swear an oath ›'}</button>
-      </div>
-    </section>
   );
 }
 
@@ -223,26 +202,31 @@ export function CouncilPage() {
   const world = useWorld();
   const house = world.playerHouseId;
   const court = world.courts[house]!;
-
+  const st = world.houses[house]!.standing;
+  const [oath, setOath] = useState(false);
+  const [hall, setHall] = useState(false);
   return (
     <>
       <div className="page-title">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 }}>
           <h2>The <Term k="council">Council of Designers</Term></h2>
-          <p>Each seat holds a standing task that runs every turn. Open a seat to run its part of the house. The Highroy swears one oath at a time; tasks that serve it work harder.</p>
+          <p>Your council at the table. Open a seat to run its part of the house; what they lay before you waits below, and they remember how you answer.</p>
+        </div>
+        <div className="actions" style={{ alignSelf: 'flex-end' }}>
+          <span className="mono" style={{ fontSize: 12 }}><Term k="honour">H</Term> {st.honour} · <Term k="respect">R</Term> {st.respect} · <Term k="dread">D</Term> {st.dread}</span>
+          <button type="button" className="btn small" onClick={() => setHall(true)}>See the hall ›</button>
         </div>
       </div>
+      {hall ? <CourtDiagram onClose={() => setHall(false)} /> : null}
       <div className="grid">
-        <OathStrip className="span-12" />
-        <CouncilGrid className="span-12" />
-        <CourtConcerns className="span-8" />
-        <div className="span-4 stack">
-          <StandingPanel houseId={house} />
-          <CourtStrip />
-        </div>
-        <Panel fold="open" scroll={320} title="Council reports" aside="Newest first" className="span-12 feed">
+        <div className="span-12"><CouncilTable onOath={() => setOath((o) => !o)} /></div>
+        {oath ? <div className="span-12"><OathPanel /></div> : null}
+        <CourtConcerns className="span-12" />
+        <Panel fold title="Standing" aside="what honour, respect and dread do for us now" className="span-6"><StandingBody houseId={house} /></Panel>
+        <CourtStrip className="span-6" />
+        <Panel fold scroll={320} title="The minutes" aside="every seat's reports, newest first" className="span-12 feed">
           {court.reports.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet. Press Play and the council gets to work.</p> : null}
-          {court.reports.slice(0, 25).map((r, i) => (
+          {court.reports.slice(0, 30).map((r, i) => (
             <div className="row" key={i}>
               <time>{formatDate(r.date)}</time>
               <span className="eyebrow gold" style={{ width: 96, flexShrink: 0 }}>{SEAT_TITLE[r.seat]}</span>
@@ -250,7 +234,6 @@ export function CouncilPage() {
             </div>
           ))}
         </Panel>
-        <HouseholdPanel className="span-12" />
         <DecisionLog className="span-12 feed" />
       </div>
     </>

@@ -13,6 +13,8 @@ import { alive, familyHead, isCommoner, sectorsControlledBy } from '../sim/query
 import { opinion } from '../sim/relationships';
 import { ambitionText } from '../sim/ambitions';
 import { cannotTalk } from '../sim/talk';
+import { concernsOf } from '../sim/concerns';
+import { attitudeColor } from '../sim/relations';
 import { knowledgeOf } from '../sim/knowledge';
 import { formatDate } from '../sim/time';
 import { econ, netPerPhase, phaseLedger } from '../sim/economy';
@@ -34,7 +36,7 @@ import { Term } from './tip';
 import { Portrait } from './portrait';
 
 /** Where someone is right now, as a short word. */
-function whereabouts(world: ReturnType<typeof useWorld>, c: Character): { text: string; tone: string } {
+export function whereabouts(world: ReturnType<typeof useWorld>, c: Character): { text: string; tone: string } {
   if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing')) return { text: 'Missing', tone: 'error' };
   const m = activeMissionOf(world, c.id);
   if (m) return { text: `Away · ${MISSION_LABEL[m.kind]}`, tone: 'down' };
@@ -43,7 +45,7 @@ function whereabouts(world: ReturnType<typeof useWorld>, c: Character): { text: 
   return { text: 'At home', tone: 'up' };
 }
 
-function MoodText({ c }: { c: Character }) {
+export function MoodText({ c }: { c: Character }) {
   const m = moodOf(c);
   return <span style={{ color: moodColor(m) }}>{moodLabel(m)} <span className="mono muted">{m}</span></span>;
 }
@@ -623,7 +625,83 @@ export function GreatSeatsPage() {
             </Panel>
           );
         })}
+        <HouseholdPanel className="span-12" />
       </div>
     </>
+  );
+}
+
+// ---------------------------------------------------------------- the council table
+
+/** The council sat around the table: each seat with its task, its last word, how it feels about you, and how it
+ * stands on what is laid before you. The matters themselves sit in the middle. */
+export function CouncilTable({ onOath }: { onOath?: () => void }) {
+  const world = useWorld();
+  const nav = useNav();
+  const house = world.playerHouseId;
+  const court = world.courts[house]!;
+  const lord = world.houses[house]?.rulerId;
+  const aligned = new Set(court.oath ? OATHS_BY_ID[court.oath.id]?.tasks ?? [] : []);
+  const seats = councilOf(world, house);
+  const head = seats.find((c) => c.seat === 'highroy');
+  const rest = seats.filter((c) => c.seat !== 'highroy');
+  const matters = concernsOf(world);
+  const pets = court.petitions;
+  const card = (c: Character) => {
+    const seat = c.seat as CouncilSeat;
+    const a = court.tasks[seat];
+    const def = a ? TASKS_BY_ID[a.task] : undefined;
+    const pct = def && a ? Math.min(100, Math.round((a.progress / def.threshold) * 100)) : 0;
+    const w = whereabouts(world, c);
+    const said = court.reports.find((r) => r.seat === seat);
+    const op = lord && c.id !== lord ? Math.round(opinion(world, c.id, lord)) : undefined;
+    const amb = world.ambitions?.of[c.id];
+    const votes = [
+      ...matters.map((m) => ({ id: m.id, label: m.yes, v: m.backers.includes(c.id) ? 'for' : m.against.includes(c.id) ? 'against' : 'quiet' })),
+      ...pets.map((p) => ({ id: p.id, label: MISSION_LABEL[p.kind], v: p.fromId === c.id || p.backers?.includes(c.id) ? 'for' : 'quiet' })),
+    ].filter((x) => x.v !== 'quiet');
+    return (
+      <button key={c.id} type="button" className={`seat-card table-seat${seat === 'highroy' ? ' head' : ''}`} onClick={() => nav.to(seat === 'highroy' ? { kind: 'character', id: c.id } : { kind: 'seat', id: seat })}>
+        <span className="eyebrow gold">{SEAT_TITLE[seat]}</span>
+        <span className="seat-who">
+          <Portrait c={c} date={world.date} high size="small" />
+          <span style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+            <strong>{c.name.given} {c.name.family ?? (c.name.hold ? `of ${c.name.hold}` : '')}</strong>
+            <span style={{ fontSize: 11 }}><span className={w.tone}>{w.text}</span> · <MoodText c={c} /></span>
+          </span>
+        </span>
+        {seat === 'highroy' ? (
+          <span className="muted" style={{ fontSize: 12 }}>{court.oath ? `Sworn: ${OATHS_BY_ID[court.oath.id]!.label}` : 'No oath sworn'}</span>
+        ) : (
+          <>
+            <span style={{ fontSize: 12 }}>{def ? <>{aligned.has(def.id) ? '★ ' : ''}{def.label}</> : <span className="down">No task set</span>}</span>
+            <span className="bar"><span style={{ width: `${pct}%`, background: def && aligned.has(def.id) ? 'var(--gold)' : 'var(--blue)' }} /></span>
+          </>
+        )}
+        {said ? <span className="seat-voice">“{said.text}”</span> : null}
+        <span className="seat-foot">
+          {op !== undefined ? <span>toward you <span style={{ color: attitudeColor(op) }}>{op > 0 ? '+' : ''}{op}</span></span> : null}
+          {amb?.known && amb.frustration >= 40 ? <span className="down">wants {ambitionText(world, amb).replace(/^wants /, '')}</span> : null}
+        </span>
+        {votes.length ? <span className="seat-votes">{votes.map((v) => <span key={v.id} className={`vote ${v.v}`}>{v.v === 'for' ? '✓' : '✗'} {v.label}</span>)}</span> : null}
+      </button>
+    );
+  };
+  const top = rest.slice(0, 2), mid = rest.slice(2, 4), bottom = rest.slice(4);
+  return (
+    <section className="council-table" aria-label="The council table">
+      <div className="ct-row">{top[0] ? card(top[0]) : <span />}{head ? card(head) : <span />}{top[1] ? card(top[1]) : <span />}</div>
+      <div className="ct-row">
+        {mid[0] ? card(mid[0]) : <span />}
+        <div className="ct-board">
+          <span className="eyebrow">On the table</span>
+          <strong className="ct-count">{matters.length + pets.length}</strong>
+          <span className="muted" style={{ fontSize: 12 }}>{matters.length + pets.length ? 'matters waiting on your word, below' : 'nothing waiting on your word'}</span>
+          {onOath ? <button type="button" className="btn small" onClick={onOath}>{court.oath ? 'The oath ›' : 'Swear an oath ›'}</button> : null}
+        </div>
+        {mid[1] ? card(mid[1]) : <span />}
+      </div>
+      {bottom.length ? <div className="ct-row ct-wrap">{bottom.map(card)}</div> : null}
+    </section>
   );
 }

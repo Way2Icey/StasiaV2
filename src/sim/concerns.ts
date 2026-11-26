@@ -18,6 +18,7 @@ import { buyOff, buyOffCost, onOurHeads } from './bounties';
 import { equipOf, setEquip, setCeremony, EQUIP_LABEL, type EquipLevel } from './standing';
 import { SEAT_TITLE } from './world';
 import { ensureIntel } from './turning';
+import { told } from './details';
 import { ageOf } from './characters';
 import { SPECIES } from '../data/species';
 import type { Character, World } from './types';
@@ -202,6 +203,8 @@ export function answerConcern(input: World, id: string, yes: boolean): World {
   settle(w, cc, yes);
   w.concerns = (w.concerns ?? []).filter((x) => x.id !== id);
   const by = w.characters[cc.raisedBy];
-  logRecord(w, { kind: 'council', type: 'decision', severity: 1, text: `${yes ? cc.yes : cc.no}: the court's concern${by ? `, raised by ${shortName(by.name)}${by.seat ? `, ${SEAT_TITLE[by.seat]}` : ''}` : ''}.`, effects: [...effects, `${cc.backers.length} for · ${cc.against.length} against`] });
+  const react = (ids: string[], glad: boolean) => ids.slice(0, 2).map((id) => w.characters[id]).filter(Boolean).map((k) => glad ? `${shortName(k!.name)} ${['nods', 'looks satisfied', 'thanks you after'][k!.id.length % 3]}.` : `${shortName(k!.name)} ${['says nothing, pointedly', 'looks away', 'will remember this'][k!.id.length % 3]}.`);
+  const lines = [...react(yes ? cc.backers : cc.against, true), ...react(yes ? cc.against : cc.backers, false)];
+  logRecord(w, { account: told('the hall', lines), kind: 'council', type: 'decision', severity: 1, text: `${yes ? cc.yes : cc.no}: the court's concern${by ? `, raised by ${shortName(by.name)}${by.seat ? `, ${SEAT_TITLE[by.seat]}` : ''}` : ''}.`, effects: [...effects, `${cc.backers.length} for · ${cc.against.length} against`] });
   return w;
 }
