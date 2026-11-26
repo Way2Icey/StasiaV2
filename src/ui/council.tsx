@@ -201,7 +201,6 @@ export function OathSummary({ className }: { className?: string }) {
 export function CouncilPage() {
   const world = useWorld();
   const house = world.playerHouseId;
-  const court = world.courts[house]!;
   const st = world.houses[house]!.standing;
   const [oath, setOath] = useState(false);
   const [hall, setHall] = useState(false);
@@ -224,16 +223,6 @@ export function CouncilPage() {
         <CourtConcerns className="span-12" />
         <Panel fold title="Standing" aside="what honour, respect and dread do for us now" className="span-6"><StandingBody houseId={house} /></Panel>
         <CourtStrip className="span-6" />
-        <Panel fold scroll={320} title="The minutes" aside="every seat's reports, newest first" className="span-12 feed">
-          {court.reports.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet. Press Play and the council gets to work.</p> : null}
-          {court.reports.slice(0, 30).map((r, i) => (
-            <div className="row" key={i}>
-              <time>{formatDate(r.date)}</time>
-              <span className="eyebrow gold" style={{ width: 96, flexShrink: 0 }}>{SEAT_TITLE[r.seat]}</span>
-              <span style={{ fontSize: 13 }}><PersonById id={r.characterId} /> · {r.text}</span>
-            </div>
-          ))}
-        </Panel>
         <DecisionLog className="span-12 feed" />
       </div>
     </>

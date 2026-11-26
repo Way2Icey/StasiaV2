@@ -47,9 +47,9 @@ export function travelCycles(a: string, b: string): number {
 }
 
 export const TASK_CYCLES: Record<MissionKind, Record<Approach, number>> = {
-  investigate: { careful: 10, quick: 6 },
-  scout: { careful: 8, quick: 4 },
-  envoy: { careful: 8, quick: 4 },
+  investigate: { careful: 30, quick: 18 },
+  scout: { careful: 24, quick: 12 },
+  envoy: { careful: 24, quick: 12 },
 };
 
 export const MISSION_LABEL: Record<MissionKind, string> = {

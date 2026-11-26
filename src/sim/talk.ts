@@ -391,14 +391,14 @@ export function advanceTalkRequests(w: World, rng: Rng, phaseTurned: boolean): v
   const now = absoluteCycle(w.date);
   for (const r of (w.talkRequests ?? []).filter((x) => absoluteCycle(x.expires) <= now)) if (lord) shiftOpinion(w, r.personId, lord, -3, 'was never received');
   w.talkRequests = (w.talkRequests ?? []).filter((x) => absoluteCycle(x.expires) > now && w.characters[x.personId]?.alive);
-  if (!lord || w.talkRequests.length >= 3 || !rng.chance(0.3)) return;
+  if (!lord || w.talkRequests.length >= 3 || !rng.chance(0.15)) return;
   const asked = new Set(w.talkRequests.map((r) => r.personId));
   const ours = Object.values(w.characters).filter((c) => c.alive && c.houseId === P && c.id !== lord && c.tier === 'full' && !c.veiled && !w.captives[c.id] && !asked.has(c.id) && Math.abs(opinion(w, c.id, lord)) >= 15);
   const theirs = Object.values(w.characters).filter((c) => c.alive && c.houseId && c.houseId !== P && c.seat && !asked.has(c.id) && !atWar(w, P, c.houseId));
   const pickOurs = ours.length && (rng.chance(0.6) || !theirs.length);
   const c = pickOurs ? rng.pick(ours) : theirs.length ? rng.pick(theirs) : undefined;
   if (!c || cannotTalk(w, c.id)) return;
-  w.talkRequests.push({ id: `tr${w.nextId++}`, personId: c.id, why: rng.pick(pickOurs ? REQUEST_WHY_OURS : REQUEST_WHY_THEIRS), date: w.date, expires: addCycles(w.date, CYCLES_PER_PHASE * 2) });
+  w.talkRequests.push({ id: `tr${w.nextId++}`, personId: c.id, why: rng.pick(pickOurs ? REQUEST_WHY_OURS : REQUEST_WHY_THEIRS), date: w.date, expires: addCycles(w.date, CYCLES_PER_PHASE * 4) });
 }
 
 /** Receive them: the audience opens at once, and they come in better disposed for having been asked in. */

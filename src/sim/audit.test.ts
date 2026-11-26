@@ -47,7 +47,7 @@ describe("the Grand Master's board", () => {
     if (!c) return;
     w = sendOnQuest(w, q!.id, c.id);
     expect(w.characters[c.id]!.flags.some((f) => f.id === 'quest')).toBe(true);
-    w = advanceTurns(w, q!.cycles + 2);
+    w = advanceTurns(w, Math.round(q!.cycles * 2.5) + 2);
     expect(w.characters[c.id]!.flags.some((f) => f.id === 'quest')).toBe(false);
     expect(w.quests!.board.some((x) => x.id === q!.id)).toBe(false);
   });

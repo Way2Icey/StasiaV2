@@ -127,7 +127,7 @@ export function advanceConcerns(w: World, rng: Rng, phaseTurned: boolean): void 
   const lapsed = (w.concerns ?? []).filter((c) => absoluteCycle(c.expires) <= now);
   for (const c of lapsed) settle(w, c, null);
   w.concerns = (w.concerns ?? []).filter((c) => absoluteCycle(c.expires) > now);
-  if (w.concerns.length >= 3 || !rng.chance(0.35)) return;
+  if (w.concerns.length >= 3 || !rng.chance(0.15)) return;
   const open = new Set(w.concerns.map((c) => c.kind + (c.subject ?? '')));
   const pool = candidates(w).filter((d) => !open.has(d.kind + (d.subject ?? '')));
   for (const d of pool.sort(() => rng.next() - 0.5)) {
@@ -135,7 +135,7 @@ export function advanceConcerns(w: World, rng: Rng, phaseTurned: boolean): void 
     if (s.backers.length < MIN_BACKERS) continue;
     const by = s.backers[0]!;
     const { say, ...rest } = d;
-    w.concerns.push({ ...rest, id: `cn${w.nextId++}`, raisedBy: by.id, text: say(by), backers: s.backers.slice(0, 8).map((c) => c.id), against: s.against.slice(0, 8).map((c) => c.id), date: w.date, expires: addCycles(w.date, CYCLES_PER_PHASE * 2) });
+    w.concerns.push({ ...rest, id: `cn${w.nextId++}`, raisedBy: by.id, text: say(by), backers: s.backers.slice(0, 8).map((c) => c.id), against: s.against.slice(0, 8).map((c) => c.id), date: w.date, expires: addCycles(w.date, CYCLES_PER_PHASE * 4) });
     return;
   }
 }

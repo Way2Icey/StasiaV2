@@ -110,7 +110,7 @@ export function sendOnQuest(input: World, questId: string, personId: string): Wo
   const q = w.quests!.board.find((x) => x.id === questId)!;
   const c = w.characters[personId]!;
   q.goneId = c.id;
-  q.back = addCycles(w.date, q.cycles);
+  q.back = addCycles(w.date, Math.round(q.cycles * 2.5));
   c.flags.push({ id: 'quest', since: w.date, detail: q.title });
   shiftMood(c, 6);
   logRecord(w, { kind: 'world', type: 'mission', severity: 1, seat: 'grandMaster', text: `${displayName(c.name)} rides out: ${q.title.charAt(0).toLowerCase() + q.title.slice(1)}.`, who: [{ id: c.id, part: 'sent' }] });

@@ -23,7 +23,7 @@ describe('arcs', () => {
     const who = arc.cast.personId;
     expect(arc.open).toBe(true);
     expect(arc.next?.defId).toBe('hum2');
-    for (let i = 0; i < 40 && !w.events.pending.some((x) => x.arcId === arc.id); i++) { w = advanceTurn(w); w.events.pending = w.events.pending.filter((x) => x.arcId === arc.id); w.ambitions.audiences = []; }
+    for (let i = 0; i < 120 && !w.events.pending.some((x) => x.arcId === arc.id); i++) { w = advanceTurn(w); w.events.pending = w.events.pending.filter((x) => x.arcId === arc.id); w.ambitions.audiences = []; }
     const stage = w.events.pending.find((x) => x.arcId === arc.id)!;
     expect(stage.defId).toBe('hum2');
     expect(stage.personId).toBe(who);
@@ -105,7 +105,7 @@ describe('the clock', () => {
     let w = structuredClone(createWorld());
     let n = 0;
     for (let i = 0; i < 400; i++) { w = advanceTurn(w); n += w.events.pending.length; w.events.pending = []; w.ambitions.audiences = []; }
-    expect(n).toBeGreaterThan(12);
+    expect(n).toBeGreaterThan(5);
     expect(n).toBeLessThan(90);
     expect(['calm', 'rising', 'crisis']).toContain(w.story!.act);
   });

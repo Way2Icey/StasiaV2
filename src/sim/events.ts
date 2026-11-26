@@ -500,8 +500,8 @@ export function advanceEvents(world: World, rng: Rng, phaseTurned: boolean): voi
   // On the road and at the target.
   for (const m of Object.values(world.missions)) {
     if (m.houseId !== P || m.stage === 'done' || ev.pending.some((x) => x.missionId === m.id)) continue;
-    if (m.stage === 'travel' && rng.chance(0.08)) fire(world, rng, 'travel', { missionId: m.id }, 8);
-    else if (m.stage === 'task' && rng.chance(0.09)) fire(world, rng, 'arrival', { missionId: m.id }, 6);
+    if (m.stage === 'travel' && rng.chance(0.04)) fire(world, rng, 'travel', { missionId: m.id }, 8);
+    else if (m.stage === 'task' && rng.chance(0.045)) fire(world, rng, 'arrival', { missionId: m.id }, 6);
   }
   // At home: the storyteller decides when (see story.ts).
   void phaseTurned;
@@ -545,7 +545,7 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
     Object.assign(run.cast, castOf(p));
     if (nx?.cast) Object.assign(run.cast, nx.cast);
     if (nx?.data) run.data = { ...(run.data ?? {}), ...nx.data };
-    if (nx && eventDef(nx.next)) run.next = { defId: nx.next, at: addCycles(world.date, Math.max(1, nx.after)) };
+    if (nx && eventDef(nx.next)) run.next = { defId: nx.next, at: addCycles(world.date, Math.max(2, nx.after * 2)) };
     else { run.open = false; delete run.next; run.ending = use.ending ?? `${use.label}.`; }
   }
   const r: ResolvedEvent = {

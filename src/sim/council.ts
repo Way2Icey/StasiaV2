@@ -603,7 +603,7 @@ function maybePetition(world: World, rng: Rng, houseId: string) {
   const court = world.courts[houseId]!;
   if (court.petitions.length >= 3) return;
   const oath = court.oath;
-  if (!rng.chance(oath ? 0.12 : 0.04)) return;
+  if (!rng.chance(oath ? 0.06 : 0.02)) return;
 
   const seat = (s: CouncilSeat) => seatHolder(world, houseId, s);
   const rivals = Object.keys(world.houses).filter((h) => h !== houseId);
@@ -656,6 +656,6 @@ function maybePetition(world: World, rng: Rng, houseId: string) {
     backers: [pick.fromId, ...backers.slice(0, 7)],
     id: `p${world.nextId++}`,
     date: world.date,
-    expires: addCycles(world.date, CYCLES_PER_PHASE),
+    expires: addCycles(world.date, CYCLES_PER_PHASE * 3),
   });
 }

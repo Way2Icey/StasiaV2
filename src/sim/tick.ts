@@ -3,6 +3,7 @@ import { advanceBounties } from './bounties';
 import { advanceIntel } from './turning';
 import { advanceConcerns } from './concerns';
 import { advanceQuests } from './quests';
+import { advanceBriefings } from './briefings';
 import { advanceTalkRequests } from './talk';
 import { advanceEvents } from './events';
 import { advanceStory } from './story';
@@ -123,6 +124,7 @@ function stepInPlace(world: World): void {
   advanceConcerns(world, rng, crossed.phases > 0);
   advanceQuests(world, rng, crossed.phases > 0);
   advanceTalkRequests(world, rng, crossed.phases > 0);
+  advanceBriefings(world, crossed.phases > 0);
   advanceMood(world, crossed.phases > 0, new Set(Object.values(world.missions).filter((m) => m.stage !== 'done').flatMap((m) => [m.leaderId, ...(m.companions ?? [])])));
   advanceCourt(world, rng, crossed.phases > 0);
   advanceDiscovery(world);
@@ -214,6 +216,7 @@ export function stepClock(input: World, stops: boolean | Partial<StopPrefs> = tr
   const w = structuredClone(input);
   const before = snapshotOfAttention(w);
   const had = new Set((w.events?.pending ?? []).map((p) => p.id));
+  const hadB = new Set((w.briefings?.queue ?? []).map((b) => b.id));
   stepInPlace(w);
   const scene = (w.scenes?.list ?? []).find((x) => x.status === 'ready' && !x.prompted);
   if (scene) { scene.prompted = true; return { world: w, freeze: { reason: `${scene.eyebrow}: ${scene.title}.`, events: [], scene: scene.id } }; }
@@ -224,6 +227,8 @@ export function stepClock(input: World, stops: boolean | Partial<StopPrefs> = tr
   const urgent = fresh.filter((p) => p.urgent);
   if (urgent.length) return { world: w, freeze: { reason: 'Something needs you now.', events: urgent.map((p) => p.id) } };
   if (fresh.length && prefs.decision) return { world: w, freeze: { reason: 'A decision awaits your word.', events: fresh.map((p) => p.id) } };
+  const briefed = (w.briefings?.queue ?? []).find((b) => !hadB.has(b.id) && !b.done);
+  if (briefed && prefs.decision) return { world: w, freeze: { reason: `${w.characters[briefed.personId]?.name.given ?? 'A councillor'} is at the door.`, events: [] } };
   const P = w.playerHouseId;
   const news = w.feed.slice(before.last ? w.feed.indexOf(before.last) + 1 : 0);
   const death = news.find((f) => f.kind === 'death' && f.characterIds?.some((id) => w.characters[id]?.houseId === P && w.characters[id]?.tier === 'full'));

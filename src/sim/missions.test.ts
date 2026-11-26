@@ -82,7 +82,7 @@ describe('missions', () => {
     const run = () => {
       let { world: w, id } = launchMission(world, { kind: 'investigate', houseId: P, leaderId: spymaster(world).id, targetId: target.id, approach: 'careful' });
       expect(activeMissionOf(w, spymaster(w).id)?.id).toBe(id);
-      for (let i = 0; i < 20 && w.missions[id]!.stage !== 'done'; i++) w = advanceTurn(w);
+      for (let i = 0; i < 60 && w.missions[id]!.stage !== 'done'; i++) w = advanceTurn(w);
       return { w, m: w.missions[id]! };
     };
     const a = run();
@@ -100,7 +100,7 @@ describe('missions', () => {
   it('scouting raises knowledge of a whole world', () => {
     const leader = Object.values(world.characters).find((c) => c.houseId === P && c.role === 'Knight' && !cannotLead(world, P, c))!;
     let { world: w, id } = launchMission(world, { kind: 'scout', houseId: P, leaderId: leader.id, targetPlanetId: 'torvann-ashfall', approach: 'careful' });
-    w = advanceTurns(w, 20);
+    w = advanceTurns(w, 60);
     const m = w.missions[id]!;
     expect(m.stage).toBe('done');
     if (m.outcome !== 'disaster') expect(m.findings?.length).toBeGreaterThan(0);

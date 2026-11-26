@@ -158,7 +158,9 @@ export function App() {
     const call = (id: string) => { const b = world.battles?.list.find((x) => x.id === id && x.status === 'ready'); if (b) setMoments({ ids: [], reason: `Battle: ${b.title}.`, resume: false, battle: b.id }); };
     const on = (e: Event) => call((e as CustomEvent<string>).detail);
     window.addEventListener('stasia:battle', on);
-    return () => window.removeEventListener('stasia:battle', on);
+    const door = () => setMoments((m) => m ?? { ids: [], reason: 'The council at the door', resume: false });
+    window.addEventListener('stasia:door', door);
+    return () => { window.removeEventListener('stasia:battle', on); window.removeEventListener('stasia:door', door); };
   }, [world]);
   useEffect(() => {
     const b = world.battles?.list.find((x) => x.status === 'ready');

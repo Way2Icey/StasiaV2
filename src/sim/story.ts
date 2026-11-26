@@ -160,7 +160,8 @@ function targetTension(world: World): number {
   return clamp(unrest * 0.35 + hurt * 3 + sour * 2 + feuds * 12 + raids * 15 + strug + urgent * 6 + lull + 12, 0, 100);
 }
 
-const PACE: Record<string, number> = { calm: 0.045, rising: 0.075, crisis: 0.11 };
+// Fewer things happen, and each takes its time.
+const PACE: Record<string, number> = { calm: 0.018, rising: 0.03, crisis: 0.05 };
 
 /** Pick a struggle the house is ripe for, and open it with its first scene. */
 function maybeOpenStruggle(world: World, rng: Rng): void {
@@ -206,7 +207,7 @@ export function advanceStory(world: World, rng: Rng, phaseTurned: boolean): void
 
   // Home: the storyteller's pace.
   const home = world.events.pending.filter((x) => !x.missionId).length;
-  const pace = PACE[st.act]! * (st.quiet > CYCLES_PER_PHASE * 3 ? 1.8 : 1);
+  const pace = PACE[st.act]! * (st.quiet > CYCLES_PER_PHASE * 6 ? 1.8 : 1);
   if (home < 3 && rng.chance(pace)) fire(world, rng, 'home', {}, CYCLES_PER_PHASE, st.act);
   if (phaseTurned) maybeOpenStruggle(world, rng);
 }

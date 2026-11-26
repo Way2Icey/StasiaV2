@@ -622,6 +622,8 @@ export interface World {
   bounties?: import('./bounties').BountyState;
   /** What our cells and our agents have given us, and the wrongs that give a reason for war. */
   intel?: import('./turning').IntelState;
+  /** The council at the door: what needs the Highroy, one councillor at a time. */
+  briefings?: import('./briefings').BriefState;
   /** The Grand Master's board of deeds. */
   quests?: import('./quests').QuestState;
   /** Concerns the court has brought to the Highroy. */
