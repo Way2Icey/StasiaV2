@@ -418,7 +418,7 @@ export function NewGamePage({ setWorld }: { setWorld: (w: World) => void }) {
   const card = (h: typeof CANON_HOUSES[number]) => (
     <button key={h.id} type="button" className={`house-pick${pick === h.id ? ' on' : ''}${PLAYABLE.has(h.id) ? '' : ' later'}`} aria-pressed={pick === h.id} onClick={() => setPick(h.id)}>
       <strong>{h.name}</strong>
-      <span className="muted">{SPECIES[h.species].name}{h.speciesKnown ? '' : '?'}{PLAYABLE.has(h.id) ? '' : ' · later'}</span>
+      <span className="muted">{h.speciesKnown ? SPECIES[h.species].name : 'people unknown'}{PLAYABLE.has(h.id) ? '' : ' · later'}</span>
     </button>
   );
   return (
