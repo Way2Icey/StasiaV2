@@ -101,11 +101,11 @@ export function HouseDealings({ id, className }: { id: string; className?: strin
 }
 
 /** Rival fighters we could try to bring over. */
-export function PoachPanel({ className }: { className?: string }) {
+export function PoachPanel({ className, houseId }: { className?: string; houseId?: string }) {
   const world = useWorld();
   const { run, err } = usePlay();
   const [purse, setPurse] = useState(2000);
-  const list = poachable(world).slice(0, 10);
+  const list = poachable(world).filter((c) => !houseId || c.houseId === houseId).slice(0, 10);
   return (
     <Panel title="Bring over a rival's fighter" aside={`approach ${fmt(POACH_APPROACH)} · purse only if they come`} className={className}>
       {err ? <p className="body error">{err}</p> : null}
@@ -163,8 +163,8 @@ export function RenownPage() {
         <p>What people are known for: titles, bouts and duels won, Crucible honours, missions, raids beaten off, captains hunted, pupils taught. Recent deeds count most; a famous house lends its people a little of its name.</p>
       </div>
       <div className="grid">
-        <Panel title="Across the houses" aside={`${rows.length} with a name`} className="span-7"><Table list={rows.slice(0, 25)} /></Panel>
-        <Panel title="Ours" aside={`${ours.length} with a name`} className="span-5"><Table list={ours.slice(0, 20)} /></Panel>
+        <Panel title={`House ${world.houses[P]?.name}`} aside={`${ours.length} with a name · our best ranks #${ours[0]?.rankAll ?? '—'} in the Archon`} className="span-12"><Table list={ours} /></Panel>
+        <Panel fold title="The most famous in the Archon" aside="for measure" className="span-12"><Table list={rows.slice(0, 15)} /></Panel>
       </div>
     </>
   );

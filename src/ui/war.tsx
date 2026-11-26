@@ -48,7 +48,7 @@ function Tug({ v, left, right }: { v: number; left: string; right: string }) {
 
 // ---------------------------------------------------------------- forces
 
-function FormationRow({ f }: { f: Formation }) {
+export function FormationRow({ f }: { f: Formation }) {
   const world = useWorld();
   const { run } = usePlay();
   const P = world.playerHouseId;
@@ -177,11 +177,11 @@ function WarCard({ war }: { war: War }) {
 
 // ---------------------------------------------------------------- declare
 
-function DeclarePanel({ className }: { className?: string }) {
+export function DeclarePanel({ className, fixed }: { className?: string; fixed?: string }) {
   const world = useWorld();
   const { run, err } = usePlay();
   const P = world.playerHouseId;
-  const [target, setTarget] = useState('');
+  const [target, setTarget] = useState(fixed ?? '');
   const [goal, setGoal] = useState<WarGoal>('tribute');
   const [rung, setRung] = useState<Rung>('clashes');
   const [confirm, setConfirm] = useState(false);
@@ -193,10 +193,10 @@ function DeclarePanel({ className }: { className?: string }) {
       <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {err ? <p className="error">{err}</p> : null}
         <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <select className="select" aria-label="Against" value={target} onChange={(e) => { setTarget(e.target.value); setConfirm(false); }}>
+          {fixed ? null : <select className="select" aria-label="Against" value={target} onChange={(e) => { setTarget(e.target.value); setConfirm(false); }}>
             <option value="">Against…</option>
             {houses.map((h) => <option key={h.id} value={h.id}>{h.name} · regards us {regardOf(world, h.id, P)}</option>)}
-          </select>
+          </select>}
           <select className="select" aria-label="How far" value={rung} onChange={(e) => { setRung(e.target.value as Rung); setConfirm(false); }}>
             <option value="clashes">Clashes on the border</option>
             <option value="war">Open war</option>
@@ -240,13 +240,10 @@ export function WarPage() {
       {err ? <p className="error">{err}</p> : null}
       <div className="grid">
         <Panel title="Our forces" aside={`${formationsOf(world, P).length} formations`} className="span-12">
-          <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {formationsOf(world, P).map((f) => <FormationRow key={f.id} f={f} />)}
-            <span className="muted" style={{ fontSize: 11 }}>Soldiers and crews are counted, not named, until a battle gives one of them a reason to matter. Forces at home rebuild a little every Phase.</span>
-          </div>
+          <div className="body actions"><span className="muted">Where our formations stand, who leads them and what they cost is on the Military page.</span><Go to={{ kind: 'military' }} className="btn small">Military ›</Go></div>
         </Panel>
         {ours.length ? ours.map((w) => <WarCard key={w.id} war={w} />) : <Panel title="Our wars" className="span-12"><div className="body muted">We are at peace.</div></Panel>}
-        <DeclarePanel className="span-6" />
+        <Panel title="Go to war" className="span-6"><div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}><span>War is declared on a house from its page: Archon › Houses, then the War tab. Our grievances against each are there too.</span><span><Go to={{ kind: 'houses' }} className="btn small primary">The houses ›</Go></span></div></Panel>
         <Panel fold="open" title="Scores and debts" className="span-6">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
             {hunted.map((n) => <div key={n.id}><strong>{n.name}</strong> <span className="muted">of <ArchonHouseLink id={n.houseId} /> hunts</span> <PersonById id={n.against} /> <span className="muted">· {n.why}</span></div>)}

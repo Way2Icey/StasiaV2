@@ -1,6 +1,8 @@
 import { ExchangePage } from './exchange';
 import { BountiesPage } from './bounties';
 import { IntelPage } from './intel';
+import { GreatSeatsPage } from './seats';
+import { MilitaryPage } from './military';
 import { TalkPage } from './talk';
 import { useHouseTheme } from './theme';
 import { InspectLayer, PortShipHead } from './inspect';
@@ -277,7 +279,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
   switch (route.kind) {
     case 'throne': return <ThroneRoom />;
     case 'people': if (route.view === 'renown') return <RenownPage />;
-      return <RelationsPage key={route.view ?? 'web'} focus={route.focus} view={route.view} />;
+      return <RelationsPage key={route.view ?? (route.focus ? 'web' : 'opinions')} focus={route.focus} view={route.view} />;
     case 'houses': return <HousesPage />;
     case 'worlds': return <StarMapPage />;
     case 'save': return <SavePage setWorld={setWorld} />;
@@ -294,6 +296,8 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'missions': return <MissionsPage />;
     case 'bounties': return <BountiesPage />;
     case 'intel': return <IntelPage />;
+    case 'greatSeats': return <GreatSeatsPage />;
+    case 'military': return <MilitaryPage />;
     case 'talk': return <TalkPage id={route.id} />;
     case 'mission': return <MissionPage id={route.id} />;
     case 'plan': return <PlanPage key={`${route.mission}-${route.target ?? ''}-${route.petition ?? ''}-${route.lead ?? ''}`} kind={route.mission} target={route.target} leader={route.leader} petition={route.petition} lead={route.lead} />;

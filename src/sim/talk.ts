@@ -8,7 +8,7 @@
 // be flattered by someone he does not respect. A player who knows the lore, and remembers what happened,
 // does better.
 import { Rng } from './rng';
-import { absoluteCycle, CYCLES_PER_PHASE, type GameDate } from './time';
+import { absoluteCycle, addCycles, CYCLES_PER_PHASE, type GameDate } from './time';
 import { logRecord } from './records';
 import { displayName, shortName } from './names';
 import { learn, knowledgeOf, traitVisible } from './knowledge';
@@ -65,6 +65,9 @@ export interface Talk {
 export interface TalkMemory { last: GameDate; talks: number; warmth: number; slips: string[] }
 
 export const BEATS = 3;
+
+/** Someone asking to see the Highroy. */
+export interface TalkRequest { id: string; personId: string; why: string; date: GameDate; expires: GameDate }
 
 // ---------------------------------------------------------------- the history of the stars
 // From the canon histories. Each has the truth and the mistakes people make about it.
@@ -374,3 +377,48 @@ function recallLine(w: World, r: Rng, t: Talk, c: Character): TalkLine | undefin
   return { id: lid(t), kind: 'recall', key: 'recall:again', text: `Pick up where you left off, ${m.talks === 1 ? 'last time' : `the ${m.talks} times before`}.`, value: m.warmth > 0 ? 1.2 : m.warmth < 0 ? -0.8 : 0.2, reply: m.warmth > 0 ? `"Where were we," ${C} says, smiling.` : m.warmth < 0 ? `"I remember how that went," ${C} says.` : `${C} does not remember much of it.` };
 }
 
+
+// ---------------------------------------------------------------- people who ask to see us
+
+const REQUEST_WHY_OURS = ['would like a word, in private', 'has something on their mind and will not say what to anyone else', 'asks to be heard', 'wants to talk about their future in the house'];
+const REQUEST_WHY_THEIRS = ['asks for an audience while they are at our court', 'has come in person, and asks to be received', 'sends word they would speak with our Highroy', 'is passing through and asks for an hour of our time'];
+
+/** Each Phase, now and then, someone asks to see us: one of ours with something to say, or someone of another house. */
+export function advanceTalkRequests(w: World, rng: Rng, phaseTurned: boolean): void {
+  if (!phaseTurned) return;
+  const P = w.playerHouseId;
+  const lord = w.houses[P]?.rulerId;
+  const now = absoluteCycle(w.date);
+  for (const r of (w.talkRequests ?? []).filter((x) => absoluteCycle(x.expires) <= now)) if (lord) shiftOpinion(w, r.personId, lord, -3, 'was never received');
+  w.talkRequests = (w.talkRequests ?? []).filter((x) => absoluteCycle(x.expires) > now && w.characters[x.personId]?.alive);
+  if (!lord || w.talkRequests.length >= 3 || !rng.chance(0.3)) return;
+  const asked = new Set(w.talkRequests.map((r) => r.personId));
+  const ours = Object.values(w.characters).filter((c) => c.alive && c.houseId === P && c.id !== lord && c.tier === 'full' && !c.veiled && !w.captives[c.id] && !asked.has(c.id) && Math.abs(opinion(w, c.id, lord)) >= 15);
+  const theirs = Object.values(w.characters).filter((c) => c.alive && c.houseId && c.houseId !== P && c.seat && !asked.has(c.id) && !atWar(w, P, c.houseId));
+  const pickOurs = ours.length && (rng.chance(0.6) || !theirs.length);
+  const c = pickOurs ? rng.pick(ours) : theirs.length ? rng.pick(theirs) : undefined;
+  if (!c || cannotTalk(w, c.id)) return;
+  w.talkRequests.push({ id: `tr${w.nextId++}`, personId: c.id, why: rng.pick(pickOurs ? REQUEST_WHY_OURS : REQUEST_WHY_THEIRS), date: w.date, expires: addCycles(w.date, CYCLES_PER_PHASE * 2) });
+}
+
+/** Receive them: the audience opens at once, and they come in better disposed for having been asked in. */
+export function receiveRequest(input: World, requestId: string, aim: TalkAim): World {
+  const r = (input.talkRequests ?? []).find((x) => x.id === requestId);
+  if (!r) throw new Error('They have gone');
+  const pre = structuredClone(input);
+  pre.talkRequests = (pre.talkRequests ?? []).filter((x) => x.id !== requestId);
+  if (pre.talks?.[r.personId]) pre.talks[r.personId]!.last = { year: 0, cycle: 0 };
+  const w = openTalk(pre, r.personId, aim);
+  w.talk!.score += 0.8;
+  return w;
+}
+
+export function turnAway(input: World, requestId: string): World {
+  const w = structuredClone(input);
+  const r = (w.talkRequests ?? []).find((x) => x.id === requestId);
+  if (!r) return w;
+  w.talkRequests = (w.talkRequests ?? []).filter((x) => x.id !== requestId);
+  const lord = w.houses[w.playerHouseId]?.rulerId;
+  if (lord) shiftOpinion(w, r.personId, lord, -4, 'was turned away');
+  return w;
+}

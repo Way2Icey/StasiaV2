@@ -56,6 +56,7 @@ export const FLAGS: FlagDef[] = [
   { id: 'circuit', label: 'On the circuit', kind: 'condition', visibility: 'all', endsBy: 'The fights are over and they are home' },
   { id: 'secretLoyalty', label: 'Secretly loyal elsewhere', kind: 'secret', visibility: 'secret', endsBy: 'Found out, or they run home' },
   { id: 'disgraced', label: 'Disgraced', kind: 'political', visibility: 'all', endsBy: 'Fades after years, or a great deed' },
+  { id: 'quest', label: 'Away on a deed', kind: 'condition', visibility: 'all', endsBy: 'They come home, one way or another' },
   { id: 'bounty', label: 'After a bounty', kind: 'condition', visibility: 'all', endsBy: 'The price is collected, or they come home without it' },
   { id: 'hunting', label: 'Hunting corsairs', kind: 'condition', visibility: 'all', endsBy: 'The hunt ends, one way or another' },
   { id: 'aboard', label: 'At sea', kind: 'condition', visibility: 'all', endsBy: 'The ship comes home' },

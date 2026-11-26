@@ -13,7 +13,10 @@ import { formatDate } from '../sim/time';
 import { captivesHeldBy, executeCaptive, interrogateCaptive, releaseCaptive } from '../sim/captives';
 import { answerRansom, demandRansom, econ, ransomValue } from '../sim/economy';
 import { bondCaige, caigeAdvice, caigesOf, cannotGrant } from '../sim/discovery';
-import { courtOf, courtTotals, highroyAway } from '../sim/court';
+import { courtOf, courtTotals, highroyAway, isAway } from '../sim/court';
+import { answerConcern, concernsOf, courtiers } from '../sim/concerns';
+import { standingFx } from '../sim/standingFx';
+import { councilOf } from '../sim/world';
 import { alive } from '../sim/query';
 import { BAND_COLOR, SectorLink } from './links';
 import { shortName } from '../sim/names';
@@ -38,12 +41,16 @@ export function StandingPanel({ houseId, className }: { houseId: string; classNa
   const world = useWorld();
   const h = world.houses[houseId]!;
   const me = world.playerHouseId;
+  const fx = houseId === me ? standingFx(world, me) : null;
   return (
-    <Panel title={<Term k="standing">Standing</Term>} aside="0–100" className={className}>
+    <Panel title={<Term k="standing">Standing</Term>} aside="0–100 · what each does now" className={className}>
       <div className="body" style={{ display: 'grid', gap: 8 }}>
         <Meter label={<Term k="honour" />} value={h.standing.honour} color="var(--gold)" />
+        {fx ? <ul className="standing-fx">{fx.honour.map((l) => <li key={l}>{l}</li>)}</ul> : null}
         <Meter label={<Term k="respect" />} value={h.standing.respect} color="var(--blue)" />
+        {fx ? <ul className="standing-fx">{fx.respect.map((l) => <li key={l}>{l}</li>)}</ul> : null}
         <Meter label={<Term k="dread" />} value={h.standing.dread} color="var(--orange)" />
+        {fx ? <ul className="standing-fx">{fx.dread.map((l) => <li key={l}>{l}</li>)}</ul> : null}
         {houseId !== me ? (
           <dl className="kv" style={{ marginTop: 6 }}>
             <dt><Term k="regard">Regards us</Term></dt><dd><Regard v={regardOf(world, houseId, me)} /></dd>
@@ -100,6 +107,85 @@ export function Petitions({ className }: { className?: string }) {
   );
 }
 
+/** What enough of the court wants done: concerns, and the council's own requests, each with who stands where. */
+export function CourtConcerns({ className }: { className?: string }) {
+  const world = useWorld();
+  const game = useGame();
+  const [err, setErr] = useState<string | null>(null);
+  const house = world.playerHouseId;
+  const list = concernsOf(world);
+  const pets = world.courts[house]?.petitions ?? [];
+  const run = (fn: (w: World) => World) => game.update((w) => { try { setErr(null); return fn(w); } catch (e) { setErr((e as Error).message); return w; } });
+  const names = (ids: string[]) => ids.map((id, i) => <span key={id}>{i ? ', ' : ''}<PersonById id={id} /></span>);
+  return (
+    <Panel scroll={420} title={<Term k="petition">Concerns of the court</Term>} aside={list.length + pets.length ? `${list.length + pets.length} before you` : 'None'} className={className}>
+      {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
+      {list.length + pets.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing has enough voices behind it. A matter comes before you when three or more of the court want the same thing; how you answer, they remember.</p> : null}
+      {list.map((c) => {
+        const by = world.characters[c.raisedBy];
+        return (
+          <div key={c.id} className="row petition">
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: 12 }}>{by ? <PersonLink c={by} /> : null} <span className="muted">· {by?.seat ? SEAT_TITLE[by.seat] : by?.role} · speaks for {c.backers.length}</span></span>
+              <span className="quote">“{c.text}”</span>
+              <span className="muted" style={{ fontSize: 11 }}>For: {names(c.backers)}{c.against.length ? <> · Against: {names(c.against)}</> : null} · Lapses {formatDate(c.expires)}</span>
+              <span className="muted" style={{ fontSize: 11 }}>{c.cost}</span>
+            </span>
+            <span style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+              <button type="button" className="btn small primary" onClick={() => run((w) => answerConcern(w, c.id, true))}>{c.yes}</button>
+              <button type="button" className="btn small" onClick={() => run((w) => answerConcern(w, c.id, false))}>{c.no}</button>
+            </span>
+          </div>
+        );
+      })}
+      {pets.map((p) => {
+        const from = world.characters[p.fromId];
+        return (
+          <div key={p.id} className="row petition">
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: 12 }}><span className="tag mission">{MISSION_LABEL[p.kind]}</span> {from ? <PersonLink c={from} /> : null} <span className="muted">· {from?.seat ? SEAT_TITLE[from.seat] : ''}</span></span>
+              <span className="quote">“{p.reason}”</span>
+              <span className="muted" style={{ fontSize: 11 }}>Target: {petitionTarget(world, p)} · Their plan: {petitionPlan(world, p).text}{p.backers?.length ? <> · For: {names(p.backers)}</> : null} · Lapses {formatDate(p.expires)}</span>
+            </span>
+            <span style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button type="button" className="btn small primary" title={petitionPlan(world, p).text} onClick={() => run((w) => approvePetition(w, house, p.id))}>Approve</button>
+              <Go className="btn small" to={{ kind: 'plan', mission: p.kind, target: p.targetId ?? p.targetHouseId ?? p.targetPlanetId, leader: p.leaderId, petition: p.id }}>Plan my own</Go>
+              <button type="button" className="btn small" onClick={() => game.update((w) => dismissPetition(w, house, p.id))}>Dismiss</button>
+            </span>
+          </div>
+        );
+      })}
+    </Panel>
+  );
+}
+
+/** The oath in one line; the full panel only when asked for. */
+function OathStrip({ className }: { className?: string }) {
+  const world = useWorld();
+  const [open, setOpen] = useState(false);
+  const house = world.playerHouseId;
+  const oath = world.courts[house]?.oath;
+  const p = oathProgress(world, house);
+  if (open) return <div className={`${className ?? ''} stack`}><OathPanel /><div><button type="button" className="btn small" onClick={() => setOpen(false)}>Fold the oath away</button></div></div>;
+  const def = oath ? OATHS_BY_ID[oath.id] : undefined;
+  return (
+    <section className={`panel ${className ?? ''}`}>
+      <div className="body" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span className="eyebrow"><Term k="oath">The oath</Term></span>
+        {def && p ? (
+          <>
+            <strong>{def.label}{oath!.target ? <> · House <HouseLink id={oath!.target} /></> : null}</strong>
+            <span className="bar" style={{ maxWidth: 160 }}><span style={{ width: `${Math.round(p.fraction * 100)}%`, background: 'var(--gold)' }} /></span>
+            <span className="mono muted" style={{ fontSize: 11 }}>{p.value}/{p.goal} {def.unit} · by {formatDate(oath!.ends)}</span>
+          </>
+        ) : <span className="muted">No oath stands.</span>}
+        <span style={{ flex: 1 }} />
+        <button type="button" className={`btn small${def ? '' : ' primary'}`} onClick={() => setOpen(true)}>{def ? 'The oath ›' : 'Swear an oath ›'}</button>
+      </div>
+    </section>
+  );
+}
+
 /** The standing oath, with progress; or a prompt to swear one. */
 export function OathSummary({ className }: { className?: string }) {
   const world = useWorld();
@@ -147,13 +233,13 @@ export function CouncilPage() {
         </div>
       </div>
       <div className="grid">
-        <OathPanel className="span-8" />
-        <StandingPanel houseId={house} className="span-4" />
-
+        <OathStrip className="span-12" />
         <CouncilGrid className="span-12" />
-        <Petitions className="span-6" />
-        <CourtPanel className="span-6" />
-        <HouseholdPanel className="span-12" />
+        <CourtConcerns className="span-8" />
+        <div className="span-4 stack">
+          <StandingPanel houseId={house} />
+          <CourtStrip />
+        </div>
         <Panel fold="open" scroll={320} title="Council reports" aside="Newest first" className="span-12 feed">
           {court.reports.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nothing yet. Press Play and the council gets to work.</p> : null}
           {court.reports.slice(0, 25).map((r, i) => (
@@ -164,6 +250,7 @@ export function CouncilPage() {
             </div>
           ))}
         </Panel>
+        <HouseholdPanel className="span-12" />
         <DecisionLog className="span-12 feed" />
       </div>
     </>
@@ -437,6 +524,73 @@ export function ArmouryPanel({ className }: { className?: string }) {
 }
 
 /** Who is at court, what each brings, and what is lost while they are away. */
+/** A line on the court at home, and the hall itself in a pop-up. */
+export function CourtStrip({ className }: { className?: string }) {
+  const world = useWorld();
+  const [open, setOpen] = useState(false);
+  const house = world.playerHouseId;
+  const places = courtOf(world, house);
+  const t = courtTotals(world, house);
+  const pct = (v: number) => `${Math.round(v * 1000) / 10}%`;
+  return (
+    <Panel title={<Term k="court">The court at home</Term>} aside={`${places.filter((p) => p.home).length} of ${places.length} here`} className={className}>
+      <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
+        <span>Othes +{pct(t.income)} · council tasks +{pct(t.tasks)}{t.mood ? ` · mood +${t.mood} a Phase` : ''}</span>
+        {highroyAway(world, house) ? <span className="down">The Highroy is away: the council works slower and no one brings concerns.</span> : null}
+        <span><button type="button" className="btn small primary" onClick={() => setOpen(true)}>See the hall ›</button></span>
+      </div>
+      {open ? <CourtDiagram onClose={() => setOpen(false)} /> : null}
+    </Panel>
+  );
+}
+
+/** The hall: the Highroy, the council about them, and everyone else where they stand, with the empty places of those away. */
+function CourtDiagram({ onClose }: { onClose: () => void }) {
+  const world = useWorld();
+  const house = world.playerHouseId;
+  const lord = world.characters[world.houses[house]?.rulerId ?? ''];
+  const council = councilOf(world, house).filter((c) => c.seat !== 'highroy');
+  const places = courtOf(world, house);
+  const byPlace = new Map<string, { character: Character; home: boolean; text?: string }[]>();
+  for (const p of places) byPlace.set(p.place, [...(byPlace.get(p.place) ?? []), p]);
+  // Everyone else of the house who is grown: the knights' bench, and the household.
+  const placed = new Set([lord?.id, ...council.map((c) => c.id), ...places.map((p) => p.character.id)]);
+  for (const c of courtiers(world).concat(Object.values(world.characters).filter((x) => x.alive && x.houseId === house && x.tier === 'full' && isAway(world, x.id)))) {
+    if (placed.has(c.id) || c.veiled) continue;
+    placed.add(c.id);
+    const where = c.role === 'Knight' || c.flags.some((f) => f.id === 'knighted') ? "The knights' bench" : 'The household';
+    byPlace.set(where, [...(byPlace.get(where) ?? []), { character: c, home: !isAway(world, c.id), text: c.role }]);
+  }
+  const away = (id: string) => isAway(world, id);
+  const chip = (c: Character, gone: boolean, note?: string) => (
+    <span key={c.id} className={`hall-chip${gone ? ' gone' : ''}`} title={note}><PersonLink c={c} short />{gone ? <span className="muted"> · away</span> : null}</span>
+  );
+  return (
+    <div className="dossier-veil" role="dialog" aria-label="The hall" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="dossier">
+        <header>
+          <span className="eyebrow gold">The court at home</span>
+          <h2>The hall</h2>
+          <span className="muted" style={{ fontSize: 12 }}>{places.filter((p) => p.home).length} of {places.length} at court · dashed: away, and what they bring is lost until they return</span>
+          <button type="button" className="btn small dossier-close" onClick={onClose} aria-label="Close">✕</button>
+        </header>
+        <div className="dossier-body hall-plan">
+          <div className="hall-throne">{lord ? chip(lord, away(lord.id)) : null}<span className="eyebrow">the high seat</span></div>
+          <div className="hall-council">{council.map((c) => <div key={c.id} className="hall-seat"><span className="eyebrow gold">{SEAT_TITLE[c.seat!]}</span>{chip(c, away(c.id))}</div>)}</div>
+          <div className="hall-floor">
+            {[...byPlace.entries()].map(([place, ps]) => (
+              <div key={place} className="hall-place">
+                <span className="eyebrow">{place}</span>
+                <div className="hall-people">{ps.map((p) => chip(p.character, !p.home, p.text))}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CourtPanel({ className }: { className?: string }) {
   const world = useWorld();
   const house = world.playerHouseId;

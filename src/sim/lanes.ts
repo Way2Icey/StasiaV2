@@ -791,7 +791,8 @@ export function raidOdds(world: World): number {
   if (!fs.length) return 1;
   const avg = fs.reduce((n, f) => n + (f.rel[P] ?? 0), 0) / fs.length;
   const watched = (world.lanes?.watches ?? []).some((w) => w.house === P);
-  return (avg >= 40 ? 0.6 : avg >= 15 ? 0.85 : avg <= -40 ? 1.4 : avg <= -15 ? 1.15 : 1) * (watched ? 0.8 : 1);
+  const dread = world.houses[P]?.standing.dread ?? 0;
+  return (avg >= 40 ? 0.6 : avg >= 15 ? 0.85 : avg <= -40 ? 1.4 : avg <= -15 ? 1.15 : 1) * (watched ? 0.8 : 1) * (1 - dread / 400);
 }
 
 // ---------------------------------------------------------------- the Highroy's hand

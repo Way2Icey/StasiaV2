@@ -1,5 +1,7 @@
 // The council at work: standing tasks for each seat, the Highroy's oath,
 // petitions from the council, and the house's standing and relations.
+import { courtiers, MIN_BACKERS } from './concerns';
+import { opinion } from './relationships';
 import { regencyFactor } from './chair';
 import { tally } from './careers';
 import { addGlory } from './ambitions';
@@ -568,7 +570,10 @@ function runTask(world: World, rng: Rng, houseId: string, c: Character, def: Tas
 
 function driftUnrest(world: World, rng: Rng) {
   for (const p of Object.values(world.planets)) {
-    for (const s of p.sectors) if (s.controllerFamilyId) s.unrest = clamp(s.unrest + rng.int(0, 3), 0, 100);
+    // A feared house's people are slower to stir.
+    const dread = world.houses[p.houseId]?.standing.dread ?? 0;
+    const top = dread >= 60 ? 1 : dread >= 30 ? 2 : 3;
+    for (const s of p.sectors) if (s.controllerFamilyId) s.unrest = clamp(s.unrest + rng.int(0, top), 0, 100);
   }
 }
 
@@ -643,8 +648,12 @@ function maybePetition(world: World, rng: Rng, houseId: string) {
 
   if (!options.length) return;
   const pick = rng.pick(options);
+  // A councillor's request reaches the Highroy only if others at court stand behind it: their friends and kin.
+  const backers = courtiers(world).filter((c) => c.id !== pick.fromId && (c.familyId === world.characters[pick.fromId]?.familyId || opinion(world, c.id, pick.fromId) >= 15)).map((c) => c.id);
+  if (houseId === world.playerHouseId && backers.length < MIN_BACKERS - 1) return;
   court.petitions.push({
     ...pick,
+    backers: [pick.fromId, ...backers.slice(0, 7)],
     id: `p${world.nextId++}`,
     date: world.date,
     expires: addCycles(world.date, CYCLES_PER_PHASE),

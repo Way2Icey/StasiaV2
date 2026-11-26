@@ -8,13 +8,15 @@ import { SPECIES } from '../data/species';
 
 export type Route =
   | { kind: 'throne' }
-  | { kind: 'people'; focus?: string; view?: 'web' | 'factions' | 'ambitions' | 'young' | 'everyone' | 'renown' }
+  | { kind: 'people'; focus?: string; view?: 'opinions' | 'web' | 'factions' | 'ambitions' | 'young' | 'everyone' | 'renown' }
   | { kind: 'houses' }
   | { kind: 'worlds' }
   | { kind: 'save' }
   | { kind: 'missions' }
   | { kind: 'bounties' }
   | { kind: 'intel' }
+  | { kind: 'greatSeats' }
+  | { kind: 'military' }
   | { kind: 'talk'; id: string }
   | { kind: 'mission'; id: string }
   | { kind: 'plan'; mission: 'investigate' | 'scout' | 'envoy'; target?: string; leader?: string; petition?: string; lead?: string }
@@ -63,10 +65,10 @@ export type Section = 'hall' | 'court' | 'people' | 'arms' | 'realm' | 'archon' 
 export function sectionOf(r: Route): Section | null {
   switch (r.kind) {
     case 'throne': case 'legacy': return 'hall';
-    case 'council': case 'seat': return 'court';
-    case 'people': return r.view === 'ambitions' ? 'court' : 'people';
-    case 'training': case 'character': case 'talk': case 'trait': case 'flag': case 'species': case 'band': case 'family': return 'people';
-    case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': case 'war': return 'arms';
+    case 'council': case 'seat': case 'greatSeats': return 'court';
+    case 'people': return r.view === 'ambitions' ? 'court' : r.view === 'renown' ? 'realm' : 'people';
+    case 'character': case 'talk': case 'trait': case 'flag': case 'species': case 'band': case 'family': return 'people';
+    case 'military': case 'training': case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': case 'war': return 'arms';
     case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'lanes': case 'frontier': case 'places': return 'realm';
     case 'houses': case 'house': case 'embassies': case 'numarade': case 'history': case 'chair': return 'archon';
     case 'economy': case 'exchange': case 'loans': case 'vaults': case 'spend': return 'treasury';
@@ -82,8 +84,8 @@ export interface SectionDef { id: Section; label: string; key: string; home: Rou
 export const SECTIONS: SectionDef[] = [
   { id: 'hall', label: 'HALL', key: '1', home: { kind: 'throne' } },
   { id: 'court', label: 'COURT', key: '2', home: { kind: 'council' } },
-  { id: 'people', label: 'PEOPLE', key: '3', home: { kind: 'people' } },
-  { id: 'arms', label: 'ARMS', key: '4', home: { kind: 'crucible' } },
+  { id: 'people', label: 'HOUSE', key: '3', home: { kind: 'people', view: 'opinions' } },
+  { id: 'arms', label: 'ARMS', key: '4', home: { kind: 'military' } },
   { id: 'realm', label: 'REALM', key: '5', home: { kind: 'worlds' } },
   { id: 'archon', label: 'ARCHON', key: '6', home: { kind: 'numarade' } },
   { id: 'treasury', label: 'TREASURY', key: '7', home: { kind: 'economy' } },
@@ -102,25 +104,24 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'Legacy', to: { kind: 'legacy' }, on: is('legacy') },
   ],
   court: [
-    { label: 'Council', to: { kind: 'council' }, on: is('council') },
-    { label: 'Ambitions & audiences', to: { kind: 'people', view: 'ambitions' }, on: (r) => r.kind === 'people' && r.view === 'ambitions' },
-    { label: 'Infirmary', to: { kind: 'seat', id: 'physician' }, on: (r) => r.kind === 'seat' && r.id === 'physician' },
-    { label: 'Seats', to: { kind: 'seat', id: 'envoy' }, on: (r) => r.kind === 'seat' && r.id !== 'physician' },
+    { label: 'Council', to: { kind: 'council' }, on: (r) => r.kind === 'council' || r.kind === 'seat' },
+    { label: 'Audiences & ambitions', to: { kind: 'people', view: 'ambitions' }, on: (r) => r.kind === 'people' && r.view === 'ambitions' },
+    { label: 'Seats of the court', to: { kind: 'greatSeats' }, on: is('greatSeats') },
   ],
   people: [
-    { label: 'Ties', to: { kind: 'people', view: 'web' }, on: (r) => r.kind === 'people' && (!r.view || r.view === 'web') },
+    { label: 'Opinions', to: { kind: 'people', view: 'opinions' }, on: (r) => r.kind === 'people' && ((!r.view && !r.focus) || r.view === 'opinions') },
+    { label: 'Ties', to: { kind: 'people', view: 'web' }, on: (r) => r.kind === 'people' && (r.view === 'web' || (!r.view && !!r.focus)) },
     { label: 'Factions', to: { kind: 'people', view: 'factions' }, on: (r) => r.kind === 'people' && r.view === 'factions' },
-    { label: 'Renown', to: { kind: 'people', view: 'renown' }, on: (r) => r.kind === 'people' && r.view === 'renown' },
     { label: 'Younglings & wards', to: { kind: 'people', view: 'young' }, on: (r) => r.kind === 'people' && r.view === 'young' },
-    { label: 'Training & academy', to: { kind: 'training' }, on: is('training') },
-    { label: 'Everyone', to: { kind: 'people', view: 'everyone' }, on: (r) => r.kind === 'people' && r.view === 'everyone' },
   ],
   arms: [
-    { label: 'War', to: { kind: 'war' }, on: is('war') },
-    { label: 'The Crucible', to: { kind: 'crucible' }, on: is('crucible') },
-    { label: 'Circuit & tourneys', to: { kind: 'grounds' }, on: is('grounds') },
-    { label: 'Knights & challenges', to: { kind: 'knights' }, on: is('knights') },
+    { label: 'Military', to: { kind: 'military' }, on: is('military') },
     { label: 'Fleet', to: { kind: 'fleet' }, on: (r) => r.kind === 'fleet' || r.kind === 'ship' },
+    { label: 'Knights & challenges', to: { kind: 'knights' }, on: is('knights') },
+    { label: 'Training & academy', to: { kind: 'training' }, on: is('training') },
+    { label: 'Circuit & tourneys', to: { kind: 'grounds' }, on: is('grounds') },
+    { label: 'The Crucible', to: { kind: 'crucible' }, on: is('crucible') },
+    { label: 'War', to: { kind: 'war' }, on: is('war') },
   ],
   realm: [
     { label: 'Star map', to: { kind: 'worlds' }, on: (r) => r.kind === 'worlds' || r.kind === 'planet' || r.kind === 'sector' || r.kind === 'port' },
@@ -128,12 +129,12 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'Places', to: { kind: 'places' }, on: is('places') },
     { label: 'Frontier', to: { kind: 'frontier' }, on: is('frontier') },
     { label: 'Lanes & corsairs', to: { kind: 'lanes' }, on: is('lanes') },
+    { label: 'Renown', to: { kind: 'people', view: 'renown' }, on: (r) => r.kind === 'people' && r.view === 'renown' },
   ],
   archon: [
     { label: 'Numarade', to: { kind: 'numarade' }, on: is('numarade') },
     { label: 'The Chair', to: { kind: 'chair' }, on: is('chair') },
     { label: 'Houses', to: { kind: 'houses' }, on: (r) => r.kind === 'houses' || r.kind === 'house' },
-    { label: 'Embassies', to: { kind: 'embassies' }, on: is('embassies') },
     { label: 'Annals', to: { kind: 'history' }, on: is('history') },
   ],
   treasury: [
@@ -169,6 +170,8 @@ export function routeLabel(world: World, r: Route): string {
     case 'missions': return 'Missions';
     case 'bounties': return 'Bounties';
     case 'intel': return 'Cells & intel';
+    case 'greatSeats': return 'Seats of the court';
+    case 'military': return 'Military';
     case 'talk': return `Audience · ${world.characters[r.id]?.name.given ?? ''}`;
     case 'council': return 'Council';
     case 'seat': return SEAT_TITLE[r.id];

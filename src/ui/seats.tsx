@@ -9,7 +9,10 @@ import { OATHS_BY_ID, TASKS_BY_ID } from '../sim/council';
 import { activeMissionOf, MISSION_LABEL } from '../sim/missions';
 import { moodColor, moodLabel, moodOf } from '../sim/mood';
 import { ageOf } from '../sim/characters';
-import { alive } from '../sim/query';
+import { alive, familyHead, isCommoner, sectorsControlledBy } from '../sim/query';
+import { opinion } from '../sim/relationships';
+import { ambitionText } from '../sim/ambitions';
+import { cannotTalk } from '../sim/talk';
 import { knowledgeOf } from '../sim/knowledge';
 import { formatDate } from '../sim/time';
 import { econ, netPerPhase, phaseLedger } from '../sim/economy';
@@ -504,40 +507,47 @@ export function HouseholdPanel({ className }: { className?: string }) {
   const house = world.playerHouseId;
   const [err, setErr] = useState<string | null>(null);
   const nobles = alive(world).filter((c) => c.houseId === house && isHouseholdNoble(c) && ageOf(c, world.date) >= 16)
-    .sort((a, b) => occupationOf(a).localeCompare(occupationOf(b)) || a.name.given.localeCompare(b.name.given));
+    .sort((a, b) => a.name.given.localeCompare(b.name.given));
   const counts = nobles.reduce((m, c) => ({ ...m, [occupationOf(c)]: (m[occupationOf(c)] ?? 0) + 1 }), {} as Record<string, number>);
+  const families = new Map<string, typeof nobles>();
+  for (const c of nobles) families.set(c.familyId, [...(families.get(c.familyId) ?? []), c]);
+  const order = [...families.entries()].sort((a, b) => Number(!!world.families[b[0]]?.ruling) - Number(!!world.families[a[0]]?.ruling) || b[1].length - a[1].length);
   return (
-    <Panel fold="open" scroll={360} title={<Term k="occupation">Nobles of the house</Term>} aside={`${counts.courtier ?? 0} at court · ${counts.envoy ?? 0} envoys · ${counts.idle ?? 0} idle`} className={className}>
+    <Panel fold="open" title={<Term k="occupation">Nobles of the house</Term>} aside={`${nobles.length} in ${order.length} families · ${counts.courtier ?? 0} at court · ${counts.envoy ?? 0} envoys · ${counts.idle ?? 0} idle`} className={className}>
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
-      <div className="table-wrap">
-        <table className="list">
-          <thead><tr><th>Name</th><th>Family</th><th>Occupation</th><th><Term k="mood">Mood</Term></th><th>Where</th></tr></thead>
-          <tbody>
-            {nobles.map((c) => {
-              const occ = occupationOf(c);
-              const ready = knightReady(c);
-              return (
-                <tr key={c.id}>
-                  <td><PersonLink c={c} />{isAgent(c) ? <span className="chip secret" style={{ marginLeft: 6 }}>agent</span> : null}</td>
-                  <td><FamilyLink id={c.familyId} /></td>
-                  <td>
-                    <select aria-label={`What ${c.name.given} does`} className="select" value={occ} onChange={(e) => {
-                      try { game.update((w) => setOccupation(w, house, c.id, e.target.value as Occupation)); setErr(null); } catch (x) { setErr((x as Error).message); }
-                    }}>
-                      {(['idle', 'courtier', 'envoy', 'knight'] as Occupation[]).map((o) => (
-                        <option key={o} value={o} disabled={o === 'knight' && !!ready}>{OCCUPATION_LABEL[o]}{o === 'knight' && ready ? ' (not ready)' : ''}</option>
-                      ))}
-                    </select>
-                    <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{OCCUPATION_NOTE[occ]}</div>
-                  </td>
-                  <td><MoodText c={c} /></td>
-                  <td className={whereabouts(world, c).tone} style={{ fontSize: 12 }}>{whereabouts(world, c).text}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {order.map(([fid, people]) => (
+        <details key={fid} className="family-group">
+          <summary><strong>{world.families[fid]?.name ?? 'Unknown'}</strong> <span className="muted">· {people.length} · {people.filter((c) => !isAway(world, c.id)).length} at home</span></summary>
+          <div className="table-wrap">
+            <table className="list">
+              <thead><tr><th>Name</th><th>Occupation</th><th><Term k="mood">Mood</Term></th><th>Where</th></tr></thead>
+              <tbody>
+                {people.map((c) => {
+                  const occ = occupationOf(c);
+                  const ready = knightReady(c);
+                  return (
+                    <tr key={c.id}>
+                      <td><PersonLink c={c} />{isAgent(c) ? <span className="chip secret" style={{ marginLeft: 6 }}>agent</span> : null}</td>
+                      <td>
+                        <select aria-label={`What ${c.name.given} does`} className="select" value={occ} onChange={(e) => {
+                          try { game.update((w) => setOccupation(w, house, c.id, e.target.value as Occupation)); setErr(null); } catch (x) { setErr((x as Error).message); }
+                        }}>
+                          {(['idle', 'courtier', 'envoy', 'knight'] as Occupation[]).map((o) => (
+                            <option key={o} value={o} disabled={o === 'knight' && !!ready}>{OCCUPATION_LABEL[o]}{o === 'knight' && ready ? ' (not ready)' : ''}</option>
+                          ))}
+                        </select>
+                        <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{OCCUPATION_NOTE[occ]}</div>
+                      </td>
+                      <td><MoodText c={c} /></td>
+                      <td className={whereabouts(world, c).tone} style={{ fontSize: 12 }}>{whereabouts(world, c).text}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      ))}
     </Panel>
   );
 }
@@ -568,5 +578,52 @@ function NameToSeat({ seat }: { seat: CouncilSeat }) {
       <button type="button" className="btn small primary" disabled={!pick} onClick={() => { game.update((w) => { try { return appointToSeat(w, seat, pick); } catch { return w; } }); setPick(''); }}>Name them</button>
       <span className="muted" style={{ fontSize: 12 }}>Whoever holds it now will be bitter.</span>
     </div>
+  );
+}
+
+/** Court › Seats of the court: the heads of the house's great families, whose goodwill holds the house together. */
+export function GreatSeatsPage() {
+  const world = useWorld();
+  const house = world.playerHouseId;
+  const lord = world.houses[house]?.rulerId;
+  const fams = Object.values(world.families).filter((f) => f.houseId === house && !isCommoner(f))
+    .map((f) => ({ f, members: alive(world).filter((c) => c.familyId === f.id), holds: sectorsControlledBy(world, f.id) }))
+    .sort((a, b) => Number(!!b.f.ruling) - Number(!!a.f.ruling) || b.holds.length - a.holds.length || b.members.length - a.members.length)
+    .slice(0, 5);
+  return (
+    <>
+      <div className="page-title">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span className="eyebrow gold">The court</span>
+          <h2>Seats of the court</h2>
+          <p>The heads of the house's great families. They hold its sectors, speak for its people, and stand behind or against what comes before you. The council seats are reached from the Council.</p>
+        </div>
+      </div>
+      <div className="grid">
+        {fams.map(({ f, members, holds }) => {
+          const head = familyHead(world, f.id);
+          const op = head && lord && head.id !== lord ? opinion(world, head.id, lord) : undefined;
+          const amb = head ? world.ambitions?.of[head.id] : undefined;
+          const unrest = holds.length ? Math.round(holds.reduce((t, s) => t + s.sector.unrest, 0) / holds.length) : 0;
+          const why = head ? cannotTalk(world, head.id) : 'No head';
+          return (
+            <Panel key={f.id} title={<FamilyLink id={f.id} />} aside={f.ruling ? 'the ruling family' : f.high ? 'a high family' : 'a vassal family'} className="span-6">
+              <div className="body seat-head">
+                {head ? <Portrait c={head} date={world.date} high size="small" /> : null}
+                <dl className="kv" style={{ flex: 1, margin: 0 }}>
+                  <dt>Head</dt><dd>{head ? <PersonLink c={head} /> : '—'}{head?.seat ? <span className="muted"> · {SEAT_TITLE[head.seat]}</span> : null}</dd>
+                  {op !== undefined ? <><dt>Toward you</dt><dd><Regard v={Math.round(op)} /></dd></> : null}
+                  {head ? <><dt>Mood</dt><dd><MoodText c={head} /></dd></> : null}
+                  <dt>Wants</dt><dd>{amb?.known ? ambitionText(world, amb).replace(/^wants /, '') : <span className="muted">{amb ? 'unspoken' : 'nothing pressing'}</span>}</dd>
+                  <dt>Holds</dt><dd>{holds.length ? holds.map((s, i) => <span key={s.sector.id}>{i ? ', ' : ''}<SectorLink id={s.sector.id} /></span>) : <span className="muted">no sectors</span>}{holds.length ? <span className="muted"> · unrest {unrest}</span> : null}</dd>
+                  <dt>Family</dt><dd>{members.length} living · {members.filter((c) => !isAway(world, c.id)).length} at home</dd>
+                </dl>
+              </div>
+              {head && head.id !== lord ? <div className="body actions"><Go to={{ kind: 'talk', id: head.id }} className="btn small primary" title={why ?? 'Three exchanges'}>Audience ›</Go>{why ? <span className="muted" style={{ fontSize: 12 }}>{why}</span> : null}</div> : null}
+            </Panel>
+          );
+        })}
+      </div>
+    </>
   );
 }

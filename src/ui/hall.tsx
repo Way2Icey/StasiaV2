@@ -5,6 +5,8 @@ import { board, buyOff, buyOffCost, onOurHeads, viewTarget } from '../sim/bounti
 import { musterByCouncil } from '../sim/crucible';
 import { econ } from '../sim/economy';
 import { cannotTurn, liveIntel } from '../sim/turning';
+import { answerConcern, concernsOf } from '../sim/concerns';
+import { receiveRequest, turnAway } from '../sim/talk';
 import { captivesHeldBy } from '../sim/captives';
 import { Peek } from './links';
 import { readyForCommand } from '../sim/missions';
@@ -300,6 +302,19 @@ export function Desk({ className }: { className?: string }) {
       items.push({ id: `w-${s.id}`, mark: '[●]', kind: 'WATCH', text: <>{a.name} docked · {s.name}</>, open: () => ins.open({ k: 'portShip', id: s.id }) });
     }
   }
+  for (const cn of concernsOf(world)) {
+    const by = world.characters[cn.raisedBy];
+    items.push({ id: cn.id, mark: '[?]', kind: 'CONCERN', text: <>{by ? by.name.given : 'The court'} and {cn.backers.length - 1} others: {cn.yes.toLowerCase()}?</>, when: inCycles(world, cn.expires),
+      open: () => setOpen((o) => (o === cn.id ? null : cn.id)),
+      detail: <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span className="quote">“{cn.text}”</span><span className="muted" style={{ fontSize: 12 }}>{cn.cost} · {cn.backers.length} for, {cn.against.length} against</span></span>,
+      acts: [{ label: cn.yes, primary: true, run: (w) => answerConcern(w, cn.id, true) }, { label: cn.no, run: (w) => answerConcern(w, cn.id, false) }] });
+  }
+  for (const r of world.talkRequests ?? []) {
+    const c = world.characters[r.personId];
+    if (c) items.push({ id: r.id, mark: '["]', kind: 'AUDIENCE', open: () => nav.to({ kind: 'people', view: 'ambitions' }), text: <>{c.name.given}{c.houseId !== P ? ` of House ${world.houses[c.houseId ?? '']?.name ?? ''}` : ''} {r.why}</>, when: inCycles(world, r.expires),
+      acts: [{ label: 'Receive', primary: true, run: (w) => w, go: () => { game.update((w) => { try { return receiveRequest(w, r.id, 'warm'); } catch { return w; } }); nav.to({ kind: 'talk', id: c.id }); } }, { label: 'Turn away', run: (w) => turnAway(w, r.id) }] });
+  }
+  for (const q of (world.quests?.board ?? []).filter((x) => !x.goneId).slice(0, 1)) items.push({ id: q.id, mark: '[⚔]', kind: 'DEED', quiet: true, text: <>On the Grand Master's board: {q.title}</>, open: () => nav.to({ kind: 'knights' }) });
   for (const pet of world.courts[P]?.petitions ?? []) {
     const from = world.characters[pet.fromId];
     const plan = petitionPlan(world, pet);

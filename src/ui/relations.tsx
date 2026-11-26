@@ -10,9 +10,10 @@ import { barsOf, BOND_LABEL, DISLIKE_TIERS, factions, LIKE_TIERS, SECRET_BONDS, 
 import { knowledgeOf } from '../sim/knowledge';
 import { isAway } from '../sim/court';
 import { SEAT_TITLE } from '../sim/world';
+import { shipsOf } from '../sim/fleet';
 import type { Character, World } from '../sim/types';
 
-type View = 'web' | 'factions' | 'ambitions' | 'young' | 'everyone';
+type View = 'opinions' | 'web' | 'factions' | 'ambitions' | 'young' | 'everyone';
 
 /** An opinion as a bar from -100 to +100, centred. */
 export function opinionBar(v: number): string {
@@ -57,15 +58,15 @@ export function RelationsPage({ focus: initial, view: initialView }: { focus?: s
   const P = world.playerHouseId;
   const lord = Object.values(world.characters).find((c) => c.alive && c.houseId === P && c.seat === 'highroy');
   const [focus, setFocus] = useState<string | undefined>(initial ?? lord?.id);
-  const view: View = initialView ?? 'web';
+  const view: View = initialView ?? (initial ? 'web' : 'opinions');
   const me = focus ? world.characters[focus] : undefined;
   return (
     <>
       <div className="page-title">
-        <h2>{view === 'ambitions' ? 'Ambitions & audiences' : view === 'factions' ? 'Factions' : view === 'young' ? 'Younglings & wards' : view === 'everyone' ? 'Everyone' : 'Ties'}</h2>
-        <p>Who feels what about whom. Pick anyone to see the house through their eyes. You see other houses' ties only as far as you know their people.</p>
+        <h2>{view === 'opinions' ? 'What the house thinks of you' : view === 'ambitions' ? 'Audiences & ambitions' : view === 'factions' ? 'Factions' : view === 'young' ? 'Younglings & wards' : view === 'everyone' ? 'Everyone' : 'Ties'}</h2>
+        <p>{view === 'opinions' ? 'What each of our people thinks of you, by where they stand in the house. Least fond first.' : 'Who feels what about whom. Pick anyone to see the house through their eyes. You see other houses\' ties only as far as you know their people.'}</p>
       </div>
-      {view === 'everyone' ? <PeoplePage /> : view === 'factions' ? <Factions /> : view === 'young' ? <Younglings /> : view === 'ambitions' ? <AmbitionsView /> : (
+      {view === 'opinions' ? <OpinionsView /> : view === 'everyone' ? <PeoplePage /> : view === 'factions' ? <Factions /> : view === 'young' ? <Younglings /> : view === 'ambitions' ? <AmbitionsView /> : (
         <div className="grid">
           <Panel title="Our people" aside="by circle" className="span-4">
             {circles(world).map((g) => (
@@ -149,6 +150,60 @@ function Factions() {
         ))}
         {groups.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No circles have formed yet.</p> : null}
       </Panel>
+    </div>
+  );
+}
+
+/** House › Opinions: what each of our people thinks of you, grouped by where they stand in the house. */
+export function OpinionsView() {
+  const world = useWorld();
+  const P = world.playerHouseId;
+  const lord = world.houses[P]?.rulerId;
+  if (!lord) return <p className="muted">No Highroy.</p>;
+  const ours = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.id !== lord && !c.veiled);
+  const lordC = world.characters[lord]!;
+  const captains = new Set(shipsOf(world, P).map((s) => s.captainId).filter(Boolean) as string[]);
+  const young = (c: Character) => c.role === 'Youngling' || c.role === 'Ward' || !!world.ladder?.of[c.id] && world.ladder.of[c.id]!.stage !== 'blooded';
+  const placed = new Set<string>();
+  const take = (f: (c: Character) => boolean) => ours.filter((c) => !placed.has(c.id) && f(c)).map((c) => { placed.add(c.id); return c; });
+  const groups: [string, Character[]][] = [
+    ['Council', take((c) => !!c.seat)],
+    ['Family', take((c) => c.familyId === lordC.familyId)],
+    ['Knights', take((c) => c.role === 'Knight')],
+    ['Crews', take((c) => captains.has(c.id))],
+    ['Wards, aspirants & younglings', take(young)],
+    ['The rest of the house', take(() => true)],
+  ];
+  const hunters = Object.values(world.bounties?.hunters ?? {}).filter((h) => h.retainedBy === P && h.status !== 'dead');
+  const row = (c: Character) => {
+    const b = barsOf(world, c.id, lord);
+    const v = Math.round(b.like - b.dislike);
+    const word = [tierOf(b.like, LIKE_TIERS), tierOf(b.dislike, DISLIKE_TIERS)].filter(Boolean).join(', but ') || 'No strong feeling';
+    return (
+      <tr key={c.id}>
+        <td><PersonLink c={c} /></td>
+        <td className="muted" style={{ fontSize: 12 }}>{c.seat ? SEAT_TITLE[c.seat] : c.role}{isAway(world, c.id) ? ' · away' : ''}</td>
+        <td className="mono" style={{ whiteSpace: 'nowrap' }}>{opinionBar(v)}</td>
+        <td style={{ fontSize: 12 }}>{word}</td>
+      </tr>
+    );
+  };
+  return (
+    <div className="grid">
+      {groups.filter(([, p]) => p.length).map(([title, people]) => {
+        const sorted = [...people].sort((a, b) => (barsOf(world, a.id, lord).like - barsOf(world, a.id, lord).dislike) - (barsOf(world, b.id, lord).like - barsOf(world, b.id, lord).dislike));
+        const avg = Math.round(people.reduce((t, c) => t + barsOf(world, c.id, lord).like - barsOf(world, c.id, lord).dislike, 0) / people.length);
+        return (
+          <Panel key={title} fold={people.length > 8 ? true : 'open'} title={title} aside={`${people.length} · on average ${avg > 0 ? '+' : ''}${avg}`} className="span-6">
+            <div className="table-wrap"><table className="list"><tbody>{sorted.map(row)}</tbody></table></div>
+          </Panel>
+        );
+      })}
+      {hunters.length ? (
+        <Panel title="Hunters on retainer" className="span-6">
+          {hunters.map((h) => <div key={h.id} className="row" style={{ fontSize: 13 }}><span style={{ flex: 1 }}>{h.name} <span className="muted">"{h.epithet}"</span></span><span className="muted">loyal to the purse · {h.status}</span></div>)}
+        </Panel>
+      ) : null}
     </div>
   );
 }

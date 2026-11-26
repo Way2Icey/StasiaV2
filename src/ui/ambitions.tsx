@@ -1,7 +1,9 @@
 // Ambitions on screen: the audience chamber, what people want, and the Highroy's own hand.
 import { Term } from './tip';
 import { useState } from 'react';
-import { useGame, useWorld } from './context';
+import { useGame, useNav, useWorld } from './context';
+import { AIM_NOTE, AIM_TEXT, aimsFor, receiveRequest, turnAway } from '../sim/talk';
+import { SEAT_TITLE } from '../sim/world';
 import { HouseLink, Panel, PersonById, PersonLink } from './links';
 import { Portrait } from './portrait';
 import {
@@ -97,19 +99,40 @@ export function WantsPanel({ id, className }: { id: string; className?: string }
   );
 }
 
-/** Relations › Ambitions: everyone whose wants we know, most restless first. */
+/** Court › Audiences & ambitions: who is asking to see us, and what our own people want. */
 export function AmbitionsView() {
   const world = useWorld();
+  const { run, err } = usePlay();
+  const nav = useNav();
   const P = world.playerHouseId;
   const rows = Object.entries(world.ambitions?.of ?? {})
     .map(([id, a]) => ({ c: world.characters[id]!, a }))
-    .filter(({ c, a }) => c?.alive && (c.houseId === P ? a.known : knowledgeOf(world, P, c.id).depth >= 50))
-    .sort((x, y) => (x.c.houseId === P ? 0 : 1) - (y.c.houseId === P ? 0 : 1) || y.a.frustration - x.a.frustration);
-  const unknown = Object.entries(world.ambitions?.of ?? {}).filter(([id, a]) => world.characters[id]?.houseId === P && !a.known).length;
+    .filter(({ c, a }) => c?.alive && c.houseId === P && a.known)
+    .sort((x, y) => y.a.frustration - x.a.frustration);
+  const unknown = Object.entries(world.ambitions?.of ?? {}).filter(([id, a]) => world.characters[id]?.houseId === P && world.characters[id]?.alive && !a.known).length;
+  const waiting = (world.ambitions?.audiences ?? []).filter((au) => world.characters[au.characterId]?.alive);
+  const asks = (world.talkRequests ?? []).filter((r) => world.characters[r.personId]?.alive);
   return (
     <div className="grid">
-      <Panel title="Ambitions" aside={`${rows.length} known · ${unknown} of ours unspoken`} className="span-12">
-        <p className="body muted" style={{ margin: 0 }}>Everyone of note wants something. Unmet, it gnaws at them: past 40 they come to you; past 85 they act on their own, against whoever stands in the way, or by leaving for a house that will give it. A promise buys two Orbits. Give people what they want and they love you for it, for a while.</p>
+      <Panel title="Asking to see you" aside={`${waiting.length + asks.length} waiting`} className="span-12">
+        {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
+        {waiting.length + asks.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is waiting. People come when something gnaws at them, or when they have something to say.</p> : null}
+        {waiting.map((au) => <div key={au.id} style={{ borderBottom: '1px solid var(--line-soft)' }}><AudienceCard au={au} /></div>)}
+        {asks.map((r) => {
+          const c = world.characters[r.personId]!;
+          return (
+            <div key={r.id} className="row petition">
+              <span style={{ flex: 1, minWidth: 0 }}><PersonLink c={c} /> <span className="muted">· {c.seat ? SEAT_TITLE[c.seat] : c.role}{c.houseId !== P ? <> of House <HouseLink id={c.houseId} /></> : null}</span> {r.why}. <span className="muted" style={{ fontSize: 11 }}>Until {formatDate(r.expires)}.</span></span>
+              <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+                {aimsFor(world, c.id).map((a) => <button key={a} type="button" className={`btn small${a === 'warm' ? ' primary' : ''}`} title={AIM_NOTE[a]} onClick={() => { run((w) => receiveRequest(w, r.id, a)); nav.to({ kind: 'talk', id: c.id }); }}>Receive: {AIM_TEXT[a].toLowerCase()}</button>)}
+                <button type="button" className="btn small" onClick={() => run((w) => turnAway(w, r.id))}>Turn them away</button>
+              </span>
+            </div>
+          );
+        })}
+      </Panel>
+      <Panel title="What our people want" aside={`${rows.length} known · ${unknown} unspoken`} className="span-12">
+        <p className="body muted" style={{ margin: 0 }}>Everyone of note wants something. Unmet, it gnaws at them: past 40 they come to you; past 85 they act on their own, against whoever stands in the way, or by leaving for a house that will give it. A promise buys two Orbits.</p>
         <div className="table-wrap">
           <table className="ctable">
             <thead><tr><th>WHO</th><th>WANTS</th><th>IN THE WAY</th><th>FRUSTRATION</th></tr></thead>
@@ -118,7 +141,7 @@ export function AmbitionsView() {
                 const b = blocker(world, c, a);
                 return (
                   <tr key={c.id}>
-                    <td><PersonLink c={c} />{c.houseId !== P ? <span className="muted"> · <HouseLink id={c.houseId} /></span> : null}</td>
+                    <td><PersonLink c={c} /></td>
                     <td>{ambitionText(world, a).replace(/^wants /, '')}{a.promised ? <span className="muted"> · promised</span> : null}</td>
                     <td>{b && b.id !== c.id ? <PersonById id={b.id} /> : <span className="muted">—</span>}</td>
                     <td className="mono">[{bar(a.frustration)}] {Math.round(a.frustration)}</td>
@@ -128,7 +151,7 @@ export function AmbitionsView() {
             </tbody>
           </table>
         </div>
-        <p className="body muted" style={{ margin: 0, fontSize: 12 }}>To learn what someone of ours wants, call them to an audience from their page.</p>
+        <p className="body muted" style={{ margin: 0, fontSize: 12 }}>To learn what someone wants, call them to an audience from their page.</p>
       </Panel>
     </div>
   );

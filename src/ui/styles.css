@@ -714,3 +714,29 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .talk-said.us { color: var(--hi); }
 .talk-said.good { border-left-color: var(--gold); }
 .talk-said.bad { border-left-style: dashed; color: var(--muted); }
+
+/* house dossier */
+.dossier-veil { position: fixed; inset: 0; z-index: 75; background: rgba(0, 0, 0, 0.72); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px 16px; }
+.dossier { width: min(1100px, 100%); max-height: calc(100vh - 56px); display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--fg); box-shadow: 6px 6px 0 var(--line-soft); }
+.dossier > header { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 12px 48px 8px 16px; }
+.dossier > header h2 { margin: 0; font: 700 22px var(--display); }
+.dossier-close { position: absolute; top: 10px; right: 10px; }
+.dossier-tabs { margin: 0 12px; }
+.dossier-body { overflow-y: auto; padding: 12px 16px 16px; align-content: start; }
+
+/* nobles by family, and the hall */
+.family-group { border-top: 1px solid var(--line-soft); }
+.family-group > summary { cursor: pointer; padding: 8px 12px; font-size: 13px; list-style: none; }
+.family-group > summary::before { content: '▸ '; color: var(--muted); }
+.family-group[open] > summary::before { content: '▾ '; }
+.hall-plan { display: flex; flex-direction: column; gap: 14px; align-items: stretch; }
+.hall-throne { align-self: center; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 24px; border: 1px solid var(--gold); }
+.hall-council { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding-bottom: 12px; border-bottom: 1px dashed var(--line); }
+.hall-seat { display: flex; flex-direction: column; gap: 4px; align-items: center; padding: 6px 10px; border: 1px solid var(--line); min-width: 120px; }
+.hall-floor { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.hall-place { border: 1px solid var(--line); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.hall-people { display: flex; flex-wrap: wrap; gap: 6px; }
+.hall-chip { font-size: 12px; padding: 2px 6px; border: 1px solid var(--line); }
+.hall-chip.gone { border-style: dashed; opacity: 0.6; }
+
+.standing-fx { margin: -2px 0 4px 14px; padding: 0; font-size: 11px; color: var(--muted); line-height: 1.45; }

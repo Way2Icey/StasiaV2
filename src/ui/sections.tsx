@@ -8,6 +8,8 @@ import { Go, HouseLink, Panel, PersonLink } from './links';
 import { Term } from './tip';
 import { SUBTABS, type Route, type Section } from './router';
 import { FleetPanel } from './fleet';
+import { candidatesFor, cannotSend, hardWord, odds, QUEST_LABEL, sendOnQuest } from '../sim/quests';
+import { shipsOf, upkeepOf } from '../sim/fleet';
 import { EmbassyPanel, OurCourtEmbassies } from './embassies';
 import { LoansPanel } from './loans';
 import { ModuleView } from './holdings';
@@ -24,7 +26,7 @@ import { heldSectors } from '../sim/economy';
 import { buildCost, buildModule, cannotBuild, MODULE_LABEL, MODULE_NOTE, modulesOf, placeOf, reservesOf, SECTOR_KINDS, type ModuleKind } from '../sim/holdings';
 import { ageOf } from '../sim/characters';
 import { mentorOf, pipeline, proofOf, sternness } from '../sim/ladder';
-import { absoluteCycle } from '../sim/time';
+import { absoluteCycle, formatDate } from '../sim/time';
 import { SEAT_TITLE } from '../sim/world';
 import type { World } from '../sim/types';
 
@@ -98,11 +100,11 @@ export function KnightsPage() {
         <p>The house's fighting people: knights, the Champion and Grand Master, ship captains and base commanders. Only they may challenge or be challenged. Knighting someone costs 300 othes and they will not forget it.</p>
       </div>
       <div className="grid">
+        <QuestBoard className="span-12" />
         <Challenges className="span-12" />
-        <VeteransPanel className="span-12" />
         <Panel title="Our military" aside={`${military.length}`} className="span-12">
           <div className="table-wrap">
-            <table className="table">
+            <table className="list">
               <thead><tr><th>Name</th><th>Role</th><th>Fight</th><th>Record</th><th>Titles</th><th>Now</th><th /></tr></thead>
               <tbody>
                 {military.map((c) => (
@@ -136,6 +138,7 @@ export function KnightsPage() {
             );
           })}
         </Panel>
+        <VeteransPanel className="span-12" />
         <Panel title="Could be knighted" aside="Blooded first · 300 othes each" className="span-12">
           {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
           {could.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one at court is ready.</p> : null}
@@ -148,6 +151,45 @@ export function KnightsPage() {
         </Panel>
       </div>
     </>
+  );
+}
+
+/** The Grand Master's board: deeds ready for a knight or aspirant to take. */
+function QuestBoard({ className }: { className?: string }) {
+  const world = useWorld();
+  const { run, err } = usePlay();
+  const [pick, setPick] = useState<Record<string, string>>({});
+  const board = world.quests?.board ?? [];
+  const open = board.filter((q) => !q.goneId);
+  const out = board.filter((q) => q.goneId);
+  const who = candidatesFor(world);
+  const gm = Object.values(world.characters).find((c) => c.alive && c.houseId === world.playerHouseId && c.seat === 'grandMaster');
+  return (
+    <Panel title="The Grand Master's board" aside={`${open.length} waiting · ${out.length} out`} className={className}>
+      {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
+      {board.length === 0 ? <p className="body muted" style={{ margin: 0 }}>{gm ? <>{gm.name.given} posts new work at the turn of each Phase.</> : 'No Grand Master: no one keeps the board.'}</p> : null}
+      {open.map((q) => {
+        const sel = pick[q.id] ?? who[0]?.id ?? '';
+        const c = sel ? world.characters[sel] : undefined;
+        const why = sel ? cannotSend(world, q.id, sel) : 'No one free';
+        return (
+          <div key={q.id} className="row petition">
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span><span className="tag mission">{QUEST_LABEL[q.kind]}</span> <strong>{q.title}</strong></span>
+              <span style={{ fontSize: 12 }}>{q.text}</span>
+              <span className="muted" style={{ fontSize: 11 }}>{hardWord(q.hard)} · about {Math.round(q.cycles / 8)} Phase{q.cycles > 12 ? 's' : ''} away{q.reward ? ` · ${q.reward.toLocaleString('en-US')} othes` : ' · glory only'}</span>
+            </span>
+            <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0, alignItems: 'center' }}>
+              <select className="select" aria-label="Who goes" value={sel} onChange={(e) => setPick({ ...pick, [q.id]: e.target.value })}>
+                {who.map((k) => <option key={k.id} value={k.id}>{k.name.given} {k.name.family ?? k.name.hold ?? ''} · {k.role} · {Math.round(odds(world, q, k) * 100)}%</option>)}
+              </select>
+              <button type="button" className="btn small primary" disabled={!!why} title={why ?? (c ? `${Math.round(odds(world, q, c) * 100)}% by the Grand Master's reckoning` : '')} onClick={() => run((w) => sendOnQuest(w, q.id, sel))}>Send</button>
+            </span>
+          </div>
+        );
+      })}
+      {out.map((q) => <div key={q.id} className="row" style={{ fontSize: 12 }}><span style={{ flex: 1 }}><strong>{q.title}</strong> · <PersonLink c={world.characters[q.goneId!]!} /> <span className="muted">is out; back by {q.back ? formatDate(q.back) : 'soon'}</span></span></div>)}
+    </Panel>
   );
 }
 
@@ -164,6 +206,7 @@ export function FleetPage() {
         <p>The house's great ships, their duties and captains. New ships are laid down at a shipyard.</p>
       </div>
       <div className="grid">
+        <FleetGlance className="span-12" />
         <FleetPanel className="span-8" />
         <Panel title="Shipyards" aside={`${yards.length}`} className="span-4">
           {yards.length === 0 ? <p className="body muted" style={{ margin: 0 }}>None yet. <Go to={{ kind: 'build' }}>Build one ›</Go></p> : null}
@@ -173,6 +216,27 @@ export function FleetPage() {
         </Panel>
       </div>
     </>
+  );
+}
+
+function FleetGlance({ className }: { className?: string }) {
+  const world = useWorld();
+  const P = world.playerHouseId;
+  const ships = shipsOf(world, P);
+  const crew = ships.reduce((t, s) => t + s.crew, 0);
+  const upkeep = ships.reduce((t, s) => t + upkeepOf(s, world), 0);
+  const duties = ships.reduce((m, s) => ({ ...m, [s.duty]: (m[s.duty] ?? 0) + 1 }), {} as Record<string, number>);
+  const n = (v: number) => Math.round(v).toLocaleString('en-US');
+  return (
+    <Panel title="At a glance" className={className}>
+      <div className="body" style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 13 }}>
+        <span><span className="eyebrow">Ships</span> <strong className="mono">{ships.length}</strong></span>
+        <span><span className="eyebrow">Crews</span> <strong className="mono">{n(crew)}</strong></span>
+        <span><span className="eyebrow">Upkeep</span> <strong className="mono">{n(upkeep)}</strong> <span className="muted">othes a Phase</span></span>
+        <span><span className="eyebrow">Where</span> {Object.entries(duties).map(([d, k]) => `${k} ${d}`).join(' · ') || 'none'}</span>
+        <span><span className="eyebrow">Building</span> <strong className="mono">{ships.filter((s) => s.ready).length}</strong></span>
+      </div>
+    </Panel>
   );
 }
 

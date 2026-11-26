@@ -26,7 +26,7 @@ export interface CourtPlace {
 export function isAway(world: World, id: string): boolean {
   const c = world.characters[id];
   if (!c) return true;
-  if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing' || f.id === 'travelling' || f.id === 'posted' || f.id === 'ward' || f.id === 'aboard' || f.id === 'crucible' || f.id === 'circuit' || f.id === 'bounty' || f.id === 'hunting' || f.id === 'watch' || f.id === 'atChair' || f.id === 'expedition')) return true;
+  if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing' || f.id === 'travelling' || f.id === 'posted' || f.id === 'ward' || f.id === 'aboard' || f.id === 'crucible' || f.id === 'circuit' || f.id === 'bounty' || f.id === 'quest' || f.id === 'hunting' || f.id === 'watch' || f.id === 'atChair' || f.id === 'expedition')) return true;
   return onMission(world).has(id);
 }
 

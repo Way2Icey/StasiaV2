@@ -379,6 +379,8 @@ export interface Petition {
   targetPlanetId?: string;
   targetHouseId?: string;
   reason: string;
+  /** Those at court who stand behind it. */
+  backers?: string[];
 }
 
 export interface CouncilReport {
@@ -620,6 +622,12 @@ export interface World {
   bounties?: import('./bounties').BountyState;
   /** What our cells and our agents have given us, and the wrongs that give a reason for war. */
   intel?: import('./turning').IntelState;
+  /** The Grand Master's board of deeds. */
+  quests?: import('./quests').QuestState;
+  /** Concerns the court has brought to the Highroy. */
+  concerns?: import('./concerns').Concern[];
+  /** People asking to see the Highroy. */
+  talkRequests?: import('./talk').TalkRequest[];
   /** The audience under way, if any. */
   talk?: import('./talk').Talk;
   /** What each person remembers of talking with us. */

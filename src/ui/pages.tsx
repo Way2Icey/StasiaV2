@@ -1,8 +1,10 @@
 import { MarksList } from './account';
+import { HouseDossier, HouseList, useDossierNav } from './dossier';
+import { answerAlliance } from '../sim/houses';
 import { cannotTalk } from '../sim/talk';
 import { ThemePicker } from './theme';
 import { anchored, circleOf, CIRCLE_CAP, knownTo, letFade, pin } from '../sim/circle';
-import { HouseDealings, HousesOverview, PoachPanel } from './realm';
+import { HouseDealings } from './realm';
 import { ArchonHousePage, ArchonPanel, RegisterPanel } from './archon';
 import { beginHeist, beginPact, whyNoAgent } from '../sim/scenes_api';
 import { CalendarPanel } from './calendar';
@@ -43,11 +45,11 @@ import { MissionRow } from './missions';
 import { moodColor, moodLabel, moodOf } from '../sim/mood';
 import { CouncilTable, Desk, HallPanel } from './hall';
 import { CaptivesPanel, OathSummary, RansomDemands, StandingPanel } from './council';
-import { formatRange, KNOW, knowledgeOf, type CharacterView } from '../sim/knowledge';
+import { formatRange, KNOW, knowledgeOf } from '../sim/knowledge';
 import { activeMissionOf, activeMissions, MISSION_LABEL } from '../sim/missions';
 import {
   BAND_COLOR, BandLink, cap, FamilyLink, FlagChip, Go, HouseLink, Panel, PeopleTable, PersonById,
-  PersonLink, PlanetLink, SectorLink, SpeciesLink, TraitChip, TraitList, TraitText,
+  PersonLink, PlanetLink, SectorLink, SpeciesLink, TraitChip, TraitList,
 } from './links';
 import { storage, SLOT } from './storage';
 
@@ -99,35 +101,9 @@ function Row({ left, right }: { left: React.ReactNode; right?: React.ReactNode }
 
 // ---------------------------------------------------------------- Throne Room
 
-function explore(world: World, see: (c: Character) => CharacterView): { key: string; node: React.ReactNode }[] {
-  const people = alive(world).filter((c) => c.tier === 'full');
-  const threads: { key: string; node: React.ReactNode }[] = [];
-  const measured = (c: Character) => { const r = see(c).resonance; return r && r !== 'unknown' && r.degrees !== undefined ? r.degrees : -1; };
-  const strongest = [...alive(world)].filter((c) => measured(c) >= 0).sort((a, b) => measured(b) - measured(a))[0];
-  if (strongest) threads.push({ key: 'res', node: <>The strongest resonance on record belongs to <PersonLink c={strongest} />: <BandLink c={strongest} />.</> });
-  const oldest = [...alive(world)].sort((a, b) => ageOf(b, world.date) - ageOf(a, world.date))[0];
-  if (oldest) threads.push({ key: 'old', node: <>The oldest living person is <PersonLink c={oldest} />, a <SpeciesLink id={oldest.species} /> of {ageOf(oldest, world.date)}.</> });
-  const named = people.find((c) => c.name.epithet && !c.traits.some((t) => t.id === 'scarName'));
-  if (named) threads.push({ key: 'named', node: <><PersonLink c={named} /> is called {named.name.epithet}, a name earned by deeds.</> });
-  const scarred = people.find((c) => c.traits.some((t) => t.id === 'scarName'));
-  if (scarred) threads.push({ key: 'scar', node: <><PersonLink c={scarred} /> earned the scar-name <TraitText t={scarred.traits.find((t) => t.id === 'scarName')!} />.</> });
-  const decorated = [...people].sort((a, b) => see(b).traits.length - see(a).traits.length)[0];
-  if (decorated) threads.push({ key: 'dec', node: <><PersonLink c={decorated} /> carries more known traits than anyone: {see(decorated).traits.map((t, i) => <span key={t.id}>{i ? ', ' : ''}<TraitText t={t} /></span>)}.</> });
-  const families = Object.values(world.families).filter((f) => !isCommoner(f));
-  const holder = [...families].sort((a, b) => sectorsControlledBy(world, b.id).length - sectorsControlledBy(world, a.id).length)[0];
-  if (holder) threads.push({ key: 'hold', node: <><FamilyLink id={holder.id} prefix /> holds {sectorsControlledBy(world, holder.id).length} sectors, more than any other family.</> });
-  const foreignKnight = people.find((c) => c.houseId !== world.playerHouseId && c.flags.some((f) => f.id === 'caigeBonded'));
-  if (foreignKnight) threads.push({ key: 'kn', node: <><PersonLink c={foreignKnight} /> of <HouseLink id={foreignKnight.houseId} /> is <Go to={{ kind: 'flag', id: 'caigeBonded' }}>Caige-bonded</Go>.</> });
-  const survivor = people.find((c) => c.traits.some((t) => t.id === 'survivorOf'));
-  if (survivor) threads.push({ key: 'surv', node: <><PersonLink c={survivor} /> is a <TraitText t={survivor.traits.find((t) => t.id === 'survivorOf')!} />.</> });
-  return threads;
-}
-
 export function ThroneRoom() {
   const world = useWorld();
   const house = world.houses[world.playerHouseId]!;
-  const see = useSee();
-  const threads = explore(world, see);
   const missions = activeMissions(world, house.id);
 
   return (
@@ -152,11 +128,6 @@ export function ThroneRoom() {
         <Panel title={<Term k="mission">Missions in the field</Term>} aside={<Go to={{ kind: 'missions' }}>Missions board ›</Go>} className="span-12">
           {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. Open anyone's sheet to look into them, or a world to scout it.</p> : null}
           {missions.map((m) => <MissionRow key={m.id} id={m.id} />)}
-        </Panel>
-        <Panel scroll={360} title="Threads to follow" aside="Drawn from the world as it stands" className="span-12">
-          <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
-            {threads.map((t) => <p key={t.key} style={{ margin: 0 }}>{t.node}</p>)}
-          </div>
         </Panel>
       </div>
     </>
@@ -488,18 +459,37 @@ export function CharacterPage({ id }: { id: string }) {
 
 // ---------------------------------------------------------------- Houses
 
-export function HousesPage() {
+export function HousesPage({ open: openId }: { open?: string } = {}) {
+  const world = useWorld();
+  const { run } = useHousesPlay();
+  const d = useDossierNav();
+  const offers = world.realm?.offers ?? [];
   return (
     <>
-      <Title title="Houses" sub="Eighteen houses of the Archon. Four are simulated in full; the rest are on the register and act on their own. Open any house for its card." />
-      <div className="actions" style={{ marginBottom: 12 }}><Go to={{ kind: 'numarade' }} className="btn primary">The Numarade ›</Go><Go to={{ kind: 'history' }} className="btn">Annals ›</Go><Go to={{ kind: 'crucible' }} className="btn">The Crucible ›</Go></div>
+      <Title title="Houses" sub="Every house of the Archon. Open one for everything we know of it, everything between us, and every move we can make toward it." />
       <div className="grid">
+        {offers.length ? (
+          <Panel title="Offers" className="span-12">
+            {offers.map((o) => (
+              <div key={o.id} className="row">
+                <span style={{ flex: 1 }}><HouseLink id={o.from} /> offers us an alliance.</span>
+                <button type="button" className="btn small primary" onClick={() => run((w) => answerAlliance(w, o.id, true))}>Accept</button>
+                <button type="button" className="btn small" onClick={() => run((w) => answerAlliance(w, o.id, false))}>Decline</button>
+              </div>
+            ))}
+          </Panel>
+        ) : null}
+        <Panel title="The houses" aside="open one" className="span-12"><HouseList open={d.open} /></Panel>
         <RegisterPanel className="span-12" />
-        <HousesOverview className="span-12" />
-        <PoachPanel className="span-12" />
       </div>
+      {openId ? <HouseDossier key={openId} id={openId} onClose={d.close} /> : null}
     </>
   );
+}
+
+function useHousesPlay() {
+  const game = useGame();
+  return { run: (fn: (w: World) => World) => game.update((w) => { try { return fn(w); } catch { return w; } }) };
 }
 
 function SceneButtons({ houseId }: { houseId: string }) {
@@ -519,6 +509,7 @@ function SceneButtons({ houseId }: { houseId: string }) {
 export function HousePage({ id }: { id: string }) {
   const world = useWorld();
   const h = world.houses[id];
+  if (id !== world.playerHouseId) return <HousesPage open={id} />;
   if (!h) return <ArchonHousePage id={id} />;
   const r = ruler(world, h.id);
   const council = councilOf(world, h.id);
@@ -978,5 +969,5 @@ function CapitalEmbassies({ planetId }: { planetId: string }) {
   const host = Object.values(world.houses).find((h) => h.capitalPlanetId === planetId);
   if (!host) return null;
   if (host.id === world.playerHouseId) return <OurCourtEmbassies className="span-12" />;
-  return <EmbassyPanel houseId={host.id} className="span-12" />;
+  return <Panel title="Embassies" className="span-12"><div className="body actions"><span className="muted">Our embassy here, and everything else between us and House {host.name}, is on their page.</span><Go to={{ kind: 'house', id: host.id }} className="btn small">House {host.name} ›</Go></div></Panel>;
 }
