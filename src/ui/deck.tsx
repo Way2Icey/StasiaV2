@@ -1,5 +1,6 @@
 // The Hall as a command deck: the house's vital numbers as tiles with their trend, then the desk, what is in
 // motion, and what is coming.
+import { passagesOf, shipLabel } from '../sim/register';
 import { useWorld } from './context';
 import { Go, Panel, PersonById, PersonLink } from './links';
 import { Term } from './tip';
@@ -33,6 +34,9 @@ function Tile({ label, value, foot, tone, to }: { label: ReactNode; value: React
 const trend = (d: number, good: 1 | -1 = 1): { text: string; tone?: 'up' | 'down' } => (d ? { text: `${d > 0 ? '▲' : '▼'}${short(Math.abs(d))}`, tone: (d > 0) === (good > 0) ? 'up' : 'down' } : { text: 'steady' });
 
 /** The house's vital numbers, each with its change over the last Orbit. */
+/** The council's feeling toward the Highroy, in a word. */
+const moodWord = (v: number) => (v >= 30 ? 'Devoted' : v >= 12 ? 'Warm' : v >= 3 ? 'Content' : v > -3 ? 'Even' : v > -12 ? 'Uneasy' : v > -30 ? 'Cold' : 'Hostile');
+
 export function DeckTiles() {
   const world = useWorld();
   const P = world.playerHouseId;
@@ -57,7 +61,7 @@ export function DeckTiles() {
       <Tile to={{ kind: 'rankings' }} label="Rank" value={us ? ordinal(us.place) : '—'} foot={<>{prevPlace && us && prevPlace !== us.place ? `${prevPlace > us.place ? '▲' : '▼'}${Math.abs(prevPlace - us.place)} · ` : ''}of {total}</>} tone={prevPlace && us ? (prevPlace > us.place ? 'up' : prevPlace < us.place ? 'down' : undefined) : undefined} />
       <Tile to={{ kind: 'economy' }} label={<Term k="othes">Coffers</Term>} value={short(now.othes)} foot={<><span className="spark">{spark(hist)}</span> {o.text}</>} tone={o.tone} />
       <Tile to={{ kind: 'council' }} label="Honour" value={now.honour} foot={<>R {now.respect} · D {now.dread} · {h.text}</>} tone={h.tone} />
-      <Tile to={{ kind: 'people' }} label="Court mood" value={`${mood > 0 ? '+' : ''}${mood}`} foot={<>{cold} cold · {m.text}</>} tone={cold >= 3 ? 'down' : m.tone} />
+      <Tile to={{ kind: 'people' }} label="Court mood" value={moodWord(mood)} foot={<>{mood > 0 ? '+' : ''}{mood} toward you{cold ? ` · ${cold} cold` : ''} · {m.text}</>} tone={cold >= 3 ? 'down' : m.tone} />
       <Tile to={{ kind: 'worlds' }} label="Unrest" value={now.unrest} foot={u.text} tone={u.tone} />
       <Tile to={{ kind: 'military' }} label="Soldiers" value={short(now.soldiers)} foot={s.text} tone={s.tone} />
     </div>
@@ -75,7 +79,10 @@ export function InMotion({ className }: { className?: string }) {
   const prog = oathProgress(world, P);
   const oath = court?.oath ? OATHS_BY_ID[court.oath.id] : undefined;
   const meter = (f: number) => <span className="bar deck-bar"><span style={{ width: `${Math.round(Math.max(0, Math.min(1, f)) * 100)}%`, background: 'var(--gold)' }} /></span>;
-  const none = !missions.length && !jobs.length && !oath;
+  const all = passagesOf(world).filter((p) => !p.delivered);
+  const voyages = all.filter((p) => p.ship !== 'merchant');
+  const merchant = all.length - voyages.length;
+  const none = !missions.length && !jobs.length && !oath && !voyages.length;
   return (
     <Panel title="In motion" aside={<Go to={{ kind: 'missions' }}>Missions ›</Go>} className={className}>
       <div className="body" style={{ display: 'grid', gap: 10, fontSize: 13 }}>
@@ -100,6 +107,12 @@ export function InMotion({ className }: { className?: string }) {
             </div>
           );
         })}
+        {voyages.length ? (
+          <Go to={{ kind: 'fleet' }} className="deck-motion">
+            <span>{voyages.slice(0, 3).map((p, i) => { const c = world.characters[p.ids[0]!]; return <span key={p.key}>{i ? ' · ' : ''}{shipLabel(world, p.ship).replace(/^the /, '')} <span className="muted">carries {c?.name.given ?? 'ours'}{p.ids.length > 1 ? ` +${p.ids.length - 1}` : ''}</span></span>; })}</span>
+            <span className="muted" style={{ fontSize: 11 }}>{voyages.length} ship{voyages.length === 1 ? '' : 's'} out carrying{voyages.length > 3 ? ` · ${voyages.length - 3} more` : ''}{merchant ? ` · ${merchant} on merchant hulls` : ''}</span>
+          </Go>
+        ) : null}
         {oath && prog && court?.oath ? (
           <Go to={{ kind: 'council' }} className="deck-motion">
             <span>Oath · {oath.label}</span>

@@ -1,4 +1,5 @@
 import { ensureRankings } from './rankings';
+import { ensureRegisterNow } from './register';
 import { ensurePlaces } from './places';
 import { advanceQuests } from './quests';
 import { CULTURES } from '../data/cultures';
@@ -196,6 +197,7 @@ export function createWorld(seed: string = DEFAULT_SEED, opts: NewGame = {}): Wo
   ensureStory(world);
   if (ensureArchon(world)) writeHistory(world, true);
   ensureWar(world);
+  ensureRegisterNow(world);
   ensureScenes(world);
   ensureCaigeDepth(world);
   // The Grand Master's board starts with work on it, drawn on its own thread so nothing else shifts.

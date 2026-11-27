@@ -8,6 +8,7 @@ import { cannotTurn, liveIntel } from '../sim/turning';
 import { answerConcern, concernsOf } from '../sim/concerns';
 import { openBriefings } from '../sim/briefings';
 import { setDuty, shipsOf } from '../sim/fleet';
+import { carrying } from '../sim/register';
 import { awaiting } from '../sim/events';
 import { receiveRequest, turnAway } from '../sim/talk';
 import { captivesHeldBy } from '../sim/captives';
@@ -291,7 +292,7 @@ export function Desk({ className }: { className?: string }) {
     const taken = world.feed.filter((e) => e.type === 'raid' && (e.severity ?? 0) >= 2 && e.houseIds?.includes(P) && /was taken by/.test(e.text) && absoluteCycle(e.date) >= since).length;
     const mine = shipsOf(world, P);
     const guarding = mine.some((x) => x.duty === 'escort');
-    const spare = mine.filter((x) => !x.ready && !x.crucible && !x.arrives && (x.duty === 'harbour' || x.duty === 'patrol')).sort((a, b) => b.condition - a.condition)[0];
+    const spare = mine.filter((x) => !x.ready && !x.crucible && !x.arrives && !carrying(world, x.id) && (x.duty === 'harbour' || x.duty === 'patrol')).sort((a, b) => b.condition - a.condition)[0];
     if (taken >= 2 && !guarding) items.push({ id: 'escort', mark: '[!]', kind: 'LANES', text: <>{taken} of our convoys taken this Orbit, and none of them escorted</>, open: () => nav.to({ kind: 'lanes' }),
       acts: spare ? [{ label: `Put the ${spare.name} on escort`, primary: true, title: 'An escort halves the odds of a raid, and can drive the corsairs off', run: (w) => setDuty(w, spare.id, 'escort') }, { label: 'The lanes', run: (w) => w, go: () => nav.to({ kind: 'lanes' }) }]
         : [{ label: 'The lanes', primary: true, run: (w) => w, go: () => nav.to({ kind: 'lanes' }) }] });

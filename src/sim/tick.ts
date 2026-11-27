@@ -24,6 +24,7 @@ import { advanceHoldings } from './holdings';
 import { advanceLoans } from './loans';
 import { advanceTraining } from './training';
 import { advanceFleet } from './fleet';
+import { advanceRegister } from './register';
 import { advanceEmbassies } from './embassies';
 import { advanceAmbitions } from './ambitions';
 import { advanceProspects } from './prospects';
@@ -155,6 +156,7 @@ function stepInPlace(world: World): void {
   advanceRealm(world, rng, crossed.orbits > 0);
   advanceArchon(world, rng, { phase: crossed.phases > 0, orbit: crossed.orbits > 0, year: crossed.years > 0 });
   advanceWar(world, rng, { phase: crossed.phases > 0, orbit: crossed.orbits > 0, year: crossed.years > 0 });
+  advanceRegister(world, rng);
   ensureScenes(world);
   advanceScenes(world, rng);
   if (crossed.phases > 0) { ensureCaigeDepth(world); ceremoniesDue(world); }

@@ -14,6 +14,8 @@ import { heldSectors as heldSectorsOf } from '../sim/economy';
 import { isAway } from '../sim/court';
 import { formatDate } from '../sim/time';
 import type { World } from '../sim/types';
+import { busyCarrying, captainOf } from '../sim/register';
+import { Manifest } from './register';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 function bar(v: number, w = 12): string { const n = Math.max(0, Math.min(w, Math.round((v / 100) * w))); return '█'.repeat(n) + '░'.repeat(w - n); }
@@ -137,7 +139,7 @@ export function ShipPage({ id }: { id: string }) {
             `LAID DOWN ${formatDate(s.built)} · ${shipAge(world, s)} years`,
             `RENOWN    ${s.renown ?? 0}${s.epithet ? '' : ' (a name at 12)'}`,
           ].join('\n')}</pre>
-          <div className="body">Captain: {cap ? <PersonLink c={cap} /> : <span className="muted">none</span>}</div>
+          <div className="body">Captain: {cap ? <PersonLink c={cap} /> : ours ? <>{captainOf(world, s).name} <span className="muted">· sailing master; name one of the court to command her</span></> : <span className="muted">unknown</span>}</div>
           {ours && !s.lost ? (
             <div className="body" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <select className="select" aria-label="Captain" value={s.captainId ?? ''} onChange={(e) => run((w) => setCaptain(w, s.id, e.target.value || null))}>
@@ -148,10 +150,12 @@ export function ShipPage({ id }: { id: string }) {
               <button type="button" className="btn small" disabled={!name.trim()} onClick={() => { run((w) => renameShip(w, s.id, name)); setName(''); }}>Rename</button>
             </div>
           ) : null}
-          <p className="body muted" style={{ margin: 0, fontSize: 12 }}>A captain with leadership keeps the crew's spirits up; fleet command and tactics make the ship fight better. Crews sour in harbour too long or at sea too long, and unpaid crews sour fast. Below 25 they talk of mutiny.</p>
+          <p className="body muted" style={{ margin: 0, fontSize: 12 }}>A captain with leadership keeps the crew's spirits up; fleet command and tactics make the ship fight better. Crews sour in harbour too long or too long in the void, and unpaid crews sour fast. Below 25 they talk of mutiny.</p>
         </Panel>
+        {ours && !s.lost ? <Panel title="Manifest" className="span-6"><div className="body"><Manifest ship={s} here /></div></Panel> : null}
         {ours && !s.lost && !s.ready ? (
-          <Panel title="Orders" aside={DUTY_LABEL[s.duty]} className="span-6">
+          <Panel title="Orders" aside={busyCarrying(world, s.id) ?? DUTY_LABEL[s.duty]} className="span-6">
+            {busyCarrying(world, s.id) ? <p className="body gold" style={{ margin: 0 }}>{busyCarrying(world, s.id)}. Give her a duty and they go on in another ship.</p> : null}
             <div className="filters body" style={{ paddingBottom: 0 }}>
               {(Object.keys(DUTY_LABEL) as Duty[]).map((d) => <button key={d} type="button" className="pill" aria-pressed={duty === d} onClick={() => { setD(d); setTarget(''); }}>{DUTY_LABEL[d].toUpperCase()}</button>)}
             </div>
@@ -169,7 +173,7 @@ export function ShipPage({ id }: { id: string }) {
                 </select>
               ) : null}
               <button type="button" className="btn small primary" disabled={needsTarget && !target} onClick={() => run((w) => setDuty(w, s.id, duty, target || undefined))}>
-                {duty === 'blockade' ? 'Sail and blockade' : duty === 'harbour' ? 'Bring her home' : 'Sail'}
+                {duty === 'blockade' ? 'Go and blockade' : duty === 'harbour' ? 'Bring her home' : 'Send her'}
               </button>
             </div>
             {duty === 'blockade' && target ? <p className="body error" style={{ margin: 0 }}>A blockade is an act just short of war. {world.houses[target]?.name}'s regard will fall every Phase, other houses will think less of us, and their ships at {findSector(world, mainPortOf(world, target))?.sector.name} may come out to fight.</p> : null}

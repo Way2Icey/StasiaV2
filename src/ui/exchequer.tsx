@@ -9,6 +9,7 @@ import { econ, lavishness, LAVISH_FROM, netPerPhase, phaseLedger } from '../sim/
 import { duesFor, setPolicy } from '../sim/exchange';
 import { modulesOf } from '../sim/holdings';
 import { orbitAgo } from '../sim/since';
+import { absoluteCycle, CYCLES_PER_PHASE } from '../sim/time';
 import { ordinal } from '../sim/rankings';
 import { tableOf } from './rankings';
 import { GOODS, RESOURCE_LABEL, type Good } from '../data/economy';
@@ -52,6 +53,10 @@ export function ExchequerPage({ drawer: initial }: { drawer?: Drawer }) {
   const hist = (world.since ?? []).map((s) => s.othes).concat(Math.round(e.stock.othes));
   const ago = orbitAgo(world);
   const delta = ago ? Math.round(e.stock.othes - ago.othes) : 0;
+  // The books are the standing flows; goods the Steward sells, ransoms, loans and windfalls come on top.
+  const phasesBack = ago ? Math.max(1, (absoluteCycle(world.date) - absoluteCycle(ago.date)) / CYCLES_PER_PHASE) : 0;
+  const besides = ago ? Math.round(delta / phasesBack - net.othes) : 0;
+  const real = ago ? Math.round(delta / phasesBack) : net.othes;
   const us = tableOf(world).find((r) => r.id === P);
   const lavish = lavishness(e.stock.othes);
   const vault = modulesOf(world, P, 'vault')[0];
@@ -78,19 +83,20 @@ export function ExchequerPage({ drawer: initial }: { drawer?: Drawer }) {
               <span className="eyebrow up">In · a Phase</span>
               {ins.map((x) => <div key={x.label} className="xq-line"><span>{x.label}</span><span className="xq-bar in" style={{ width: `${Math.round((x.amount / max) * 90)}px` }} /><span className="up mono">{signed(x.amount)}</span></div>)}
               <div className="xq-line total"><strong>Total</strong><span /><strong className="up mono">{signed(tin)}</strong></div>
-              <span className="muted" style={{ fontSize: 11 }}>Goods the Steward sells come on top, less dues.</span>
+              <span className="muted" style={{ fontSize: 11 }}>The standing flows only: goods the Steward sells, ransoms and windfalls are counted beside the coffers.</span>
             </div>
             <div className="xq-coffers">
               <span className="eyebrow gold"><Term k="othes">The coffers</Term></span>
               <strong style={{ fontSize: 28 }}>{fmt(e.stock.othes)}</strong>
               <span className="spark">{spark(hist)}</span>
-              {delta ? <span className={delta > 0 ? 'up' : 'down'} style={{ fontSize: 12 }}>{delta > 0 ? '▲' : '▼'}{fmt(Math.abs(delta))} this Orbit</span> : null}
-              <span className={net.othes >= 0 ? 'up' : 'down'} style={{ fontSize: 12 }}>net {signed(net.othes)} a Phase</span>
+              <span className={real >= 0 ? 'up' : 'down'} style={{ fontSize: 13 }}><strong>{signed(real)}</strong> a Phase, all told</span>
+              <span className="xq-split muted">books <span className={net.othes >= 0 ? 'up' : 'down'}>{signed(net.othes)}</span>{ago ? <> · sales &amp; one-offs <span className={besides >= 0 ? 'up' : 'down'}>{signed(besides)}</span></> : null}</span>
+              {delta ? <span className="muted" style={{ fontSize: 11 }}>{delta > 0 ? '▲' : '▼'}{fmt(Math.abs(delta))} over the last Orbit</span> : null}
               <span className="muted" style={{ fontSize: 11 }}>drives {fmt(vault?.drives ?? 0)}{vault ? '' : ' · no vault'}</span>
             </div>
             <div className="xq-bank">
               <span className="eyebrow down">Out · a Phase</span>
-              {outs.map((x) => <div key={x.label} className={`xq-line${x.hot ? ' lead' : ''}`}><span className={x.hot ? 'gold' : undefined}>{x.label}</span><span className="xq-bar out" style={{ width: `${Math.round((-x.amount / max) * 90)}px` }} /><span className="down mono">{signed(x.amount)}</span></div>)}
+              {outs.map((x) => <div key={x.label} className={`xq-line${x.hot ? ' lead' : ''}`}><span className={x.hot ? 'gold' : undefined}>{x.hot ? <button type="button" className="linklike" style={{ color: 'var(--gold)' }} title="Othes on ledger drives are not spent" onClick={() => setOpen('vaults')}>{x.label} ›</button> : x.label}</span><span className="xq-bar out" style={{ width: `${Math.round((-x.amount / max) * 90)}px` }} /><span className="down mono">{signed(x.amount)}</span></div>)}
               <div className="xq-line total"><strong>Total</strong><span /><strong className="down mono">{signed(tout)}</strong></div>
             </div>
           </div>
@@ -111,12 +117,13 @@ export function ExchequerPage({ drawer: initial }: { drawer?: Drawer }) {
               );
             })}
           </div>
+          <Lately />
         </div>
         <aside className="xq-side">
           {lavish ? (
             <Panel title="The Steward advises" className="lead">
               <div className="body" style={{ display: 'grid', gap: 6, fontSize: 12 }}>
-                <span>Above {fmt(LAVISH_FROM)} the court spends freely: {fmt(lavish)} a Phase. Othes on ledger drives are not spent.</span>
+                <span>Above {fmt(LAVISH_FROM)} the court spends freely: <strong className="gold">{fmt(lavish)} a Phase</strong>, more the more we hold. Othes moved onto ledger drives in a vault are not spent.</span>
                 {vault ? <button type="button" className="btn small lead" style={{ justifySelf: 'start' }} onClick={() => setOpen('vaults')}>Put it on drives</button> : <Go to={{ kind: 'build', what: 'vault' }} className="btn small lead">Build a vault ›</Go>}
               </div>
             </Panel>
@@ -132,5 +139,26 @@ export function ExchequerPage({ drawer: initial }: { drawer?: Drawer }) {
         {open === 'vaults' ? <VaultsPage bare /> : open === 'loans' ? <LoansPage bare /> : open === 'works' ? <SpendPage bare /> : open === 'books' ? <EconomyPage bare /> : <ExchangePage bare />}
       </div> : null}
     </>
+  );
+}
+
+/** The Orbit's one-off sums, biggest first: what came in and what went out besides the standing flows. */
+function Lately() {
+  const world = useWorld();
+  const e = econ(world, world.playerHouseId);
+  const now = absoluteCycle(world.date);
+  const lines = (e.recent ?? []).filter((l) => l.resource === 'othes' && l.date && now - absoluteCycle(l.date) <= 80 && Math.abs(l.amount) >= 50 && !/^Upkeep: /.test(l.label));
+  const top = (sign: 1 | -1) => lines.filter((l) => Math.sign(l.amount) === sign).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, 6);
+  const col = (sign: 1 | -1, title: string) => (
+    <div className="xq-bank">
+      <span className={`eyebrow ${sign > 0 ? 'up' : 'down'}`}>{title}</span>
+      {top(sign).length ? top(sign).map((l, i) => <div key={i} className="xq-line"><span>{l.label}</span><span className="muted mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{l.date ? `c${l.date.cycle}` : ''}</span><span className={`${sign > 0 ? 'up' : 'down'} mono`}>{signed(l.amount)}</span></div>) : <span className="muted" style={{ fontSize: 12 }}>Nothing this Orbit.</span>}
+    </div>
+  );
+  return (
+    <div className="xq-lately">
+      {col(1, 'Came in this Orbit · one-offs')}
+      {col(-1, 'Went out this Orbit · one-offs')}
+    </div>
   );
 }

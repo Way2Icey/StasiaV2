@@ -160,8 +160,12 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
 
 /** Above this, a house's kin and court spend more freely each Phase. */
 export const LAVISH_FROM = 15000;
-/** What a full treasury costs each Phase: 6% of what is held above LAVISH_FROM. */
-export function lavishness(othes: number): number { return othes > LAVISH_FROM ? Math.round((othes - LAVISH_FROM) * 0.06) : 0; }
+/** What a full treasury costs each Phase, easing in: 2% of the first 15,000 above LAVISH_FROM, 4% of the next
+ *  30,000, 6% of the rest. A house with a little to spare spends a little; one sitting on a hoard spends freely. */
+export function lavishness(othes: number): number {
+  const over = Math.max(0, othes - LAVISH_FROM);
+  return Math.round(Math.min(over, 15000) * 0.02 + Math.max(0, Math.min(over, 45000) - 15000) * 0.04 + Math.max(0, over - 45000) * 0.06);
+}
 
 /** Per Phase: what a soldier, a ship or a sworn blade costs to keep at home. In the field at war it is six times that. */
 export const FORCE_UPKEEP = { legion: 0.003, fleet: 6, company: 0.15 } as const;

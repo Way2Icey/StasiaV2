@@ -9,7 +9,8 @@ import { useGame, useNav, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonLink } from './links';
 import { Term } from './tip';
 import { SUBTABS, type Route, type Section } from './router';
-import { FleetPanel } from './fleet';
+import { RegisterPanel } from './register';
+import { crewCount, hullsOf, carrying } from '../sim/register';
 import { BOARD_LABEL, boardOfQuest, candidatesFor, cannotSend, hardWord, odds, QUEST_LABEL, sendOnQuest, type Board } from '../sim/quests';
 import { shipsOf, upkeepOf } from '../sim/fleet';
 import { EmbassyPanel, OurCourtEmbassies } from './embassies';
@@ -229,7 +230,7 @@ export function FleetPage({ bare }: { bare?: boolean } = {}) {
       )}
       <div className="grid">
         <FleetGlance className="span-12" />
-        <FleetPanel className="span-8" />
+        <RegisterPanel className="span-8" />
         <Panel title="Shipyards" aside={`${yards.length}`} className="span-4">
           {yards.length === 0 ? <p className="body muted" style={{ margin: 0 }}>None yet. <Go to={{ kind: 'build' }}>Build one ›</Go></p> : null}
           {yards.map((y) => (
@@ -245,18 +246,22 @@ function FleetGlance({ className }: { className?: string }) {
   const world = useWorld();
   const P = world.playerHouseId;
   const ships = shipsOf(world, P);
-  const crew = ships.reduce((t, s) => t + s.crew, 0);
+  const hulls = hullsOf(world);
+  const crew = crewCount(world);
   const upkeep = ships.reduce((t, s) => t + upkeepOf(s, world), 0);
-  const duties = ships.reduce((m, s) => ({ ...m, [s.duty]: (m[s.duty] ?? 0) + 1 }), {} as Record<string, number>);
+  const out = ships.filter((s) => carrying(world, s.id)).length + hulls.filter((h) => carrying(world, h.id)).length;
+  const duties = ships.filter((s) => !carrying(world, s.id)).reduce((m, s) => ({ ...m, [s.duty]: (m[s.duty] ?? 0) + 1 }), {} as Record<string, number>);
   const n = (v: number) => Math.round(v).toLocaleString('en-US');
   return (
     <Panel title="At a glance" className={className}>
       <div className="body" style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 13 }}>
-        <span><span className="eyebrow">Ships</span> <strong className="mono">{ships.length}</strong></span>
-        <span><span className="eyebrow">Crews</span> <strong className="mono">{n(crew)}</strong></span>
-        <span><span className="eyebrow">Upkeep</span> <strong className="mono">{n(upkeep)}</strong> <span className="muted">othes a Phase</span></span>
-        <span><span className="eyebrow">Where</span> {Object.entries(duties).map(([d, k]) => `${k} ${d}`).join(' · ') || 'none'}</span>
-        <span><span className="eyebrow">Building</span> <strong className="mono">{ships.filter((s) => s.ready).length}</strong></span>
+        <span><span className="eyebrow">Great ships</span> <strong className="mono">{ships.length}</strong></span>
+        <span><span className="eyebrow">Gunships</span> <strong className="mono">{hulls.filter((h) => h.type === 'gunship').length}</strong></span>
+        <span><span className="eyebrow">Fighters</span> <strong className="mono">{hulls.filter((h) => h.type === 'fighter').length}</strong></span>
+        <span><span className="eyebrow">Aboard</span> <strong className="mono">{n(crew.total)}</strong></span>
+        <span><span className="eyebrow">Out carrying</span> <strong className="mono">{out}</strong></span>
+        <span><span className="eyebrow">Great ships</span> {Object.entries(duties).map(([d, k]) => `${k} ${d}`).join(' · ') || 'all out'}</span>
+        <span><span className="eyebrow">Upkeep</span> <strong className="mono">{n(upkeep)}</strong> <span className="muted">a Phase</span></span>
       </div>
     </Panel>
   );

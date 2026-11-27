@@ -107,7 +107,7 @@ export function RankingsPage({ open: openId }: { open?: string } = {}) {
             <Panel title="The closest climb" className="lead">
               <div className="body" style={{ display: 'grid', gap: 6, fontSize: 13 }}>
                 <span>{above ? <>House {world.archon?.houses[above.id]?.name} is {above.overall - us.overall} point{above.overall - us.overall === 1 ? '' : 's'} above us.</> : 'We are first in the Archon.'}</span>
-                <span>Our cheapest ranking to raise: <strong>{RANK_LABEL[cheapest.k]}</strong> ({ordinal(us.rank[cheapest.k])}, {cheapest.gap} behind the next).</span>
+                <span>Our cheapest ranking to raise: <strong>{RANK_LABEL[cheapest.k]}</strong> ({ordinal(us.rank[cheapest.k])}, {cheapest.gap <= 0 ? 'level with the house above' : `${cheapest.gap} behind the next`}).</span>
                 <span style={{ fontSize: 12 }}><RaiseHint k={cheapest.k} /></span>
               </div>
             </Panel>
