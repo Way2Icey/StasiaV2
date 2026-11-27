@@ -258,7 +258,7 @@ export function huntMember(input: World, factionId: string, memberId: string, le
     const ship = shipId ? w.fleet.ships[shipId] : undefined;
     if (ship) { ship.from = ship.sectorId; ship.left = w.date; ship.arrives = until; }
     chronicle(w, f, `${lead.name.given} went out after ${m.name}${m.ship ? ` and the ${m.ship}` : ''}.`);
-    logRecord(w, { kind: 'world', type: 'mission', severity: 1, seat: 'grandMaster', houseIds: [P], text: `${lead.name.given} sails to hunt ${m.name} of ${f.name}.`, who: [{ id: lead.id, part: 'leads the hunt' }, ...crew.map((id) => ({ id, part: 'with them' }))], quote: { from: lead.id, text: rngLine(lead.id + m.id, ['I will bring back their ship or their head.', 'They have had our convoys long enough.', 'Give me a Phase. Two at most.']) } });
+    logRecord(w, { kind: 'world', type: 'mission', severity: 1, seat: 'grandMaster', houseIds: [P], text: `${lead.name.given} flies out to hunt ${m.name} of ${f.name}.`, who: [{ id: lead.id, part: 'leads the hunt' }, ...crew.map((id) => ({ id, part: 'with them' }))], quote: { from: lead.id, text: rngLine(lead.id + m.id, ['I will bring back their ship or their head.', 'They have had our convoys long enough.', 'Give me a Phase. Two at most.']) } });
   });
 }
 

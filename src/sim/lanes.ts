@@ -93,7 +93,7 @@ export interface Faction {
 export const TEMPER_NOTE: Record<Temper, string> = {
   cruel: 'Takes everything and leaves no one. Will not bargain for crews.',
   ransom: 'Takes the cargo and holds the crew for ransom.',
-  trader: 'Takes the cargo, sets the crew adrift, and sells what it took through any port that will look away.',
+  trader: 'Takes the cargo, puts the crew off in lifepods, and sells what it took through any port that will look away.',
 };
 
 export type Customs = 'strict' | 'fair' | 'blind';
@@ -376,7 +376,7 @@ function pirates(world: World, rng: Rng, c: Convoy, f: Faction, lane: Lane) {
   // Someone aboard knew the face: we learn who led it, now and then.
   const named = (why: string) => {
     if (!ours || !boss) return '';
-    if (!boss.known && rng.chance(0.3 + competence(world, 'spymaster') * 0.015)) { reveal(boss, why); chronicle(world, f, `We learned the name of ${boss.name}, ${boss.role} of ${f.name}${boss.ship ? `, who sails the ${boss.ship}` : ''}.`); }
+    if (!boss.known && rng.chance(0.3 + competence(world, 'spymaster') * 0.015)) { reveal(boss, why); chronicle(world, f, `We learned the name of ${boss.name}, ${boss.role} of ${f.name}${boss.ship ? `, who flies the ${boss.ship}` : ''}.`); }
     return boss.known ? `, led by ${boss.name}${boss.ship ? ` of the ${boss.ship}` : ''}` : '';
   };
   if (ship && !ship.lost) {
@@ -412,7 +412,7 @@ function pirates(world: World, rng: Rng, c: Convoy, f: Faction, lane: Lane) {
   let crewFate = '';
   let held: CrewHold | undefined;
   if (f.temper === 'cruel') crewFate = c.crew > 0 ? `everyone aboard killed (${c.crew})` : 'the ship burned';
-  else if (f.temper === 'trader') crewFate = 'the crew set adrift in the boats';
+  else if (f.temper === 'trader') crewFate = 'the crew put off in lifepods';
   else {
     crewFate = 'the crew held for ransom';
     if (victim !== 'free') {

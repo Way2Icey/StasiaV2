@@ -305,7 +305,7 @@ export function Desk({ className }: { className?: string }) {
     if (s.status === 'held') {
       const hm = harbourmaster(world, s.sectorId);
       const found = s.cargo.filter((c) => c.found && c.hidden).map((c) => c.label);
-      items.push({ id: s.id, mark: '[⚓]', kind: 'HELD', text: <>{hm ? `${hm.name.given}, harbourmaster: ` : 'Customs: '}we hold the {s.name} at {findSector(world, s.sectorId)?.sector.name}</>, open: () => setOpen((o) => (o === s.id ? null : s.id)),
+      items.push({ id: s.id, mark: '[⚓]', kind: 'HELD', text: <>{hm ? `${hm.name.given}, portmaster: ` : 'Customs: '}we hold the {s.name} at {findSector(world, s.sectorId)?.sector.name}</>, open: () => setOpen((o) => (o === s.id ? null : s.id)),
         detail: <span className="muted" style={{ fontSize: 12 }}>Sent up through the Steward. {found.length ? `Found aboard: ${found.join(', ')}.` : 'Papers out of order.'} Fine them and let them go, release them, or jail the captain. <Peek t={{ k: 'portShip', id: s.id }}>The ship ›</Peek></span>,
         acts: [{ label: 'Fine', primary: true, run: (w) => fineShip(w, s.id) }, { label: 'Release', run: (w) => releaseShip(w, s.id) }, { label: 'Jail captain', run: (w) => jailCaptain(w, s.id) }] });
     }

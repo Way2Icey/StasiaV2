@@ -106,7 +106,7 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
         {ours ? <Panel title="Port status" aside={sector.port} className="span-4">
           <div className="body">
             <pre className="ascii" style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-              <span className="dim"><Term k="harbourmaster">harbourmaster</Term>  </span>{hm ? <PersonLink c={hm} /> : 'none'}{'\n'}
+              <span className="dim"><Term k="harbourmaster">portmaster</Term>  </span>{hm ? <PersonLink c={hm} /> : 'none'}{'\n'}
               <span className="dim">customs        </span>skill {Math.round(customsSkill(world, id))}{'\n'}
               <span className="dim">berths         </span>{bar(inPort / Math.max(1, berths), 12)} {inPort} / {berths}{'\n'}
               <span className="dim">this phase     </span>{port.tally.ships} ships · {port.tally.tariffs.toLocaleString('en-US')} othes{'\n'}
@@ -138,7 +138,7 @@ export function PortPage({ id, ship: initial }: { id: string; ship?: string }) {
         </Panel> : (
           <Panel title="Their port" aside={sector.port} className="span-4">
             <div className="body"><pre className="ascii" style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-              <span className="dim">harbourmaster  </span>{hm ? <PersonLink c={hm} /> : 'unknown'}{'\n'}
+              <span className="dim">portmaster     </span>{hm ? <PersonLink c={hm} /> : 'unknown'}{'\n'}
               <span className="dim">berths         </span>{bar(inPort / Math.max(1, berths), 12)} {inPort} / {berths}{'\n'}
               <span className="dim">this phase     </span>{port.tally.ships} ships seen
             </pre></div>

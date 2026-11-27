@@ -151,5 +151,5 @@ function ledger(w: World, lines: string[], snap: Snap, prev?: Snap) {
   if (inc[0]) lines.push(`Most of it comes from ${inc[0].label.toLowerCase()} (${n(inc[0].amount)}). The heaviest cost is ${out[0]?.label.toLowerCase() ?? 'nothing much'}${out[0] ? ` (${n(-out[0].amount)})` : ''}.`);
   const port = mainPort(w);
   const hm = port ? harbourmaster(w, port.id) : undefined;
-  if (port) lines.push(`From ${port.name}${hm ? `, ${shortName(hm.name)} the harbourmaster` : ''}: ${portSectors(w).length} ports under our seal. ${['Traffic is steady.', 'Customs are up; the smugglers are quiet.', 'Fewer ships this Phase. The lanes are restless.'][Math.floor(snap.othes) % 3]}`);
+  if (port) lines.push(`From ${port.name}${hm ? `, ${shortName(hm.name)} the portmaster` : ''}: ${portSectors(w).length} ports under our seal. ${['Traffic is steady.', 'Customs are up; the smugglers are quiet.', 'Fewer ships this Phase. The lanes are restless.'][Math.floor(snap.othes) % 3]}`);
 }

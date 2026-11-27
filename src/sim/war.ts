@@ -155,7 +155,12 @@ export interface WarState {
   hostages: Hostage[];
   /** liege[house] = the house it is sworn to. */
   liege: Record<string, string>;
+  /** Fleets were counted larger from 9.21 (cruisers, destroyers, gunships and fighters all together). */
+  fleetV2?: boolean;
 }
+
+/** A house's whole numbered fleet runs about half again what it was first counted at. */
+const FLEET_SCALE = 1.45;
 
 // ---------------------------------------------------------------- reading
 
@@ -195,7 +200,7 @@ function sizes(w: World, h: string): { legion: number; fleet: number } {
   const a = w.archon?.houses[h];
   const might = a?.might ?? 1;
   const worlds = a?.worlds ?? 1;
-  return { legion: rnd((18000 + might * 30000 + worlds * 6000) / 100) * 100, fleet: rnd(10 + might * 18 + worlds * 2) };
+  return { legion: rnd((18000 + might * 30000 + worlds * 6000) / 100) * 100, fleet: rnd((10 + might * 18 + worlds * 2) * FLEET_SCALE) };
 }
 
 function bestBy(cs: Character[], f: (c: Character) => number): Character | undefined {
@@ -207,6 +212,10 @@ export function ensureWar(w: World): void {
   w.war ??= { formations: {}, wars: [], named: [], tributes: [], hostages: [], liege: {} };
   const s = w.war;
   s.named ??= []; s.tributes ??= []; s.hostages ??= []; s.liege ??= {};
+  if (!s.fleetV2) {
+    for (const f of Object.values(s.formations)) if (f.kind === 'fleet') { f.strength = rnd(f.strength * FLEET_SCALE); f.max = rnd(f.max * FLEET_SCALE); }
+    s.fleetV2 = true;
+  }
   const rng = Rng.fromSeed(`${w.seed}/forces/${Object.keys(s.formations).length}`);
   const used = new Set(Object.values(s.formations).map((f) => f.name));
   for (const h of liveHouses(w)) {

@@ -59,7 +59,7 @@ const evs: EventDef[] = [
     text: (c) => { const s = c.world.fleet.ships[str(c, 'ship')]!; return `The ${s.name}${s.epithet ? `, ${s.epithet},` : ''} is ${shipAge(c.world, s)} years old. The yards cannot bring her hull back as it was, and she costs more to keep every year. The Steward has asked, carefully, whether it is time.${s.log?.length ? ` Her record runs to ${s.log.length} entries.` : ''}`; },
     options: [
       { label: 'Lay her up with honour', resolve: (c) => { Object.assign(c.world, retireShip(c.world, str(c, 'ship'), 'honour')); } },
-      { label: 'She sails until she cannot', hint: 'her crew will love you for it', resolve: (c) => { const s = c.world.fleet.ships[str(c, 'ship')]; if (s) { s.crewMood = Math.min(100, s.crewMood + 15); shipLog(c.world, s, 'Kept in the line when the Steward wanted her gone', 1); } } },
+      { label: 'She flies until she cannot', hint: 'her crew will love you for it', resolve: (c) => { const s = c.world.fleet.ships[str(c, 'ship')]; if (s) { s.crewMood = Math.min(100, s.crewMood + 15); shipLog(c.world, s, 'Kept in the line when the Steward wanted her gone', 1); } } },
     ],
     fallback: 1,
   },

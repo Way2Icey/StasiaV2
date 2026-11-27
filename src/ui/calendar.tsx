@@ -29,7 +29,7 @@ export function upcoming(world: World, horizon = CYCLES_PER_ORBIT * 1.5): Due[] 
       const year = d.orbit < DRAW_ORBIT ? d.year : d.year + 1;
       out.push({ at: makeDate(year, DRAW_ORBIT, 1), text: <>The draw for the Crucible</>, to: { kind: 'crucible' } });
     } else if (cr.stage === 'drawn' && cr.entrants.includes(P)) {
-      out.push({ at: makeDate(d.year, CLOSES, 1), text: <>Our Crucible contingent must sail</>, to: { kind: 'crucible' } });
+      out.push({ at: makeDate(d.year, CLOSES, 1), text: <>Our Crucible contingent must launch</>, to: { kind: 'crucible' } });
     } else if (cr.stage === 'campaign') {
       const r = cr.rounds.find((x) => !x.done);
       if (r) out.push({ at: makeDate(d.year, r.orbit, 2 * CYCLES_PER_PHASE + 1), text: <>Crucible battles, Orbit {r.orbit} of {ROUND_ORBITS[ROUND_ORBITS.length - 1]}</>, to: { kind: 'crucible' } });

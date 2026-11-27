@@ -1,5 +1,6 @@
 // The rail's sections and their hub pages: a strip of tabs under each section, and the pages that
 // gather features which used to live wherever they were first attached.
+import { DUTY_LABEL } from '../sim/fleet';
 import { whereabouts } from './seats';
 import { canLend, quoteFor } from '../sim/loans';
 import { VeteransPanel } from './realm';
@@ -256,11 +257,10 @@ function FleetGlance({ className }: { className?: string }) {
     <Panel title="At a glance" className={className}>
       <div className="body" style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 13 }}>
         <span><span className="eyebrow">Great ships</span> <strong className="mono">{ships.length}</strong></span>
-        <span><span className="eyebrow">Gunships</span> <strong className="mono">{hulls.filter((h) => h.type === 'gunship').length}</strong></span>
-        <span><span className="eyebrow">Fighters</span> <strong className="mono">{hulls.filter((h) => h.type === 'fighter').length}</strong></span>
+        {(['cruiser', 'destroyer', 'gunship', 'fighter'] as const).map((t) => <span key={t}><span className="eyebrow">{t}s</span> <strong className="mono">{hulls.filter((h) => h.type === t).length}</strong></span>)}
         <span><span className="eyebrow">Aboard</span> <strong className="mono">{n(crew.total)}</strong></span>
         <span><span className="eyebrow">Out carrying</span> <strong className="mono">{out}</strong></span>
-        <span><span className="eyebrow">Great ships</span> {Object.entries(duties).map(([d, k]) => `${k} ${d}`).join(' · ') || 'all out'}</span>
+        <span><span className="eyebrow">Great ships</span> {Object.entries(duties).map(([d, k]) => `${k} ${DUTY_LABEL[d as keyof typeof DUTY_LABEL].toLowerCase()}`).join(' · ') || 'all out'}</span>
         <span><span className="eyebrow">Upkeep</span> <strong className="mono">{n(upkeep)}</strong> <span className="muted">a Phase</span></span>
       </div>
     </Panel>

@@ -53,8 +53,8 @@ const defs: EventDef[] = [
     options: [{ label: 'Remember them', resolve: (c) => {
       const p = c.person!; const f = c.world.lanes.factions[c.rng.pick(Object.keys(c.world.lanes.factions))]!;
       f.members.push({ id: `cm${c.world.nextId++}`, name: displayName(p.name), role: 'captain', hull: 'cutter', skill: Math.max(p.stats.duelling, 10), tactics: p.stats.tactics, cunning: p.stats.intrigue, crew: 40, takes: 3, known: true, notes: [`Once an aspirant of House ${H(c, c.house)}, released from the ladder.`] });
-      p.flags.push({ id: 'missing', since: c.world.date, detail: `sails with ${f.name}` });
-      c.fx.say(`${nm(p)} sails with ${f.name} now`);
+      p.flags.push({ id: 'missing', since: c.world.date, detail: `flies with ${f.name}` });
+      c.fx.say(`${nm(p)} flies with ${f.name} now`);
     } }],
     fallback: 0,
   },

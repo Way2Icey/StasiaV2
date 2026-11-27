@@ -143,7 +143,7 @@ describe('world generation', () => {
     const docks = w.planets['alerion-prime']!.sectors.find((s) => s.name.startsWith('Sector 9'))!;
     const port = docks.quarters.find((q) => q.name === 'Starport Nine')!;
     expect(port.overseerId).toBeTruthy();
-    expect(w.characters[port.overseerId!]!.role).toContain('Harbourmaster');
+    expect(w.characters[port.overseerId!]!.role).toContain('Portmaster');
   });
 });
 

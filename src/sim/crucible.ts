@@ -314,7 +314,7 @@ export function enterCrucible(input: World, c: Contingent): World {
   const m = w.characters[k.marshalId!]!;
   logRecord(w, {
     kind: 'world', type: 'politics', severity: 2,
-    text: `Our contingent sails for ${BATTLE_WORLD}: ${shortName(w.characters[k.championId!]!.name)} as champion, ${k.knights.length} knights and ${k.men} men, with ${displayName(m.name)} as Marshal in orbit.`,
+    text: `Our contingent launches for ${BATTLE_WORLD}: ${shortName(w.characters[k.championId!]!.name)} as champion, ${k.knights.length} knights and ${k.men} men, with ${displayName(m.name)} as Marshal in orbit.`,
     who: contingentPeople(k).map((id) => ({ id, part: id === k.marshalId ? 'Marshal' : id === k.championId ? 'champion' : 'knight' })),
     effects: [`−${fmt(contingentCost(k).othes)} othes`, `−${COST_PROVISIONS} provisions`, `−${COST_FUEL} fuel`, 'Away until the Crucible ends'],
   });
@@ -366,7 +366,7 @@ function draw(w: World, rng: Rng) {
   }));
   logRecord(w, {
     kind: 'world', type: 'politics', severity: entrants.includes(P) ? 2 : 1,
-    text: `The draw for the Crucible of ${year}: ${entrants.map((h) => shortHouse(w, h)).join(', ')}.${entrants.includes(P) ? ` We are drawn. Our contingent must sail by Orbit ${CLOSES}.` : ' We are not drawn this year.'}`,
+    text: `The draw for the Crucible of ${year}: ${entrants.map((h) => shortHouse(w, h)).join(', ')}.${entrants.includes(P) ? ` We are drawn. Our contingent must launch by Orbit ${CLOSES}.` : ' We are not drawn this year.'}`,
     detail: `Each house fields one champion and ${FORCE} men's worth of troops (a knight counts as ${KNIGHT_WEIGHT}), directed by a Marshal in orbit. They will fight over ${sites.length} sites on ${BATTLE_WORLD}.`,
     houseIds: entrants.filter((h) => w.houses[h]), source: 'the Numarade',
   });
@@ -989,7 +989,7 @@ function councilMuster(w: World, why: string): boolean {
   pay(w, P, c);
   cr.contingents[P] = c;
   commit(w, c);
-  logRecord(w, { kind: 'world', type: 'politics', severity: 2, text: `${why}, our contingent sails for ${BATTLE_WORLD}: ${shortName(champion!.name)} as champion, ${knights.length} knights, ${displayName(marshal!.name)} as Marshal.`, who: contingentPeople(c).map((id) => ({ id, part: id === c.marshalId ? 'Marshal' : id === c.championId ? 'champion' : 'knight' })), effects: [`−${fmt(contingentCost(c).othes)} othes`] });
+  logRecord(w, { kind: 'world', type: 'politics', severity: 2, text: `${why}, our contingent launches for ${BATTLE_WORLD}: ${shortName(champion!.name)} as champion, ${knights.length} knights, ${displayName(marshal!.name)} as Marshal.`, who: contingentPeople(c).map((id) => ({ id, part: id === c.marshalId ? 'Marshal' : id === c.championId ? 'champion' : 'knight' })), effects: [`−${fmt(contingentCost(c).othes)} othes`] });
   return true;
 }
 

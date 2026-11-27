@@ -26,7 +26,7 @@ const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 export type CapitalClass = 'flagship' | 'carrier' | 'cruiser' | 'destroyer';
 export interface CapitalClassDef { label: string; crew: number; upkeep: number; power: number; cost: number; components: number; slots: number; refits: number; note: string }
 export const CAPITAL_CLASSES: Record<CapitalClass, CapitalClassDef> = {
-  flagship: { label: 'Flagship', crew: 2000, upkeep: 900, power: 55, cost: 140000, components: 600, slots: 4, refits: 3, note: 'A Great House\'s command ship and its pride: the Grand Master\'s deck, a city\'s worth of crew, the house\'s whole treasury afloat. Only one at a time, and only for a Great House.' },
+  flagship: { label: 'Flagship', crew: 2000, upkeep: 900, power: 55, cost: 140000, components: 600, slots: 4, refits: 3, note: 'A Great House\'s command ship and its pride: the Grand Master\'s deck, a city\'s worth of crew, the house\'s whole treasury under way. Only one at a time, and only for a Great House.' },
   carrier: { label: 'Carrier', crew: 800, upkeep: 500, power: 26, cost: 50000, components: 250, slots: 3, refits: 2, note: 'Fights through its fighter wings, and carries troops to an assault: a hangar makes it.' },
   cruiser: { label: 'Cruiser', crew: 400, upkeep: 300, power: 20, cost: 26000, components: 120, slots: 2, refits: 2, note: 'The heart of a house\'s fleet: a command ship for a Minor House, a ship of the line for a Great one.' },
   destroyer: { label: 'Destroyer', crew: 300, upkeep: 100, power: 11, cost: 12000, components: 60, slots: 1, refits: 1, note: 'Escort and fast strike: screens the heavier ships, hunts corsairs, and goes where it is sent.' },
@@ -46,9 +46,9 @@ export const FITS: Record<Fit, { label: string; cost: number; components: number
 export const hasFit = (s: CapitalShip, f: Fit) => !!s.fits?.includes(f);
 
 export type Duty = 'harbour' | 'patrol' | 'show' | 'blockade' | 'escort';
-export const DUTY_LABEL: Record<Duty, string> = { harbour: 'In harbour', patrol: 'Patrol', show: 'Show the flag', blockade: 'Blockade', escort: 'Convoy escort' };
+export const DUTY_LABEL: Record<Duty, string> = { harbour: 'At dock', patrol: 'Patrol', show: 'Show the flag', blockade: 'Blockade', escort: 'Convoy escort' };
 export const DUTY_NOTE: Record<Duty, string> = {
-  harbour: 'Moored at home. Cheap to keep and repairs itself, but idle crews grow restless.',
+  harbour: 'Docked at home. Cheap to keep and repairs itself, but idle crews grow restless.',
   patrol: 'Watches one of our sectors: raiders think twice, and if they come the ship fights.',
   show: 'Takes station over another house\'s world. Our dread rises; their regard falls, unless they are friends.',
   blockade: 'Stops ships at another house\'s main port. Their trade suffers and they hate us for it; warships may come out to test us.',
@@ -349,7 +349,7 @@ export function commission(input: World, cls: CapitalClass, yardId: string): Wor
       sectorId: yard.sectorId!, duty: 'harbour', built: w.date, ready: addCycles(w.date, Math.round(CYCLES_PER_ORBIT * orbits)), yardId: yard.id, log: [],
     };
     ensureBrig(w, id, P);
-    logRecord(w, { kind: 'world', type: 'economy', severity: 2, text: `The keel of a new ${d.label.toLowerCase()}, the ${w.fleet.ships[id]!.name}, is laid at the yards of ${findSector(w, yard.sectorId!)?.sector.name}.`, effects: [`−${fmt(d.cost)} othes`, `−${d.components} components`, `Ready in ${orbits} Orbits`], placeId: yard.sectorId });
+    logRecord(w, { kind: 'world', type: 'economy', severity: 2, text: `A new ${d.label.toLowerCase()}, the ${w.fleet.ships[id]!.name}, is laid down at the yards of ${findSector(w, yard.sectorId!)?.sector.name}.`, effects: [`−${fmt(d.cost)} othes`, `−${d.components} components`, `Ready in ${orbits} Orbits`], placeId: yard.sectorId });
   });
 }
 
@@ -432,7 +432,7 @@ function mutiny(w: World, rng: Rng, s: CapitalShip) {
     s.crewMood = 45;
     if (s.duty !== 'harbour') dutyInPlace(w, s, 'harbour');
     st.respect = clamp(st.respect - 3, 0, 100);
-    if (s.houseId === P) logRecord(w, { kind: 'world', type: 'condition', severity: 3, text: `Mutiny on the ${s.name}: the crew have put ${cap ? displayName(cap.name) : 'their officers'} ashore and refuse to fly until they are paid and heard.`, detail: 'Name a new captain they can stomach, keep them paid, and bring the ship home.', who: cap ? [{ id: cap.id, part: 'put ashore' }] : [], effects: ['Respect −3', 'No captain'] });
+    if (s.houseId === P) logRecord(w, { kind: 'world', type: 'condition', severity: 3, text: `Mutiny on the ${s.name}: the crew have put ${cap ? displayName(cap.name) : 'their officers'} off at the nearest port and refuse to fly until they are paid and heard.`, detail: 'Name a new captain they can stomach, keep them paid, and bring the ship home.', who: cap ? [{ id: cap.id, part: 'put ashore' }] : [], effects: ['Respect −3', 'No captain'] });
   } else {
     // The ship is gone: turned corsair.
     s.lost = { date: w.date, how: 'mutiny: turned corsair' };
@@ -444,7 +444,7 @@ function mutiny(w: World, rng: Rng, s: CapitalShip) {
       else { cap.flags = cap.flags.filter((f) => f.id !== 'aboard'); shiftMood(cap, -25); }
     }
     for (const r of w.ports?.raids ?? []) if (r.status === 'brewing') r.strength += Math.round(CAPITAL_CLASSES[s.cls].power * 0.8);
-    if (s.houseId === P) logRecord(w, { kind: 'world', type: 'condition', severity: 3, text: `The ${s.name} is lost. Her crew rose, ${cap ? `${cap.alive ? 'threw ' + displayName(cap.name) + ' into a lifeboat' : 'killed ' + displayName(cap.name)}` : 'took the ship'}, and ran for the dark between the worlds. She sails with the corsairs now.`, who: cap ? [{ id: cap.id, part: cap.alive ? 'set adrift' : 'killed' }] : [], effects: ['Ship lost', 'Respect −8', 'Dread −4', 'Corsairs stronger'] });
+    if (s.houseId === P) logRecord(w, { kind: 'world', type: 'condition', severity: 3, text: `The ${s.name} is lost. Her crew rose, ${cap ? `${cap.alive ? 'threw ' + displayName(cap.name) + ' into a lifepod' : 'killed ' + displayName(cap.name)}` : 'took the ship'}, and ran for the dark between the worlds. She sails with the corsairs now.`, who: cap ? [{ id: cap.id, part: cap.alive ? 'set adrift' : 'killed' }] : [], effects: ['Ship lost', 'Respect −8', 'Dread −4', 'Corsairs stronger'] });
     else logRecord(w, { kind: 'world', type: 'world', severity: 2, text: `Word from the Exchange: ${H(w, s.houseId)} has lost the ${s.name} to mutiny. She has gone corsair.`, houseIds: [s.houseId], source: 'talk at the Exchange' });
   }
 }
@@ -512,7 +512,7 @@ function standoff(w: World, rng: Rng, a: CapitalShip, b: CapitalShip) {
     if (loser === a && a.duty === 'blockade') { dutyInPlace(w, a, 'harbour'); }
     if (a.houseId === P || b.houseId === P) logRecord(w, {
       kind: 'world', type: 'fight', severity: 3,
-      text: `Shots exchanged over ${where?.planet.name}: the ${winner.name} and the ${loser.name}. The ${loser.name} came off worse${loser === a ? ' and broke the blockade off' : ' and was driven back to her moorings'}.`,
+      text: `Shots exchanged over ${where?.planet.name}: the ${winner.name} and the ${loser.name}. The ${loser.name} came off worse${loser === a ? ' and broke the blockade off' : ' and was driven back to her dock'}.`,
       detail: 'No war has been declared. The Numarade will hear of this.',
       who: [...(wc ? [{ id: wc.id, part: `captain of the ${winner.name}` }] : []), ...(lc ? [{ id: lc.id, part: `captain of the ${loser.name}` }] : [])],
       houseIds: [a.houseId, b.houseId], placeId: where?.sector.id,

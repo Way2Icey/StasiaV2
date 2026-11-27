@@ -581,8 +581,8 @@ function dock(world: World, rng: Rng, ship: Ship) {
         note(world, `${ship.name} held at berth ${ship.berth}: ${found.join('; ')}${why}.`, ship.id, ship.sectorId);
         tell(world, 'world', `Customs at ${sector?.name} held the ${ship.cls} ${ship.name}.`, undefined, {
           type: 'seizure', severity: 1, placeId: ship.sectorId, shipId: ship.id, detail: `${found.join('; ')}${why}.`,
-          source: harbourmaster(world, ship.sectorId) ? `${displayName(harbourmaster(world, ship.sectorId)!.name)}, harbourmaster` : 'customs',
-          who: harbourmaster(world, ship.sectorId) ? [{ id: harbourmaster(world, ship.sectorId)!.id, part: 'harbourmaster' }] : undefined,
+          source: harbourmaster(world, ship.sectorId) ? `${displayName(harbourmaster(world, ship.sectorId)!.name)}, portmaster` : 'customs',
+          who: harbourmaster(world, ship.sectorId) ? [{ id: harbourmaster(world, ship.sectorId)!.id, part: 'portmaster' }] : undefined,
         });
       } else if (g === 2) {
         logIncident(world, ship, `Searched: ${found.join('; ')}. Fined on the spot.`, g);
@@ -1046,8 +1046,8 @@ function fineInPlace(w: World, ship: Ship, byCouncil = false, onTheSpot = false)
   ship.fined = true;
   ship.status = 'docked';
   ship.departs = addCycles(w.date, 2);
-  ship.notes.push(`${onTheSpot ? 'Customs fined it on the spot:' : byCouncil ? 'The harbourmaster, hearing nothing, fined it' : 'Fined'} ${fine.toLocaleString('en-US')} othes${onTheSpot ? '.' : ' and released.'}`);
-  note(w, `${ship.name} fined ${fine.toLocaleString('en-US')} othes${found.length ? ', cargo seized' : ''}${onTheSpot ? ' on the spot' : byCouncil ? ' by the harbourmaster' : ''}.`, ship.id);
+  ship.notes.push(`${onTheSpot ? 'Customs fined it on the spot:' : byCouncil ? 'The portmaster, hearing nothing, fined it' : 'Fined'} ${fine.toLocaleString('en-US')} othes${onTheSpot ? '.' : ' and released.'}`);
+  note(w, `${ship.name} fined ${fine.toLocaleString('en-US')} othes${found.length ? ', cargo seized' : ''}${onTheSpot ? ' on the spot' : byCouncil ? ' by the portmaster' : ''}.`, ship.id);
   if (!onTheSpot) logIncident(w, ship, `Fined ${fine.toLocaleString('en-US')} othes${found.length ? ', cargo seized' : ''}.`, found.length ? 2 : 0);
 }
 

@@ -145,7 +145,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   fit: { term: 'Fit', group: 'Council', text: "How well someone's stats suit a job: Poor, Fair, Good or Excellent." },
   oath: { term: 'Oath', group: 'Council', text: "The Highroy's one vow at a time, lasting an Orbit. Tasks that serve it work 25% harder. Keep it for honour; break it and lose some." },
   decision: { term: 'Decision', group: 'Council', text: 'A moment that needs the Highroy: trouble on the road, a test at a foreign court, a quarrel at home. Choices with a skill check show who will try and their odds. Left unanswered, the council takes the cautious road when it lapses.' },
-  harbourmaster: { term: 'Harbourmaster', group: 'Holdings', text: 'Runs a port: the overseer of its trade quarter, or the Steward if there is none. Their perception, stewardship and law decide how much customs catch.' },
+  harbourmaster: { term: 'Portmaster', group: 'Holdings', text: 'Runs a port: the overseer of its trade quarter, or the Steward if there is none. Their perception, stewardship and law decide how much customs catch.' },
   manifest: { term: 'Manifest', group: 'Holdings', text: 'What a ship says it carries. Customs compare it with what is actually in the hold; anything missing from the manifest is contraband.' },
   standingOrders: { term: 'Standing orders', group: 'Holdings', text: 'Rules a port follows without asking you: which ships customs search on arrival, the tariff, and whether the port is open at all.' },
   tariff: { term: 'Tariff', group: 'Holdings', text: 'A cut of the declared value of every cargo landed. Paid into the house coffers when the ship docks.' },

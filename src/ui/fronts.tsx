@@ -11,7 +11,7 @@ import { GroundsPage } from './grounds';
 import { CruciblePage } from './crucible';
 import { formationsOf, warsOf } from '../sim/war';
 import { troopsOf } from '../sim/crucible';
-import { shipsOf } from '../sim/fleet';
+import { DUTY_LABEL, shipsOf } from '../sim/fleet';
 import { carrying, crewCount, hullsOf } from '../sim/register';
 import { regardOf, liveHouses } from '../sim/archon';
 import { grievances } from '../sim/war';
@@ -36,9 +36,9 @@ export function FrontsPage({ front: initial }: { front?: Front }) {
   const ships = shipsOf(world, P);
   const hulls = hullsOf(world);
   const gunships = hulls.filter((h) => h.type === 'gunship');
-  const fighters = hulls.length - gunships.length;
+  const kinds = (t: string) => hulls.filter((h) => h.type === t).length;
   const crew = crewCount(world).total;
-  const gunsOut = gunships.filter((h) => carrying(world, h.id)).length;
+  const hullsOut = hulls.filter((h) => carrying(world, h.id)).length;
   void fleets;
   const knights = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full' && (c.role === 'Knight' || c.flags.some((f) => f.id === 'knighted')));
   const aspirants = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && world.ladder?.of[c.id]?.stage === 'aspirant');
@@ -78,9 +78,9 @@ export function FrontsPage({ front: initial }: { front?: Front }) {
         {col('ground', 'GROUND', fmt(soldiers + garrisons), `soldiers · ${fmt(soldiers)} in formations, ${fmt(garrisons)} in garrisons`,
           [...land.map((f) => [f.name, `${fmt(f.strength)} · morale ${Math.round(f.morale)}`] as [string, string]), ['Commander', weakCmd ? `${weakCmd.name}: needs one` : 'all in hand', weakCmd ? 'down' : 'up']],
           weakCmd ? { label: 'Name a commander', on: () => setOpen('ground') } : null, 'var(--gold)')}
-        {col('void', 'VOID', `${ships.length + hulls.length}`, `ships · ${ships.length} great, ${gunships.length} gunships, ${fighters} fighters · ${fmt(crew)} aboard`,
-          [...ships.slice(0, 4).map((s) => { const p = carrying(world, s.id); const who = p ? world.characters[p.ids[0]!] : undefined; return [s.name, p ? `carrying ${who?.name.given ?? 'ours'}${p.ids.length > 1 ? ` +${p.ids.length - 1}` : ''}` : `${s.duty} · hull ${Math.round(s.condition)}${s.crewMood < 35 ? ' · crew sullen' : ''}`, p ? 'gold' : s.crewMood < 35 ? 'down' : undefined] as [string, string, string?]; }),
-            ['Gunships', gunsOut ? `${gunsOut} of ${gunships.length} out carrying` : `all ${gunships.length} home`, gunsOut ? 'gold' : 'muted']],
+        {col('void', 'VOID', `${ships.length + hulls.length}`, `vessels · ${ships.length} great, ${kinds('cruiser')} cruisers, ${kinds('destroyer')} destroyers, ${gunships.length} gunships, ${kinds('fighter')} fighters · ${fmt(crew)} aboard`,
+          [...ships.slice(0, 4).map((s) => { const p = carrying(world, s.id); const who = p ? world.characters[p.ids[0]!] : undefined; return [s.name, p ? `carrying ${who?.name.given ?? 'ours'}${p.ids.length > 1 ? ` +${p.ids.length - 1}` : ''}` : `${DUTY_LABEL[s.duty].toLowerCase()} · hull ${Math.round(s.condition)}${s.crewMood < 35 ? ' · crew sullen' : ''}`, p ? 'gold' : s.crewMood < 35 ? 'down' : undefined] as [string, string, string?]; }),
+            ['Cruisers · destroyers · gunships', hullsOut ? `${hullsOut} out carrying` : 'all at dock', hullsOut ? 'gold' : 'muted']],
           idleShip ? { label: `Give ${idleShip.name} a duty`, on: () => setOpen('void') } : null, 'var(--blue)')}
         {col('honour', 'HONOUR', `${knights.length}`, `knights · ${aspirants.length} aspirant${aspirants.length === 1 ? '' : 's'} · ${jobs} jobs on the board`,
           [...knights.slice(0, 4).map((k) => [k.name.given + (k.name.family ? ` ${k.name.family}` : ''), wounded(k) ? 'wounded' : isAway(world, k.id) ? 'away' : 'free', wounded(k) ? 'down' : isAway(world, k.id) ? 'muted' : 'up'] as [string, string, string])],

@@ -44,7 +44,7 @@ export function CruciblePage({ bare }: { bare?: boolean } = {}) {
   const P = world.playerHouseId;
   const d = dateParts(world.date);
   const ours = cr.contingents[P];
-  const stage = cr.stage === 'drawn' ? (cr.entrants.includes(P) ? `We are drawn. Our contingent must sail by Orbit ${CLOSES}.` : 'We are not drawn this year.')
+  const stage = cr.stage === 'drawn' ? (cr.entrants.includes(P) ? `We are drawn. Our contingent must launch by Orbit ${CLOSES}.` : 'We are not drawn this year.')
     : cr.stage === 'campaign' ? `Battles in Orbits ${ROUND_ORBITS.join(', ')}.` : `The next draw is in Orbit ${DRAW_ORBIT}${d.orbit >= DRAW_ORBIT ? ' next year' : ''}.`;
   return (
     <>
@@ -175,7 +175,7 @@ function Muster({ className }: { className?: string }) {
   );
   const bar = '█'.repeat(knights.length) + '▒'.repeat(MAX_KNIGHTS - knights.length);
   return (
-    <Panel title="Raise our contingent" aside={`sail by Orbit ${CLOSES}`} className={className}>
+    <Panel title="Raise our contingent" aside={`launch by Orbit ${CLOSES}`} className={className}>
       <p className="body muted" style={{ margin: 0 }}>One Marshal in orbit, one champion, and {FORCE} men's worth: each knight takes the place of {KNIGHT_WEIGHT} men. Ten knights and no men, or none and {FORCE} men, or anything between. Everyone named is away until it ends. Councillors sent leave their seats idle.</p>
       <div className="grid" style={{ padding: 10 }}>
         <div className="span-4"><div className="eyebrow">Marshal · in orbit</div>
@@ -196,7 +196,7 @@ function Muster({ className }: { className?: string }) {
           {ships.map((s) => <option key={s.id} value={s.id}>{s.name} · away for the season</option>)}
         </select>
         <span className="muted" style={{ fontSize: 12 }}>Costs {fmt(cost.othes)} othes, {COST_PROVISIONS} provisions, {COST_FUEL} fuel · coffers {fmt(econ(world, P).stock.othes)}</span>
-        <button type="button" className="btn small primary" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => enterCrucible(w, c))}>{why ?? 'Sail'}</button>
+        <button type="button" className="btn small primary" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => enterCrucible(w, c))}>{why ?? 'Launch'}</button>
       </div>
       {err ? <p className="error body" style={{ margin: 0 }}>{err}</p> : null}
     </Panel>

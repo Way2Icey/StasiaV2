@@ -159,7 +159,7 @@ function aimText(world: World, h: string, a: Aim): string {
     case 'revenge': return `${H(world, h)} wants revenge on ${t}. Expect letters to the companies, embargoes, perhaps a blockade.`;
     case 'alliance': return `${H(world, h)} is looking for an ally, and has its eye on ${t}.`;
     case 'wealth': return `${H(world, h)} is after money: compacts, blind eyes at their docks, and smuggling by their people.`;
-    case 'expand': return `${H(world, h)} is building strength at sea. More ships, and more of them on the lanes.`;
+    case 'expand': return `${H(world, h)} is building strength in the void. More ships, and more of them on the lanes.`;
     case 'glory': return `${H(world, h)} wants glory: their fighters will be on every card and at the Crucible in force.`;
   }
 }

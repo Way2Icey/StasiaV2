@@ -35,7 +35,7 @@ export const MODULE_NOTE: Record<ModuleKind, string> = {
   hangar: 'Fighter wings aboard a great ship. Each level adds to the ship\'s fighting strength.',
   base: 'A garrison of the house\'s troops. It fights any raid on this sector whether or not the knights muster, and keeps its own cells.',
   listening: 'Antennae and quiet listeners. Raids on this world are seen sooner, foreign agents here are caught more often, and other houses\' great ships near it are seen. Level 2 follows ships on the lanes to and from it; level 3 hears the whole Reaches.',
-  shipyard: 'Slips and drydocks. Great ships are laid down here, one at a time per level, and ships in harbour here are repaired twice as fast. A better yard builds faster.',
+  shipyard: 'Slips and drydocks. Great ships are laid down here, one at a time per level, and ships docked here are repaired twice as fast. A better yard builds faster.',
 };
 /** Othes to build level 1, 2 and 3. */
 export const BUILD_COST: Record<ModuleKind, [number, number, number]> = {

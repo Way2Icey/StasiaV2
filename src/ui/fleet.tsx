@@ -78,7 +78,7 @@ export function ShipyardView({ yard }: { yard: Module }) {
       {slips.map((s) => <div key={s.id} className="row">▲ <ShipLink s={s} /> <span className="muted">· {CAPITAL_CLASSES[s.cls].label.toLowerCase()} · launches {s.ready ? formatDate(s.ready) : ''}</span></div>)}
       {docked.length ? <div className="body muted" style={{ fontSize: 12 }}>In dock, repairing twice as fast: {docked.map((s, i) => <span key={s.id}>{i ? ', ' : ''}<ShipLink s={s} /> ({Math.round(s.condition)})</span>)}</div> : null}
       <div className="body" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span className="eyebrow">Lay down a keel</span>
+        <span className="eyebrow">Lay down a hull</span>
         <select className="select" aria-label="Class" value={cls} onChange={(e) => setCls(e.target.value as CapitalClass)}>
           {(Object.keys(CAPITAL_CLASSES) as CapitalClass[]).map((k) => <option key={k} value={k}>{CAPITAL_CLASSES[k].label} · {fmt(CAPITAL_CLASSES[k].cost)} othes · {CAPITAL_CLASSES[k].components} comp.</option>)}
         </select>
@@ -139,7 +139,7 @@ export function ShipPage({ id }: { id: string }) {
             `LAID DOWN ${formatDate(s.built)} · ${shipAge(world, s)} years`,
             `RENOWN    ${s.renown ?? 0}${s.epithet ? '' : ' (a name at 12)'}`,
           ].join('\n')}</pre>
-          <div className="body">Captain: {cap ? <PersonLink c={cap} /> : ours ? <>{captainOf(world, s).name} <span className="muted">· sailing master; name one of the court to command her</span></> : <span className="muted">unknown</span>}</div>
+          <div className="body">Captain: {cap ? <PersonLink c={cap} /> : ours ? <>{captainOf(world, s).name} <span className="muted">· ship's master; name one of the court to command her</span></> : <span className="muted">unknown</span>}</div>
           {ours && !s.lost ? (
             <div className="body" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <select className="select" aria-label="Captain" value={s.captainId ?? ''} onChange={(e) => run((w) => setCaptain(w, s.id, e.target.value || null))}>
@@ -150,7 +150,7 @@ export function ShipPage({ id }: { id: string }) {
               <button type="button" className="btn small" disabled={!name.trim()} onClick={() => { run((w) => renameShip(w, s.id, name)); setName(''); }}>Rename</button>
             </div>
           ) : null}
-          <p className="body muted" style={{ margin: 0, fontSize: 12 }}>A captain with leadership keeps the crew's spirits up; fleet command and tactics make the ship fight better. Crews sour in harbour too long or too long in the void, and unpaid crews sour fast. Below 25 they talk of mutiny.</p>
+          <p className="body muted" style={{ margin: 0, fontSize: 12 }}>A captain with leadership keeps the crew's spirits up; fleet command and tactics make the ship fight better. Crews sour too long at dock or too long in the void, and unpaid crews sour fast. Below 25 they talk of mutiny.</p>
         </Panel>
         {ours && !s.lost ? <Panel title="Manifest" className="span-6"><div className="body"><Manifest ship={s} here /></div></Panel> : null}
         {ours && !s.lost && !s.ready ? (
@@ -194,7 +194,7 @@ export function ShipPage({ id }: { id: string }) {
                 return <button key={k} type="button" className="btn small" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => fitModule(w, k, s.id))}>Fit {k === 'cells' ? 'a brig' : k === 'vault' ? 'a strongroom' : 'a hangar'} · {fmt(buildCost(k, 1))}</button>;
               })}
             </div>
-            <p className="body muted" style={{ margin: 0, fontSize: 12 }}>A brig at sea is hard to break into. A strongroom carries othes beyond any raider's reach. A hangar adds fighter wings.</p>
+            <p className="body muted" style={{ margin: 0, fontSize: 12 }}>A brig in the void is hard to break into. A strongroom carries othes beyond any raider's reach. A hangar adds fighter wings.</p>
           </Panel>
         ) : null}
         {ours && !s.lost && !s.ready ? (
@@ -209,7 +209,7 @@ export function ShipPage({ id }: { id: string }) {
                 </div>
               );
             })}
-            <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Refits are done in harbour at one of our shipyards.</p>
+            <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Refits are done at dock in one of our shipyards.</p>
           </Panel>
         ) : null}
         <Panel title="Her record" aside={s.log?.length ? `${s.log.length}` : undefined} className="span-6">

@@ -58,7 +58,7 @@ export function PlacesPage() {
               {atWar(world, P, s.holder!) ? <Peek t={{ k: 'site', id: s.id }} className="btn small primary">Plan an assault</Peek> : null}
             </Row>
           ))}
-          <p className="body muted" style={{ margin: 0, fontSize: 12 }}>In war, ships in harbour can carry troops against a place of the house we fight.</p>
+          <p className="body muted" style={{ margin: 0, fontSize: 12 }}>In war, ships at dock can carry troops against a place of the house we fight.</p>
         </Panel>
         <Panel title="Sites of the past" aside={`${ruins.length} known`} className="span-6">
           {ruins.length ? ruins.map((s) => {

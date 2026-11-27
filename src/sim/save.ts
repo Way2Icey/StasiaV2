@@ -121,6 +121,8 @@ export function deserialize(text: string): World {
   ensureLoans(world);
   ensureTraining(world);
   ensureFleet(world);
+  // Ports are spaceports: their overseers are portmasters.
+  for (const c of Object.values(world.characters)) if (c.role?.includes('Harbourmaster')) c.role = c.role.replace('Harbourmaster', 'Portmaster');
   ensureEmbassies(world);
   ensureAmbitions(world);
   ensureCareers(world);

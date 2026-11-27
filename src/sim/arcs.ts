@@ -256,9 +256,9 @@ function plotStrength(p?: Character): number {
 
 const ring: EventDef[] = [
   {
-    id: 'str:ring:open', title: 'Our harbourmaster is on the take', category: 'Economy', trigger: 'home', weight: 0, stage: true,
+    id: 'str:ring:open', title: 'Our portmaster is on the take', category: 'Economy', trigger: 'home', weight: 0, stage: true,
     setup: (c) => !(c.world.story?.struggles ?? []).some((x) => !x.ended && x.kind === 'ring'),
-    text: () => 'The port\'s books are too clean and its harbourmaster too rich. A ring runs goods through our docks under our seal, and our cut of the customs is going somewhere else.',
+    text: () => 'The port\'s books are too clean and its portmaster too rich. A ring runs goods through our docks under our seal, and our cut of the customs is going somewhere else.',
     options: [
       { label: 'Set the Steward on it', resolve: (c) => { const s = naturalFor(c.world, 'ring'); startStruggle(c.world, 'ring', { strength: 12 + c.rng.int(0, 4), theirName: 'the ring', ours: s ? [s.id] : [] }); } },
       { label: 'Set the Spymaster on it', resolve: (c) => { const s = seat(c, 'spymaster'); startStruggle(c.world, 'ring', { strength: 12 + c.rng.int(0, 4), theirName: 'the ring', ours: s ? [s.id] : [] }); } },
@@ -290,7 +290,7 @@ const ring: EventDef[] = [
   {
     id: 'str:ring:won', title: 'The ring is broken', category: 'Economy', trigger: 'home', weight: 0, stage: true,
     setup: () => true,
-    text: () => 'The ring\'s warehouses are ours: crates of untaxed goods, a ledger of every bribe, and a harbourmaster begging for his life.',
+    text: () => 'The ring\'s warehouses are ours: crates of untaxed goods, a ledger of every bribe, and a portmaster begging for his life.',
     options: [
       { label: 'Keep the haul', hint: '+1,200 othes', resolve: (c) => { c.fx.othes(1200).dread(1); endStruggle(c.world, strug(c)?.id, true, 'Broken; the house kept the haul.'); } },
       { label: 'Hand it to the Numarade', resolve: (c) => { shiftFavour(c.world, c.house, 4); c.fx.honour(2).othes(300); endStruggle(c.world, strug(c)?.id, true, 'Broken, and handed to the Numarade.'); } },

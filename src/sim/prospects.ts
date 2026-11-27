@@ -26,7 +26,7 @@ const DEEDS: Record<Incident, Partial<Record<Subject, string[]>>> = {
     arms: ['took a corsair\'s blade off him with a docking hook and held a stairwell until the watch came', 'shot two raiders off a cargo lift with a rivet gun'],
     command: ['got forty people out through the service tunnels while the corsairs were still landing', 'had the dock children barricading the lower gate before any adult thought of it'],
     statecraft: ['talked a corsair boarding party out of a shelter full of families'],
-    intrigue: ['slipped aboard a corsair lander unseen and cut its fuel line', 'followed the raiders to their boats and came back with a hull number'],
+    intrigue: ['slipped aboard a corsair lander unseen and cut its fuel line', 'followed the raiders to their landers and came back with a hull number'],
     resonance: ['stood in front of a raider\'s stolen Caige when it went wild, and it went quiet'],
     learning: ['read the corsairs\' burn patterns and called where they would land next, and was right'],
   },

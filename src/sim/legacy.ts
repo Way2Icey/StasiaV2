@@ -326,7 +326,7 @@ const ERA_NAMES = {
   restless: ['the Restless Years', 'the Age of Echoes', 'the Unquiet', 'the Years of Strange Weight', 'the Dreaming Age'],
   quiet: ['the Still Years', 'the Clear Age', 'the Long Calm', 'the Settled Years'],
   war: ['the Burning Years', 'the Age of Iron', 'the Years of Banners'],
-  peace: ['the Long Peace', 'the Gentle Years', 'the Age of Harbours'],
+  peace: ['the Long Peace', 'the Gentle Years', 'the Age of Ports'],
 };
 function nameEra(w: World, rng: Rng, kind: keyof typeof ERA_NAMES, why: string): void {
   const L = ensureLegacy(w);

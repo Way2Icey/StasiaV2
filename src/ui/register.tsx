@@ -5,7 +5,7 @@ import { useWorld } from './context';
 import { Panel, PersonLink } from './links';
 import { ShipLink } from './fleet';
 import { CAPITAL_CLASSES, DUTY_LABEL, shipsOf, type CapitalShip } from '../sim/fleet';
-import { captainOf, carrying, complement, crewCount, HULL_LABEL, HULL_NOTE, hullsOf, type Hull, type Passage } from '../sim/register';
+import { captainOf, carrying, complement, crewCount, HULL_LABEL, HULL_NOTE, hullsOf, type Hull, type HullType, type Passage } from '../sim/register';
 import { formatDate } from '../sim/time';
 import type { World } from '../sim/types';
 
@@ -32,7 +32,7 @@ function hullStatus(world: World, h: Hull): { text: string; tone?: string } {
   if (p) return { text: `carrying ${p.ids.length} of ours`, tone: 'gold' };
   const f = world.war?.formations[h.formationId];
   if (f?.front) return { text: 'with the fleet at war', tone: 'down' };
-  return { text: 'in harbour', tone: 'muted' };
+  return { text: 'at dock', tone: 'muted' };
 }
 
 /** What a ship is and who is aboard: her captain, her company to the last hand, and her passengers. */
@@ -57,7 +57,7 @@ export function Manifest({ ship, hull, here }: { ship?: CapitalShip; hull?: Hull
       <div className="manifest-grid">
         <div>
           <span className="eyebrow">{hull?.type === 'fighter' ? 'Pilot' : 'Captain'}</span>
-          <div>{capChar ? <PersonLink c={capChar} /> : cap.name}{ship && !capChar ? <span className="muted"> · sailing master</span> : null}</div>
+          <div>{capChar ? <PersonLink c={capChar} /> : cap.name}{ship && !capChar ? <span className="muted"> · ship's master</span> : null}</div>
         </div>
         <div>
           <span className="eyebrow">Company · {fmt(crew)}</span>
@@ -83,10 +83,11 @@ export function RegisterPanel({ className }: { className?: string }) {
   const [open, setOpen] = useState<string | null>(null);
   const great = shipsOf(world, P);
   const hulls = hullsOf(world);
-  const guns = hulls.filter((h) => h.type === 'gunship');
-  const fighters = hulls.filter((h) => h.type === 'fighter');
+  const of = (t: HullType) => hulls.filter((h) => h.type === t);
+  const fighters = of('fighter');
   const crew = crewCount(world);
-  const out = great.filter((s) => carrying(world, s.id)).length + guns.filter((h) => carrying(world, h.id)).length;
+  const out = great.filter((s) => carrying(world, s.id)).length + hulls.filter((h) => carrying(world, h.id)).length;
+  const USE: Record<Exclude<HullType, 'fighter'>, string> = { cruiser: 'for envoys and the Spymaster', destroyer: 'for the Champion', gunship: 'for knights' };
   const line = (id: string, name: string, kind: string, captain: string, n: number, st: { text: string; tone?: string }, body: JSX.Element) => (
     <div key={id} className={`reg-row${open === id ? ' open' : ''}`}>
       <button type="button" className="reg-line" aria-expanded={open === id} onClick={() => setOpen(open === id ? null : id)}>
@@ -102,10 +103,14 @@ export function RegisterPanel({ className }: { className?: string }) {
   return (
     <Panel title="The register" aside={`${great.length + hulls.length} hulls · ${fmt(crew.total)} aboard · ${out} out carrying`} className={className}>
       <div className="reg-head"><span>Ship</span><span>Type</span><span>Captain</span><span style={{ textAlign: 'right' }}>Crew</span><span>Now</span></div>
-      <div className="eyebrow reg-sec">Great ships · {great.length}</div>
+      <div className="eyebrow reg-sec">Great ships · {great.length} · for the Highroy and the Grand Master, and the house's duties</div>
       {great.map((s) => line(s.id, s.name, CAPITAL_CLASSES[s.cls].label.toLowerCase(), captainOf(world, s).name, s.crew, greatStatus(world, s), <Manifest ship={s} />))}
-      <div className="eyebrow reg-sec">Gunships · {guns.length}</div>
-      {guns.map((h) => line(h.id, h.name, 'gunship', h.captain, h.crew, hullStatus(world, h), <Manifest hull={h} />))}
+      {(['cruiser', 'destroyer', 'gunship'] as const).map((t) => (
+        <div key={t}>
+          <div className="eyebrow reg-sec">{HULL_LABEL[t]}s · {of(t).length} · {USE[t]}</div>
+          {of(t).map((h) => line(h.id, h.name, t, h.captain, h.crew, hullStatus(world, h), <Manifest hull={h} />))}
+        </div>
+      ))}
       <details className="reg-fighters">
         <summary className="eyebrow reg-sec" style={{ cursor: 'pointer' }}>Fighters · {fighters.length} · {fmt(crew.pilots)} pilots and gunners</summary>
         {fighters.map((h) => line(h.id, h.name, 'fighter', h.captain, h.crew, hullStatus(world, h), <Manifest hull={h} />))}
@@ -115,7 +120,7 @@ export function RegisterPanel({ className }: { className?: string }) {
           {world.register.struck.map((x, i) => <div key={i} className="row"><span style={{ flex: 1 }}>{x.name} <span className="muted">· {HULL_LABEL[x.type].toLowerCase()} · {x.how}</span></span><span className="mono muted">{x.year}</span></div>)}
         </details>
       ) : null}
-      <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Whoever of ours goes out takes a ship: envoys a cruiser, the Champion a destroyer, knights a gunship, the Spymaster's people a destroyer when one is free. A ship carrying someone is not on a duty; give her one and they go on in another ship.</p>
+      <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Whoever of ours goes out takes a ship: the Highroy and the Grand Master a great ship, envoys and the Spymaster's people a cruiser, the Champion a destroyer, knights a gunship. A great ship carrying someone is not on a duty; give her one and they go on in another ship.</p>
     </Panel>
   );
 }

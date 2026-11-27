@@ -57,7 +57,7 @@ const RUIN = [
   { name: 'the Field of Gray Ash', note: 'A battlefield of the War for Life: a moon still carpeted in broken armour, where two legions fought for eleven years.' },
   { name: 'the Choir Station', note: 'A station that went dark in the Silence with its whole crew aboard. On some frequencies it still sings.' },
   { name: 'the Rend Scar', note: 'Where the Rend tore deepest. The ground hums. Navisium dug there comes up heavier than it went in.' },
-  { name: 'the Ninth Crusade Anchorage', note: 'Where Vaelor Primus\'s crusade fleets gathered, two thousand years ago. The moorings still stand in the dark.' },
+  { name: 'the Ninth Crusade Anchorage', note: 'Where Vaelor Primus\'s crusade fleets gathered, two thousand years ago. The docking cradles still stand in the dark.' },
   { name: 'the Quiet Archive', note: 'A records station of the old Archon, abandoned when contact between the stars ceased. Its doors are sealed from inside.' },
   { name: 'the Ossuary of Ships', note: 'A graveyard of hulls from the War for Peace, towed together by someone, for some reason, long ago.' },
 ];
