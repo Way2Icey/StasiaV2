@@ -1,5 +1,6 @@
 // Arms as three fronts: the ground, the void and honour. Each column has its one big number, its people and its
 // next step; open a column and its whole working opens beneath. A war, when there is one, runs across all three.
+import { garrisonsOf } from '../sim/garrisons';
 import { useState } from 'react';
 import { useWorld } from './context';
 import { Go, PersonById } from './links';
@@ -32,6 +33,7 @@ export function FrontsPage({ front: initial }: { front?: Front }) {
   const land = forms.filter((f) => f.kind !== 'fleet');
   const soldiers = land.reduce((n, f) => n + f.strength, 0);
   const garrisons = troopsOf(world, P);
+  const posts = garrisonsOf(world, P).length;
   const fleets = forms.filter((f) => f.kind === 'fleet');
   const ships = shipsOf(world, P);
   const hulls = hullsOf(world);
@@ -76,7 +78,7 @@ export function FrontsPage({ front: initial }: { front?: Front }) {
       </div>
       <div className="fronts">
         {col('ground', 'GROUND', fmt(soldiers + garrisons), `soldiers · ${fmt(soldiers)} in formations, ${fmt(garrisons)} in garrisons`,
-          [...land.map((f) => [f.name, `${fmt(f.strength)} · morale ${Math.round(f.morale)}`] as [string, string]), ['Commander', weakCmd ? `${weakCmd.name}: needs one` : 'all in hand', weakCmd ? 'down' : 'up']],
+          [...land.map((f) => [f.name, `${fmt(f.strength)} · morale ${Math.round(f.morale)}`] as [string, string]), ['Garrisons', `${fmt(garrisons)} · ${posts} posts`, 'muted'], ['Commander', weakCmd ? `${weakCmd.name}: needs one` : 'all in hand', weakCmd ? 'down' : 'up']],
           weakCmd ? { label: 'Name a commander', on: () => setOpen('ground') } : null, 'var(--gold)')}
         {col('void', 'VOID', `${ships.length + hulls.length}`, `vessels · ${ships.length} great, ${kinds('cruiser')} cruisers, ${kinds('destroyer')} destroyers, ${gunships.length} gunships, ${kinds('fighter')} fighters · ${fmt(crew)} aboard`,
           [...ships.slice(0, 4).map((s) => { const p = carrying(world, s.id); const who = p ? world.characters[p.ids[0]!] : undefined; return [s.name, p ? `carrying ${who?.name.given ?? 'ours'}${p.ids.length > 1 ? ` +${p.ids.length - 1}` : ''}` : `${DUTY_LABEL[s.duty].toLowerCase()} · hull ${Math.round(s.condition)}${s.crewMood < 35 ? ' · crew sullen' : ''}`, p ? 'gold' : s.crewMood < 35 ? 'down' : undefined] as [string, string, string?]; }),

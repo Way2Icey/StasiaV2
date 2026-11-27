@@ -10,6 +10,7 @@
 // counted, not named, until a battle gives one of them a reason to matter: the survivor who fled and comes
 // back for the knight who broke the line, the wounded soldier who carried a knight out. Then the game names
 // them, and they carry it.
+import { CANON_ARMY, garrisonTotal } from './garrisons';
 import { wrongsAgainst } from './turning';
 import { grievedSites, transferSite } from './places';
 import { equipPower } from './standing';
@@ -157,6 +158,13 @@ export interface WarState {
   liege: Record<string, string>;
   /** Fleets were counted larger from 9.21 (cruisers, destroyers, gunships and fighters all together). */
   fleetV2?: boolean;
+  /** From 9.22 a canon house's legion is what its standing army leaves after garrisons and company. */
+  armyV2?: boolean;
+}
+
+/** A canon house's field legion: its standing army, less what stands in its garrisons and its company. */
+function fieldLegion(w: World, h: string, company: number): number {
+  return Math.max(1000, rnd((CANON_ARMY[h]! - garrisonTotal(w, h) - company) / 100) * 100);
 }
 
 /** A house's whole numbered fleet runs about half again what it was first counted at. */
@@ -212,6 +220,17 @@ export function ensureWar(w: World): void {
   w.war ??= { formations: {}, wars: [], named: [], tributes: [], hostages: [], liege: {} };
   const s = w.war;
   s.named ??= []; s.tributes ??= []; s.hostages ??= []; s.liege ??= {};
+  if (!s.armyV2) {
+    for (const h of Object.keys(CANON_ARMY)) {
+      const legions = formationsOf(w, h).filter((f) => f.kind === 'legion');
+      const company = formationsOf(w, h).filter((f) => f.kind === 'company').reduce((n, f) => n + f.max, 0);
+      const max = legions.reduce((n, f) => n + f.max, 0);
+      if (!legions.length || !max) continue;
+      const ratio = fieldLegion(w, h, company) / max;
+      for (const f of legions) { f.max = rnd(f.max * ratio / 100) * 100; f.strength = Math.min(f.max, rnd(f.strength * ratio / 100) * 100); if (h === 'alerion') f.quality = Math.max(f.quality, 1.2); }
+    }
+    s.armyV2 = true;
+  }
   if (!s.fleetV2) {
     for (const f of Object.values(s.formations)) if (f.kind === 'fleet') { f.strength = rnd(f.strength * FLEET_SCALE); f.max = rnd(f.max * FLEET_SCALE); }
     s.fleetV2 = true;
@@ -226,9 +245,11 @@ export function ensureWar(w: World): void {
       s.formations[f.id] = f;
       return f;
     };
-    make('legion', forceName(rng, used, LEGION_B), sz.legion);
+    const company = isSim(w, h.id) ? 400 + rng.int(0, 6) * 50 : 0;
+    const legion = make('legion', forceName(rng, used, LEGION_B), CANON_ARMY[h.id] ? fieldLegion(w, h.id, company) : sz.legion);
+    if (h.id === 'alerion') legion.quality = Math.max(legion.quality, 1.2);
     make('fleet', forceName(rng, used, FLEET_B), sz.fleet);
-    if (isSim(w, h.id)) make('company', forceName(rng, used, COMPANY_B), 400 + rng.int(0, 6) * 50);
+    if (company) make('company', forceName(rng, used, COMPANY_B), company);
   }
   for (const f of Object.values(s.formations)) staffFormation(w, rng, f);
 }

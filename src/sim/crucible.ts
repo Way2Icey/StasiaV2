@@ -4,6 +4,7 @@
 // The houses fight over the battle world's locations and the prizes in them. The battles are real:
 // men die, knights are wounded and some do not come home. It costs money, supplies, a ship and people,
 // and it is one avenue among many: a house is not drawn every year.
+import { garrisonTotal } from './garrisons';
 import { shiftFavour } from './houses';
 import { lastingWound, seasoned } from './ladder';
 import { fundedEdge } from './treasury';
@@ -214,16 +215,8 @@ export function shortHouse(world: World, id: string): string {
 
 /** Troops a house can raise: its garrisons, less what it has lost and not replaced. */
 export function troopsOf(world: World, houseId: string): number {
-  let base = 0;
-  for (const p of Object.values(world.planets)) {
-    if (p.houseId !== houseId) continue;
-    for (const s of p.sectors) for (const q of s.quarters ?? []) {
-      if (q.kind !== 'Military') continue;
-      const m = /([\d,]+)\s/.exec(q.gives ?? '');
-      base += m ? Number(m[1]!.replace(/,/g, '')) : 300;
-    }
-  }
-  base = Math.max(base, 1200);
+  // Every garrison the house keeps: sectors, stations and outposts (see garrisons.ts).
+  const base = Math.max(garrisonTotal(world, houseId), 1200);
   return Math.max(0, base - (world.crucible?.depleted[houseId] ?? 0));
 }
 
