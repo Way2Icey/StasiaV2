@@ -51,7 +51,7 @@ export function BriefingCard({ b }: { b: Briefing }) {
   const con = b.kind === 'concern' ? (world.concerns ?? []).find((x) => x.id === b.ref) : undefined;
   const pet = b.kind === 'petition' ? world.courts[P]?.petitions.find((x) => x.id === b.ref) : undefined;
   const req = b.kind === 'request' ? (world.talkRequests ?? []).find((x) => x.id === b.ref) : undefined;
-  const voice = b.kind === 'checkin' ? 'sends word from the field' : b.kind === 'report' ? 'reports back' : b.kind === 'mission' ? 'reports' : b.kind === 'word' ? 'brings word' : b.kind === 'request' ? 'at the door' : 'asks your leave';
+  const voice = b.kind === 'task' ? 'reports on the work' : b.kind === 'checkin' ? 'sends word from the field' : b.kind === 'report' ? 'reports back' : b.kind === 'mission' ? 'reports' : b.kind === 'word' ? 'brings word' : b.kind === 'request' ? 'at the door' : 'asks your leave';
   return (
     <div className="briefing">
       <Speaker c={c} seat={b.seat} note={voice} />
@@ -61,7 +61,7 @@ export function BriefingCard({ b }: { b: Briefing }) {
       {err ? <p className="error" style={{ margin: 0 }}>{err}</p> : null}
       {b.done ? (
         <div className="brief-done">
-          <span className="eyebrow">You approved</span>
+          <span className="eyebrow">{b.kind === 'task' ? 'Standing order' : 'You approved'}</span>
           <strong>{b.done.approved}</strong>
           {b.done.summary.length ? <ul>{b.done.summary.map((l, i) => <li key={i}>{l}</li>)}</ul> : null}
           <div className="actions"><button type="button" className="btn primary" onClick={close}>Thank them ›</button></div>
@@ -103,7 +103,7 @@ export function AtTheDoor() {
   const world = useWorld();
   const q = openBriefings(world);
   if (!q.length) return null;
-  const head = q.find((b) => b.done) ?? q[0]!;
+  const head = q.find((b) => b.done && b.kind !== 'task' && b.kind !== 'report') ?? q.find((b) => !b.done) ?? q[0]!;
   return (
     <>
       {q.length > 1 ? <div className="brief-queue muted">{q.length - 1} more waiting: {q.filter((b) => b !== head).map((b) => world.characters[b.personId]?.name.given).filter(Boolean).join(', ')}</div> : null}

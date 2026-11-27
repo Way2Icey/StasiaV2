@@ -624,6 +624,8 @@ export interface World {
   intel?: import('./turning').IntelState;
   /** What the Highroy ordered on the court's concerns, being carried out. */
   orders?: import('./concerns').Order[];
+  /** What each seat saw last time it reported, to say what changed. */
+  seatNotes?: Record<string, { at: number; snap: Record<string, number> }>;
   /** The council at the door: what needs the Highroy, one councillor at a time. */
   briefings?: import('./briefings').BriefState;
   /** The Grand Master's board of deeds. */

@@ -687,7 +687,9 @@ export function CouncilTable({ onOath }: { onOath?: () => void }) {
       </button>
     );
   };
-  const top = rest.slice(0, 2), mid = rest.slice(2, 4), bottom = rest.slice(4);
+  const at = (s: CouncilSeat) => rest.find((c) => c.seat === s);
+  const top = [at('grandMaster'), at('envoy')], mid = [at('spymaster'), at('steward')];
+  const bottom = rest.filter((c) => !['grandMaster', 'envoy', 'spymaster', 'steward'].includes(c.seat!));
   return (
     <section className="council-table" aria-label="The council table">
       <div className="ct-row">{top[0] ? card(top[0]) : <span />}{head ? card(head) : <span />}{top[1] ? card(top[1]) : <span />}</div>
@@ -701,7 +703,7 @@ export function CouncilTable({ onOath }: { onOath?: () => void }) {
         </div>
         {mid[1] ? card(mid[1]) : <span />}
       </div>
-      {bottom.length ? <div className="ct-row ct-wrap">{bottom.map(card)}</div> : null}
+      {bottom.length ? <><span className="eyebrow" style={{ textAlign: 'center' }}>The lesser seats</span><div className="ct-row ct-sub">{bottom.map(card)}</div></> : null}
     </section>
   );
 }

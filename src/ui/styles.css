@@ -767,3 +767,8 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .brief-done ul { margin: 0 0 0 16px; padding: 0; font-size: 12px; color: var(--fg-2); }
 .brief-queue { padding: 6px 16px 0; font-size: 11px; }
 .btn.option.counsel { border-color: var(--gold); }
+
+.ct-row.ct-sub { grid-template-columns: repeat(3, 1fr); }
+.ct-sub .table-seat { padding: 8px 10px; gap: 4px; font-size: 12px; }
+.ct-sub .seat-voice { -webkit-line-clamp: 1; }
+@media (max-width: 760px) { .ct-row.ct-sub { grid-template-columns: 1fr; } }

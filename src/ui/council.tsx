@@ -307,12 +307,12 @@ function OathPanel({ className }: { className?: string }) {
           </span>
           <span className="muted" style={{ fontSize: 12 }}>
             Must be fulfilled by {formatDate(court.oath.ends)}. Tasks that serve it: {def.tasks.map((t) => TASKS_BY_ID[t]?.label).join(', ')}.
-            Kept: honour +5, respect +3. Broken: honour −4. Abandoned: honour −6.
+            While it stands, those tasks go 60% faster. Kept: honour +10, respect +6, the Numarade's favour +8, and the council's regard for you +10. Broken: honour −8, respect −3, favour −6, council −8. Abandoned: honour −12, respect −4, favour −8, council −12.
           </span>
           <div className="actions">
             {confirm ? (
               <>
-                <span className="error">Abandon the oath? Honour −6.</span>
+                <span className="error">Abandon the oath? Honour −12, and the council will not forget it.</span>
                 <button type="button" className="btn small" onClick={() => { setConfirm(false); game.update((w) => abandonOath(w, house)); }}>Yes, abandon it</button>
                 <button type="button" className="btn small" onClick={() => setConfirm(false)}>Keep it</button>
               </>
@@ -345,6 +345,7 @@ function OathPanel({ className }: { className?: string }) {
         ) : null}
         <span className="quote">“{def.vow}”</span>
         <div className="actions">
+          <span className="muted" style={{ fontSize: 12 }}>Its tasks go 60% faster while it stands. Keep it: honour +10, respect +6, favour +8, the council +10. Break it: honour −8, and the council and the Numarade remember.</span>
           <button type="button" className="btn primary" onClick={() => game.update((w) => swearOath(w, house, def.id, def.target ? target : undefined))}>Swear it</button>
           <span className="muted" style={{ fontSize: 11 }}>Serving tasks: {def.tasks.map((t) => TASKS_BY_ID[t]?.label).join(', ')}.</span>
         </div>

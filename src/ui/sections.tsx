@@ -177,7 +177,7 @@ function QuestBoard({ className }: { className?: string }) {
             <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <span><span className="tag mission">{QUEST_LABEL[q.kind]}</span> <strong>{q.title}</strong></span>
               <span style={{ fontSize: 12 }}>{q.text}</span>
-              <span className="muted" style={{ fontSize: 11 }}>{hardWord(q.hard)} · about {Math.max(1, Math.round(q.cycles * 2.5 / 16))} Phase{q.cycles * 2.5 > 24 ? 's' : ''} away{q.reward ? ` · ${q.reward.toLocaleString('en-US')} othes` : ' · glory only'}</span>
+              <span className="muted" style={{ fontSize: 11 }}>{hardWord(q.hard)} · {q.kind === 'bounty' ? 'as long as the trail runs' : <>about {Math.max(1, Math.round(q.cycles * 2.5 / 16))} Phase{q.cycles * 2.5 > 24 ? 's' : ''} away</>}{q.reward ? ` · ${q.reward.toLocaleString('en-US')} othes` : ' · glory only'}</span>
             </span>
             <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0, alignItems: 'center' }}>
               <select className="select" aria-label="Who goes" value={sel} onChange={(e) => setPick({ ...pick, [q.id]: e.target.value })}>

@@ -8,7 +8,7 @@ import { reporterOf } from './reports';
 import { MISSION_LABEL, OUTCOME_LABEL, describeJob } from './missions';
 import type { CouncilSeat, World } from './types';
 
-export type BriefKind = 'concern' | 'petition' | 'mission' | 'request' | 'word' | 'checkin' | 'report';
+export type BriefKind = 'concern' | 'petition' | 'mission' | 'request' | 'word' | 'checkin' | 'report' | 'task';
 
 export interface Briefing {
   id: string;
@@ -54,9 +54,10 @@ function push(w: World, b: Omit<Briefing, 'id' | 'date'>): void {
 }
 
 /** Someone you gave an order to comes back to say how it went. */
-export function reportBack(w: World, r: { personId: string; seat?: CouncilSeat; ref: string; title: string; approved: string; summary: string[]; lines: string[] }): void {
-  push(w, { kind: 'report', ref: r.ref, personId: r.personId, seat: r.seat, title: r.title, lines: r.lines });
-  const b = ensureBriefings(w).queue.find((x) => x.kind === 'report' && x.ref === r.ref);
+export function reportBack(w: World, r: { personId: string; seat?: CouncilSeat; ref: string; title: string; approved: string; summary: string[]; lines: string[]; kind?: BriefKind }): void {
+  const kind = r.kind ?? 'report';
+  push(w, { kind, ref: r.ref, personId: r.personId, seat: r.seat, title: r.title, lines: r.lines });
+  const b = ensureBriefings(w).queue.find((x) => x.kind === kind && x.ref === r.ref);
   if (b) b.done = { approved: r.approved, summary: r.summary };
 }
 

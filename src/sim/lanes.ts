@@ -792,7 +792,8 @@ export function raidOdds(world: World): number {
   const avg = fs.reduce((n, f) => n + (f.rel[P] ?? 0), 0) / fs.length;
   const watched = (world.lanes?.watches ?? []).some((w) => w.house === P);
   const dread = world.houses[P]?.standing.dread ?? 0;
-  return (avg >= 40 ? 0.6 : avg >= 15 ? 0.85 : avg <= -40 ? 1.4 : avg <= -15 ? 1.15 : 1) * (watched ? 0.8 : 1) * (1 - dread / 400);
+  const held = world.quests?.heldUntil && absoluteCycle(world.quests.heldUntil) > absoluteCycle(world.date) ? 0.6 : 1;
+  return (avg >= 40 ? 0.6 : avg >= 15 ? 0.85 : avg <= -40 ? 1.4 : avg <= -15 ? 1.15 : 1) * (watched ? 0.8 : 1) * (1 - dread / 400) * held;
 }
 
 // ---------------------------------------------------------------- the Highroy's hand

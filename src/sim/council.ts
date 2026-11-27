@@ -1,7 +1,7 @@
 // The council at work: standing tasks for each seat, the Highroy's oath,
 // petitions from the council, and the house's standing and relations.
 import { courtiers, MIN_BACKERS } from './concerns';
-import { opinion } from './relationships';
+import { opinion, shiftOpinion } from './relationships';
 import { regencyFactor } from './chair';
 import { tally } from './careers';
 import { addGlory } from './ambitions';
@@ -112,6 +112,14 @@ export function taskFit(score: number): string {
 }
 
 // ---------------------------------------------------------------- oaths
+
+/** An oath is the Highroy's word before the council and the Numarade: it should cost to break and pay to keep. */
+export const OATH_TASK_BOOST = 1.6;
+export const OATH_STAKES = {
+  kept: { honour: 10, respect: 6, favour: 8, council: 10 },
+  broken: { honour: 8, respect: 3, favour: 6, council: 8 },
+  abandoned: { honour: 12, respect: 4, favour: 8, council: 12 },
+};
 
 export interface OathDef {
   id: string;
@@ -335,24 +343,31 @@ function closeOath(world: World, houseId: string, result: 'kept' | 'broken' | 'a
   if (!oath) return;
   const def = OATHS_BY_ID[oath.id]!;
   const st = world.houses[houseId]!.standing;
+  const lord = world.houses[houseId]?.rulerId;
+  const fav = world.realm?.favour;
   if (result === 'kept') {
-    st.honour = clamp(st.honour + 5, 0, 100);
-    st.respect = clamp(st.respect + 3, 0, 100);
-    for (const c of alive(world)) if (c.houseId === houseId && c.seat) c.hidden.loyalty = clamp(c.hidden.loyalty + 1, 1, 20);
-    for (const c of retinue(world, houseId)) shiftMood(c, 4);
+    st.honour = clamp(st.honour + OATH_STAKES.kept.honour, 0, 100);
+    st.respect = clamp(st.respect + OATH_STAKES.kept.respect, 0, 100);
+    if (fav) fav[houseId] = clamp((fav[houseId] ?? 50) + OATH_STAKES.kept.favour, 0, 100);
+    for (const c of alive(world)) if (c.houseId === houseId && c.seat) { c.hidden.loyalty = clamp(c.hidden.loyalty + 2, 1, 20); if (lord && c.id !== lord) shiftOpinion(world, c.id, lord, OATH_STAKES.kept.council, 'kept the oath'); }
+    for (const c of retinue(world, houseId)) shiftMood(c, 8);
   } else {
-    st.honour = clamp(st.honour - (result === 'abandoned' ? 6 : 4), 0, 100);
-    for (const c of retinue(world, houseId)) shiftMood(c, result === 'abandoned' ? -6 : -4);
+    const s = result === 'abandoned' ? OATH_STAKES.abandoned : OATH_STAKES.broken;
+    st.honour = clamp(st.honour - s.honour, 0, 100);
+    st.respect = clamp(st.respect - s.respect, 0, 100);
+    if (fav) fav[houseId] = clamp((fav[houseId] ?? 50) - s.favour, 0, 100);
+    for (const c of alive(world)) if (c.houseId === houseId && c.seat && lord && c.id !== lord) shiftOpinion(world, c.id, lord, -s.council, result === 'abandoned' ? 'abandoned the oath' : 'broke the oath');
+    for (const c of retinue(world, houseId)) shiftMood(c, result === 'abandoned' ? -10 : -6);
   }
   court.oaths.unshift({ id: oath.id, target: oath.target, sworn: oath.sworn, ended: world.date, result });
   court.oaths = court.oaths.slice(0, 20);
   court.oath = null;
   if (houseId === world.playerHouseId) {
     const text = result === 'kept'
-      ? `Oath kept: “${def.label}”. Honour and respect rise.`
+      ? `Oath kept: “${def.label}”. Honour +10, respect +6, and the Numarade takes note.`
       : result === 'broken'
-        ? `Oath broken: “${def.label}” was not fulfilled in time. Honour suffers.`
-        : `Oath abandoned: “${def.label}”. The council notes it. Honour suffers.`;
+        ? `Oath broken: “${def.label}” was not fulfilled in time. Honour −8; the council and the Numarade remember.`
+        : `Oath abandoned: “${def.label}”. Honour −12; the council will not forget it.`;
     world.feed.push({ date: world.date, kind: 'council', text });
   }
 }
@@ -372,7 +387,7 @@ export function advanceCouncil(world: World, rng: Rng, phaseTurned: boolean, orb
       if (!c || !def) continue;
       if (c.flags.some((f) => f.id === 'captive' || f.id === 'missing')) continue;
       if (isAway(world, c.id)) continue; // away on a mission
-      const perf = Math.max(0, taskScore(def, c) + rng.gauss() * 2) * (oathTasks.has(def.id) ? 1.25 : 1) * courtFactor * (counselled(c) ? 1 + COUNSEL_BONUS : 1) * (def.id === 'whispers' ? agentFactor(world, houseId) : 1);
+      const perf = Math.max(0, taskScore(def, c) + rng.gauss() * 2) * (oathTasks.has(def.id) ? OATH_TASK_BOOST : 1) * courtFactor * (counselled(c) ? 1 + COUNSEL_BONUS : 1) * (def.id === 'whispers' ? agentFactor(world, houseId) : 1);
       a.progress += perf;
       while (a.progress >= def.threshold) {
         a.progress -= def.threshold;

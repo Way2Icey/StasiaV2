@@ -4,6 +4,7 @@ import { advanceIntel } from './turning';
 import { advanceConcerns, advanceOrders } from './concerns';
 import { advanceQuests } from './quests';
 import { advanceBriefings } from './briefings';
+import { advanceSeatReports } from './seatReports';
 import { advanceTalkRequests } from './talk';
 import { advanceEvents } from './events';
 import { advanceStory } from './story';
@@ -125,6 +126,7 @@ function stepInPlace(world: World): void {
   advanceOrders(world, rng);
   advanceQuests(world, rng, crossed.phases > 0);
   advanceTalkRequests(world, rng, crossed.phases > 0);
+  advanceSeatReports(world, rng, crossed.phases > 0);
   advanceBriefings(world, crossed.phases > 0);
   advanceMood(world, crossed.phases > 0, new Set(Object.values(world.missions).filter((m) => m.stage !== 'done').flatMap((m) => [m.leaderId, ...(m.companions ?? [])])));
   advanceCourt(world, rng, crossed.phases > 0);

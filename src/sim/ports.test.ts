@@ -41,8 +41,8 @@ describe('ports', () => {
     const b = run();
     expect(serialize(a)).toBe(serialize(b));
     expect(boardOf(a, mainPort(a)!.id).length).toBeGreaterThan(3);
-    const tariffs = a.economy.houses[P]!.recent.filter((l) => l.kind === 'port');
-    expect(tariffs.length).toBeGreaterThan(0);
+    const tariffs = a.economy.houses[P]!.recent.filter((l) => l.kind === 'port').length + Object.values(a.ports.ports).reduce((t, p) => t + p.tally.tariffs + p.last.tariffs, 0);
+    expect(tariffs).toBeGreaterThan(0);
     for (const s of Object.values(a.ports.ships)) expect(s.sectorId).toBeTruthy();
   });
 

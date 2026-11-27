@@ -69,7 +69,7 @@ describe('council', () => {
   it('abandoning an oath costs honour', () => {
     const w = swearOath(world, P, 'raiseName');
     const after = abandonOath(w, P);
-    expect(after.houses[P]!.standing.honour).toBe(w.houses[P]!.standing.honour - 6);
+    expect(after.houses[P]!.standing.honour).toBe(w.houses[P]!.standing.honour - 12);
     expect(after.courts[P]!.oaths[0]!.result).toBe('abandoned');
   });
 

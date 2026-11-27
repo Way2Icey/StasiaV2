@@ -19,10 +19,15 @@ import { isAway } from './court';
 import { seatHolder } from './query';
 import { ageOf } from './characters';
 import { SPECIES } from '../data/species';
+import { board as boardOf, claimBounty, posterName, TERMS_LABEL, viewTarget } from './bounties';
+import { knowledgeOf } from './knowledge';
+import { atWar } from './war';
+import { shiftRegard } from './archon';
+import { ensureIntel } from './turning';
 import type { Character, World } from './types';
 
-export type QuestKind = 'hunt' | 'escort' | 'guard' | 'trial' | 'relic' | 'beast';
-export const QUEST_LABEL: Record<QuestKind, string> = { hunt: 'Hunt', escort: 'Escort', guard: 'Keep the peace', trial: 'Trial of arms', relic: 'Recover', beast: 'Clear' };
+export type QuestKind = 'hunt' | 'escort' | 'guard' | 'trial' | 'relic' | 'beast' | 'bounty' | 'capture' | 'hold';
+export const QUEST_LABEL: Record<QuestKind, string> = { hunt: 'Hunt', escort: 'Escort', guard: 'Keep the peace', trial: 'Trial of arms', relic: 'Recover', beast: 'Clear', bounty: 'Collect a price', capture: 'Take alive', hold: 'Hold the lanes' };
 
 export interface Quest {
   id: string;
@@ -36,13 +41,15 @@ export interface Quest {
   reward: number;
   /** A sector or lane faction, where it applies. */
   where?: string;
+  /** The bounty to collect, or the person to take alive. */
+  subject?: string;
   /** Who went, and when they are back. */
   goneId?: string;
   back?: import('./time').GameDate;
   posted: import('./time').GameDate;
 }
 
-export interface QuestState { board: Quest[] }
+export interface QuestState { board: Quest[]; /** Our lanes are held by our knights until then: corsairs think twice. */ heldUntil?: import('./time').GameDate }
 
 const HARD = ['', 'an aspirant\'s first', 'a fair test', 'hard', 'very hard', 'a knight\'s last'];
 export const hardWord = (n: number) => HARD[n] ?? '';
@@ -55,6 +62,16 @@ function drafts(w: World, r: Rng): Omit<Quest, 'id' | 'posted'>[] {
   if (f && cap) out.push({ kind: 'hunt', title: `Run down ${cap.name}`, text: `${cap.name} of ${f.name} has been taking our convoys. Find their ship in the drift and bring back proof.`, hard: 4, cycles: 24, reward: 900, where: f.id });
   const sectors = Object.values(w.planets).filter((p) => p.houseId === P).flatMap((p) => p.sectors).filter((s) => s.controllerFamilyId).sort((a, b) => b.unrest - a.unrest);
   if (sectors[0] && sectors[0].unrest >= 15) out.push({ kind: 'guard', title: `Keep the peace in ${sectors[0].name}`, text: `Walk the streets of ${sectors[0].name} with a few of the guard until the trouble there quiets.`, hard: 2, cycles: 16, reward: 200, where: sectors[0].id });
+  // The bounty board: a price our people can collect, if they are good enough.
+  for (const b of boardOf(w).filter((x) => x.status === 'open' && !(x.poster.kind === 'house' && x.poster.houseId === P) && !(x.target.kind === 'person' && w.characters[x.target.id]?.houseId === P)).sort((a, c) => c.reward - a.reward).slice(0, 2)) {
+    const v = viewTarget(w, b.target);
+    if (!v) continue;
+    out.push({ kind: 'bounty', subject: b.id, title: `Collect the price on ${v.name}`, text: `${posterName(w, b.poster)} has ${b.reward.toLocaleString('en-US')} othes on ${v.name}, ${TERMS_LABEL[b.terms].toLowerCase()}. ${v.where ? `Last seen ${v.where}.` : ''} The purse is ours if one of ours brings it in.`, hard: Math.max(1, Math.min(5, Math.round(v.strength / 6))), cycles: 0, reward: b.reward });
+  }
+  // A face of a rival house, worth more in our cells than in theirs.
+  const foes = Object.values(w.characters).filter((c) => c.alive && c.houseId && c.houseId !== P && !c.seat && w.houses[c.houseId]?.rulerId !== c.id && c.tier === 'full' && !w.captives[c.id] && knowledgeOf(w, P, c.id).depth >= 10 && !atWar(w, P, c.houseId));
+  if (foes.length) { const f = r.pick(foes); out.push({ kind: 'capture', subject: f.id, title: `Take ${shortName(f.name)} of House ${w.houses[f.houseId!]?.name} alive`, text: `${shortName(f.name)} knows things about House ${w.houses[f.houseId!]?.name} we would like to know. Bring them to our cells, quietly. If anyone sees our colours, there will be a reckoning.`, hard: 4, cycles: 14, reward: 0 }); }
+  if (Object.keys(w.lanes?.factions ?? {}).length) out.push({ kind: 'hold', title: 'Hold our lanes against the corsairs', text: 'Ride the convoy lanes for a few Phases, ship to ship. While our knights are out there, raiders think twice; the merchants pay for the quiet.', hard: 3, cycles: 16, reward: 700 });
   out.push({ kind: 'escort', title: r.pick(['See the ore convoy to the Exchange', 'Escort the Steward\'s factors through the lanes', 'Bring the navisium shipment home']), text: 'Ride with the convoy, and make sure it arrives with everything it left with.', hard: 2, cycles: 12, reward: 300 });
   out.push({ kind: 'trial', title: r.pick(['Answer the TheaSzar academy\'s open challenge', 'Stand the Torvann enclave\'s trial of arms', 'Take the duelling court\'s open place']), text: 'A rival academy keeps an open challenge for any house\'s fighters. Win and the house is talked of. Lose and so is the house.', hard: 3, cycles: 10, reward: 0 });
   out.push({ kind: 'relic', title: r.pick(['Follow the rumour of a Caige in a wreck', 'Find the lost blade of the house\'s founder', 'Look into the Echo at the old battlefield']), text: 'A rumour from the docks: something of value, somewhere it should not be. It may be nothing. It may be a Caige no one has held since the Rend.', hard: 3, cycles: 28, reward: 1500 });
@@ -70,15 +87,27 @@ export function advanceQuests(w: World, rng: Rng, phaseTurned: boolean): void {
   const now = absoluteCycle(w.date);
   for (const q of s.board.filter((x) => x.goneId && x.back && absoluteCycle(x.back) <= now)) resolve(w, rng, q);
   s.board = s.board.filter((q) => !(q.goneId && q.back && absoluteCycle(q.back) <= now));
+  // Prices being collected end when the trail ends.
+  for (const q of s.board.filter((x) => x.kind === 'bounty' && x.goneId)) {
+    const b = w.bounties?.list.find((x) => x.id === q.subject);
+    const still = b && b.status === 'hunted' && b.hunterId === `p:${q.goneId}`;
+    if (still) continue;
+    const c = w.characters[q.goneId!];
+    if (b?.status === 'done' && c?.alive) { tally(w, c.id, 'missions'); addGlory(w, c.id, 1); shiftMood(c, 8); }
+    q.goneId = undefined; q.subject = undefined; q.posted = { year: 0, cycle: 0 };
+  }
+  s.board = s.board.filter((q) => !(q.kind === 'bounty' && !q.subject));
+  // Prices no longer on the board come off ours too.
+  s.board = s.board.filter((q) => q.kind !== 'bounty' || q.goneId || boardOf(w).some((b) => b.id === q.subject && b.status === 'open'));
   if (!phaseTurned) return;
   // Old, untaken work goes off the board after two Orbits.
   s.board = s.board.filter((q) => q.goneId || absoluteCycle(q.posted) + CYCLES_PER_PHASE * 10 > now);
   if (!seatHolder(w, w.playerHouseId, 'grandMaster')) return;
   const open = s.board.filter((q) => !q.goneId);
-  if (open.length >= 5) return;
+  if (open.length >= 6) return;
   const have = new Set(s.board.map((q) => q.title));
   const fresh = drafts(w, rng).filter((d) => !have.has(d.title));
-  for (const d of fresh.sort(() => rng.next() - 0.5).slice(0, Math.min(2, 5 - open.length))) s.board.push({ ...d, id: `q${w.nextId++}`, posted: w.date });
+  for (const d of fresh.sort(() => rng.next() - 0.5).slice(0, Math.min(3, 6 - open.length))) s.board.push({ ...d, id: `q${w.nextId++}`, posted: w.date });
 }
 
 /** Who may be sent: knights and aspirants at home, grown, and unhurt. */
@@ -104,10 +133,19 @@ export function cannotSend(w: World, questId: string, personId: string): string 
 }
 
 export function sendOnQuest(input: World, questId: string, personId: string): World {
-  const w = structuredClone(input);
-  const why = cannotSend(w, questId, personId);
+  const w0 = structuredClone(input);
+  const why = cannotSend(w0, questId, personId);
   if (why) throw new Error(why);
-  const q = w.quests!.board.find((x) => x.id === questId)!;
+  const q0 = w0.quests!.board.find((x) => x.id === questId)!;
+  // A price on the board is collected the way the hunters do it: on the trail until it ends.
+  if (q0.kind === 'bounty') {
+    const w = claimBounty(w0, q0.subject!, personId);
+    const q = w.quests!.board.find((x) => x.id === questId)!;
+    q.goneId = personId;
+    return w;
+  }
+  const w = w0;
+  const q = q0;
   const c = w.characters[personId]!;
   q.goneId = c.id;
   q.back = addCycles(w.date, Math.round(q.cycles * 2.5));
@@ -138,6 +176,16 @@ function resolve(w: World, r: Rng, q: Quest): void {
     if (q.kind === 'trial') tally(w, c.id, 'duelsWon');
     if (q.kind === 'guard') { const s = Object.values(w.planets).flatMap((x) => x.sectors).find((x) => x.id === q.where); if (s) { s.unrest = Math.max(0, s.unrest - 12); effects.push(`${s.name}: unrest −12`); } }
     if (q.kind === 'trial') { w.houses[P]!.standing.respect = Math.min(100, w.houses[P]!.standing.respect + 2); effects.push('Respect +2'); }
+    if (q.kind === 'hold') { (w.quests ??= { board: [] }).heldUntil = addCycles(w.date, CYCLES_PER_PHASE * 4); effects.push('Our lanes are held: corsairs raid less for four Phases'); tally(w, c.id, 'raidsRepelled'); }
+    if (q.kind === 'capture') {
+      const f = q.subject ? w.characters[q.subject] : undefined;
+      if (f?.alive && !w.captives[f.id]) {
+        w.captives[f.id] = { characterId: f.id, heldBy: P, since: w.date, interrogated: false, reason: 'leverage' };
+        f.flags.push({ id: 'captive', since: w.date, detail: `held by House ${w.houses[P]?.name}`, knownBy: [P] }, { id: 'missing', since: w.date });
+        effects.push(`${shortName(f.name)} is in our cells`);
+        if (r.chance(0.4) && f.houseId) { shiftRegard(w, f.houseId, P, -20); ensureIntel(w).wrongs.push({ by: P, against: f.houseId, text: `They took ${shortName(f.name)} from us.`, year: w.date.year }); effects.push(`House ${w.houses[f.houseId]?.name} knows it was us`); }
+      } else effects.push('The mark was gone before we got there');
+    }
     if (q.kind === 'hunt') { const f = w.lanes?.factions[q.where ?? '']; const m = f?.members.find((x) => x.role === 'captain' && !x.fate); if (m) { m.fate = 'dead'; effects.push(`${m.name} is dead`); } }
     if (q.reward) { const amt = great ? Math.round(q.reward * 1.5) : q.reward; record(w, P, { resource: 'othes', amount: amt, label: q.title, kind: 'boon' }); effects.push(`+${amt.toLocaleString('en-US')} othes`); }
     addGlory(w, c.id, great ? 2 : 1);
