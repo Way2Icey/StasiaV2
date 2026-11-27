@@ -128,9 +128,7 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'The Exchequer', to: { kind: 'economy' }, on: (r) => ['economy', 'exchange', 'loans', 'vaults', 'spend'].includes(r.kind) },
   ],
   missions: [
-    { label: 'Missions', to: { kind: 'missions' }, on: (r) => r.kind === 'missions' || r.kind === 'mission' || r.kind === 'plan' || r.kind === 'boards' },
-    { label: 'Bounties', to: { kind: 'bounties' }, on: (r) => r.kind === 'bounties' },
-    { label: 'Cells & intel', to: { kind: 'intel' }, on: (r) => r.kind === 'intel' },
+    { label: 'Missions', to: { kind: 'missions' }, on: (r) => ['missions', 'mission', 'plan', 'boards', 'bounties', 'intel'].includes(r.kind) },
   ],
 };
 

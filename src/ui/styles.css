@@ -875,11 +875,29 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .xq-line .mono { text-align: right; }
 .xq-line.total { border-bottom: 0; }
 .xq-bar { height: 8px; justify-self: start; }
-.xq-bar.in { background: #8cc98c; opacity: .8; justify-self: end; }
-.xq-bar.out { background: #e8875a; opacity: .8; }
+.xq-bar.in { background: var(--green); opacity: .8; justify-self: end; }
+.xq-bar.out { background: var(--orange); opacity: .8; }
 .xq-coffers { border: 2px solid var(--gold); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 12px; text-align: center; background: linear-gradient(90deg, rgba(140,201,140,.10), rgba(242,169,59,.05), rgba(232,135,90,.10)); }
 .xq-goods { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .xq-good { border: 1px solid var(--line); padding: 10px; display: flex; flex-direction: column; gap: 5px; font-size: 12px; min-width: 0; }
 .xq-drawer { text-align: left; border: 1px solid var(--line); padding: 9px 12px; background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
 .xq-drawer[aria-expanded="true"] { border-color: var(--gold); color: var(--gold); }
 @media (max-width: 900px) { .xq-flow { grid-template-columns: 1fr; } .xq-goods { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* 9.18: missions as a kanban */
+.kanban { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); gap: 12px; }
+.lane { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line-soft, #2a2216); min-height: 420px; min-width: 0; }
+.lane-head { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: .16em; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.kcard { display: flex; flex-direction: column; gap: 5px; border: 1px solid var(--line); border-left: 4px solid var(--line); padding: 10px; font-size: 12px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.kcard .select { width: 100%; }
+.kbar { display: block; height: 5px; background: var(--line-soft, #2a2216); }
+.kbar > span { display: block; height: 5px; background: var(--gold); }
+.oddsgrid { border-collapse: separate; border-spacing: 3px; width: 100%; font-size: 12px; }
+.oddsgrid th { font-size: 10px; letter-spacing: .06em; color: var(--muted); font-weight: 400; padding: 6px; text-align: center; vertical-align: bottom; min-width: 90px; }
+.oddsgrid th.rh, .oddsgrid td.rh { text-align: left; white-space: nowrap; }
+.oddsgrid td { text-align: center; padding: 0; }
+.oddsgrid td.x { color: var(--line); }
+.oddsgrid .cellbtn { width: 100%; padding: 9px 4px; background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; }
+.oddsgrid .h0 { background: rgba(242,169,59,.06); } .oddsgrid .h1 { background: rgba(242,169,59,.16); } .oddsgrid .h2 { background: rgba(242,169,59,.30); }
+.oddsgrid .h3 { background: rgba(242,169,59,.5); } .oddsgrid .h4 { background: rgba(242,169,59,.78); color: var(--gold-ink, #1a1005); font-weight: 700; }
+@media (max-width: 900px) { .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .kanban { grid-template-columns: 1fr; } }

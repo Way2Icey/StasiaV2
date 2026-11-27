@@ -45,7 +45,7 @@ function Hunter({ b }: { b: Bounty }) {
   return <span>{h ? hunterName(h) : 'a hunter'}</span>;
 }
 
-export function BountiesPage() {
+export function BountiesPage({ bare }: { bare?: boolean } = {}) {
   const world = useWorld();
   const { run, err } = usePlay();
   const P = world.playerHouseId;
@@ -57,6 +57,7 @@ export function BountiesPage() {
   const [send, setSend] = useState<Record<string, string>>({});
   return (
     <>
+      {bare ? null : (
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
           <span className="eyebrow">The Ghost Ledger</span>
@@ -64,6 +65,7 @@ export function BountiesPage() {
           <p>Prices on heads, held by the brokers of the Ghost Ledger, who take their tithe from every purse. Houses post them; so does the underworld. Hunters take the ones worth the risk. A house may send its own after a price on the board, for the coin and the name.</p>
         </div>
       </div>
+      )}
       {err ? <p className="body error">{err}</p> : null}
       <div className="grid">
         {heads.length ? (

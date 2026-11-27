@@ -24,10 +24,11 @@ function usePlay() {
   return { run, err };
 }
 
-export function IntelPage() {
+export function IntelPage({ bare }: { bare?: boolean } = {}) {
   const { run, err } = usePlay();
   return (
     <>
+      {bare ? null : (
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
           <span className="eyebrow">The Spymaster's rooms</span>
@@ -35,6 +36,7 @@ export function IntelPage() {
           <p>What the people in our cells know, how hard we are willing to get it out of them, and what it buys: a way into a station without a declared war, a secret worth a purse, a plot the Archon will hear as a grievance. Some of them will lie. Some we turn will never be ours.</p>
         </div>
       </div>
+      )}
       {err ? <p className="body error">{err}</p> : null}
       <div className="grid">
         <Cells run={run} />
