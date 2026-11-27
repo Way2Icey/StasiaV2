@@ -2,6 +2,8 @@
 // Legacy, Knights) and overall, published each Orbit with a bulletin of who rose and who fell. Houses we
 // know only from afar are measured from what the register shows of them. A house can lead in one and
 // still not be first; the first house is the one strong everywhere, and the Archon's esteem follows it.
+import { HOUSE_AGE, profileOf } from '../data/profiles';
+import { troopsOf } from './crucible';
 import { econ, phaseLedger } from './economy';
 import { liveHouses, regardOf, isSim } from './archon';
 import { formationsOf } from './war';
@@ -43,25 +45,28 @@ export interface HouseRank {
 }
 export interface BulletinLine { text: string; houseIds: string[]; tone?: 'up' | 'down' | 'ours' }
 export interface Bulletin { date: GameDate; lines: BulletinLine[] }
-export interface RankingsState { at: GameDate; table: HouseRank[]; prev?: HouseRank[]; bulletins: Bulletin[]; /** How much of the annals the last bulletin had seen. */ histAt?: number; /** Each house's overall place at the last six bulletins, oldest first. */ form?: Record<string, number[]> }
+export interface RankingsState { at: GameDate; table: HouseRank[]; prev?: HouseRank[]; bulletins: Bulletin[]; /** How much of the annals the last bulletin had seen. */ histAt?: number; /** Each house's overall place at the last six bulletins, oldest first. */ form?: Record<string, number[]>; /** 2 from 9.23: measured from the house profiles. */ v?: number }
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const knightsOf = (w: World, id: string) => Object.values(w.characters).filter((c) => c.alive && c.houseId === id && c.tier === 'full' && (c.role === 'Knight' || c.flags.some((f) => f.id === 'knighted')));
 const takings = (w: World, id: string) => phaseLedger(w, id).filter((l) => l.resource === 'othes' && l.amount > 0).reduce((n, l) => n + l.amount, 0);
 const fameOfBest = (w: World, id: string) => knightsOf(w, id).map((c) => renownOf(w, c)).sort((x, y) => y - x).slice(0, 5).reduce((s, v) => s + v, 0);
 
-/** Per unit of might × worlds, what the houses we see whole hold: used to measure the rest. */
+/** Per unit of what a house is (data/profiles.ts), what the houses we see whole hold: used to measure the rest. */
 interface Calibration { wealth: number; income: number; knights: number; fame: number }
-const scaleOf = (w: World, id: string) => { const a = w.archon!.houses[id]!; return a.might * Math.max(1, a.worlds) * (a.tier === 'great' ? 1.3 : 1); };
+/** The size of a house in one respect: its people times its aptitude for it. Fame grows slower than numbers. */
+const scaleFor = (id: string, k: 'wealth' | 'knights' | 'fame') => {
+  const pr = profileOf(id);
+  return k === 'wealth' ? pr.pop * pr.wealth : k === 'knights' ? pr.pop ** 0.6 * pr.knights : pr.pop ** 0.3 * pr.knights;
+};
 function calibrate(w: World): Calibration {
   const sims = Object.keys(w.houses).filter((h) => w.archon?.houses[h]);
   const acc = { wealth: 0, income: 0, knights: 0, fame: 0 };
   for (const id of sims) {
-    const s = scaleOf(w, id);
-    acc.wealth += (econ(w, id).stock.othes + reservesOf(w, id)) / s;
-    acc.income += takings(w, id) / s;
-    acc.knights += knightsOf(w, id).length / s;
-    acc.fame += fameOfBest(w, id) / s;
+    acc.wealth += (econ(w, id).stock.othes + reservesOf(w, id)) / scaleFor(id, 'wealth');
+    acc.income += takings(w, id) / scaleFor(id, 'wealth');
+    acc.knights += knightsOf(w, id).length / scaleFor(id, 'knights');
+    acc.fame += fameOfBest(w, id) / scaleFor(id, 'fame');
   }
   const k = Math.max(1, sims.length);
   return { wealth: Math.max(1000, acc.wealth / k), income: Math.max(200, acc.income / k), knights: Math.max(0.5, acc.knights / k), fame: Math.max(5, acc.fame / k) };
@@ -74,23 +79,31 @@ function measure(w: World, id: string, cal: Calibration): Record<RankKey, Part[]
   const h = w.houses[id];
   const year = dateParts(w.date).year;
   const forms = formationsOf(w, id);
-  const soldiers = forms.filter((f) => f.kind !== 'fleet').reduce((n, f) => n + f.strength, 0);
-  const fleet = forms.filter((f) => f.kind === 'fleet').reduce((n, f) => n + f.strength, 0) + (sim ? shipsOf(w, id).length * 6 : Math.round(a.might * a.worlds));
+  const pr = profileOf(id);
+  // Every soldier: the field formations and the garrisons.
+  const soldiers = forms.filter((f) => f.kind !== 'fleet').reduce((n, f) => n + f.strength, 0) + troopsOf(w, id);
+  // The numbered fleet, and the great ships at six hulls apiece (another house's, as many as its size and aptitude give it).
+  const great = sim ? shipsOf(w, id).length : Math.max(1, Math.round(pr.pop ** 0.5 * pr.fleet * 4));
+  const fleet = forms.filter((f) => f.kind === 'fleet').reduce((n, f) => n + f.strength, 0) + great * 6;
   const wars = (w.war?.wars ?? []).filter((x) => x.status === 'ended' && x.result && year - x.result.date.year <= 10);
   const won = wars.filter((x) => (x.result!.winner === 'attackers' && x.attackers.includes(id)) || (x.result!.winner === 'defenders' && x.defenders.includes(id))).length;
   const lost = wars.filter((x) => (x.result!.winner === 'attackers' && x.defenders.includes(id)) || (x.result!.winner === 'defenders' && x.attackers.includes(id))).length;
   const dread = h ? h.standing.dread : Math.round(a.personality.aggression * 40);
   // What the register shows of a distant house is less than it holds: the books we see are the books it shows.
-  const scale = scaleOf(w, id) * 0.75;
-  const wealth = h ? econ(w, id).stock.othes + reservesOf(w, id) : cal.wealth * scale * (0.8 + a.personality.greed * 0.4);
-  const income = h ? takings(w, id) : cal.income * scale;
-  const trade = h ? partnersOf(w, id).length * 2 + (id === w.playerHouseId ? (w.quests?.pacts ?? []).length : 0) : Math.round(a.worlds / 2);
+  const shown = 0.75;
+  const wealth = h ? econ(w, id).stock.othes + reservesOf(w, id) : cal.wealth * scaleFor(id, 'wealth') * shown * (0.8 + a.personality.greed * 0.4);
+  const income = h ? takings(w, id) : cal.income * scaleFor(id, 'wealth') * shown;
+  // Forges, yards, mines and works, and learning and records: what the house is, in its people.
+  const industry = pr.pop * pr.industry;
+  const learning = pr.learning * pr.pop ** 0.25;
+  const courts = pr.influence * pr.pop ** 0.2;
+  const trade = h ? partnersOf(w, id).length * 2 + (id === w.playerHouseId ? (w.quests?.pacts ?? []).length : 0) : Math.round(pr.pop ** 0.5 * pr.wealth * 10) / 10;
   const others = liveHouses(w).filter((x) => x.id !== id);
   const regard = others.length ? others.reduce((n, x) => n + regardOf(w, x.id, id), 0) / others.length : 0;
   const n = w.archon!.numarade;
   const seat = n.exarchon?.houseId === id ? 100 : n.seats.includes(id) ? (a.tier === 'great' ? 70 : 50) : n.capanna.some((c) => c.houseId === id) ? 30 : 0;
   const allies = (w.archon!.pacts ?? []).filter((p) => p.a === id || p.b === id).length + Object.values(w.war?.liege ?? {}).filter((l) => l === id).length * 2;
-  const age = year - (a.founded || year - 300);
+  const age = a.founded ? year - a.founded : (HOUSE_AGE[id] ?? 300) + (year - 412);
   const honour = h ? h.standing.honour : Math.round(a.personality.honour * 100);
   const titles = (w.crucible?.history ?? []).filter((x) => x.champion === id).length;
   const runner = (w.crucible?.history ?? []).filter((x) => x.runnerUp === id).length;
@@ -98,9 +111,9 @@ function measure(w: World, id: string, cal: Calibration): Record<RankKey, Part[]
   let knights: number, fame: number;
   if (h) { knights = knightsOf(w, id).length; fame = fameOfBest(w, id); }
   else {
-    knights = Math.round(cal.knights * scale);
+    knights = Math.round(cal.knights * scaleFor(id, 'knights') * shown);
     const r = w.crucible?.rosters?.[id];
-    fame = r ? r.knight * 3 + r.champion.won * 4 : cal.fame * scale;
+    fame = r ? r.knight * 3 + r.champion.won * 4 : cal.fame * scaleFor(id, 'fame') * shown;
   }
   const est = !sim;
   return {
@@ -114,18 +127,21 @@ function measure(w: World, id: string, cal: Calibration): Record<RankKey, Part[]
       { label: 'Coffers and reserves', value: wealth, shown: fmt(wealth), estimate: est },
       { label: 'Takings a Phase', value: income, shown: fmt(income), estimate: est },
       { label: 'Trade', value: trade, shown: `${trade}`, estimate: est },
+      { label: 'Industry', value: industry, shown: `${Math.round(industry * 10)}`, estimate: est },
     ],
     influence: [
       { label: 'Seat', value: seat, shown: seat === 100 ? 'Exarchon' : seat >= 50 ? 'Numarade seat' : seat ? 'Capanna' : 'none' },
       { label: 'Regard of the houses', value: regard + 100, shown: `${regard >= 0 ? '+' : ''}${Math.round(regard)}` },
       { label: 'Allies and vassals', value: allies, shown: `${allies}` },
       { label: 'Prestige', value: a.prestige, shown: `${Math.round(a.prestige)}` },
+      { label: 'Standing in the courts', value: courts, shown: `${Math.round(courts * 10)}`, estimate: est },
     ],
     legacy: [
       { label: 'Age of the house', value: age, shown: `${age} years` },
       { label: 'Honour', value: honour, shown: `${honour}`, estimate: est },
       { label: 'Crucible titles', value: titles * 3 + runner, shown: `${titles} won · ${runner} runner-up` },
       { label: 'In the annals', value: annals, shown: `${annals} entries` },
+      { label: 'Learning and records', value: learning, shown: `${Math.round(learning * 10)}`, estimate: est },
     ],
     knights: [
       { label: 'Knights', value: knights, shown: `${knights}`, estimate: est },
@@ -135,7 +151,7 @@ function measure(w: World, id: string, cal: Calibration): Record<RankKey, Part[]
 }
 
 /** Big, uneven measures are compared on a log scale, so one rich house does not flatten the rest. */
-const LOG = new Set(['Soldiers', 'Fleet', 'Coffers and reserves', 'Takings a Phase', 'Fame of the best five', 'Age of the house', 'In the annals']);
+const LOG = new Set(['Soldiers', 'Fleet', 'Coffers and reserves', 'Takings a Phase', 'Fame of the best five', 'Age of the house', 'In the annals', 'Industry']);
 
 /** Measure every house and rank them. */
 export function computeRankings(w: World): HouseRank[] {
@@ -162,8 +178,10 @@ export function computeRankings(w: World): HouseRank[] {
 }
 
 export function ensureRankings(w: World): RankingsState {
-  if (!w.rankings) w.rankings = { at: w.date, table: computeRankings(w), bulletins: [], histAt: w.archon?.history.length ?? 0 };
+  if (!w.rankings) w.rankings = { at: w.date, table: computeRankings(w), bulletins: [], histAt: w.archon?.history.length ?? 0, v: 2 };
   w.rankings.bulletins ??= [];
+  // A table measured before the houses had profiles is measured again at once, not left until the Orbit turns.
+  if ((w.rankings.v ?? 1) < 2) { w.rankings.table = computeRankings(w); w.rankings.v = 2; }
   return w.rankings;
 }
 

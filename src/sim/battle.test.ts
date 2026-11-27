@@ -106,7 +106,7 @@ describe('the Crucible is fought live', () => {
     for (let i = 0; i < 1300 && !(seen?.applied); i++) {
       w = advanceTurn(w); w.events.pending = []; w.ambitions.audiences = [];
       if (!entered && w.crucible.stage === 'drawn' && w.crucible.entrants.includes(P) && !w.crucible.contingents[P]) {
-        w.economy.houses[P]!.stock.provisions += 500; w.economy.houses[P]!.stock.fuel += 500;
+        w.economy.houses[P]!.stock.provisions += 500; w.economy.houses[P]!.stock.fuel += 500; w.economy.houses[P]!.stock.othes += 5000;
         const pool = eligible(w, P);
         const m = [...pool].sort((a, b) => marshalScore(b) - marshalScore(a))[0]!;
         const ch = pool.filter((c) => c !== m).sort((a, b) => championScore(b) - championScore(a))[0]!;

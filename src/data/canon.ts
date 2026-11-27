@@ -67,7 +67,7 @@ export const CANON_HOUSES: CanonHouse[] = [
   {
     id: 'lumen', name: 'Lumen', tier: 'great', species: 'human', speciesKnown: true, focus: 'Old power and the Exarchon\'s court',
     blurb: 'The oldest human line in the Archon, rich and drilled and used to leading. Atrea Lumen, of the last years of the War for Life, was theirs.',
-    worlds: [5, 8], might: 1.25, views: v(1, 1, 2, 1, 2, 1, 0, 0, -2), personality: P(0.5, 0.5, 0.6, 0.6, 0.5, 0.2),
+    worlds: [5, 8], might: 1.25, views: v(1, 1, 2, 1, 2, 1, 0, 0, -2), personality: P(0.5, 0.62, 0.6, 0.6, 0.5, 0.2),
     families: ['Lumen', 'Castellan', 'Ardent', 'Brightwater'], capital: 'Lumen Exalt',
     notables: [{ name: 'Atrea Lumen', role: 'Of the War for Life', note: 'Sought an end to the war in its last years. Long dead. What he built is not discussed at the Lumen table.' }],
   },

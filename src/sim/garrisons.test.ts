@@ -1,6 +1,7 @@
 import { createWorld } from './world';
 import { formationsOf } from './war';
-import { CANON_ARMY, garrisonsOf, garrisonTotal } from './garrisons';
+import { garrisonsOf, garrisonTotal } from './garrisons';
+import { standingArmy } from '../data/profiles';
 import { troopsOf } from './crucible';
 
 describe('where the soldiers stand', () => {
@@ -11,7 +12,7 @@ describe('where the soldiers stand', () => {
     const all = land + troopsOf(w, P);
     expect(all).toBeGreaterThanOrEqual(30000);
     expect(all).toBeLessThanOrEqual(40000);
-    expect(Math.abs(all - CANON_ARMY.alerion!)).toBeLessThan(200);
+    expect(Math.abs(all - standingArmy('alerion'))).toBeLessThan(200);
     // A garrison on every peopled sector and every station we hold.
     const posts = garrisonsOf(w, P);
     const sectors = Object.values(w.planets).filter((p) => p.houseId === P).flatMap((p) => p.sectors).filter((s) => s.population > 0);

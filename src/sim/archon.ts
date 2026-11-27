@@ -7,6 +7,7 @@
 // a seat or not, and they vote, feud, ally, fight in the Crucible and can be founded or fall. Turning one into
 // a fully simulated house later only means giving it people and worlds; everything here already treats it
 // as a house.
+import { mightOf, profileOf } from '../data/profiles';
 import { kill } from './death';
 import { envyAgainst, envyOf, envyYear, topHouse } from './envy';
 import { Rng } from './rng';
@@ -211,7 +212,7 @@ function fromCanon(w: World, rng: Rng, year: number): Record<string, ArchonHouse
     const h: ArchonHouse = {
       id: c.id, name: c.name, tier: sim?.tier ?? c.tier, species: sim?.species ?? c.species, speciesKnown: c.speciesKnown,
       ...(c.vassals ? { vassals: c.vassals } : {}),
-      canon: true, simulated: !!sim, focus: c.focus, blurb: sim?.blurb ?? c.blurb, worlds, might: c.might,
+      canon: true, simulated: !!sim, focus: c.focus, blurb: sim?.blurb ?? c.blurb, worlds, might: mightOf(c.id),
       views: { ...c.views }, prestige: 0, founded: 0, capital: sim ? (w.planets[sim.capitalPlanetId]?.name ?? c.name) : (c.capital ?? c.name),
       personality: sim?.personality ?? c.personality, notables: c.notables ?? [], families: c.families ?? [c.name],
     };
@@ -233,7 +234,7 @@ function fromCanon(w: World, rng: Rng, year: number): Record<string, ArchonHouse
 
 /** What a house's standing settles toward: arms, worlds, rank, a seat, the Exarchon. */
 export function basisOf(w: World, h: ArchonHouse): number {
-  let b = 18 + h.might * 22 + Math.min(8, h.worlds) * 2.5 + (h.tier === 'great' ? 14 : 0);
+  let b = 10 + h.might * 12 + profileOf(h.id).influence * 16 + Math.min(8, h.worlds) * 2.5 + (h.tier === 'great' ? 14 : 0);
   const sim = w.houses[h.id];
   if (sim) b += (sim.standing.respect - 40) * 0.25 + ((w.realm?.favour[h.id] ?? 50) - 50) * 0.15;
   if (w.archon?.numarade.seats.includes(h.id) && h.tier === 'minor') b += 4;

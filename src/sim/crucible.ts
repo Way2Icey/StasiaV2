@@ -5,6 +5,7 @@
 // men die, knights are wounded and some do not come home. It costs money, supplies, a ship and people,
 // and it is one avenue among many: a house is not drawn every year.
 import { garrisonTotal } from './garrisons';
+import { knightSkillOf } from '../data/profiles';
 import { shiftFavour } from './houses';
 import { lastingWound, seasoned } from './ladder';
 import { fundedEdge } from './treasury';
@@ -71,7 +72,8 @@ export const GUEST_HOUSES: { id: string; name: string; might: number }[] = [
 /** A house that comes to the Crucible without being simulated in full: any house on the register. */
 export function guestOf(w: World, id: string): { id: string; name: string; might: number; species?: SpeciesId; notables?: CanonNotable[] } | undefined {
   const a = w.archon?.houses[id];
-  if (a && !w.houses[id]) return { id, name: a.name, might: a.might, species: a.species, notables: a.notables };
+  // Their knights fight as well as their academies make them (TheaSzar best), not as big as their armies are.
+  if (a && !w.houses[id]) return { id, name: a.name, might: knightSkillOf(id), species: a.species, notables: a.notables };
   return GUEST_HOUSES.find((g) => g.id === id);
 }
 

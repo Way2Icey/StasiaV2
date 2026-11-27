@@ -1,5 +1,6 @@
 // A house's dossier: everything we know about one other house, what lies between us, and every move we can
 // make toward them, in one pop-up opened from Archon › Houses.
+import { formationsOf } from '../sim/war';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, PersonLink } from './links';
@@ -47,16 +48,13 @@ function usePlay() {
 }
 
 /** The pop-up itself. */
-/** For a house we only know from afar: a guess at its strength, scaled from the houses we know well. */
+/** For a house we only know from afar: what the register says it keeps, garrisons and field forces, and its fleet. */
 export function registerStrength(world: World, id: string): { troops: number; ships: number } | undefined {
-  const a = world.archon?.houses[id];
-  if (!a) return undefined;
-  const known = Object.keys(world.houses).map((h) => ({ h, x: world.archon?.houses[h] })).filter((k) => k.x && k.x.might * k.x.worlds > 0);
-  if (!known.length) return undefined;
-  const per = known.reduce((n, k) => n + troopsOf(world, k.h) / (k.x!.might * Math.max(1, k.x!.worlds)), 0) / known.length;
-  const ship = known.reduce((n, k) => n + shipsOf(world, k.h).length / (k.x!.might * Math.max(1, k.x!.worlds)), 0) / known.length;
-  const m = a.might * Math.max(1, a.worlds);
-  return { troops: Math.round(per * m), ships: Math.max(1, Math.round(ship * m)) };
+  if (!world.archon?.houses[id]) return undefined;
+  const forms = formationsOf(world, id);
+  const troops = troopsOf(world, id) + forms.filter((f) => f.kind !== 'fleet').reduce((n, f) => n + f.strength, 0);
+  const ships = forms.filter((f) => f.kind === 'fleet').reduce((n, f) => n + f.strength, 0);
+  return { troops, ships: Math.max(1, ships) };
 }
 
 export function HouseDossier({ id, onClose, tab: start }: { id: string; onClose: () => void; tab?: DossierTab }) {

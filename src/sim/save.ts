@@ -1,4 +1,5 @@
 import { ensurePlaces } from './places';
+import { ensureRankings } from './rankings';
 import { ensureRegisterNow } from './register';
 import type { World } from './types';
 import { ensureKnowledge } from './knowledge';
@@ -140,6 +141,7 @@ export function deserialize(text: string): World {
   if (ensureArchon(world)) writeHistory(world, false);
   ensureWar(world);
   ensureRegisterNow(world);
+  ensureRankings(world);
   ensureScenes(world);
   ensureCaigeDepth(world);
   return world;

@@ -5,9 +5,11 @@
 // Holdfast's household troops), and otherwise a watch in proportion to its people: a docks city keeps more
 // under arms than a farm valley. Stations and outposts keep the garrison set on them.
 //
-// A house's standing army is the canon's figure where the canon gives one, and otherwise what its might
-// and worlds would support; the field legion is whatever of it the garrisons and the company do not hold.
+// A house's standing army comes from its people and how many of them it keeps under arms (data/profiles.ts:
+// the canon's own figures where it gives them); the field legion is whatever of it the garrisons and the
+// company do not hold. Our own garrisons are counted post by post; another house's we know only as a share.
 import type { World } from './types';
+import { garrisonShare, standingArmy } from '../data/profiles';
 
 /** Soldiers kept per head of population, by the kind of place a sector is. */
 const WATCH: [RegExp, number][] = [
@@ -21,11 +23,8 @@ const WATCH: [RegExp, number][] = [
   [/wild|frontier|ruin/i, 0.025],
 ];
 
-/** The canon's standing armies, all told (garrisons, company and legion together). */
-export const CANON_ARMY: Record<string, number> = {
-  alerion: 38000, // 30,000-40,000 elite soldiers for a people of 750,000 to a million
-  endama: 175000, // 150,000-200,000 for two to three million
-};
+/** A house's soldiers, all told (garrisons, company and legion together). */
+export const armyOf = (id: string): number => standingArmy(id);
 
 export interface Post { id: string; name: string; where: string; kind: 'sector' | 'station' | 'outpost'; troops: number; note: string }
 
@@ -55,5 +54,9 @@ export function garrisonsOf(world: World, houseId: string): Post[] {
   return out.sort((a, b) => b.troops - a.troops);
 }
 
-/** All the soldiers a house keeps in garrisons. */
-export const garrisonTotal = (world: World, houseId: string): number => garrisonsOf(world, houseId).reduce((n, g) => n + g.troops, 0);
+/** All the soldiers a house keeps in garrisons: ours counted post by post, another's as the share its worlds need. */
+export function garrisonTotal(world: World, houseId: string): number {
+  if (houseId === world.playerHouseId) return garrisonsOf(world, houseId).reduce((n, g) => n + g.troops, 0);
+  const worlds = world.archon?.houses[houseId]?.worlds ?? 1;
+  return Math.round((standingArmy(houseId) * garrisonShare(worlds)) / 100) * 100;
+}

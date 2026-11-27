@@ -285,9 +285,10 @@ export function WarPage() {
 function Readiness() {
   const world = useWorld();
   const P = world.playerHouseId;
-  const mine = troopsOf(world, P);
+  // Every soldier on each side: garrisons and the field formations alike.
+  const mine = registerStrength(world, P)?.troops ?? troopsOf(world, P);
   const rows = liveHouses(world).filter((h) => h.id !== P).map((h) => {
-    const theirs = world.houses[h.id] ? troopsOf(world, h.id) : registerStrength(world, h.id)?.troops ?? 0;
+    const theirs = registerStrength(world, h.id)?.troops ?? 0;
     const ours = grievances(world, P, h.id).length;
     const against = grievances(world, h.id, P).length;
     const r = regardOf(world, h.id, P);

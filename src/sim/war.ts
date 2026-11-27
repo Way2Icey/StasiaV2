@@ -10,7 +10,8 @@
 // counted, not named, until a battle gives one of them a reason to matter: the survivor who fled and comes
 // back for the knight who broke the line, the wounded soldier who carried a knight out. Then the game names
 // them, and they carry it.
-import { CANON_ARMY, garrisonTotal } from './garrisons';
+import { garrisonTotal } from './garrisons';
+import { fleetHulls, mightOf, profileOf, PROFILES, standingArmy } from '../data/profiles';
 import { wrongsAgainst } from './turning';
 import { grievedSites, transferSite } from './places';
 import { equipPower } from './standing';
@@ -160,15 +161,16 @@ export interface WarState {
   fleetV2?: boolean;
   /** From 9.22 a canon house's legion is what its standing army leaves after garrisons and company. */
   armyV2?: boolean;
+  /** From 9.23 every house's legion, fleet and quality come from its profile: its people and what it is good at. */
+  armyV3?: boolean;
 }
 
-/** A canon house's field legion: its standing army, less what stands in its garrisons and its company. */
+/** A house's field legion: its standing army, less what stands in its garrisons and its company. */
 function fieldLegion(w: World, h: string, company: number): number {
-  return Math.max(1000, rnd((CANON_ARMY[h]! - garrisonTotal(w, h) - company) / 100) * 100);
+  return Math.max(1000, rnd((standingArmy(h) - garrisonTotal(w, h) - company) / 100) * 100);
 }
-
-/** A house's whole numbered fleet runs about half again what it was first counted at. */
-const FLEET_SCALE = 1.45;
+/** Its soldiers' quality, from its profile, with a little of the formation's own history in it. */
+const qualityFor = (h: string, rng: Rng) => Math.round(profileOf(h).quality * (0.96 + rng.next() * 0.08) * 100) / 100;
 
 // ---------------------------------------------------------------- reading
 
@@ -203,13 +205,8 @@ function forceName(rng: Rng, used: Set<string>, nouns: string[]): string {
   return n;
 }
 
-/** Soldiers and ships a house can put in the field, from its weight in the Archon. */
-function sizes(w: World, h: string): { legion: number; fleet: number } {
-  const a = w.archon?.houses[h];
-  const might = a?.might ?? 1;
-  const worlds = a?.worlds ?? 1;
-  return { legion: rnd((18000 + might * 30000 + worlds * 6000) / 100) * 100, fleet: rnd((10 + might * 18 + worlds * 2) * FLEET_SCALE) };
-}
+/** Ships a house keeps in its numbered fleet, from its people and its aptitude for the void. */
+const fleetFor = (h: string) => fleetHulls(h);
 
 function bestBy(cs: Character[], f: (c: Character) => number): Character | undefined {
   return cs.slice().sort((a, b) => f(b) - f(a))[0];
@@ -220,35 +217,33 @@ export function ensureWar(w: World): void {
   w.war ??= { formations: {}, wars: [], named: [], tributes: [], hostages: [], liege: {} };
   const s = w.war;
   s.named ??= []; s.tributes ??= []; s.hostages ??= []; s.liege ??= {};
-  if (!s.armyV2) {
-    for (const h of Object.keys(CANON_ARMY)) {
-      const legions = formationsOf(w, h).filter((f) => f.kind === 'legion');
-      const company = formationsOf(w, h).filter((f) => f.kind === 'company').reduce((n, f) => n + f.max, 0);
-      const max = legions.reduce((n, f) => n + f.max, 0);
-      if (!legions.length || !max) continue;
-      const ratio = fieldLegion(w, h, company) / max;
-      for (const f of legions) { f.max = rnd(f.max * ratio / 100) * 100; f.strength = Math.min(f.max, rnd(f.strength * ratio / 100) * 100); if (h === 'alerion') f.quality = Math.max(f.quality, 1.2); }
-    }
-    s.armyV2 = true;
-  }
-  if (!s.fleetV2) {
-    for (const f of Object.values(s.formations)) if (f.kind === 'fleet') { f.strength = rnd(f.strength * FLEET_SCALE); f.max = rnd(f.max * FLEET_SCALE); }
-    s.fleetV2 = true;
-  }
   const rng = Rng.fromSeed(`${w.seed}/forces/${Object.keys(s.formations).length}`);
+  if (!s.armyV3) {
+    // Recount every house from its profile, keeping what each has lost or gained in the same proportion.
+    for (const h of liveHouses(w)) {
+      const forms = formationsOf(w, h.id);
+      const company = forms.filter((f) => f.kind === 'company').reduce((n, f) => n + f.max, 0);
+      const legions = forms.filter((f) => f.kind === 'legion');
+      const lmax = legions.reduce((n, f) => n + f.max, 0);
+      if (lmax) { const r = fieldLegion(w, h.id, company) / lmax; for (const f of legions) { f.max = rnd(f.max * r / 100) * 100; f.strength = Math.min(f.max, rnd(f.strength * r / 100) * 100); f.quality = qualityFor(h.id, rng); } }
+      const fleets = forms.filter((f) => f.kind === 'fleet');
+      const fmax = fleets.reduce((n, f) => n + f.max, 0);
+      if (fmax) { const r = fleetFor(h.id) / fmax; for (const f of fleets) { f.max = Math.max(1, rnd(f.max * r)); f.strength = Math.min(f.max, rnd(f.strength * r)); } }
+      if (PROFILES[h.id]) h.might = mightOf(h.id);
+    }
+    s.armyV2 = s.fleetV2 = s.armyV3 = true;
+  }
   const used = new Set(Object.values(s.formations).map((f) => f.name));
   for (const h of liveHouses(w)) {
     if (formationsOf(w, h.id).length) continue;
-    const sz = sizes(w, h.id);
     const make = (kind: FormationKind, name: string, strength: number): Formation => {
-      const f: Formation = { id: `fm${w.nextId++}`, houseId: h.id, kind, name, knights: [], strength, max: strength, quality: 0.85 + rng.next() * 0.3, morale: 70, fought: 0, won: 0, honours: [] };
+      const f: Formation = { id: `fm${w.nextId++}`, houseId: h.id, kind, name, knights: [], strength, max: strength, quality: qualityFor(h.id, rng), morale: 70, fought: 0, won: 0, honours: [] };
       s.formations[f.id] = f;
       return f;
     };
     const company = isSim(w, h.id) ? 400 + rng.int(0, 6) * 50 : 0;
-    const legion = make('legion', forceName(rng, used, LEGION_B), CANON_ARMY[h.id] ? fieldLegion(w, h.id, company) : sz.legion);
-    if (h.id === 'alerion') legion.quality = Math.max(legion.quality, 1.2);
-    make('fleet', forceName(rng, used, FLEET_B), sz.fleet);
+    make('legion', forceName(rng, used, LEGION_B), fieldLegion(w, h.id, company));
+    make('fleet', forceName(rng, used, FLEET_B), fleetFor(h.id));
     if (company) make('company', forceName(rng, used, COMPANY_B), company);
   }
   for (const f of Object.values(s.formations)) staffFormation(w, rng, f);
