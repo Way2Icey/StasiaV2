@@ -43,7 +43,7 @@ export interface HouseRank {
 }
 export interface BulletinLine { text: string; houseIds: string[]; tone?: 'up' | 'down' | 'ours' }
 export interface Bulletin { date: GameDate; lines: BulletinLine[] }
-export interface RankingsState { at: GameDate; table: HouseRank[]; prev?: HouseRank[]; bulletins: Bulletin[]; /** How much of the annals the last bulletin had seen. */ histAt?: number }
+export interface RankingsState { at: GameDate; table: HouseRank[]; prev?: HouseRank[]; bulletins: Bulletin[]; /** How much of the annals the last bulletin had seen. */ histAt?: number; /** Each house's overall place at the last six bulletins, oldest first. */ form?: Record<string, number[]> }
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const knightsOf = (w: World, id: string) => Object.values(w.characters).filter((c) => c.alive && c.houseId === id && c.tier === 'full' && (c.role === 'Knight' || c.flags.some((f) => f.id === 'knighted')));
@@ -177,6 +177,8 @@ export function advanceRankings(w: World, orbitTurned: boolean): void {
   const prev = s.table;
   const table = computeRankings(w);
   s.prev = prev; s.table = table; s.at = w.date;
+  s.form ??= {};
+  for (const r of table) s.form[r.id] = [...(s.form[r.id] ?? []), r.place].slice(-6);
   // Prestige is what the Archon thinks of a house; over time it follows what the house is.
   for (const r of table) { const a = w.archon.houses[r.id]; if (a) a.prestige = Math.round((a.prestige + (r.overall - a.prestige) * 0.08) * 10) / 10; }
   s.bulletins.unshift(bulletin(w, prev, table));

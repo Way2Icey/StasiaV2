@@ -1,6 +1,8 @@
 // The Numarade's rankings: the whole Archon measured in five ways, published each Orbit with a bulletin.
 import { Fragment, useState } from 'react';
-import { useNav, useWorld } from './context';
+import { useGame, useNav, useWorld } from './context';
+import { HouseDossier, withUs } from './dossier';
+import { answerAlliance } from '../sim/houses';
 import { Go, Panel } from './links';
 import { ArchonHouseLink } from './archon';
 import { computeRankings, ordinal, RANK_KEYS, RANK_LABEL, RANK_NOTE, TOP_THREE, type HouseRank, type RankKey } from '../sim/rankings';
@@ -17,9 +19,10 @@ function Move({ d }: { d: number }) {
 
 const meter = (v: number) => '█'.repeat(Math.round(v / 10)) + '░'.repeat(10 - Math.round(v / 10));
 
-export function RankingsPage() {
+export function RankingsPage({ open: openId }: { open?: string } = {}) {
   const world = useWorld();
   const nav = useNav();
+  const game = useGame();
   const P = world.playerHouseId;
   const table = tableOf(world);
   const prev = Object.fromEntries((world.rankings?.prev ?? []).map((r) => [r.id, r]));
@@ -27,61 +30,92 @@ export function RankingsPage() {
   const [sort, setSort] = useState<RankKey | 'overall'>('overall');
   const rows = [...table].sort((a, b) => (sort === 'overall' ? a.place - b.place : a.rank[sort] - b.rank[sort]));
   const bulletins = world.rankings?.bulletins ?? [];
+  const form = world.rankings?.form ?? {};
+  const n = table.length;
+  const offers = world.realm?.offers ?? [];
+  const above = us ? table.find((r) => r.place === us.place - 1) : undefined;
+  const cheapest = us ? [...RANK_KEYS].filter((k) => us.rank[k] > 1).map((k) => ({ k, gap: (table.find((r) => r.rank[k] === us.rank[k] - 1)?.score[k] ?? 99) - us.score[k] })).sort((a, b) => a.gap - b.gap)[0] : undefined;
+  const ex = world.archon?.numarade.exarchon?.houseId;
   return (
     <>
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span className="eyebrow gold">Published by the Numarade each Orbit</span>
-          <h2>The rankings of the Archon</h2>
-          <p>Every house measured in five ways. A house can lead in one and still not be first: the first house is strong in all of them. The Archon's esteem follows the rankings, and esteem decides seats and the Exarchon's chair.{world.rankings ? ` Last published ${formatDate(world.rankings.at)}.` : ''}</p>
+          <span className="eyebrow gold">Published by the Numarade each Orbit{world.rankings ? ` · last ${formatDate(world.rankings.at)}` : ''}</span>
+          <h2>The table of the Archon</h2>
+          <p>Every house, ranked in five ways and overall. The top three are where Exarchons come from; the bottom three are where censure waits. Click a house to open it.</p>
         </div>
       </div>
       <div className="grid">
-        {us ? <OurStanding us={us} was={prev[P]} table={table} /> : null}
-        <Panel title="The bulletin" aside={bulletins[0] ? formatDate(bulletins[0].date) : 'the first comes at the turn of the Orbit'} className="span-5">
-          <div className="body" style={{ display: 'grid', gap: 8, fontSize: 13 }}>
-            {bulletins.length === 0 ? <span className="muted">The Numarade publishes at the turn of each Orbit: who rose, who fell, and why.</span> : null}
-            {bulletins[0]?.lines.map((l, i) => <span key={i} className={l.tone === 'ours' ? 'gold' : l.tone === 'up' ? 'up' : l.tone === 'down' ? 'down' : undefined}>{l.text}</span>)}
-          </div>
-          {bulletins.length > 1 ? (
-            <details className="body" style={{ fontSize: 12 }}>
-              <summary className="muted">Earlier bulletins</summary>
-              {bulletins.slice(1).map((b, i) => (
-                <div key={i} style={{ marginTop: 8, display: 'grid', gap: 3 }}>
-                  <span className="eyebrow">{formatDate(b.date)}</span>
-                  {b.lines.map((l, j) => <span key={j} className="muted">{l.text}</span>)}
-                </div>
-              ))}
-            </details>
-          ) : null}
-        </Panel>
-        <Panel title="The Archon" aside="click a column to rank by it" className="span-7">
+        {offers.length ? (
+          <Panel title="Offers" className="span-12">
+            {offers.map((o) => (
+              <div key={o.id} className="row">
+                <span style={{ flex: 1 }}><ArchonHouseLink id={o.from} /> offers us an alliance.</span>
+                <button type="button" className="btn small primary" onClick={() => game.update((w) => { try { return answerAlliance(w, o.id, true); } catch { return w; } })}>Accept</button>
+                <button type="button" className="btn small" onClick={() => game.update((w) => { try { return answerAlliance(w, o.id, false); } catch { return w; } })}>Decline</button>
+              </div>
+            ))}
+          </Panel>
+        ) : null}
+        <Panel title="The table" aside="click a column to rank by it" className="span-8">
           <div className="table-wrap">
-            <table className="list rank-table">
+            <table className="list rank-table league">
               <thead><tr>
-                <th>#</th>
-                <th>House</th>
-                <th><button type="button" className="linklike" aria-pressed={sort === 'overall'} onClick={() => setSort('overall')}>Overall</button></th>
-                {RANK_KEYS.map((k) => <th key={k} title={RANK_NOTE[k]}><button type="button" className="linklike" aria-pressed={sort === k} onClick={() => setSort(k)}>{RANK_LABEL[k]}</button></th>)}
+                <th>#</th><th>House</th><th>Form</th>
+                {RANK_KEYS.map((k) => <th key={k} title={RANK_NOTE[k]}><button type="button" className="linklike" aria-pressed={sort === k} onClick={() => setSort(k)}>{RANK_LABEL[k].slice(0, 3).toUpperCase()}</button></th>)}
+                <th><button type="button" className="linklike" aria-pressed={sort === 'overall'} onClick={() => setSort('overall')}>PTS</button></th>
+                <th>With us</th>
               </tr></thead>
               <tbody>
                 {rows.map((r) => {
                   const was = prev[r.id];
+                  const f = form[r.id] ?? [];
+                  const moves = f.slice(1).map((p, i) => f[i]! - p).slice(-5);
+                  const pos = sort === 'overall' ? r.place : r.rank[sort];
+                  const zone = sort === 'overall' ? (pos === 3 ? ' zone-top' : pos === n - 3 ? ' zone-drop' : '') : '';
+                  const ties = r.id === P ? [] : withUs(world, P, r.id);
                   return (
-                    <tr key={r.id} className={`clickable${r.id === P ? ' ours' : ''}`} onClick={() => { if (r.id !== P) nav.to({ kind: 'house', id: r.id }); }}>
-                      <td className="mono">{sort === 'overall' ? r.place : r.rank[sort]}{was ? <Move d={sort === 'overall' ? was.place - r.place : was.rank[sort] - r.rank[sort]} /> : null}</td>
-                      <td><ArchonHouseLink id={r.id} />{world.archon?.numarade.exarchon?.houseId === r.id ? <span className="tag world" style={{ marginLeft: 6 }}>Exarchon</span> : null}{!world.houses[r.id] ? <span className="muted" title="Measured from afar" style={{ fontSize: 11 }}> ·</span> : null}</td>
+                    <tr key={r.id} className={`clickable${r.id === P ? ' ours' : ''}${zone}`} onClick={() => { if (r.id !== P) nav.to({ kind: 'house', id: r.id }); }}>
+                      <td className="mono">{pos}{was ? <Move d={sort === 'overall' ? was.place - r.place : was.rank[sort] - r.rank[sort]} /> : null}</td>
+                      <td><strong>{world.archon?.houses[r.id]?.name ?? r.id}</strong>{ex === r.id ? <span className="tag world" style={{ marginLeft: 6 }}>Exarchon</span> : null}{!world.houses[r.id] ? <span className="muted" title="Measured from afar" style={{ fontSize: 11 }}> ·</span> : null}</td>
+                      <td className="form">{moves.length ? moves.map((m, i) => <span key={i} className={m > 0 ? 'up' : m < 0 ? 'down' : 'muted'}>{m > 0 ? '▲' : m < 0 ? '▼' : '·'}</span>) : <span className="muted">—</span>}</td>
+                      {RANK_KEYS.map((k) => <td key={k} className="mono" style={{ color: r.rank[k] === 1 ? 'var(--gold)' : r.rank[k] <= 3 ? 'var(--green)' : r.rank[k] > n - 3 ? 'var(--orange)' : undefined }} title={`${RANK_LABEL[k]}: ${r.score[k]}`}>{r.rank[k]}</td>)}
                       <td className="mono"><strong>{r.overall}</strong></td>
-                      {RANK_KEYS.map((k) => <td key={k} className="mono" style={{ color: r.rank[k] === 1 ? 'var(--gold)' : r.rank[k] <= 3 ? 'var(--green)' : undefined }} title={`${RANK_LABEL[k]}: ${r.score[k]}`}>{ordinal(r.rank[k])}</td>)}
+                      <td style={{ fontSize: 11 }}>{ties.length ? ties.slice(0, 2).map((t, i) => <span key={i} className={t.tone === 'bad' ? 'down' : t.tone === 'good' ? 'up' : 'muted'}>{i ? ' · ' : ''}{t.label}</span>) : <span className="muted">{r.id === P ? '' : '—'}</span>}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-          <p className="body muted" style={{ margin: 0, fontSize: 11 }}>Houses marked · are measured from afar, from what the register shows of them.</p>
+          <p className="body muted" style={{ margin: 0, fontSize: 11 }}><span className="gold">━</span> top three: Exarchon territory · <span className="down">━</span> bottom three: censure, vassals waver · houses marked · are measured from afar</p>
         </Panel>
+        <div className="span-4 stack">
+          <Panel title="The bulletin" aside={bulletins[0] ? formatDate(bulletins[0].date) : 'at the turn of the Orbit'}>
+            <div className="body" style={{ display: 'grid', gap: 8, fontSize: 13 }}>
+              {bulletins.length === 0 ? <span className="muted">The Numarade publishes at the turn of each Orbit: who rose, who fell, and why.</span> : null}
+              {bulletins[0]?.lines.map((l, i) => <span key={i} className={l.tone === 'ours' ? 'gold' : l.tone === 'up' ? 'up' : l.tone === 'down' ? 'down' : undefined}>{l.text}</span>)}
+            </div>
+            {bulletins.length > 1 ? (
+              <details className="body" style={{ fontSize: 12 }}>
+                <summary className="muted">Earlier bulletins</summary>
+                {bulletins.slice(1).map((b, i) => <div key={i} style={{ marginTop: 8, display: 'grid', gap: 3 }}><span className="eyebrow">{formatDate(b.date)}</span>{b.lines.map((l, j) => <span key={j} className="muted">{l.text}</span>)}</div>)}
+              </details>
+            ) : null}
+          </Panel>
+          {us && cheapest ? (
+            <Panel title="The closest climb" className="lead">
+              <div className="body" style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+                <span>{above ? <>House {world.archon?.houses[above.id]?.name} is {above.overall - us.overall} point{above.overall - us.overall === 1 ? '' : 's'} above us.</> : 'We are first in the Archon.'}</span>
+                <span>Our cheapest ranking to raise: <strong>{RANK_LABEL[cheapest.k]}</strong> ({ordinal(us.rank[cheapest.k])}, {cheapest.gap} behind the next).</span>
+                <span style={{ fontSize: 12 }}><RaiseHint k={cheapest.k} /></span>
+              </div>
+            </Panel>
+          ) : null}
+        </div>
+        {us ? <OurStanding us={us} was={prev[P]} table={table} /> : null}
       </div>
+      {openId ? <HouseDossier key={openId} id={openId} onClose={() => nav.to({ kind: 'rankings' })} /> : null}
     </>
   );
 }

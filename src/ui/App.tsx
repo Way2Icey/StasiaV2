@@ -53,7 +53,7 @@ import { ShipPage } from './fleet';
 import { routeLabel, sameRoute, sectionOf, SECTIONS, SUBTABS, type Route } from './router';
 import { AUTOSAVE, storage } from './storage';
 import {
-  BandPage, CharacterPage, FamilyPage, FlagPage, HousePage, HousesPage, PlanetPage,
+  BandPage, CharacterPage, FamilyPage, FlagPage, PlanetPage,
   SavePage, SearchPage, SectorPage, SpeciesPage, ThroneRoom, TraitPage,
 } from './pages';
 
@@ -284,11 +284,11 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'people': if (route.view === 'renown') return <RenownPage />;
       if (!route.focus && (!route.view || route.view === 'opinions' || route.view === 'guards' || route.view === 'young' || route.view === 'factions')) return <HouseRooms key={route.view ?? 'house'} room={route.view === 'guards' ? 'guards' : route.view === 'young' ? 'nursery' : undefined} />;
       return <RelationsPage key={route.view ?? (route.focus ? 'web' : 'opinions')} focus={route.focus} view={route.view} />;
-    case 'houses': return <HousesPage />;
+    case 'houses': return <RankingsPage />;
     case 'worlds': return <OrreryPage />;
     case 'save': return <SavePage setWorld={setWorld} />;
     case 'character': return <CharacterPage key={route.id} id={route.id} />;
-    case 'house': return <HousePage id={route.id} />;
+    case 'house': return <RankingsPage key={route.id} open={route.id} />;
     case 'family': return <FamilyPage id={route.id} />;
     case 'planet': return <PlanetPage id={route.id} />;
     case 'sector': return <SectorPage id={route.id} />;

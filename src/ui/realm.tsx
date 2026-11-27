@@ -1,3 +1,4 @@
+import { AnnalsNav } from './annalsnav';
 // The houses as players (aims, alliances, feuds, the Numarade's favour, poaching), renown, veterans, and
 // the lane watch, embargo and convoy-intelligence panels.
 import { regardOf } from '../sim/archon';
@@ -172,6 +173,7 @@ export function RenownPage() {
         <h2>Renown</h2>
         <p>What people are known for: titles, bouts and duels won, Crucible honours, missions, raids beaten off, captains hunted, pupils taught. Recent deeds count most; a famous house lends its people a little of its name.</p>
       </div>
+      <AnnalsNav at="renown" />
       <div className="grid">
         <Panel title={`House ${world.houses[P]?.name}`} aside={`${ours.length} with a name · our best ranks #${ours[0]?.rankAll ?? '—'} in the Archon`} className="span-12"><Table list={ours} mine /><p className="body muted" style={{ margin: 0, fontSize: 12 }}>Renown comes from deeds: a tourney title, a duel won, a Crucible honour, a mission done, a raid beaten off. The boards are the quickest road. <Go to={{ kind: 'missions' }}>The boards ›</Go></p></Panel>
         <Panel fold title="The most famous in the Archon" aside="for measure" className="span-12"><Table list={rows.slice(0, 15)} /></Panel>

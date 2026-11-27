@@ -120,13 +120,9 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'Lanes & corsairs', to: { kind: 'lanes' }, on: is('lanes') },
   ],
   archon: [
-    { label: 'Rankings', to: { kind: 'rankings' }, on: is('rankings') },
-    { label: 'Numarade', to: { kind: 'numarade' }, on: is('numarade') },
-    { label: 'Houses', to: { kind: 'houses' }, on: (r) => r.kind === 'houses' || r.kind === 'house' },
-    { label: 'The Chair', to: { kind: 'chair' }, on: is('chair'), show: (w) => w.archon?.houses[w.playerHouseId]?.tier === 'great' || w.archon?.numarade.exarchon?.houseId === w.playerHouseId },
-    { label: 'Annals', to: { kind: 'history' }, on: is('history') },
-    { label: 'Our legacy', to: { kind: 'legacy' }, on: is('legacy') },
-    { label: 'Renown', to: { kind: 'people', view: 'renown' }, on: (r) => r.kind === 'people' && r.view === 'renown' },
+    { label: 'The Table', to: { kind: 'rankings' }, on: (r) => r.kind === 'rankings' || r.kind === 'houses' || r.kind === 'house' },
+    { label: 'The Numarade', to: { kind: 'numarade' }, on: (r) => r.kind === 'numarade' || r.kind === 'chair' },
+    { label: 'The Annals', to: { kind: 'history' }, on: (r) => r.kind === 'history' || r.kind === 'legacy' || (r.kind === 'people' && r.view === 'renown') },
   ],
   treasury: [
     { label: 'Ledger', to: { kind: 'economy' }, on: is('economy') },
@@ -153,7 +149,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'throne': return 'Hall';
     case 'people': return r.view === 'ambitions' ? 'Audiences & ambitions' : r.view === 'renown' ? 'Renown' : r.view === 'web' || r.focus ? 'Ties' : 'The House';
     case 'houses': return 'Houses';
-    case 'rankings': return 'Rankings';
+    case 'rankings': return 'The Table';
     case 'worlds': return 'The Realm';
     case 'save': return 'Save & Load';
     case 'missions': return 'Missions';

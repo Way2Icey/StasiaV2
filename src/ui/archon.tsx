@@ -1,3 +1,5 @@
+import { Chamber } from './chamber';
+import { AnnalsNav } from './annalsnav';
 // The Archon as a whole: the register of houses, the Numarade, the history, the frontier, and the new-game
 // screen where a house is chosen.
 import { CLAIM_COST, cannotClaim, claimWild } from '../sim/arcs_places';
@@ -237,6 +239,8 @@ export function NumaradePage() {
   return (
     <>
       <Title eyebrow="The High Council of the Archon" title="The Numarade" sub="Eleven seats: the seven Great Houses, and four the Minor Houses elect every five years. They choose the Exarchon, who serves for life, and vote on what binds the houses. Major acts need eight seats." />
+      <Chamber />
+      {world.archon?.houses[P]?.tier === 'great' || ex?.houseId === P ? <div className="actions" style={{ margin: '10px 0' }}><Go to={{ kind: 'chair' }} className="btn small">The Exarchon's chair ›</Go></div> : null}
       {err ? <p className="error">{err}</p> : null}
       <div className="grid">
         <Panel title={<Term k="exarchon">The Exarchon</Term>} className="span-6">
@@ -331,6 +335,7 @@ export function HistoryPage() {
   return (
     <>
       <Title eyebrow="The Drift Era" title="Annals of the Archon" sub="What the houses remember: Exarchons, wars, champions, Caiges lost, houses founded and ended. Every world has its own." />
+      <AnnalsNav at="history" />
       <div className="actions">
         <select className="select" aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value)}>
           <option value="">Everything</option>

@@ -1,3 +1,4 @@
+import { AnnalsNav } from './annalsnav';
 // The house's legacy: the Hall of its honoured dead, the Annals of what it has done, the Reliquary, the
 // Archive of the past, and the road to greatness (with the tide of the Drift and the ages it names).
 import { Peek } from './links';
@@ -42,6 +43,7 @@ export function LegacyPage({ tab: initial }: { tab?: Tab }) {
           <p>{L.hall.length} in the Hall · {earned} of {ANNALS.length} Annals · {relicsOf(world).length} relics · {Object.keys(L.archive).length} of {FRAGMENTS.length} fragments of the past</p>
         </div>
       </div>
+      <AnnalsNav at="legacy" />
       <div className="filters" style={{ marginBottom: 12 }}>
         {TABS.map((t) => <button key={t.k} type="button" className="pill" aria-pressed={tab === t.k} onClick={() => setTab(t.k)}>{t.label}</button>)}
       </div>
