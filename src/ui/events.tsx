@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { rankPressure, type Pressure } from '../sim/preview';
+import type { RankKey } from '../sim/rankings';
 import { useGame, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, SectorLink } from './links';
 import { Term } from './tip';
@@ -46,11 +48,27 @@ function oddsBand(ctx: Ctx, check: Check, see: ReturnType<typeof useSee>): [numb
   return checkBand(ctx, check, [lo, hi]);
 }
 
+const SHORT: Record<RankKey, string> = { power: 'Power', economy: 'Economy', influence: 'Influence', legacy: 'Legacy', knights: 'Knights' };
+/** The pressure a choice puts on our standing: it tells at the Numarade's next bulletin, not now. */
+function Leans({ p }: { p?: Pressure }) {
+  const ks = Object.entries(p ?? {}).sort((a, b) => Math.abs(b[1]!) - Math.abs(a[1]!)) as [RankKey, number][];
+  if (!ks.length) return null;
+  return (
+    <span className="opt-rank" title="Which way this leans on our standing. The Numarade's table moves only when it next publishes.">
+      <span className="sr-only"> — standing: </span>
+      {ks.map(([k, d]) => <span key={k} className={d > 0 ? 'up' : 'down'}>{d > 0 ? (d >= 1.5 ? '▲▲' : '▲') : (d <= -1.5 ? '▼▼' : '▼')} {SHORT[k]}</span>)}
+    </span>
+  );
+}
+
 export function Decision({ p }: { p: PendingEvent }) {
   const world = useWorld();
   const see = useSee();
   const game = useGame();
   const def = eventDef(p.defId);
+  // Which way each choice leans on the Numarade's table, measured once when the decision comes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const leans = useMemo(() => (def ? rankPressure(world, p.id, optionsFor(def, p).length) : []), [p.id]);
   if (!def) return null;
   const ctx = makeCtx(world, new Rng(world.rng), p);
   const opts = optionsFor(def, p);
@@ -96,6 +114,7 @@ export function Decision({ p }: { p: PendingEvent }) {
                     {why ?? [o.hint, foe && tester ? `${shortName(tester.name)} vs ${shortName(foe.name)}` : null, band ? `${oddsWord(chance!)} · ${band[1] - band[0] < 0.04 ? `${Math.round(chance! * 100)}%` : `${Math.round(band[0] * 100)}–${Math.round(band[1] * 100)}%`}` : null].filter(Boolean).join(' · ')}
                   </span>
                 ) : null}
+                <Leans p={leans[i]} />
               </button>
             );
           })}

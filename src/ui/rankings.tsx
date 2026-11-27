@@ -165,9 +165,9 @@ function OurStanding({ us, was, table }: { us: HouseRank; was?: HouseRank; table
 function RaiseHint({ k }: { k: RankKey }) {
   switch (k) {
     case 'power': return <>Raise it with soldiers and ships, and by winning wars. <Go to={{ kind: 'military' }}>Military ›</Go> · <Go to={{ kind: 'war' }}>War ›</Go></>;
-    case 'economy': return <>Raise it with takings and reserves: build, trade, and put othes on ledger drives. <Go to={{ kind: 'economy' }}>Ledger ›</Go> · <Go to={{ kind: 'vaults' }}>Vaults ›</Go></>;
+    case 'economy': return <>Raise it with takings and reserves, and with industry: build on our sectors, raise a shipyard, keep the forges and refineries fed. <Go to={{ kind: 'economy' }}>Ledger ›</Go> · <Go to={{ kind: 'build', what: 'shipyard' }}>Shipyard ›</Go></>;
     case 'influence': return <>Raise it with a seat, allies, and the regard of the houses: the Speaker's board, embassies and motions. <Go to={{ kind: 'numarade' }}>Numarade ›</Go> · <Go to={{ kind: 'missions' }}>The boards ›</Go></>;
-    case 'legacy': return <>Raise it with honour kept, Crucible titles, and deeds the annals remember. <Go to={{ kind: 'crucible' }}>The Crucible ›</Go></>;
+    case 'legacy': return <>Raise it with honour kept, Crucible titles, deeds the annals remember, and learning: an academy, the Great Archive, sharp minds at court. <Go to={{ kind: 'crucible' }}>The Crucible ›</Go> · <Go to={{ kind: 'build', what: 'academy' }}>Academy ›</Go></>;
     case 'knights': return <>Raise it by knighting the able and sending them on deeds: titles, duels, the circuit. <Go to={{ kind: 'knights' }}>Knights ›</Go> · <Go to={{ kind: 'grounds' }}>Circuit ›</Go></>;
   }
 }
