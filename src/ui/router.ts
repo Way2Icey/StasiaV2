@@ -111,12 +111,8 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'Ties', to: { kind: 'people', view: 'web' }, on: (r) => r.kind === 'people' && (r.view === 'web' || !!r.focus) },
   ],
   arms: [
-    { label: 'Military', to: { kind: 'military' }, on: is('military') },
-    { label: 'Fleet', to: { kind: 'fleet' }, on: (r) => r.kind === 'fleet' || r.kind === 'ship' },
-    { label: 'Knights & challenges', to: { kind: 'knights' }, on: is('knights') },
-    { label: 'Training & academy', to: { kind: 'training' }, on: is('training') },
-    { label: 'Circuit & tourneys', to: { kind: 'grounds' }, on: is('grounds') },
-    { label: 'The Crucible', to: { kind: 'crucible' }, on: is('crucible') },
+    { label: 'The Fronts', to: { kind: 'military' }, on: (r) => r.kind === 'military' || r.kind === 'fleet' || r.kind === 'ship' || r.kind === 'knights' || r.kind === 'training' },
+    { label: 'The Lists', to: { kind: 'grounds' }, on: (r) => r.kind === 'grounds' || r.kind === 'crucible' },
     { label: 'War', to: { kind: 'war' }, on: is('war') },
   ],
   realm: [
@@ -167,7 +163,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'bounties': return 'Bounties';
     case 'intel': return 'Cells & intel';
     case 'greatSeats': return 'Seats of the court';
-    case 'military': return 'Military';
+    case 'military': return 'The Fronts';
     case 'boards': return 'The boards';
     case 'talk': return `Audience · ${world.characters[r.id]?.name.given ?? ''}`;
     case 'council': return 'Council';

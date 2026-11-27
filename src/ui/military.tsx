@@ -12,7 +12,7 @@ import type { World } from '../sim/types';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 
-export function MilitaryPage() {
+export function MilitaryPage({ bare }: { bare?: boolean } = {}) {
   const world = useWorld();
   const game = useGame();
   const [err, setErr] = useState<string | null>(null);
@@ -34,6 +34,7 @@ export function MilitaryPage() {
   const eq = equipOf(world, P);
   return (
     <>
+      {bare ? null : (
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="eyebrow">Arms</span>
@@ -41,6 +42,7 @@ export function MilitaryPage() {
           <p>The house's soldiers: how many, where they are raised, where they stand now, and what they cost to keep.</p>
         </div>
       </div>
+      )}
       {err ? <p className="body error">{err}</p> : null}
       <div className="grid">
         <Panel title="At a glance" className="span-4">

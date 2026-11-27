@@ -20,13 +20,15 @@ import { CouncilViews } from './hall';
 import { PinButton } from './careers';
 import { isMilitary, fightScore } from '../sim/grounds';
 import { cannotKnight, knight } from '../sim/ambitions';
-import { seasonLine, titlesOf, totals } from '../sim/careers';
+import { seasonLine, totals } from '../sim/careers';
 import { activeMissions } from '../sim/missions';
 import { currentRound } from '../sim/crucible';
 import { isAway } from '../sim/court';
 import { heldSectors } from '../sim/economy';
 import { buildCost, buildModule, cannotBuild, MODULE_LABEL, MODULE_NOTE, modulesOf, placeOf, reservesOf, SECTOR_KINDS, type ModuleKind } from '../sim/holdings';
 import { ageOf } from '../sim/characters';
+import { renownOf, renownTier } from '../sim/renown';
+import { moodOf } from '../sim/mood';
 import { mentorOf, pipeline, proofOf, sternness } from '../sim/ladder';
 import { absoluteCycle, formatDate } from '../sim/time';
 import { SEAT_TITLE } from '../sim/world';
@@ -88,7 +90,7 @@ export function railCount(world: World, s: Section): { gold?: number; plain?: nu
 
 // ---------------------------------------------------------------- Arms: knights and challenges
 
-export function KnightsPage() {
+export function KnightsPage({ bare }: { bare?: boolean } = {}) {
   const world = useWorld();
   const { run, err } = usePlay();
   const P = world.playerHouseId;
@@ -98,26 +100,31 @@ export function KnightsPage() {
   const aspirants = ours.filter((c) => world.ladder?.of[c.id]?.stage === 'aspirant').sort((a, b) => proofOf(world, b.id) - proofOf(world, a.id));
   return (
     <>
+      {bare ? null : (
       <div className="page-title">
         <h2>Knights &amp; challenges</h2>
         <p>The house's fighting people: knights, the Champion and Grand Master, ship captains and base commanders. Only they may challenge or be challenged. Knighting someone costs 300 othes and they will not forget it.</p>
       </div>
+      )}
       <div className="grid">
         <QuestBoard className="span-12" />
         <Challenges className="span-12" />
         <Panel title="Our military" aside={`${military.length}`} className="span-12">
           <div className="table-wrap">
             <table className="list">
-              <thead><tr><th>Name</th><th>Role</th><th>Fight</th><th>Record</th><th>Titles</th><th>Now</th><th /></tr></thead>
+              <thead><tr><th>Name</th><th>Role</th><th>Age</th><th title="Duelling">DUE</th><th title="Tactics">TAC</th><th title="Valour">VAL</th><th title="Discipline">DIS</th><th>Caige</th><th>Condition</th><th>Renown</th><th>Record</th><th>Now</th><th /></tr></thead>
               <tbody>
                 {military.map((c) => (
                   <tr key={c.id}>
                     <td><PersonLink c={c} /></td>
                     <td className="muted">{c.seat ? SEAT_TITLE[c.seat] : c.role}</td>
-                    <td className="mono">{fightScore(c).toFixed(1)}</td>
+                    <td className="mono">{Math.floor(ageOf(c, world.date))}</td>
+                    {(['duelling', 'tactics', 'valor', 'discipline'] as const).map((k) => <td key={k} className="mono" style={{ color: c.stats[k] >= 17 ? 'var(--gold)' : c.stats[k] >= 13 ? 'var(--blue)' : c.stats[k] <= 7 ? 'var(--orange)' : undefined, fontWeight: c.stats[k] >= 17 ? 700 : undefined }}>{c.stats[k]}</td>)}
+                    <td className="muted" style={{ fontSize: 12 }}>{c.flags.find((f) => f.id === 'caigeBonded')?.detail ?? '—'}</td>
+                    <td style={{ fontSize: 12 }} className={c.flags.some((f) => f.id === 'wounded') ? 'down' : 'up'}>{c.flags.some((f) => f.id === 'wounded') ? 'wounded' : `fit · mood ${moodOf(c)}`}</td>
+                    <td className="muted" style={{ fontSize: 12 }}>{renownTier(renownOf(world, c))}</td>
                     <td className="muted" style={{ fontSize: 12 }}>{seasonLine(totals(world, c.id))}</td>
-                    <td className="muted" style={{ fontSize: 12 }}>{titlesOf(world, c.id).filter((t) => !t.title.startsWith('Knighted')).slice(-2).map((t) => t.title).join(' · ') || '—'}</td>
-                    <td className="muted">{c.flags.some((f) => f.id === 'wounded') ? 'wounded' : isAway(world, c.id) ? 'away' : 'at court'}</td>
+                    <td className="muted">{isAway(world, c.id) ? 'away' : 'at court'}</td>
                     <td><PinButton id={c.id} /></td>
                   </tr>
                 ))}
@@ -208,16 +215,18 @@ export function QuestBoard({ className, seat = 'grandMaster' }: { className?: st
 
 // ---------------------------------------------------------------- Arms: fleet
 
-export function FleetPage() {
+export function FleetPage({ bare }: { bare?: boolean } = {}) {
   const world = useWorld();
   const P = world.playerHouseId;
   const yards = modulesOf(world, P, 'shipyard');
   return (
     <>
+      {bare ? null : (
       <div className="page-title">
         <h2>Fleet</h2>
         <p>The house's great ships, their duties and captains. New ships are laid down at a shipyard.</p>
       </div>
+      )}
       <div className="grid">
         <FleetGlance className="span-12" />
         <FleetPanel className="span-8" />

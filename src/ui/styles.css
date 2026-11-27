@@ -819,3 +819,15 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .hnode { border: 1px solid var(--line); padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; background: var(--bg, transparent); color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 120px; }
 .hnode.t-up { border-color: var(--green); } .hnode.t-down { border-color: var(--orange); } .hnode.t-gold { border-color: var(--gold); }
 .hnode.sel { box-shadow: 0 0 0 2px var(--gold); }
+/* 9.14: Arms as three fronts */
+.war-banner { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; border: 1px dashed var(--line); padding: 10px 14px; margin-bottom: 14px; font-size: 13px; }
+.war-banner.at-war { border: 2px solid var(--orange); }
+.war-banner .btn { margin-left: auto; }
+.fronts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.front { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-top: 3px solid var(--line); border-left: 1px solid var(--line); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); min-width: 0; }
+.front.open { box-shadow: 0 0 0 1px var(--gold) inset; }
+.front-name { font-size: 12px; letter-spacing: .16em; font-weight: 700; }
+.front-big { font-size: 34px; font-weight: 700; line-height: 1; }
+.front-row { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line-soft, #2a2216); padding: 6px 0; font-size: 12px; }
+.front-detail { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+@media (max-width: 900px) { .fronts { grid-template-columns: 1fr; } }

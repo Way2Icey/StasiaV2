@@ -24,13 +24,15 @@ function usePlay() {
   return { run, err };
 }
 
-export function GroundsPage() {
+export function GroundsPage({ bare }: { bare?: boolean } = {}) {
   return (
     <>
+      {bare ? null : (
       <div className="page-title">
         <h2>Circuit &amp; tourneys</h2>
         <p>Where reputations are made before anyone is a knight. The circuit runs all year across the Reaches: underground pits in the undercities, public tourneys any house may hold, invitationals and pit nights for invitees only. Our people go on their own when their blood is up; we can send them where we are welcome, and host. Challenges between soldiers come to the Highroy. Less sanctioned than the Crucible, and closer to home.</p>
       </div>
+      )}
       <div className="grid">
         <Upcoming className="span-12" />
         <Tourney className="span-6" />
