@@ -81,7 +81,7 @@ export const SLICE_PLANETS: PlanetSeed[] = [
         description: 'Foundries, the fuel refinery and the shard-weapon lines. Loud, hot and essential.',
         quarters: [
           { name: 'Greyspire Foundries', kind: 'Industry', gives: 'Metals +220 per Phase', overseerRole: 'Forgemaster' },
-          { name: 'Fuel Refinery', kind: 'Refining', gives: 'Fuel +60 per Phase from Navisium and energy', overseerRole: 'Chief Engineer' },
+          { name: 'Fuel Refinery', kind: 'Refining', gives: 'Fuel +35 per Phase from Navisium and energy', overseerRole: 'Chief Engineer' },
           { name: 'Shard Works', kind: 'Arms', gives: 'Components · shard rifles', overseerRole: 'Master of Arms' },
           { name: 'Workers’ Wards', kind: 'Housing', gives: '90,000 residents' },
         ],

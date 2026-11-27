@@ -534,12 +534,17 @@ export function advanceAmbitions(world: World, rng: Rng, phaseTurned: boolean): 
     // It gnaws: faster for the ambitious, and when someone they dislike stands in the way.
     const b = blocker(world, c, a);
     const grate = b && b.id !== c.id ? Math.max(0, -opinion(world, c.id, b.id)) / 20 : 0;
-    a.frustration = clamp(a.frustration + c.hidden.ambition / 9 + grate + rng.gauss(), 0, 100);
+    // Past the halfway mark it eases too: time, a good mood and a lord they like all take the edge off.
+    const lordId = world.houses[c.houseId]?.rulerId;
+    const ease = a.frustration < 50 ? 0 : 0.5 + ((c.mood ?? 50) >= 60 ? 0.5 : 0) + (lordId && opinion(world, c.id, lordId) >= 25 ? 0.5 : 0);
+    a.frustration = clamp(a.frustration + c.hidden.ambition / 14 + grate / 2 + rng.gauss() * 0.8 - ease, 0, 100);
+    // Long past bearing, most people give it up in the end.
+    if (a.frustration >= 90 && absoluteCycle(a.since) < now - CYCLES_PER_PHASE * 40 && rng.chance(0.1)) { delete world.ambitions.of[c.id]; shiftMood(c, -5); continue; }
     if (c.houseId !== P) { if (ready(world, c)) otherHouse(world, rng, c, a); continue; }
     // They come to the Highroy.
     const lordFam = world.characters[world.houses[P]?.rulerId ?? '']?.familyId;
     const important = !!c.seat || c.role === 'Knight' || c.role === 'Heir' || c.familyId === lordFam || a.frustration >= 70;
-    if (ready(world, c) && important && a.frustration >= 40 && a.frustration < 85 && world.ambitions.audiences.length < 3 && !isAway(world, c.id) && !world.ambitions.audiences.some((x) => x.characterId === c.id)) {
+    if (ready(world, c) && important && a.frustration >= 35 && a.frustration < 85 && world.ambitions.audiences.length < 3 && !isAway(world, c.id) && !world.ambitions.audiences.some((x) => x.characterId === c.id)) {
       a.asked = world.date;
       a.known = true;
       spendWill(world, c);
@@ -562,7 +567,7 @@ function actAlone(w: World, rng: Rng, c: Character, a: Ambition) {
     setBond(w, c.id, b.id, 'rival', 'rival', `stands between them and ${ambitionText(w, a).replace(/^wants (to )?/, '')}`);
     shiftOpinion(w, b.id, c.id, -20, 'whispers against them');
     if (b.seat) shiftMood(b, -6);
-    a.frustration = 70;
+    a.frustration = 60;
     logRecord(w, { kind: 'intrigue', type: 'intrigue', severity: 1, text: `${displayName(c.name)} has begun working against ${displayName(b.name)} in the corridors. They want what ${shortName(b.name)} has.`, who: [{ id: c.id, part: 'scheming' }, { id: b.id, part: 'in the way' }] });
   } else if (r < 0.75 && c.hidden.loyalty < 12 && !c.seat) {
     // Leave for a house that will give them what they want.
@@ -582,7 +587,7 @@ function actAlone(w: World, rng: Rng, c: Character, a: Ambition) {
     // Sulk, and let it show.
     shiftMood(c, -10);
     if (lord) shiftOpinion(w, c.id, lord, -10, 'will not give them what they want');
-    a.frustration = 75;
+    a.frustration = 60;
     logRecord(w, { kind: 'world', type: 'condition', severity: 1, text: `${displayName(c.name)} no longer hides how little they think of the Highroy's judgment.`, who: [{ id: c.id, part: 'resentful' }] });
   }
 }

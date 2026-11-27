@@ -165,7 +165,9 @@ export function advanceQuests(w: World, rng: Rng, phaseTurned: boolean): void {
     const open = s.board.filter((q) => !q.goneId && BOARD_OF[q.kind] === board);
     if (open.length >= max) return;
     const have = new Set(s.board.map((q) => q.title));
-    const fresh = make().filter((d) => !have.has(d.title));
+    // One job of a kind against any one house at a time.
+    const kindAt = new Set(s.board.filter((q) => q.where).map((q) => `${q.kind}:${q.where}`));
+    const fresh = make().filter((d) => !have.has(d.title) && !(d.where && kindAt.has(`${d.kind}:${d.where}`)) && (kindAt.add(`${d.kind}:${d.where ?? d.title}`), true));
     for (const d of fresh.sort(() => rng.next() - 0.5).slice(0, Math.min(2, max - open.length))) s.board.push({ ...d, id: `q${w.nextId++}`, posted: w.date });
   };
   stock('grandMaster', 6, () => drafts(w, rng));

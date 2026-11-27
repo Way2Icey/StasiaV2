@@ -2,20 +2,20 @@
 import { Term } from './tip';
 import { useState } from 'react';
 import { useGame, useNav, useWorld } from './context';
-import { AIM_NOTE, AIM_TEXT, aimsFor, receiveRequest, turnAway } from '../sim/talk';
+import { AIM_NOTE, AIM_TEXT, aimsFor, cannotTalk, receiveRequest, turnAway } from '../sim/talk';
 import { SEAT_TITLE } from '../sim/world';
-import { HouseLink, Panel, PersonById, PersonLink } from './links';
+import { Go, HouseLink, Panel, PersonById, PersonLink } from './links';
 import { Portrait } from './portrait';
 import {
   AMBITION_LABEL, ambitionText, answerAudience, appointToSeat, blocker, cannotHoldAudience, cannotKnight, knight, holdAudience, optionsFor, seatTitle,
-  type Answer, type Audience,
+  type Ambition, type Answer, type Audience,
   willOf,
 } from '../sim/ambitions';
 import { knowledgeOf } from '../sim/knowledge';
 import { opinion } from '../sim/relationships';
 import { formatDate } from '../sim/time';
 import { isAway } from '../sim/court';
-import type { CouncilSeat, World } from '../sim/types';
+import type { Character, CouncilSeat, World } from '../sim/types';
 
 function usePlay() {
   const game = useGame();
@@ -100,6 +100,32 @@ export function WantsPanel({ id, className }: { id: string; className?: string }
 }
 
 /** Court › Audiences & ambitions: who is asking to see us, and what our own people want. */
+function AimTable({ rows, lead }: { rows: { c: Character; a: Ambition }[]; lead?: boolean }) {
+  const world = useWorld();
+  const first = lead ? rows.find(({ c, a }) => a.frustration >= 50 && !cannotTalk(world, c.id))?.c.id : undefined;
+  return (
+    <div className="table-wrap">
+      <table className="ctable">
+        <thead><tr><th>WHO</th><th>WANTS</th><th>IN THE WAY</th><th>FRUSTRATION</th><th></th></tr></thead>
+        <tbody>
+          {rows.map(({ c, a }) => {
+            const b = blocker(world, c, a);
+            return (
+              <tr key={c.id} className={c.id === first ? 'lead' : undefined}>
+                <td><PersonLink c={c} /></td>
+                <td>{ambitionText(world, a).replace(/^wants /, '')}{a.promised ? <span className="muted"> · promised</span> : null}</td>
+                <td>{b && b.id !== c.id ? <PersonById id={b.id} /> : <span className="muted">—</span>}</td>
+                <td className="mono" style={{ color: a.frustration >= 70 ? 'var(--orange)' : undefined }}>[{bar(a.frustration)}] {Math.round(a.frustration)}</td>
+                <td style={{ textAlign: 'right' }}>{cannotTalk(world, c.id) ? null : <Go to={{ kind: 'talk', id: c.id }} className={`btn small${c.id === first ? ' lead' : ''}`}>Audience ›</Go>}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function AmbitionsView() {
   const world = useWorld();
   const { run, err } = usePlay();
@@ -131,28 +157,16 @@ export function AmbitionsView() {
           );
         })}
       </Panel>
-      <Panel title="What our people want" aside={`${rows.length} known · ${unknown} unspoken`} className="span-12">
-        <p className="body muted" style={{ margin: 0 }}>Everyone of note wants something. Unmet, it gnaws at them: past 40 they come to you; past 85 they act on their own, against whoever stands in the way, or by leaving for a house that will give it. A promise buys two Orbits.</p>
-        <div className="table-wrap">
-          <table className="ctable">
-            <thead><tr><th>WHO</th><th>WANTS</th><th>IN THE WAY</th><th>FRUSTRATION</th></tr></thead>
-            <tbody>
-              {rows.map(({ c, a }) => {
-                const b = blocker(world, c, a);
-                return (
-                  <tr key={c.id}>
-                    <td><PersonLink c={c} /></td>
-                    <td>{ambitionText(world, a).replace(/^wants /, '')}{a.promised ? <span className="muted"> · promised</span> : null}</td>
-                    <td>{b && b.id !== c.id ? <PersonById id={b.id} /> : <span className="muted">—</span>}</td>
-                    <td className="mono">[{bar(a.frustration)}] {Math.round(a.frustration)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <p className="body muted" style={{ margin: 0, fontSize: 12 }}>To learn what someone wants, call them to an audience from their page.</p>
+      <Panel title="The most restless" aside={`${rows.length} known · ${unknown} unspoken`} className="span-12">
+        <p className="body muted" style={{ margin: 0 }}>Everyone of note wants something. Unmet, it gnaws at them: past 35 they come to you; past 85 they act on their own, against whoever stands in the way, or by leaving for a house that will give it. A promise buys two Orbits.</p>
+        <AimTable rows={rows.slice(0, 5)} lead />
       </Panel>
+      {rows.length > 5 ? (
+        <Panel title="Everyone else who wants something" aside={`${rows.length - 5}`} fold className="span-12">
+          <AimTable rows={rows.slice(5)} />
+        </Panel>
+      ) : null}
+      <p className="muted span-12" style={{ margin: 0, fontSize: 12 }}>To learn what someone wants, call them to an audience from their page.</p>
     </div>
   );
 }

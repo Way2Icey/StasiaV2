@@ -73,19 +73,36 @@ export function GuardsPanel({ className = 'span-12' }: { className?: string }) {
   const { run, err } = usePlay();
   const C = ensureChair(world);
   const close = closeToChair(world).slice(0, 16);
+  // What makes each of them a target: a price on their head, someone sworn to revenge, the envy the house draws.
+  const envy = envyAgainst(world, world.playerHouseId);
+  const dangers: Record<string, { score: number; why: string[] }> = {};
+  for (const c of close) {
+    const why: string[] = [];
+    let score = Math.round(envy / 2);
+    const price = (world.bounties?.list ?? []).filter((b) => b.status === 'open' || b.status === 'hunted').filter((b) => b.target.kind === 'person' && b.target.id === c.id).reduce((n, b) => n + b.reward, 0);
+    if (price) { score += 25 + price / 400; why.push(`a price of ${price.toLocaleString('en-US')} on their head`); }
+    const avengers = Object.entries(world.ambitions?.of ?? {}).filter(([id, a]) => a.kind === 'revenge' && a.target === c.id && world.characters[id]?.alive).length;
+    if (avengers) { score += 15 * avengers; why.push(`${avengers} sworn to revenge`); }
+    if (c.seat === 'highroy' || c.role === 'Heir') { score += 10; why.push(c.seat === 'highroy' ? 'the Highroy' : 'the heir'); }
+    if (envy >= 12) why.push(`the house draws ${envyWord(envy)} envy`);
+    dangers[c.id] = { score: Math.round(score), why };
+  }
+  const lead = close.filter((c) => protection(world, c.id) < 0.5 && dangers[c.id]!.score >= 12).sort((a, b) => dangers[b.id]!.score - dangers[a.id]!.score)[0]?.id;
   return (
     <Panel scroll={380} title={<Term k="guards">Guards on our people</Term>} aside={`${guardCost(world).toLocaleString('en-US')} othes a Phase`} className={className}>
       <div className="body" style={{ display: 'grid', gap: 6 }}>
         <span className="muted" style={{ fontSize: 12 }}>The people nearest the house are the ones envy reaches for{isOurChair(world) ? ', and with the chair ours it reaches often' : ''}. A guard and a good Spymaster turn the knife aside; nothing makes anyone safe.</span>
         <div className="table-wrap"><table className="list">
-          <thead><tr><th>Who</th><th>Protected</th><th>Guard</th></tr></thead>
+          <thead><tr><th>Who</th><th>Danger</th><th>Protected</th><th>Guard</th></tr></thead>
           <tbody>{close.map((c) => {
             const lvl = (C.guards[c.id] ?? 0) as GuardLevel;
+            const d = dangers[c.id]!;
             return (
-              <tr key={c.id}>
+              <tr key={c.id} className={c.id === lead ? 'lead' : undefined}>
                 <td><PersonById id={c.id} /> <span className="muted">{c.role}</span></td>
+                <td style={{ fontSize: 12 }}><span style={{ color: d.score >= 30 ? 'var(--orange)' : d.score >= 12 ? 'var(--gold)' : undefined }}>{d.score >= 30 ? 'High' : d.score >= 12 ? 'Some' : 'Low'}</span>{d.why.length ? <div className="muted" style={{ fontSize: 11 }}>{d.why.join(' · ')}</div> : null}</td>
                 <td className="mono">{Math.round(protection(world, c.id) * 100)}%</td>
-                <td><span className="actions">{([0, 1, 2, 3] as GuardLevel[]).map((l) => <button key={l} type="button" className="pill" aria-pressed={lvl === l} title={`${GUARD_COST[l]} othes a Phase`} onClick={() => run((w) => setGuard(w, c.id, l))}>{GUARD_LABEL[l]}</button>)}</span></td>
+                <td><span className="actions">{([0, 1, 2, 3] as GuardLevel[]).map((l) => <button key={l} type="button" className={`pill${c.id === lead && l === Math.min(3, lvl + 1) ? ' lead' : ''}`} aria-pressed={lvl === l} title={`${GUARD_COST[l]} othes a Phase`} onClick={() => run((w) => setGuard(w, c.id, l))}>{GUARD_LABEL[l]}</button>)}</span></td>
               </tr>
             );
           })}</tbody>

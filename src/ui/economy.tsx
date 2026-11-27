@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { QuarterTerm, Term } from './tip';
 import {
-  computingOf, credibilityMarkup, econ, netPerPhase, phaseLedger, quotaFor, setTax,
+  computingOf, credibilityMarkup, econ, lavishness, LAVISH_FROM, netPerPhase, phaseLedger, quotaFor, setTax,
 } from '../sim/economy';
+import { delta, orbitAgo } from '../sim/since';
+import { modulesOf } from '../sim/holdings';
 import { addCycles, dateParts, formatDate, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from '../sim/time';
 import { RESOURCE_LABEL, RESOURCE_NOTE, RESOURCES, TAX, type Resource, type TaxRate } from '../data/economy';
 import type { LedgerLine, World } from '../sim/types';
@@ -10,6 +12,9 @@ import { useGame, useWorld } from './context';
 import { Go, Panel, PersonById, SectorLink } from './links';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
+const BLOCKS = '▁▂▃▄▅▆▇█';
+/** A small trend line. */
+const spark = (xs: number[]) => { const lo = Math.min(...xs), hi = Math.max(...xs); return xs.map((x) => BLOCKS[hi === lo ? 3 : Math.round(((x - lo) / (hi - lo)) * 7)]).join(''); };
 const signed = (n: number) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `−${fmt(-n)}` : '0');
 
 function nextSettlement(world: World) {
@@ -32,6 +37,12 @@ export function EconomyPage() {
   const markup = credibilityMarkup(world, house);
 
 
+  const hist = (world.since ?? []).map((x) => x.othes);
+  const trend = hist.length >= 2 ? spark([...hist, Math.round(e.stock.othes)]) : '';
+  const ago = orbitAgo(world);
+  const since = ago ? delta(e.stock.othes, ago.othes) : '';
+  const lavish = lavishness(e.stock.othes);
+  const vault = modulesOf(world, house, 'vault')[0];
   const shown = lines.filter((l) => l.resource === sel).sort((a, b) => b.amount - a.amount);
   const recent = e.recent.filter((l) => l.resource === sel);
 
@@ -50,6 +61,7 @@ export function EconomyPage() {
             <span className="eyebrow"><Term k={r}>{RESOURCE_LABEL[r]}</Term></span>
             <strong className={`mono${e.stock[r] < 0 ? ' error' : ''}`}>{fmt(e.stock[r])}</strong>
             <span className={`mono small ${net[r] > 0 ? 'up' : net[r] < 0 ? 'down' : 'muted'}`}>{signed(net[r])} / Phase</span>
+            {r === 'othes' && trend ? <span className="mono small muted" title="Othes in the coffers, each of the last Phases"><span className="spark">{trend}</span> {since ? <span className={since.startsWith('+') ? 'up' : 'down'}>{since} since last Orbit</span> : null}</span> : null}
           </button>
         ))}
         <div className="stock static">
@@ -61,7 +73,7 @@ export function EconomyPage() {
 
       <div className="grid">
         <Panel scroll={520} title={<Term k="ledger">{`${RESOURCE_LABEL[sel]} ledger`}</Term>} aside="Per Phase, at today's rates" className="span-8">
-          <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{RESOURCE_NOTE[sel]}</p>
+          <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{RESOURCE_NOTE[sel]}{sel === 'othes' ? ' What the Steward sells at the Exchange comes on top, less its dues.' : ''}</p>
           <div className="table-wrap">
             <table className="list">
               <thead><tr><th>Source or use</th><th>Where</th><th><Term k="overseer">Run by</Term></th><th style={{ textAlign: 'right' }}>Per Phase</th></tr></thead>
@@ -91,6 +103,18 @@ export function EconomyPage() {
         </Panel>
 
         <div className="span-4 stack">
+          {lavish ? (
+            <Panel title="Full coffers" className="lead">
+              <div className="body" style={{ display: 'grid', gap: 8 }}>
+                <span style={{ fontSize: 13 }}>Above {fmt(LAVISH_FROM)} othes the court lives by the coffers: {fmt(lavish)} a Phase goes on kin, gifts and the household. Othes on ledger drives are not spent this way.</span>
+                <span className="actions">
+                  {vault ? <Go to={{ kind: 'vaults' }} className="btn small lead">Put it on drives ›</Go> : <Go to={{ kind: 'build', what: 'vault' }} className="btn small lead">Build a vault ›</Go>}
+                  <Go to={{ kind: 'frontier' }} className="btn small">Claim on the frontier ›</Go>
+                  <Go to={{ kind: 'spend' }} className="btn small">Great works ›</Go>
+                </span>
+              </div>
+            </Panel>
+          ) : null}
           <Panel title={<Term k="taxes">Taxes</Term>}>
             <div className="body" style={{ display: 'grid', gap: 8 }}>
               <div className="filters">

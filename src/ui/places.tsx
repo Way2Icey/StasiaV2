@@ -46,7 +46,8 @@ export function PlacesPage() {
         <Panel title="Our places" aside={`${ours.length}`} className="span-6">
           {ours.length ? ours.map((s) => (
             <Row key={s.id} s={s}>
-              <span className="muted mono" style={{ fontSize: 12 }}>{yieldsText(s)} · garrison {fmt(s.garrison)}{s.overseerId ? <> · <PersonById id={s.overseerId} /></> : ' · no overseer'}{s.takenFrom ? ' · contested' : ''}</span>
+              <span className="muted mono" style={{ fontSize: 12 }}>{yieldsText(s)} · garrison {fmt(s.garrison)}{s.overseerId ? <> · <PersonById id={s.overseerId} /></> : null}{s.takenFrom ? ' · contested' : ''}</span>
+              {s.overseerId ? null : <Peek t={{ k: 'site', id: s.id }} className={`btn small${s.id === ours.find((x) => !x.overseerId)?.id ? ' lead' : ''}`}>Name an overseer</Peek>}
             </Row>
           )) : <div className="body muted">The house holds no places beyond its worlds.</div>}
         </Panel>

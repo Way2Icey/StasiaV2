@@ -12,7 +12,7 @@ import {
   type HoldReason, type Module, type ModuleKind, type Treatment,
 } from '../sim/holdings';
 import { executeCaptive, interrogateCaptive, releaseCaptive } from '../sim/captives';
-import { demandRansom, econ, heldSectors, ransomValue } from '../sim/economy';
+import { demandRansom, econ, heldSectors, ransomValue, LAVISH_FROM } from '../sim/economy';
 import { isAway } from '../sim/court';
 import { dateParts, formatDate } from '../sim/time';
 import { findSector } from '../sim/query';
@@ -248,9 +248,9 @@ function VaultView({ m }: { m: Module }) {
     <>
       <Panel title="Ledger drives" aside={`security ${Math.round(vaultSecurity(world, m))}`}>
         <pre className="ascii body" style={{ margin: 0 }}>{`RESERVES [${bar(drives, cap, 24)}] ${fmt(drives)} / ${fmt(cap)}\nCOFFERS  ${fmt(othes)} othes on hand`}</pre>
-        <p className="body muted" style={{ margin: 0 }}>Othes on drives cannot be carried off by raiders and steady the house's name: 25,000 or more lifts respect each Orbit. Heists can still try for them.</p>
-        <div className="actions">
-          {[1000, 5000, 20000].map((n) => <button key={n} type="button" className="btn small" disabled={othes < 1 || drives >= cap} onClick={() => run((w) => deposit(w, m.id, n))}>Put away {fmt(n)}</button>)}
+        <p className="body muted" style={{ margin: 0 }}>Othes on drives cannot be carried off by raiders, and the court does not spend them: only coffers above {fmt(LAVISH_FROM)} are spent freely. 25,000 or more on drives lifts respect each Orbit. Heists can still try for them.</p>
+        <div className="actions body">
+          {[1000, 5000, 20000].map((n, i) => <button key={n} type="button" className={`btn small${i === 1 && othes > LAVISH_FROM && drives < cap ? ' lead' : ''}`} disabled={othes < 1 || drives >= cap} onClick={() => run((w) => deposit(w, m.id, n))}>Put away {fmt(n)}</button>)}
           {[1000, 5000].map((n) => <button key={'w' + n} type="button" className="btn small" disabled={drives < 1} onClick={() => run((w) => withdraw(w, m.id, n))}>Draw {fmt(n)}</button>)}
           <button type="button" className="btn small" disabled={drives < 1} onClick={() => run((w) => withdraw(w, m.id, drives))}>Draw all</button>
         </div>

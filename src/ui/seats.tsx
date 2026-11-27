@@ -10,7 +10,8 @@ import { activeMissionOf, MISSION_LABEL } from '../sim/missions';
 import { moodColor, moodLabel, moodOf } from '../sim/mood';
 import { ageOf } from '../sim/characters';
 import { alive, familyHead, isCommoner, sectorsControlledBy } from '../sim/query';
-import { opinion } from '../sim/relationships';
+import { opinion, tieOf } from '../sim/relationships';
+import { orbitAgo } from '../sim/since';
 import { ambitionText } from '../sim/ambitions';
 import { cannotTalk } from '../sim/talk';
 import { QuestBoard } from './sections';
@@ -122,12 +123,11 @@ export function SeatPage({ seat }: { seat: CouncilSeat }) {
         </div>
       </div>
       <div className="subtabs" style={{ marginBottom: 10 }}>
-        {(['grandMaster', 'champion', 'spymaster', 'envoy', 'steward', 'physician', 'elder', 'masterOfRites'] as CouncilSeat[]).map((s2) => (
+        {(['grandMaster', 'envoy', 'spymaster', 'steward', 'champion', 'physician', 'elder', 'masterOfRites'] as CouncilSeat[]).filter((s2) => s2 === seat || s2 !== 'masterOfRites' || councilOf(world, house).some((c) => c.seat === s2)).map((s2) => (
           <Go key={s2} to={{ kind: 'seat', id: s2 }} className="subtab" aria-current={s2 === seat ? 'page' : undefined}>{SEAT_TITLE[s2]}</Go>
         ))}
       </div>
       <div className="grid">
-        {seat === 'grandMaster' || seat === 'envoy' || seat === 'spymaster' ? <QuestBoard seat={seat} className="span-12" /> : null}
         <Panel title="The seat" className="span-12">
           <div className="body seat-head">
             {holder ? (
@@ -143,6 +143,7 @@ export function SeatPage({ seat }: { seat: CouncilSeat }) {
           </div>
           {seat !== 'highroy' ? <NameToSeat seat={seat} /> : null}
         </Panel>
+        {seat === 'grandMaster' || seat === 'envoy' || seat === 'spymaster' ? <QuestBoard seat={seat} className="span-12" /> : null}
         {seat === 'grandMaster' ? <GrandMaster /> : null}
         {seat === 'envoy' ? <Speaker /> : null}
         {seat === 'spymaster' ? <Spymaster /> : null}
@@ -649,6 +650,10 @@ export function CouncilTable({ onOath }: { onOath?: () => void }) {
   const rest = seats.filter((c) => c.seat !== 'highroy');
   const matters = concernsOf(world);
   const pets = court.petitions;
+  const ago = orbitAgo(world);
+  // The seat most worth your attention: one with no task, else the coldest toward you.
+  const lead = rest.find((c) => !court.tasks[c.seat as CouncilSeat] && !isAway(world, c.id))?.id
+    ?? (lord ? rest.filter((c) => opinion(world, c.id, lord) <= -20).sort((a, b) => opinion(world, a.id, lord) - opinion(world, b.id, lord))[0]?.id : undefined);
   const card = (c: Character) => {
     const seat = c.seat as CouncilSeat;
     const a = court.tasks[seat];
@@ -658,12 +663,15 @@ export function CouncilTable({ onOath }: { onOath?: () => void }) {
     const said = court.reports.find((r) => r.seat === seat);
     const op = lord && c.id !== lord ? Math.round(opinion(world, c.id, lord)) : undefined;
     const amb = world.ambitions?.of[c.id];
+    const reasons = lord && c.id !== lord ? (tieOf(world, c.id, lord)?.reasons ?? []).map((r) => r.replace(/^([+-]?\d+) (.*)$/, '$2 ($1)')) : [];
+    const was = ago?.toLord[c.id];
+    const moved = op === undefined || was === undefined ? 0 : Math.round(op - was);
     const votes = [
       ...matters.map((m) => ({ id: m.id, label: m.yes, v: m.backers.includes(c.id) ? 'for' : m.against.includes(c.id) ? 'against' : 'quiet' })),
       ...pets.map((p) => ({ id: p.id, label: MISSION_LABEL[p.kind], v: p.fromId === c.id || p.backers?.includes(c.id) ? 'for' : 'quiet' })),
     ].filter((x) => x.v !== 'quiet');
     return (
-      <button key={c.id} type="button" className={`seat-card table-seat${seat === 'highroy' ? ' head' : ''}`} onClick={() => nav.to(seat === 'highroy' ? { kind: 'character', id: c.id } : { kind: 'seat', id: seat })}>
+      <button key={c.id} type="button" className={`seat-card table-seat${seat === 'highroy' ? ' head' : ''}${c.id === lead ? ' lead' : ''}`} onClick={() => nav.to(seat === 'highroy' ? { kind: 'character', id: c.id } : { kind: 'seat', id: seat })}>
         <span className="eyebrow gold">{SEAT_TITLE[seat]}</span>
         <span className="seat-who">
           <Portrait c={c} date={world.date} high size="small" />
@@ -682,7 +690,7 @@ export function CouncilTable({ onOath }: { onOath?: () => void }) {
         )}
         {said ? <span className="seat-voice">“{said.text}”</span> : null}
         <span className="seat-foot">
-          {op !== undefined ? <span>toward you <span style={{ color: attitudeColor(op) }}>{op > 0 ? '+' : ''}{op}</span></span> : null}
+          {op !== undefined ? <span title={reasons.length ? `Why: ${reasons.join('; ')}` : undefined}>toward you <span style={{ color: attitudeColor(op) }}>{op > 0 ? '+' : ''}{op}</span>{moved ? <span className={`since ${moved > 0 ? 'up' : 'down'}`}>{moved > 0 ? '▲' : '▼'}{Math.abs(moved)}</span> : null}{op <= -10 && reasons[0] ? <span className="muted" style={{ display: 'block', fontSize: 11 }}>{reasons[0]}</span> : null}</span> : null}
           {amb?.known && amb.frustration >= 40 ? <span className="down">wants {ambitionText(world, amb).replace(/^wants /, '')}</span> : null}
         </span>
         {votes.length ? <span className="seat-votes">{votes.map((v) => <span key={v.id} className={`vote ${v.v}`}>{v.v === 'for' ? '✓' : '✗'} {v.label}</span>)}</span> : null}

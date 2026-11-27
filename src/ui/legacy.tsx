@@ -55,7 +55,7 @@ export function LegacyPage({ tab: initial }: { tab?: Tab }) {
 function HallTab() {
   const world = useWorld();
   const L = ensureLegacy(world);
-  const living = Object.values(world.characters).filter((c) => c.alive && c.houseId === world.playerHouseId && (deedsOf(world, c.id).length || rankOf(world, c.id)))
+  const living = Object.values(world.characters).filter((c) => c.alive && c.houseId === world.playerHouseId && deedsOf(world, c.id).length > 0)
     .sort((a, b) => renownOf(world, b.id) - renownOf(world, a.id)).slice(0, 12);
   return (
     <>

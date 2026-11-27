@@ -114,7 +114,7 @@ export function RegisterPanel({ className }: { className?: string }) {
           <tbody>
             {rows.map((h) => (
               <tr key={h.id} className={h.id === P ? 'ours' : undefined}>
-                <td><ArchonHouseLink id={h.id} />{h.simulated ? '' : <span className="muted" title="On the register: not simulated in full"> ·</span>}</td>
+                <td><ArchonHouseLink id={h.id} />{h.simulated ? '' : <span className="muted" title="Known from afar"> ·</span>}</td>
                 <td>{h.tier === 'great' ? 'Great' : 'Minor'}</td>
                 <td>{h.speciesKnown ? SPECIES[h.species].name : <span className="muted">unknown</span>}{h.vassals?.length ? ` (+${h.vassals.map((v) => SPECIES[v].name).join(', ')})` : ''}</td>
                 <td>{n?.exarchon?.houseId === h.id ? 'Exarchon' : n?.seats.includes(h.id) ? 'Seated' : '—'}</td>
@@ -125,7 +125,7 @@ export function RegisterPanel({ className }: { className?: string }) {
             ))}
           </tbody>
         </table>
-        <p className="muted" style={{ fontSize: 11, margin: '6px 0 0' }}>Houses marked · are on the register: they vote, feud, ally and fight in the Crucible, but their people are not simulated one by one.</p>
+        <p className="muted" style={{ fontSize: 11, margin: '6px 0 0' }}>Houses marked · we know only from afar: they vote, feud, ally and fight in the Crucible, but we do not see their people one by one.</p>
       </div>
     </Panel>
   );
@@ -266,6 +266,12 @@ export function NumaradePage() {
               </div>
             ))}
             <span className="muted" style={{ fontSize: 11 }}>Right column: how each seat regards us.</span>
+            {!n.seats.includes(P) ? (() => {
+              const minors = Object.values(a.houses).filter((h) => !h.ended && h.tier === 'minor').sort((x, y) => y.prestige - x.prestige);
+              const rank = minors.findIndex((h) => h.id === P) + 1;
+              const last = n.minorSeats.map((id) => a.houses[id]!).filter(Boolean).sort((x, y) => x.prestige - y.prestige)[0];
+              return <span className="lead" style={{ fontSize: 12, padding: '6px 8px', marginTop: 6 }}>The road to a seat: Minor seats go to the most esteemed Minor Houses when one falls empty. We stand {rank} of {minors.length} at prestige {Math.round(a.houses[P]?.prestige ?? 0)}{last ? `; the lowest seated, House ${last.name}, has ${Math.round(last.prestige)}` : ''}. Crucible honours, great works and a good name raise it.</span>;
+            })() : null}
           </div>
         </Panel>
         <Panel fold="open" title="Bring a motion" aside={sponsor === P ? 'through our own seat' : sponsor ? `through House ${houseName(world, sponsor)}` : 'no one will bring it'} className="span-12">
@@ -363,6 +369,8 @@ export function FrontierPage() {
   if (!a) return null;
   const all = Object.values(a.frontier).sort((x, y) => (x.claimedBy ? 1 : 0) - (y.claimedBy ? 1 : 0) || worthOf(y) - worthOf(x));
   const total = Object.keys(world.planets).length + all.length;
+  // The best claim we can make now.
+  const lead = all.find((x) => !x.claimedBy && !cannotClaim(world, x.id))?.id;
   return (
     <>
       <Title eyebrow="Unclaimed" title="The frontier" sub={`Worlds and moons no house holds. Claim one as an outpost (${CLAIM_COST.othes.toLocaleString('en-US')} othes and ${CLAIM_COST.components} components), hold it three years, and it can be settled into a world of the house. New houses are founded out here too; there can never be more houses than worlds to hold them (${liveHouses(world).length} houses, ${total} worlds known).`} />
@@ -374,7 +382,7 @@ export function FrontierPage() {
               <thead><tr><th>World</th><th>Region</th><th>Kind</th><th>Liveable</th><th>Worth</th><th>Hazard</th><th>Held by</th><th></th></tr></thead>
               <tbody>
                 {all.map((x) => (
-                  <tr key={x.id}>
+                  <tr key={x.id} className={x.id === lead ? 'lead' : undefined}>
                     <td title={x.note}>{wildLabel(x)}<div className="muted" style={{ fontSize: 11 }}>{x.note}</div></td>
                     <td>{x.region}</td>
                     <td>{CLIMATE_LABEL[x.climate]}</td>
@@ -382,7 +390,7 @@ export function FrontierPage() {
                     <td className="mono">{Math.round(worthOf(x) * 100)}</td>
                     <td>{HAZARD_LABEL[x.hazard]}</td>
                     <td>{x.claimedBy ? <><ArchonHouseLink id={x.claimedBy} /> <span className="muted">{x.claimedYear}</span></> : <span className="muted">no one</span>}</td>
-                    <td>{x.claimedBy ? null : (() => { const why = cannotClaim(world, x.id); return <button type="button" className="btn small" disabled={!!why} title={why ?? 'Claim it as an outpost'} onClick={() => claim(x.id)}>Claim</button>; })()}</td>
+                    <td>{x.claimedBy ? null : (() => { const why = cannotClaim(world, x.id); return <button type="button" className={`btn small${x.id === lead ? ' lead' : ''}`} disabled={!!why} title={why ?? 'Claim it as an outpost'} onClick={() => claim(x.id)}>Claim</button>; })()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -423,7 +431,7 @@ export function NewGamePage({ setWorld }: { setWorld: (w: World) => void }) {
   );
   return (
     <>
-      <Title eyebrow="A new chronicle" title="Choose a house" sub="Eighteen houses of the Archon. Four can be played today; the rest are on the register and act on their own, and will open as they are built." />
+      <Title eyebrow="A new chronicle" title="Choose a house" sub="Eighteen houses of the Archon. Four can be played; the rest act on their own." />
       <div className="grid">
         <Panel title="Great Houses" className="span-6"><div className="body house-picks">{greats.map(card)}</div></Panel>
         <Panel title="Minor Houses" className="span-6"><div className="body house-picks">{minors.map(card)}</div></Panel>

@@ -45,10 +45,10 @@ export function MilitaryPage() {
       <div className="grid">
         <Panel title="At a glance" className="span-4">
           <dl className="kv body">
-            <dt>Soldiers</dt><dd className="mono">{fmt(soldiers)} <span className="muted">of {fmt(full)} at full strength</span></dd>
+            <dt>Soldiers</dt><dd className="mono">{fmt(soldiers)} <span className="muted">in our formations, of {fmt(full)} at full strength</span></dd>
             <dt>In the field</dt><dd className="mono">{fmt(away)}</dd>
-            <dt>Can raise</dt><dd className="mono">{fmt(troopsOf(world, P))} <span className="muted">from our garrisons</span></dd>
-            <dt>Ships' crews</dt><dd className="mono">{fmt(crews)} <span className="muted">on {ships.length} ships</span></dd>
+            <dt>Garrisons</dt><dd className="mono">{fmt(troopsOf(world, P))} <span className="muted">holding our worlds, beside the formations</span></dd>
+            <dt>Ships' crews</dt><dd className="mono">{fmt(crews)} <span className="muted">on {ships.length} great ships</span></dd>
             <dt>Cost a Phase</dt><dd className="mono">{fmt(-total)} othes</dd>
           </dl>
         </Panel>

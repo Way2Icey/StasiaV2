@@ -11,11 +11,13 @@ import { CalendarPanel } from './calendar';
 import { DecisionsPanel } from './sections';
 import { StoriesPanel, ThreadsPanel } from './stories';
 import { doingNow } from './decisions';
-import { barsOf, DISLIKE_TIERS, LIKE_TIERS, tierOf } from '../sim/relationships';
+import { barsOf, DISLIKE_TIERS, LIKE_TIERS, opinion, tieOf, tierOf } from '../sim/relationships';
+import { orbitAgo } from '../sim/since';
+import { ambitionText } from '../sim/ambitions';
+import { candidatesFor } from '../sim/quests';
 import { TiesPanel } from './relations';
 import { WantsPanel } from './ambitions';
 import { CareerPanel, Followed } from './careers';
-import { CrucibleGlance } from './crucible';
 import { SectorHoldings } from './holdings';
 import { EmbassyPanel, OurCourtEmbassies } from './embassies';
 import { useEffect, useMemo, useState } from 'react';
@@ -43,8 +45,9 @@ import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
 import { MissionRow } from './missions';
 import { moodColor, moodLabel, moodOf } from '../sim/mood';
-import { CouncilTable, Desk, HallPanel } from './hall';
-import { CaptivesPanel, OathSummary, RansomDemands, StandingPanel } from './council';
+import { Desk } from './hall';
+import { ThisOrbit } from './since';
+import { CaptivesPanel, RansomDemands, StandingPanel } from './council';
 import { formatRange, KNOW, knowledgeOf } from '../sim/knowledge';
 import { activeMissionOf, activeMissions, MISSION_LABEL } from '../sim/missions';
 import {
@@ -108,27 +111,24 @@ export function ThroneRoom() {
 
   return (
     <>
-      <Title title="The Hall" sub="What needs you, what is coming, and the people you follow. Press / to find anything." />
+      <Title title="The Hall" sub="What needs you, what has changed, and what is coming. Press / to find anything." />
       <div className="grid">
         <div className="span-8 stack">
           <RaidPanel />
           <Desk />
+          <ThisOrbit />
           <StoriesPanel />
         </div>
         <div className="span-4 stack">
           <CalendarPanel />
-          <CrucibleGlance />
-          <OathSummary />
+          <Panel title={<Term k="mission">In the field</Term>} aside={<Go to={{ kind: 'missions' }}>Missions ›</Go>}>
+            {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. <Go to={{ kind: 'boards' }}>The boards ›</Go></p> : null}
+            {missions.map((m) => <MissionRow key={m.id} id={m.id} />)}
+          </Panel>
+          <div id="ransoms"><RansomDemands /></div>
         </div>
         <Followed className="span-12" />
-        <HallPanel className="span-7" />
-        <CouncilTable className="span-5" />
-        <div id="ransoms" className="span-6"><RansomDemands /></div>
         <CaptivesPanel className="span-12" hideWhenEmpty />
-        <Panel title={<Term k="mission">Missions in the field</Term>} aside={<Go to={{ kind: 'missions' }}>Missions board ›</Go>} className="span-12">
-          {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. Open anyone's sheet to look into them, or a world to scout it.</p> : null}
-          {missions.map((m) => <MissionRow key={m.id} id={m.id} />)}
-        </Panel>
       </div>
     </>
   );
@@ -215,6 +215,43 @@ export function PeoplePage() {
 
 /** The tab last looked at on a character page, kept for the next person opened. */
 let charTab: 'overview' | 'ties' | 'career' | 'house' = 'overview';
+
+/** One of ours, as they stand with you: what they think and why, what they want, and what you can do with them. */
+function WithYou({ c }: { c: Character }) {
+  const world = useWorld();
+  const P = world.playerHouseId;
+  const lord = world.houses[P]?.rulerId;
+  if (!lord) return null;
+  const op = Math.round(opinion(world, c.id, lord));
+  const reasons = (tieOf(world, c.id, lord)?.reasons ?? []).slice(0, 3);
+  const was = orbitAgo(world)?.toLord[c.id];
+  const moved = was === undefined ? 0 : op - Math.round(was);
+  const amb = world.ambitions?.of[c.id];
+  const talk = cannotTalk(world, c.id);
+  const deeds = (['grandMaster', 'envoy', 'spymaster'] as const).filter((b) => candidatesFor(world, b).some((x) => x.id === c.id));
+  // The step that matters most with them now.
+  const lead = !talk && (op <= -15 || (amb?.known && amb.frustration >= 60) || (amb && !amb.known)) ? 'talk' : deeds.length ? 'deed' : undefined;
+  return (
+    <Panel title="With you" aside={`toward you ${op > 0 ? '+' : ''}${op}${moved ? ` · ${moved > 0 ? '▲' : '▼'}${Math.abs(moved)} this Orbit` : ''}`}>
+      <div className="body" style={{ display: 'grid', gap: 8, fontSize: 13 }}>
+        <div className="row" style={{ border: 0, padding: 0, gap: 10, alignItems: 'baseline' }}>
+          <span className="eyebrow" style={{ width: 90, flexShrink: 0 }}>Why</span>
+          <span>{reasons.length ? reasons.map((r) => r.replace(/^([+-]?\d+) (.*)$/, '$2 ($1)')).join(' · ') : <span className="muted">Nothing much has passed between you.</span>}</span>
+        </div>
+        <div className="row" style={{ border: 0, padding: 0, gap: 10, alignItems: 'baseline' }}>
+          <span className="eyebrow" style={{ width: 90, flexShrink: 0 }}>Wants</span>
+          <span>{amb ? (amb.known ? <>{ambitionText(world, amb).replace(/^wants /, '')} <span className={amb.frustration >= 70 ? 'down' : 'muted'}>· frustration {Math.round(amb.frustration)}</span></> : <span className="muted">They have not said. An audience would tell you.</span>) : <span className="muted">Nothing just now.</span>}</span>
+        </div>
+        <div className="actions">
+          {talk ? <span className="muted" style={{ fontSize: 12 }}>{talk}</span> : <Go to={{ kind: 'talk', id: c.id }} className={`btn small${lead === 'talk' ? ' lead' : ''}`}>Audience ›</Go>}
+          {deeds.length ? <Go to={{ kind: 'missions' }} className={`btn small${lead === 'deed' ? ' lead' : ''}`}>Send on a deed ›</Go> : null}
+          {!c.seat ? <Go to={{ kind: 'council' }} className="btn small">Name to a seat ›</Go> : <Go to={{ kind: 'seat', id: c.seat }} className="btn small">Their seat ›</Go>}
+          <Go to={{ kind: 'people', view: 'guards' }} className="btn small">Guards ›</Go>
+        </div>
+      </div>
+    </Panel>
+  );
+}
 
 export function CharacterPage({ id }: { id: string }) {
   const world = useWorld();
@@ -349,6 +386,7 @@ export function CharacterPage({ id }: { id: string }) {
       <div className="grid">
         <DecisionsPanel id={c.id} />
         <div className="span-8 stack">
+        {c.alive && own && c.id !== lordId && c.tier === 'full' ? <WithYou c={c} /> : null}
         <section className="panel">
           <header><h3>Attributes</h3><span className="aside">1–20 · <span className="gold">17+</span> · <span style={{ color: 'var(--blue)' }}>13–16</span> · 8–12 · <span style={{ color: 'var(--orange)' }}>≤7</span></span></header>
           <div className="stat-cols">

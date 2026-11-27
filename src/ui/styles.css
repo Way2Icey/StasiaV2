@@ -772,3 +772,13 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .ct-sub .table-seat { padding: 8px 10px; gap: 4px; font-size: 12px; }
 .ct-sub .seat-voice { -webkit-line-clamp: 1; }
 @media (max-width: 760px) { .ct-row.ct-sub { grid-template-columns: 1fr; } }
+
+/* 9.10: ties in the house list, the step that matters most, small trends */
+.house-list .tag { margin-right: 4px; display: inline-block; color: var(--muted); }
+.house-list .tag.good { color: var(--green); } .house-list .tag.bad { color: var(--orange); }
+.lead { box-shadow: 0 0 0 1px var(--gold) inset, 0 0 12px -4px var(--gold); }
+.btn.lead { border-color: var(--gold); color: var(--gold); }
+.row.lead, tr.lead > td { background: color-mix(in srgb, var(--gold) 8%, transparent); }
+.spark { font-family: var(--mono, monospace); letter-spacing: -1px; color: var(--gold); }
+.since { font-size: 11px; margin-left: 6px; }
+.orbit-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.3fr); gap: 18px; } @media (max-width: 700px) { .orbit-grid { grid-template-columns: 1fr; } }

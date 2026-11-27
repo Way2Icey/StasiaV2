@@ -11,7 +11,8 @@ import {
 } from '../sim/houses';
 import { cannotEmbargo, cannotTip, cannotWatch, declareEmbargo, embargoed, endWatch, freeWatchShips, knownRivalConvoys, liftEmbargo, startWatch, TIP_CUT, tipOff, WATCH_UPKEEP, watchOf, type WatchStance } from '../sim/lanewatch';
 import { compactOf, convoyLabel, laneName, LANE_BY_ID, LANES, placeName } from '../sim/lanes';
-import { renownTable, renownRow } from '../sim/renown';
+import { renownTable, renownRow, RENOWN_TIERS } from '../sim/renown';
+import { orbitAgo } from '../sim/since';
 import { idleVeterans, isVeteran, letRest, postsFor } from '../sim/veterans';
 import { huntersFree } from '../sim/companies';
 import { absoluteCycle } from '../sim/time';
@@ -137,21 +138,30 @@ export function RenownPage() {
   // Only those with a name worth the word: the rest have not done anything yet.
   const rows = renownTable(world).filter((r) => r.tier !== 'Unknown');
   const ours = rows.filter((r) => world.characters[r.id]?.houseId === P);
-  const Table = ({ list }: { list: typeof rows }) => (
+  const ago = orbitAgo(world);
+  // The one closest to the next tier.
+  const lead = ours.map((r) => ({ r, gap: ([...RENOWN_TIERS].reverse().find(([at]) => at > r.renown)?.[0] ?? Infinity) - r.renown })).sort((a, b) => a.gap - b.gap)[0]?.r.id;
+  // The next tier up, and how far.
+  const nextTier = (v: number) => [...RENOWN_TIERS].reverse().find(([at]) => at > v);
+  const Table = ({ list, mine }: { list: typeof rows; mine?: boolean }) => (
     <div className="table-wrap">
       <table className="ctable">
-        <thead><tr><th>#</th><th>NAME</th><th>HOUSE</th><th>RENOWN</th><th>TIER</th><th>IN HOUSE</th></tr></thead>
+        <thead><tr><th>#</th><th>NAME</th><th>HOUSE</th><th>RENOWN</th><th>TIER</th>{mine ? <th>NEXT</th> : <th>IN HOUSE</th>}</tr></thead>
         <tbody>
-          {list.map((r) => (
-            <tr key={r.id}>
+          {list.map((r) => {
+            const was = mine ? ago?.renown[r.id] : undefined;
+            const moved = was === undefined ? 0 : Math.round((r.renown - was) * 10) / 10;
+            const nt = nextTier(r.renown);
+            return (
+            <tr key={r.id} className={mine && r.id === lead ? 'lead' : undefined}>
               <td className="mono">{r.rankAll}</td>
               <td><PersonById id={r.id} /></td>
               <td><HouseLink id={world.characters[r.id]!.houseId} /></td>
-              <td className="mono">{bar(Math.min(1, r.renown / 160))} {r.renown}</td>
+              <td className="mono">{bar(Math.min(1, r.renown / 160))} {r.renown}{moved ? <span className={`since ${moved > 0 ? 'up' : 'down'}`}>{moved > 0 ? '▲' : '▼'}{Math.abs(moved)}</span> : null}</td>
               <td>{r.tier}</td>
-              <td className="mono">{r.rankHouse}</td>
+              {mine ? <td className="muted" style={{ fontSize: 12 }}>{nt ? `${Math.ceil(nt[0] - r.renown)} to ${nt[1]}` : 'the top'}</td> : <td className="mono">{r.rankHouse}</td>}
             </tr>
-          ))}
+          ); })}
         </tbody>
       </table>
     </div>
@@ -163,7 +173,7 @@ export function RenownPage() {
         <p>What people are known for: titles, bouts and duels won, Crucible honours, missions, raids beaten off, captains hunted, pupils taught. Recent deeds count most; a famous house lends its people a little of its name.</p>
       </div>
       <div className="grid">
-        <Panel title={`House ${world.houses[P]?.name}`} aside={`${ours.length} with a name · our best ranks #${ours[0]?.rankAll ?? '—'} in the Archon`} className="span-12"><Table list={ours} /></Panel>
+        <Panel title={`House ${world.houses[P]?.name}`} aside={`${ours.length} with a name · our best ranks #${ours[0]?.rankAll ?? '—'} in the Archon`} className="span-12"><Table list={ours} mine /><p className="body muted" style={{ margin: 0, fontSize: 12 }}>Renown comes from deeds: a tourney title, a duel won, a Crucible honour, a mission done, a raid beaten off. The boards are the quickest road. <Go to={{ kind: 'missions' }}>The boards ›</Go></p></Panel>
         <Panel fold title="The most famous in the Archon" aside="for measure" className="span-12"><Table list={rows.slice(0, 15)} /></Panel>
       </div>
     </>

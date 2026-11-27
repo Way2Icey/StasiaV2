@@ -17,6 +17,7 @@ import { attitude, attitudeColor } from '../sim/relations';
 import type { Approach, Character, Mission, MissionKind, Outcome } from '../sim/types';
 import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
+import { QuestBoard } from './sections';
 import { Go, HouseLink, Panel, PersonById, PersonLink, PlanetLink, SectorLink } from './links';
 
 const STAGE_LABEL: Record<Mission['stage'], string> = {
@@ -103,21 +104,26 @@ export function MissionsPage() {
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <h2>Missions</h2>
-          <p>Send your people out to learn what others would rather keep. They travel while the clock runs.</p>
+          <p>Work the three great seats keep ready, and missions of your own. Send someone, and they come back with a name, a purse, a secret, or not at all. They travel while the clock runs.</p>
         </div>
       </div>
-      <div className="actions">
-        <Go to={{ kind: 'plan', mission: 'investigate' }} className="btn primary">Plan an investigation</Go>
-        <Go to={{ kind: 'plan', mission: 'scout' }} className="btn">Plan a scouting run</Go>
-        <Go to={{ kind: 'plan', mission: 'envoy' }} className="btn">Send an envoy</Go>
-      </div>
       <FieldSlots />
-      <LeadsPanel />
       <Panel scroll={360} title="In the field" aside={`${active.length} out`}>
-        {active.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out right now.</p> : null}
+        {active.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out right now. Pick a job from the boards below.</p> : null}
         {active.map((m) => <MissionRow key={m.id} id={m.id} />)}
       </Panel>
-      <Panel scroll={440} title="Reports" aside={`${past.length} filed`}>
+      <QuestBoard seat="grandMaster" />
+      <QuestBoard seat="envoy" />
+      <QuestBoard seat="spymaster" />
+      <LeadsPanel />
+      <Panel title="A mission of your own">
+        <div className="body actions">
+          <Go to={{ kind: 'plan', mission: 'investigate' }} className="btn small">Investigate someone ›</Go>
+          <Go to={{ kind: 'plan', mission: 'scout' }} className="btn small">Scout a world ›</Go>
+          <Go to={{ kind: 'plan', mission: 'envoy' }} className="btn small">Send an envoy ›</Go>
+        </div>
+      </Panel>
+      <Panel scroll={440} fold={past.length > 0} title="Reports" aside={`${past.length} filed`}>
         {past.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No reports yet.</p> : (
           <div className="table-wrap">
             <table className="list">

@@ -5,6 +5,8 @@ import { Go, Panel, PersonById } from './links';
 import { bar } from './hall';
 import { Term } from './tip';
 import { ArchonHouseLink } from './archon';
+import { registerStrength } from './dossier';
+import { troopsOf } from '../sim/crucible';
 import { houseName, liveHouses, regardOf } from '../sim/archon';
 import {
   activeWars, assignFormation, cannotDeclare, cannotJoin, commanderOf, declareWar, escalate, FORMATION_LABEL, formationsOf, FRONT_LABEL, GOAL_LABEL,
@@ -62,7 +64,7 @@ export function FormationRow({ f }: { f: Formation }) {
       <div className="fline2" style={{ gap: 10, alignItems: 'baseline' }}>
         <strong style={{ minWidth: 170 }}>{cap(f.name)}</strong>
         <span className="tag">{FORMATION_LABEL[f.kind]}</span>
-        <span className="mono" title="Strength">{bar(f.strength / Math.max(1, f.max), 12)} {fmt(f.strength)}/{fmt(f.max)} {UNIT_LABEL[f.kind]}</span>
+        <span className="mono" title="Strength">{bar(f.strength / Math.max(1, f.max), 12)} {fmt(f.strength)}/{fmt(f.max)} {f.kind === 'fleet' ? 'escorts and frigates' : UNIT_LABEL[f.kind]}</span>
         <span className="mono muted" title="Morale">morale {Math.round(f.morale)}</span>
         <span className="mono muted" title="Battles won of fought">{f.won}/{f.fought} won</span>
       </div>
@@ -242,7 +244,7 @@ export function WarPage() {
         <Panel title="Our forces" aside={`${formationsOf(world, P).length} formations`} className="span-12">
           <div className="body actions"><span className="muted">Where our formations stand, who leads them and what they cost is on the Military page.</span><Go to={{ kind: 'military' }} className="btn small">Military ›</Go></div>
         </Panel>
-        {ours.length ? ours.map((w) => <WarCard key={w.id} war={w} />) : <Panel title="Our wars" className="span-12"><div className="body muted">We are at peace.</div></Panel>}
+        {ours.length ? ours.map((w) => <WarCard key={w.id} war={w} />) : <Readiness />}
         <Panel title="Go to war" className="span-6"><div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}><span>War is declared on a house from its page: Archon › Houses, then the War tab. Our grievances against each are there too.</span><span><Go to={{ kind: 'houses' }} className="btn small primary">The houses ›</Go></span></div></Panel>
         <Panel fold="open" title="Scores and debts" className="span-6">
           <div className="body" style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
@@ -276,6 +278,40 @@ export function WarPage() {
         <div className="span-12"><Go to={{ kind: 'numarade' }} className="btn">The Numarade ›</Go></div>
       </div>
     </>
+  );
+}
+
+/** At peace: how we measure against each house, what lies between us, and who might move first. */
+function Readiness() {
+  const world = useWorld();
+  const P = world.playerHouseId;
+  const mine = troopsOf(world, P);
+  const rows = liveHouses(world).filter((h) => h.id !== P).map((h) => {
+    const theirs = world.houses[h.id] ? troopsOf(world, h.id) : registerStrength(world, h.id)?.troops ?? 0;
+    const ours = grievances(world, P, h.id).length;
+    const against = grievances(world, h.id, P).length;
+    const r = regardOf(world, h.id, P);
+    const risk = against * 20 - r + (theirs > mine ? 15 : 0);
+    return { h, theirs, ours, against, r, risk };
+  }).sort((a, b) => b.risk - a.risk);
+  const lead = rows[0] && rows[0].risk >= 40 ? rows[0].h.id : undefined;
+  return (
+    <Panel title="At peace: how we stand" aside={`our garrisons ${fmt(mine)}`} className="span-12">
+      <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Most likely to come to blows first. Their strength is as well as we know it.</p>
+      <div className="table-wrap"><table className="list">
+        <thead><tr><th>House</th><th>Their garrisons</th><th>Against us</th><th>Our grievances</th><th>Their grievances</th><th /></tr></thead>
+        <tbody>{rows.slice(0, 8).map((x) => (
+          <tr key={x.h.id} className={x.h.id === lead ? 'lead' : undefined}>
+            <td><ArchonHouseLink id={x.h.id} /></td>
+            <td className="mono">{x.theirs ? `${x.theirs > mine ? '▲ ' : ''}${fmt(Math.round(x.theirs / 500) * 500)}` : '?'}</td>
+            <td className="mono" style={{ color: x.r < -10 ? 'var(--orange)' : undefined }}>{x.r > 0 ? '+' : ''}{x.r}</td>
+            <td className="mono">{x.ours || '—'}</td>
+            <td className="mono" style={{ color: x.against ? 'var(--orange)' : undefined }}>{x.against || '—'}</td>
+            <td style={{ textAlign: 'right' }}><Go to={{ kind: 'house', id: x.h.id }} className={`btn small${x.h.id === lead ? ' lead' : ''}`}>Their house ›</Go></td>
+          </tr>
+        ))}</tbody>
+      </table></div>
+    </Panel>
   );
 }
 

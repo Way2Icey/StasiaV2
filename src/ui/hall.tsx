@@ -301,7 +301,7 @@ export function Desk({ className }: { className?: string }) {
       items.push({ id: `w-${s.id}`, mark: '[●]', kind: 'WATCH', text: <>{a.name} docked · {s.name}</>, open: () => ins.open({ k: 'portShip', id: s.id }) });
     }
   }
-  { const door = openBriefings(world); if (door.length) items.unshift({ id: 'door', mark: '[»]', kind: 'AT THE DOOR', text: <>{door.map((b) => world.characters[b.personId]?.name.given).filter(Boolean).slice(0, 3).join(', ')} {door.length === 1 ? 'is' : 'are'} waiting to see you</>, open: () => window.dispatchEvent(new CustomEvent('stasia:door')), acts: [{ label: 'See them', primary: true, run: (w) => w, go: () => window.dispatchEvent(new CustomEvent('stasia:door')) }] }); }
+  { const door = openBriefings(world); if (door.length) items.unshift({ id: 'door', mark: '[»]', kind: 'AT THE DOOR', text: <>{(() => { const names = [...new Set(door.map((b) => world.characters[b.personId]?.name.given).filter(Boolean))]; return <>{names.slice(0, 3).join(', ')}{names.length > 3 ? ` and ${names.length - 3} more` : ''} {names.length === 1 ? 'is' : 'are'} waiting to see you{door.length > names.length ? ` (${door.length} matters)` : ''}</>; })()}</>, open: () => window.dispatchEvent(new CustomEvent('stasia:door')), acts: [{ label: 'See them', primary: true, run: (w) => w, go: () => window.dispatchEvent(new CustomEvent('stasia:door')) }] }); }
   for (const cn of concernsOf(world)) {
     const by = world.characters[cn.raisedBy];
     items.push({ id: cn.id, mark: '[?]', kind: 'CONCERN', text: <>{by ? by.name.given : 'The court'} and {cn.backers.length - 1} others: {cn.yes.toLowerCase()}?</>, when: inCycles(world, cn.expires),

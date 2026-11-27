@@ -150,9 +150,17 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
   const pupils = Object.values(world.training?.enrolments ?? {}).filter((e) => e.houseId === houseId && e.program === 'academy').length;
   upkeep += pupils * 8;
   if (upkeep) lines.push({ resource: 'othes', amount: -upkeep, label: `Upkeep of holdings (${mods})${pupils ? ` and ${pupils} academy places` : ''}`, kind: 'stipend' });
+  // A full treasury is spent: kin, courtiers and household live up to what the coffers hold.
+  const lavish = lavishness(e.stock.othes);
+  if (lavish) lines.push({ resource: 'othes', amount: -lavish, label: 'The court lives by the coffers', kind: 'stipend' });
   lines.push(...standingLines(world, houseId), ...siteLines(world, houseId), ...hunterLines(world, houseId));
   return lines;
 }
+
+/** Above this, a house's kin and court spend more freely each Phase. */
+export const LAVISH_FROM = 15000;
+/** What a full treasury costs each Phase: 6% of what is held above LAVISH_FROM. */
+export function lavishness(othes: number): number { return othes > LAVISH_FROM ? Math.round((othes - LAVISH_FROM) * 0.06) : 0; }
 
 /** Per Phase: what a soldier, a ship or a sworn blade costs to keep at home. In the field at war it is six times that. */
 export const FORCE_UPKEEP = { legion: 0.003, fleet: 6, company: 0.15 } as const;
@@ -372,6 +380,7 @@ function settlePhase(world: World, rng: Rng, houseId: string) {
   for (const l of lines) { e.stock[l.resource] += l.amount; tallyLine(world, houseId, l); }
   e.lastPhase = lines;
   credibilityPhase(world, houseId);
+  fadeStanding(world, rng, houseId);
   e.recent = [];
 
   // Tax mood.
@@ -414,6 +423,13 @@ function settlePhase(world: World, rng: Rng, houseId: string) {
     tell(world, houseId, `We are in debt (${round(e.stock.othes).toLocaleString('en-US')} othes). Our word is worth less: honour −1.`);
   }
   void rng;
+}
+
+/** Each Phase: great honour and respect are kept only by deeds. Above 55, they slip back a little unless renewed. */
+export function fadeStanding(world: World, rng: Rng, houseId: string): void {
+  const st = world.houses[houseId]?.standing;
+  if (!st) return;
+  for (const k of ['honour', 'respect'] as const) if (st[k] > 55 && rng.chance(Math.min(1, (st[k] - 55) / 45))) st[k] -= 1;
 }
 
 /** What a house keeps in store before the Steward calls it surplus. */

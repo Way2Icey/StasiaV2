@@ -1,5 +1,7 @@
 // The rail's sections and their hub pages: a strip of tabs under each section, and the pages that
 // gather features which used to live wherever they were first attached.
+import { whereabouts } from './seats';
+import { canLend, quoteFor } from '../sim/loans';
 import { VeteransPanel } from './realm';
 import { Fragment, useState } from 'react';
 import { decisionsFor, GROUPS, tryRun, type Decision } from './decisions';
@@ -42,8 +44,9 @@ function usePlay() {
 /** The strip of tabs under a section. */
 export function SubTabs({ section, current }: { section: Section | null; current: Route }) {
   const nav = useNav();
-  const tabs = section ? SUBTABS[section] : undefined;
-  if (!tabs) return null;
+  const world = useWorld();
+  const tabs = (section ? SUBTABS[section] : undefined)?.filter((t) => !t.show || t.show(world) || t.on(current));
+  if (!tabs || tabs.length < 2) return null;
   return (
     <nav className="subtabs" aria-label="Section">
       {tabs.map((t) => (
@@ -164,27 +167,36 @@ export function QuestBoard({ className, seat = 'grandMaster' }: { className?: st
   const out = board.filter((q) => q.goneId);
   const who = candidatesFor(world, seat);
   const keeper = Object.values(world.characters).find((c) => c.alive && c.houseId === world.playerHouseId && c.seat === seat);
+  const best = (q: (typeof open)[number]) => [...who].sort((a, b) => odds(world, q, b) - odds(world, q, a))[0];
+  // The job most worth taking now: the best odds, weighed by what it pays.
+  const lead = open.map((q) => { const k = best(q); return { q, p: k ? odds(world, q, k) : 0 }; }).filter((x) => x.p >= 0.4).sort((a, b) => b.p * (1 + b.q.reward / 2000) - a.p * (1 + a.q.reward / 2000))[0]?.q.id;
+  // Our people who would go, but cannot yet.
+  const P = world.playerHouseId;
+  const benched = seat === 'grandMaster' ? Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full' && !c.seat && (c.role === 'Knight' || world.ladder?.of[c.id]?.stage === 'aspirant') && !who.includes(c)) : [];
   return (
     <Panel title={BOARD_LABEL[seat]} aside={`${open.length} waiting · ${out.length} out`} className={className}>
+      {benched.length ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Not free to go: {benched.map((c, i) => <span key={c.id}>{i ? ', ' : ''}<PersonLink c={c} /> ({c.flags.some((f) => f.id === 'wounded') ? 'wounded' : c.flags.some((f) => f.id === 'crucible') ? 'with our Crucible contingent' : /^at home$/i.test(whereabouts(world, c).text) ? 'busy' : whereabouts(world, c).text.toLowerCase()})</span>)}.</p> : null}
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
       {board.length === 0 ? <p className="body muted" style={{ margin: 0 }}>{keeper ? <>{keeper.name.given} posts new work at the turn of each Phase.</> : 'No one holds the seat: no one keeps this board.'}</p> : null}
-      {open.length && !who.length ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{seat === 'spymaster' ? 'No one free with the hands for it. Agents, or anyone with intrigue 10 or better.' : 'No one free to send.'}</p> : null}
+      {open.length && !who.length ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{seat === 'spymaster' ? 'No one free with the hands for it. Agents, or anyone with intrigue 10 or better.' : 'No one free to send. The work keeps until someone is back.'}</p> : null}
       {open.map((q) => {
-        const sel = pick[q.id] ?? who[0]?.id ?? '';
+        const top = best(q);
+        const sel = pick[q.id] ?? top?.id ?? '';
         const c = sel ? world.characters[sel] : undefined;
         const why = sel ? cannotSend(world, q.id, sel) : 'No one free';
+        const longShot = !!top && odds(world, q, top) < 0.2;
         return (
-          <div key={q.id} className="row petition">
+          <div key={q.id} className={`row petition${q.id === lead ? ' lead' : ''}`} style={longShot ? { opacity: 0.6 } : undefined}>
             <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <span><span className="tag mission">{QUEST_LABEL[q.kind]}</span> <strong>{q.title}</strong></span>
               <span style={{ fontSize: 12 }}>{q.text}</span>
-              <span className="muted" style={{ fontSize: 11 }}>{hardWord(q.hard)} · {q.kind === 'bounty' ? 'as long as the trail runs' : <>about {Math.max(1, Math.round(q.cycles * 2.5 / 16))} Phase{q.cycles * 2.5 > 24 ? 's' : ''} away</>}{q.reward ? ` · ${q.reward.toLocaleString('en-US')} othes` : ' · glory only'}</span>
+              <span className="muted" style={{ fontSize: 11 }}>{longShot ? <span className="down">A long shot for anyone we have · </span> : null}{hardWord(q.hard)} · {q.kind === 'bounty' ? 'as long as the trail runs' : <>about {Math.max(1, Math.round(q.cycles * 2.5 / 16))} Phase{q.cycles * 2.5 > 24 ? 's' : ''} away</>}{q.reward ? ` · ${q.reward.toLocaleString('en-US')} othes` : ' · glory only'}</span>
             </span>
             <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0, alignItems: 'center' }}>
               <select className="select" aria-label="Who goes" value={sel} onChange={(e) => setPick({ ...pick, [q.id]: e.target.value })}>
-                {who.map((k) => <option key={k.id} value={k.id}>{k.name.given} {k.name.family ?? k.name.hold ?? ''} · {k.role} · {Math.round(odds(world, q, k) * 100)}%</option>)}
+                {[...who].sort((a, b) => odds(world, q, b) - odds(world, q, a)).map((k) => <option key={k.id} value={k.id}>{k.name.given} {k.name.family ?? k.name.hold ?? ''} · {k.role} · {Math.round(odds(world, q, k) * 100)}%</option>)}
               </select>
-              <button type="button" className="btn small primary" disabled={!!why} title={why ?? (c ? `${Math.round(odds(world, q, c) * 100)}% by the Grand Master's reckoning` : '')} onClick={() => run((w) => sendOnQuest(w, q.id, sel))}>Send</button>
+              <button type="button" className={`btn small primary${q.id === lead ? ' lead' : ''}`} disabled={!!why} title={why ?? (c ? `${Math.round(odds(world, q, c) * 100)}% by the board keeper's reckoning` : '')} onClick={() => run((w) => sendOnQuest(w, q.id, sel))}>Send</button>
             </span>
           </div>
         );
@@ -275,8 +287,27 @@ export function LoansPage() {
         <h2>Loans</h2>
         <p>Othes lent and borrowed between houses: what we owe, what is owed to us, and what others ask of us.</p>
       </div>
-      <div className="grid"><LoansPanel className="span-12" /></div>
+      <div className="grid"><LoansPanel className="span-12" /><Lenders /></div>
     </>
+  );
+}
+
+/** Who would lend to us now, and on what terms, for a middling sum. */
+function Lenders() {
+  const world = useWorld();
+  const P = world.playerHouseId;
+  const SUM = 10000;
+  const rows = Object.keys(world.houses).filter((h) => h !== P).map((h) => ({ h, q: quoteFor(world, h, SUM, 5), can: canLend(world, h) }));
+  return (
+    <Panel title="Who would lend to us" aside={`for ${fmt(SUM)} over five Orbits`} className="span-12">
+      <div className="table-wrap"><table className="list">
+        <thead><tr><th>House</th><th>Could spare</th><th>Terms</th></tr></thead>
+        <tbody>{rows.map(({ h, q, can }) => (
+          <tr key={h}><td><HouseLink id={h} /></td><td className="mono">{fmt(can)}</td><td style={{ fontSize: 12 }}>{'no' in q ? <span className="muted">{q.no}</span> : <>{(q.rate * 100).toFixed(1)}% a Phase{q.collateral.kind !== 'none' ? ` · wants ${q.collateral.kind} as security` : ''}</>}</td></tr>
+        ))}</tbody>
+      </table></div>
+      <p className="body muted" style={{ margin: 0, fontSize: 12 }}>Borrowing is done above. Houses short of othes come to us asking; what they offer shows there too.</p>
+    </Panel>
   );
 }
 
@@ -292,7 +323,7 @@ export function VaultsPage() {
       </div>
       <div className="grid">
         {vaults.length === 0 ? <Panel title="No vaults" className="span-12"><p className="body muted" style={{ margin: 0 }}>We have none. <Go to={{ kind: 'build' }}>Build one ›</Go></p></Panel> : null}
-        {vaults.map((v) => <div key={v.id} className="span-12"><ModuleView m={v} /></div>)}
+        {vaults.map((v) => <div key={v.id} className="span-12 stack"><ModuleView m={v} /></div>)}
       </div>
     </>
   );

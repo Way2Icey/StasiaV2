@@ -27,7 +27,9 @@ import { cannotTalk } from '../sim/talk';
 import { homeRegion, localPrice, placeOrder, regionName } from '../sim/exchange';
 import { GOODS, RESOURCE_LABEL, type Good } from '../data/economy';
 import { SPECIES } from '../data/species';
-import { dateParts } from '../sim/time';
+import { absoluteCycle, dateParts } from '../sim/time';
+import { compactOf } from '../sim/lanes';
+import { orbitAgo } from '../sim/since';
 import type { World } from '../sim/types';
 
 export type DossierTab = 'know' | 'between' | 'dealings' | 'war' | 'shadows' | 'annals';
@@ -44,6 +46,18 @@ function usePlay() {
 }
 
 /** The pop-up itself. */
+/** For a house we only know from afar: a guess at its strength, scaled from the houses we know well. */
+export function registerStrength(world: World, id: string): { troops: number; ships: number } | undefined {
+  const a = world.archon?.houses[id];
+  if (!a) return undefined;
+  const known = Object.keys(world.houses).map((h) => ({ h, x: world.archon?.houses[h] })).filter((k) => k.x && k.x.might * k.x.worlds > 0);
+  if (!known.length) return undefined;
+  const per = known.reduce((n, k) => n + troopsOf(world, k.h) / (k.x!.might * Math.max(1, k.x!.worlds)), 0) / known.length;
+  const ship = known.reduce((n, k) => n + shipsOf(world, k.h).length / (k.x!.might * Math.max(1, k.x!.worlds)), 0) / known.length;
+  const m = a.might * Math.max(1, a.worlds);
+  return { troops: Math.round(per * m), ships: Math.max(1, Math.round(ship * m)) };
+}
+
 export function HouseDossier({ id, onClose, tab: start }: { id: string; onClose: () => void; tab?: DossierTab }) {
   const world = useWorld();
   const [tab, setTab] = useState<DossierTab>(start ?? 'know');
@@ -107,12 +121,15 @@ function Know({ id }: { id: string }) {
           <dt>After</dt><dd>{aim?.known ? <>{AIM_LABEL[aim.kind]}{aim.target ? <> · {aim.target === P ? 'us' : <HouseLink id={aim.target} />}</> : null}</> : <span className="muted">unknown; investigate their Highroy, or question one of theirs</span>}</dd>
         </dl>
       </Panel>
-      <Panel title="Their strength" aside={h ? (depth >= 60 ? 'from good reports' : 'as far as we can tell') : 'on the register only'} className="span-6">
+      <Panel title="Their strength" aside={h ? (depth >= 60 ? 'from good reports' : 'as far as we can tell') : 'a guess, from afar'} className="span-6">
         <dl className="kv body">
           {h ? <>
-            <dt>Soldiers</dt><dd className="mono">{rough(troopsOf(world, id), depth)}</dd>
+            <dt>Garrisons</dt><dd className="mono">{rough(troopsOf(world, id), depth)}</dd>
             <dt>Capital ships</dt><dd className="mono">{depth >= 25 ? ships.length : '?'}{depth >= 60 && ships.length ? <span className="muted"> · {ships.map((s) => s.name).join(', ')}</span> : null}</dd>
-          </> : <><dt>Might</dt><dd className="muted">Not simulated in full; they fight and trade on the register.</dd></>}
+          </> : (() => { const est = registerStrength(world, id); return <>
+            <dt>Garrisons</dt><dd className="mono">{est ? rough(est.troops, depth) : "?"}</dd>
+            <dt>Capital ships</dt><dd className="mono">{est && depth >= 25 ? `about ${est.ships}` : '?'}</dd>
+          </>; })()}
           <dt>Stations we know of</dt><dd>{sites.length ? sites.map((s) => <div key={s.id}>{s.name} <span className="muted mono">· garrison {depth >= 40 ? s.garrison : '?'}</span></div>) : <span className="muted">none; scouts find them</span>}</dd>
         </dl>
       </Panel>
@@ -315,12 +332,34 @@ function Annals({ id }: { id: string }) {
   );
 }
 
+/** What ties us to a house right now, most pressing first. */
+export function withUs(world: World, P: string, id: string): { label: string; tone?: 'bad' | 'good' }[] {
+  const out: { label: string; tone?: 'bad' | 'good' }[] = [];
+  const pair = (p: { a: string; b: string }) => (p.a === P && p.b === id) || (p.b === P && p.a === id);
+  if (atWar(world, P, id)) out.push({ label: 'At war', tone: 'bad' });
+  if ((world.archon?.feuds ?? []).some(pair)) out.push({ label: 'Feud', tone: 'bad' });
+  if ((world.archon?.pacts ?? []).some(pair)) out.push({ label: 'Pact', tone: 'good' });
+  if (compactOf(world, P, id)) out.push({ label: 'Trade compact', tone: 'good' });
+  const now = absoluteCycle(world.date);
+  if ((world.quests?.pacts ?? []).some((x) => x.houseId === id && absoluteCycle(x.until) > now)) out.push({ label: 'Trade agreement', tone: 'good' });
+  for (const l of Object.values(world.loans?.loans ?? {})) {
+    if (l.lender === P && l.borrower === id && l.owed > 0) out.push({ label: `Owes us ${fmt(l.owed)}` });
+    if (l.borrower === P && l.lender === id && l.owed > 0) out.push({ label: `We owe ${fmt(l.owed)}`, tone: 'bad' });
+  }
+  const held = Object.values(world.captives ?? {});
+  if (held.some((c) => c.heldBy === P && world.characters[c.characterId]?.houseId === id)) out.push({ label: 'We hold one of theirs' });
+  if (held.some((c) => c.heldBy === id && world.characters[c.characterId]?.houseId === P)) out.push({ label: 'They hold one of ours', tone: 'bad' });
+  if (Object.values(world.characters).some((c) => c.alive && c.houseId === P && c.location && world.planets[c.location.planetId]?.houseId === id && c.flags.some((f) => f.id === 'ward'))) out.push({ label: 'Our ward is there' });
+  return out;
+}
+
 /** The Houses list, every house one click from its dossier. */
 export function HouseList({ open }: { open: (id: string) => void }) {
   const world = useWorld();
   const P = world.playerHouseId;
   const rows = liveHouses(world).filter((h) => h.id !== P).sort((x, y) => (x.tier === y.tier ? x.name.localeCompare(y.name) : x.tier === 'great' ? -1 : 1));
   const cell = (n: ReactNode) => <td style={{ fontSize: 12 }}>{n}</td>;
+  const ago = orbitAgo(world);
   return (
     <div className="table-wrap">
       <table className="list house-list">
@@ -328,13 +367,16 @@ export function HouseList({ open }: { open: (id: string) => void }) {
         <tbody>
           {rows.map((a) => {
             const r = regardOf(world, a.id, P);
+            const ties = withUs(world, P, a.id);
+            const was = ago?.regard[a.id];
+            const moved = was === undefined ? 0 : Math.round(r - was);
             return (
               <tr key={a.id} className="clickable" onClick={() => open(a.id)}>
-                <td><strong>{a.name}</strong> <span className="muted" style={{ fontSize: 11 }}>{a.tier === 'great' ? 'Great' : 'Minor'}{world.houses[a.id] ? '' : ' · register'}</span></td>
+                <td><strong>{a.name}</strong> <span className="muted" style={{ fontSize: 11 }}>{a.tier === 'great' ? 'Great' : 'Minor'}{world.houses[a.id] ? '' : ' · distant'}</span></td>
                 {cell(a.capital ?? '—')}
                 {cell(<span className="muted">{a.focus}</span>)}
-                <td className="mono" style={{ color: attitudeColor(r) }}>{r > 0 ? '+' : ''}{r}</td>
-                {cell(atWar(world, P, a.id) ? <strong>AT WAR</strong> : (world.archon?.pacts ?? []).some((p) => (p.a === P && p.b === a.id) || (p.b === P && p.a === a.id)) ? 'Pact' : (world.archon?.feuds ?? []).some((p) => (p.a === P && p.b === a.id) || (p.b === P && p.a === a.id)) ? 'Feud' : <span className="muted">·</span>)}
+                <td className="mono" style={{ color: attitudeColor(r) }}>{r > 0 ? '+' : ''}{r}{moved ? <span className={moved > 0 ? 'up' : 'down'} title="since last Orbit"> {moved > 0 ? '▲' : '▼'}{Math.abs(moved)}</span> : null}</td>
+                {cell(ties.length ? ties.map((t, i) => <span key={i} className={`tag${t.tone ? ` ${t.tone}` : ''}`}>{t.label}</span>) : <span className="muted">nothing yet</span>)}
               </tr>
             );
           })}

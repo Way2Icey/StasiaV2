@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createWorld } from './world';
 import { econ, tradeInPlace } from './economy';
-import { cancelOrder, clearExchange, ensureExchange, freight, haul, homeRegion, localPrice, needWord, placeOrder, quote, setPolicy, FLOOR, REGION_EXCHANGE } from './exchange';
+import { cancelOrder, clearExchange, ensureExchange, freight, haul, homeRegion, localPrice, needWord, placeOrder, quote, setPolicy, FLOOR, REGION_EXCHANGE, EXCHANGE_DUES } from './exchange';
 import { startWar } from './war';
 import { BASE_PRICE } from '../data/economy';
 import { Rng } from './rng';
@@ -44,7 +44,7 @@ describe('the regional Exchange', () => {
     const o = econ(w, P).stock.othes;
     expect(tradeInPlace(w, P, 'metals', -50)).toBeNull();
     expect(econ(w, P).stock.othes - o).toBeCloseTo(q.value, -1);
-    expect(q.avg).toBeGreaterThan(BASE_PRICE.metals * FLOOR - freight('metals', homeRegion(w, P), REGION_EXCHANGE) - 0.01);
+    expect(q.avg).toBeGreaterThan((BASE_PRICE.metals * FLOOR - freight('metals', homeRegion(w, P), REGION_EXCHANGE)) * (1 - EXCHANGE_DUES) - 0.01);
   });
 
   it('the Steward holds or sells the surplus as told', () => {

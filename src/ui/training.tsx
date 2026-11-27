@@ -43,6 +43,7 @@ export function TrainingPage({ id }: { id?: string }) {
       </div>
       <div className="grid">
         <Intake className="span-12" />
+        <Suggested className="span-12" />
         <UnderInstruction className="span-12" />
         <Tutor className="span-6" pick={id} />
         <Drill className="span-6" />
@@ -50,6 +51,43 @@ export function TrainingPage({ id }: { id?: string }) {
         <Panel title="Wards" className="span-12"><p className="body" style={{ margin: 0 }}>Wards live with the house's young: <Go to={{ kind: 'people', view: 'young' }}>People › Younglings & wards ›</Go></p></Panel>
       </div>
     </>
+  );
+}
+
+/** Good pairings ready to make: a youngling with no teacher, and the best of ours for what suits them. */
+function Suggested({ className }: { className?: string }) {
+  const world = useWorld();
+  const { run, err } = usePlay();
+  const P = world.playerHouseId;
+  const free = youths(world, P).filter((c) => !enrolmentOf(world, c.id));
+  const adults = Object.values(world.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full' && !isAway(world, c.id) && !youths(world, P).includes(c));
+  // Each youngling the subject that suits them best, and a teacher not already spoken for.
+  const used: Record<string, number> = {};
+  const pairs: { y: Character; t: Character; subject: Subject; skill: number }[] = [];
+  for (const y of free) {
+    let best: { t: Character; subject: Subject; skill: number } | undefined;
+    for (const subject of Object.keys(SUBJECTS) as Subject[]) {
+      const fit = SUBJECTS[subject].stats.reduce((n, k) => n + y.stats[k], 0) / SUBJECTS[subject].stats.length;
+      for (const t of adults) {
+        if ((used[t.id] ?? 0) + chargesOf(world, t.id).length >= PERSONAL_LIMIT || cannotTutor(world, y.id, t.id)) continue;
+        const score = teacherSkill(world, t.id, subject) + fit;
+        if (!best || score > best.skill) best = { t, subject, skill: score };
+      }
+    }
+    if (best) { used[best.t.id] = (used[best.t.id] ?? 0) + 1; pairs.push({ y, ...best }); }
+    if (pairs.length >= 4) break;
+  }
+  if (!pairs.length) return null;
+  return (
+    <Panel title="Ready to pair" aside={`${free.length} young without a teacher · ${TUTOR_COST} othes a Phase each`} className={className}>
+      {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
+      {pairs.map((p, i) => (
+        <div key={p.y.id} className={`row${i === 0 ? ' lead' : ''}`}>
+          <span style={{ flex: 1, minWidth: 0 }}><PersonLink c={p.t} /> to teach <PersonLink c={p.y} /> <span className="muted">· {SUBJECTS[p.subject].label.toLowerCase()} · teaches at {Math.round(teacherSkill(world, p.t.id, p.subject))}</span></span>
+          <button type="button" className={`btn small${i === 0 ? ' lead' : ''}`} onClick={() => run((w) => startTutoring(w, p.y.id, p.t.id, p.subject))}>Begin</button>
+        </div>
+      ))}
+    </Panel>
   );
 }
 

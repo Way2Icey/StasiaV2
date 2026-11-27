@@ -628,6 +628,8 @@ export interface World {
   seatNotes?: Record<string, { at: number; snap: Record<string, number> }>;
   /** The council at the door: what needs the Highroy, one councillor at a time. */
   briefings?: import('./briefings').BriefState;
+  /** The house's measure each Phase, the last ten. */
+  since?: import('./since').Snapshot[];
   /** The Grand Master's board of deeds. */
   quests?: import('./quests').QuestState;
   /** Concerns the court has brought to the Highroy. */

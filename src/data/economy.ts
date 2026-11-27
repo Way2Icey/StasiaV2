@@ -59,7 +59,7 @@ export const QUARTER_ECONOMY: Record<string, QuarterEconomy> = {
   'Kessmere Terraces': { flow: { provisions: 310 } },
   'Mill Town': { flow: { provisions: 90, othes: 120 } },
   'Greyspire Foundries': { flow: { metals: 220 } },
-  'Fuel Refinery': { flow: { navisium: -20, fuel: 60 } },
+  'Fuel Refinery': { flow: { navisium: -20, fuel: 35 } },
   'Shard Works': { flow: { navisium: -10, metals: -30, components: 10 } },
   'The Data Halls': { flow: { othes: -100 }, computing: 160 },
   'Alerion Academy': { flow: { othes: -100 } },

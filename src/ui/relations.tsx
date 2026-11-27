@@ -6,7 +6,9 @@ import { Term } from './tip';
 import { PeoplePage } from './pages';
 import { Younglings } from './training';
 import { AmbitionsView } from './ambitions';
-import { barsOf, BOND_LABEL, DISLIKE_TIERS, factions, LIKE_TIERS, SECRET_BONDS, tierOf, tiesOf, type Bond } from '../sim/relationships';
+import { barsOf, BOND_LABEL, DISLIKE_TIERS, factions, LIKE_TIERS, opinion, SECRET_BONDS, tieOf, tierOf, tiesOf, type Bond } from '../sim/relationships';
+import { cannotTalk } from '../sim/talk';
+import { orbitAgo } from '../sim/since';
 import { knowledgeOf } from '../sim/knowledge';
 import { isAway } from '../sim/court';
 import { SEAT_TITLE } from '../sim/world';
@@ -53,6 +55,16 @@ function circles(world: World): { title: string; people: Character[] }[] {
   ].filter((g) => g.people.length);
 }
 
+const VIEW_NOTE: Partial<Record<View, string>> = {
+  guards: 'Envy reaches for the people nearest the house. Set a guard on those most at risk; it costs every Phase.',
+  opinions: 'What each of our people thinks of you, by where they stand in the house. Least fond first.',
+  ambitions: 'Who is asking to see you, and what the people of the house want. The most restless first.',
+  factions: 'Who stands with whom inside the house.',
+  young: 'The house\'s children and wards: where they are taught, and who could host them.',
+  everyone: 'Everyone we know of.',
+  web: 'Who feels what about whom. Pick anyone to see the house through their eyes. You see other houses\' ties only as far as you know their people.',
+};
+
 export function RelationsPage({ focus: initial, view: initialView }: { focus?: string; view?: View }) {
   const world = useWorld();
   const nav = useNav();
@@ -65,7 +77,7 @@ export function RelationsPage({ focus: initial, view: initialView }: { focus?: s
     <>
       <div className="page-title">
         <h2>{view === 'guards' ? 'Guards on our people' : view === 'opinions' ? 'What the house thinks of you' : view === 'ambitions' ? 'Audiences & ambitions' : view === 'factions' ? 'Factions' : view === 'young' ? 'Younglings & wards' : view === 'everyone' ? 'Everyone' : 'Ties'}</h2>
-        <p>{view === 'guards' ? 'Envy reaches for the people nearest the house. Set a guard on each; it costs every Phase.' : view === 'opinions' ? 'What each of our people thinks of you, by where they stand in the house. Least fond first.' : 'Who feels what about whom. Pick anyone to see the house through their eyes. You see other houses\' ties only as far as you know their people.'}</p>
+        <p>{VIEW_NOTE[view] ?? VIEW_NOTE.web}</p>
       </div>
       {view === 'guards' ? <div className="grid"><GuardsPanel /></div> : view === 'opinions' ? <OpinionsView /> : view === 'everyone' ? <PeoplePage /> : view === 'factions' ? <Factions /> : view === 'young' ? <Younglings /> : view === 'ambitions' ? <AmbitionsView /> : (
         <div className="grid">
@@ -171,21 +183,29 @@ export function OpinionsView() {
     ['Council', take((c) => !!c.seat)],
     ['Family', take((c) => c.familyId === lordC.familyId)],
     ['Knights', take((c) => c.role === 'Knight')],
-    ['Crews', take((c) => captains.has(c.id))],
+    ['Ship captains', take((c) => captains.has(c.id))],
     ['Wards, aspirants & younglings', take(young)],
     ['The rest of the house', take(() => true)],
   ];
   const hunters = Object.values(world.bounties?.hunters ?? {}).filter((h) => h.retainedBy === P && h.status !== 'dead');
+  const ago = orbitAgo(world);
+  const feel = (c: Character) => { const b = barsOf(world, c.id, lord); return Math.round(b.like - b.dislike); };
+  // The one most worth an audience: the least fond of those who matter, if they will come.
+  const lead = [...(groups[0]![1]), ...(groups[1]![1]), ...(groups[2]![1])].filter((c) => !cannotTalk(world, c.id) && feel(c) < -10).sort((a, b) => feel(a) - feel(b))[0]?.id;
   const row = (c: Character) => {
     const b = barsOf(world, c.id, lord);
-    const v = Math.round(b.like - b.dislike);
+    const v = feel(c);
     const word = [tierOf(b.like, LIKE_TIERS), tierOf(b.dislike, DISLIKE_TIERS)].filter(Boolean).join(', but ') || 'No strong feeling';
+    const why = tieOf(world, c.id, lord)?.reasons[0]?.replace(/^([+-]?\d+) (.*)$/, '$2 ($1)');
+    const was = ago?.toLord[c.id];
+    const moved = was === undefined ? 0 : Math.round(opinion(world, c.id, lord) - was);
+    const no = cannotTalk(world, c.id);
     return (
-      <tr key={c.id}>
-        <td><PersonLink c={c} /></td>
-        <td className="muted" style={{ fontSize: 12 }}>{c.seat ? SEAT_TITLE[c.seat] : c.role}{isAway(world, c.id) ? ' · away' : ''}</td>
-        <td className="mono" style={{ whiteSpace: 'nowrap' }}>{opinionBar(v)}</td>
-        <td style={{ fontSize: 12 }}>{word}</td>
+      <tr key={c.id} className={c.id === lead ? 'lead' : undefined}>
+        <td><PersonLink c={c} /><div className="muted" style={{ fontSize: 11 }}>{c.seat ? SEAT_TITLE[c.seat] : c.role}{isAway(world, c.id) ? ' · away' : ''}</div></td>
+        <td className="mono" style={{ whiteSpace: 'nowrap', color: v < -10 ? 'var(--orange)' : v > 10 ? 'var(--green)' : undefined }}>{opinionBar(v)} {v > 0 ? '+' : ''}{v}{moved ? <span className={`since ${moved > 0 ? 'up' : 'down'}`} title="since last Orbit">{moved > 0 ? '▲' : '▼'}{Math.abs(moved)}</span> : null}</td>
+        <td style={{ fontSize: 12 }}>{word}{why ? <div className="muted" style={{ fontSize: 11 }}>{why}</div> : null}</td>
+        <td style={{ textAlign: 'right' }}>{no ? null : <Go to={{ kind: 'talk', id: c.id }} className={`btn small${c.id === lead ? ' lead' : ''}`}>Audience ›</Go>}</td>
       </tr>
     );
   };
@@ -193,9 +213,9 @@ export function OpinionsView() {
     <div className="grid">
       {groups.filter(([, p]) => p.length).map(([title, people]) => {
         const sorted = [...people].sort((a, b) => (barsOf(world, a.id, lord).like - barsOf(world, a.id, lord).dislike) - (barsOf(world, b.id, lord).like - barsOf(world, b.id, lord).dislike));
-        const avg = Math.round(people.reduce((t, c) => t + barsOf(world, c.id, lord).like - barsOf(world, c.id, lord).dislike, 0) / people.length);
+        const fond = people.filter((c) => feel(c) > 10).length, cold = people.filter((c) => feel(c) < -10).length;
         return (
-          <Panel key={title} fold={people.length > 8 ? true : 'open'} title={title} aside={`${people.length} · on average ${avg > 0 ? '+' : ''}${avg}`} className="span-6">
+          <Panel key={title} fold={people.length > 8 && !people.some((c) => c.id === lead) ? true : 'open'} title={title} aside={`${people.length} · ${fond} fond · ${cold} cold`} className="span-6">
             <div className="table-wrap"><table className="list"><tbody>{sorted.map(row)}</tbody></table></div>
           </Panel>
         );

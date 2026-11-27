@@ -65,13 +65,13 @@ export type Section = 'hall' | 'court' | 'people' | 'arms' | 'realm' | 'archon' 
 /** Which rail section a page belongs to: grouped by what the Highroy is doing, not by what things are. */
 export function sectionOf(r: Route): Section | null {
   switch (r.kind) {
-    case 'throne': case 'legacy': return 'hall';
+    case 'throne': return 'hall';
     case 'council': case 'seat': case 'greatSeats': return 'court';
     case 'people': return r.view === 'ambitions' ? 'court' : r.view === 'renown' ? 'realm' : 'people';
     case 'character': case 'talk': case 'trait': case 'flag': case 'species': case 'band': case 'family': return 'people';
     case 'military': case 'training': case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': case 'war': return 'arms';
     case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'lanes': case 'frontier': case 'places': return 'realm';
-    case 'houses': case 'house': case 'embassies': case 'numarade': case 'history': case 'chair': return 'archon';
+    case 'houses': case 'house': case 'embassies': case 'numarade': case 'history': case 'chair': case 'legacy': return 'archon';
     case 'economy': case 'exchange': case 'loans': case 'vaults': case 'spend': return 'treasury';
     case 'missions': case 'mission': case 'plan': case 'bounties': case 'intel': case 'boards': return 'missions';
     case 'log': return 'log';
@@ -96,14 +96,10 @@ export const SECTIONS: SectionDef[] = [
   { id: 'glossary', label: 'GLOSSARY', key: '?', home: { kind: 'glossary' }, utility: true },
 ];
 
-export interface SubTab { label: string; to: Route; on: (r: Route) => boolean }
+export interface SubTab { label: string; to: Route; on: (r: Route) => boolean; /** Shown only when this holds (or when it is the page open). */ show?: (w: World) => boolean }
 const is = (k: Route['kind']) => (r: Route) => r.kind === k;
 /** Each section's strip of tabs: every feature at most two clicks from the rail. */
 export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
-  hall: [
-    { label: 'The Hall', to: { kind: 'throne' }, on: is('throne') },
-    { label: 'Legacy', to: { kind: 'legacy' }, on: is('legacy') },
-  ],
   court: [
     { label: 'Council', to: { kind: 'council' }, on: (r) => r.kind === 'council' || r.kind === 'seat' },
     { label: 'Audiences & ambitions', to: { kind: 'people', view: 'ambitions' }, on: (r) => r.kind === 'people' && r.view === 'ambitions' },
@@ -112,7 +108,6 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
   people: [
     { label: 'Opinions', to: { kind: 'people', view: 'opinions' }, on: (r) => r.kind === 'people' && ((!r.view && !r.focus) || r.view === 'opinions') },
     { label: 'Ties', to: { kind: 'people', view: 'web' }, on: (r) => r.kind === 'people' && (r.view === 'web' || (!r.view && !!r.focus)) },
-    { label: 'Factions', to: { kind: 'people', view: 'factions' }, on: (r) => r.kind === 'people' && r.view === 'factions' },
     { label: 'Younglings & wards', to: { kind: 'people', view: 'young' }, on: (r) => r.kind === 'people' && r.view === 'young' },
     { label: 'Guards', to: { kind: 'people', view: 'guards' }, on: (r) => r.kind === 'people' && r.view === 'guards' },
   ],
@@ -135,9 +130,10 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
   ],
   archon: [
     { label: 'Numarade', to: { kind: 'numarade' }, on: is('numarade') },
-    { label: 'The Chair', to: { kind: 'chair' }, on: is('chair') },
     { label: 'Houses', to: { kind: 'houses' }, on: (r) => r.kind === 'houses' || r.kind === 'house' },
+    { label: 'The Chair', to: { kind: 'chair' }, on: is('chair'), show: (w) => w.archon?.houses[w.playerHouseId]?.tier === 'great' || w.archon?.numarade.exarchon?.houseId === w.playerHouseId },
     { label: 'Annals', to: { kind: 'history' }, on: is('history') },
+    { label: 'Our legacy', to: { kind: 'legacy' }, on: is('legacy') },
   ],
   treasury: [
     { label: 'Ledger', to: { kind: 'economy' }, on: is('economy') },
@@ -147,11 +143,7 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'Pay & great works', to: { kind: 'spend' }, on: is('spend') },
   ],
   missions: [
-    { label: 'Board', to: { kind: 'missions' }, on: (r) => r.kind === 'missions' || r.kind === 'mission' },
-    { label: 'Investigate', to: { kind: 'plan', mission: 'investigate' }, on: (r) => r.kind === 'plan' && r.mission === 'investigate' },
-    { label: 'Scout', to: { kind: 'plan', mission: 'scout' }, on: (r) => r.kind === 'plan' && r.mission === 'scout' },
-    { label: 'Envoy', to: { kind: 'plan', mission: 'envoy' }, on: (r) => r.kind === 'plan' && r.mission === 'envoy' },
-    { label: 'The boards', to: { kind: 'boards' }, on: (r) => r.kind === 'boards' },
+    { label: 'Missions', to: { kind: 'missions' }, on: (r) => r.kind === 'missions' || r.kind === 'mission' || r.kind === 'plan' || r.kind === 'boards' },
     { label: 'Bounties', to: { kind: 'bounties' }, on: (r) => r.kind === 'bounties' },
     { label: 'Cells & intel', to: { kind: 'intel' }, on: (r) => r.kind === 'intel' },
   ],
@@ -166,7 +158,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export function routeLabel(world: World, r: Route): string {
   switch (r.kind) {
     case 'throne': return 'Hall';
-    case 'people': return 'Relations';
+    case 'people': return r.view === 'guards' ? 'Guards' : r.view === 'ambitions' ? 'Audiences & ambitions' : r.view === 'factions' ? 'Factions' : r.view === 'young' ? 'Younglings & wards' : r.view === 'renown' ? 'Renown' : r.view === 'web' || r.focus ? 'Ties' : 'Opinions';
     case 'houses': return 'Houses';
     case 'worlds': return 'Star map';
     case 'save': return 'Save & Load';

@@ -106,7 +106,7 @@ export function AtTheDoor() {
   const head = q.find((b) => b.done && b.kind !== 'task' && b.kind !== 'report') ?? q.find((b) => !b.done) ?? q[0]!;
   return (
     <>
-      {q.length > 1 ? <div className="brief-queue muted">{q.length - 1} more waiting: {q.filter((b) => b !== head).map((b) => world.characters[b.personId]?.name.given).filter(Boolean).join(', ')}</div> : null}
+      {q.length > 1 ? <div className="brief-queue muted">{q.length - 1} more waiting: {[...new Set(q.filter((b) => b !== head).map((b) => world.characters[b.personId]?.name.given).filter(Boolean))].join(', ')}</div> : null}
       <BriefingCard key={head.id} b={head} />
     </>
   );
