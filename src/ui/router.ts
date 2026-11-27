@@ -68,7 +68,7 @@ export function sectionOf(r: Route): Section | null {
   switch (r.kind) {
     case 'throne': return 'hall';
     case 'council': case 'seat': case 'greatSeats': return 'court';
-    case 'people': return r.view === 'ambitions' ? 'court' : r.view === 'renown' ? 'realm' : 'people';
+    case 'people': return r.view === 'ambitions' ? 'court' : r.view === 'renown' ? 'archon' : 'people';
     case 'character': case 'talk': case 'trait': case 'flag': case 'species': case 'band': case 'family': return 'people';
     case 'military': case 'training': case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': case 'war': return 'arms';
     case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'lanes': case 'frontier': case 'places': return 'realm';
@@ -116,12 +116,8 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'War', to: { kind: 'war' }, on: is('war') },
   ],
   realm: [
-    { label: 'Star map', to: { kind: 'worlds' }, on: (r) => r.kind === 'worlds' || r.kind === 'planet' || r.kind === 'sector' || r.kind === 'port' },
-    { label: 'Holdings & build', to: { kind: 'holdings' }, on: (r) => r.kind === 'holdings' || r.kind === 'build' },
-    { label: 'Places', to: { kind: 'places' }, on: is('places') },
-    { label: 'Frontier', to: { kind: 'frontier' }, on: is('frontier') },
+    { label: 'The Realm', to: { kind: 'worlds' }, on: (r) => ['worlds', 'planet', 'sector', 'port', 'holdings', 'build', 'places', 'frontier'].includes(r.kind) },
     { label: 'Lanes & corsairs', to: { kind: 'lanes' }, on: is('lanes') },
-    { label: 'Renown', to: { kind: 'people', view: 'renown' }, on: (r) => r.kind === 'people' && r.view === 'renown' },
   ],
   archon: [
     { label: 'Rankings', to: { kind: 'rankings' }, on: is('rankings') },
@@ -130,6 +126,7 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'The Chair', to: { kind: 'chair' }, on: is('chair'), show: (w) => w.archon?.houses[w.playerHouseId]?.tier === 'great' || w.archon?.numarade.exarchon?.houseId === w.playerHouseId },
     { label: 'Annals', to: { kind: 'history' }, on: is('history') },
     { label: 'Our legacy', to: { kind: 'legacy' }, on: is('legacy') },
+    { label: 'Renown', to: { kind: 'people', view: 'renown' }, on: (r) => r.kind === 'people' && r.view === 'renown' },
   ],
   treasury: [
     { label: 'Ledger', to: { kind: 'economy' }, on: is('economy') },
@@ -157,7 +154,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'people': return r.view === 'ambitions' ? 'Audiences & ambitions' : r.view === 'renown' ? 'Renown' : r.view === 'web' || r.focus ? 'Ties' : 'The House';
     case 'houses': return 'Houses';
     case 'rankings': return 'Rankings';
-    case 'worlds': return 'Star map';
+    case 'worlds': return 'The Realm';
     case 'save': return 'Save & Load';
     case 'missions': return 'Missions';
     case 'bounties': return 'Bounties';

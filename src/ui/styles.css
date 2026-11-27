@@ -831,3 +831,22 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .front-row { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line-soft, #2a2216); padding: 6px 0; font-size: 12px; }
 .front-detail { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
 @media (max-width: 900px) { .fronts { grid-template-columns: 1fr; } }
+/* 9.15: the Realm as an orrery */
+.orb-crumb { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; font-size: 13px; }
+.orb-layout { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.orb-stage { flex: 999 1 560px; position: relative; aspect-ratio: 1 / 1; max-width: 720px; border: 1px solid var(--line); background: radial-gradient(circle at 50% 50%, rgba(242,169,59,.06), transparent 60%); overflow: hidden; }
+.orb-side { flex: 1 1 320px; }
+.orb-ring { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border: 1px solid var(--line); border-radius: 50%; pointer-events: none; }
+.orb-ring.dashed { border-style: dashed; }
+.orb-sun { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); border-radius: 50%; background: var(--gold); box-shadow: 0 0 26px var(--gold); }
+.orb-planet { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid var(--gold); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12px; background: rgba(242,169,59,.08); }
+.orb-body { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 2px; }
+.orb-body:hover .orb-label { color: var(--gold); }
+.orb-dot { display: block; border: 2px solid; border-radius: 50%; background: var(--bg, #0e0c09); }
+.orb-label { font-size: 11px; white-space: nowrap; }
+.orb-sub { font-size: 10px; white-space: nowrap; }
+.orb-row { display: flex; justify-content: space-between; gap: 8px; padding: 7px 6px; border: 0; border-bottom: 1px solid var(--line-soft, #2a2216); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.orb-row:hover { background: rgba(242,169,59,.06); }
+.orb-row.static { cursor: default; }
+.orb-ring, .orb-sun, .orb-planet, .orb-dot { border-radius: 50% !important; }
+.orb-stage { max-width: 600px; }
