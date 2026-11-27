@@ -314,7 +314,7 @@ export function Desk({ className }: { className?: string }) {
     if (c) items.push({ id: r.id, mark: '["]', kind: 'AUDIENCE', open: () => nav.to({ kind: 'people', view: 'ambitions' }), text: <>{c.name.given}{c.houseId !== P ? ` of House ${world.houses[c.houseId ?? '']?.name ?? ''}` : ''} {r.why}</>, when: inCycles(world, r.expires),
       acts: [{ label: 'Receive', primary: true, run: (w) => w, go: () => { game.update((w) => { try { return receiveRequest(w, r.id, 'warm'); } catch { return w; } }); nav.to({ kind: 'talk', id: c.id }); } }, { label: 'Turn away', run: (w) => turnAway(w, r.id) }] });
   }
-  for (const q of (world.quests?.board ?? []).filter((x) => !x.goneId).slice(0, 1)) items.push({ id: q.id, mark: '[⚔]', kind: 'DEED', quiet: true, text: <>On the Grand Master's board: {q.title}</>, open: () => nav.to({ kind: 'knights' }) });
+  { const waiting = (world.quests?.board ?? []).filter((x) => !x.goneId); if (waiting.length) items.push({ id: 'boards', mark: '[⚔]', kind: 'DEED', quiet: true, text: <>{waiting.length} jobs on the boards: {waiting.slice(0, 2).map((q) => q.title).join('; ')}{waiting.length > 2 ? '…' : ''}</>, open: () => nav.to({ kind: 'boards' }) }); }
   for (const pet of world.courts[P]?.petitions ?? []) {
     const from = world.characters[pet.fromId];
     const plan = petitionPlan(world, pet);

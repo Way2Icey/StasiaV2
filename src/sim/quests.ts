@@ -24,10 +24,28 @@ import { knowledgeOf } from './knowledge';
 import { atWar } from './war';
 import { shiftRegard } from './archon';
 import { ensureIntel } from './turning';
+import { isAgent } from './household';
+import { regardOf, houseName } from './archon';
+import { shiftRelation } from './relations';
+import { learn } from './knowledge';
+import { intelFrom } from './turning';
+import { shipsOf } from './fleet';
+import { reportBack } from './briefings';
 import type { Character, World } from './types';
 
-export type QuestKind = 'hunt' | 'escort' | 'guard' | 'trial' | 'relic' | 'beast' | 'bounty' | 'capture' | 'hold';
-export const QUEST_LABEL: Record<QuestKind, string> = { hunt: 'Hunt', escort: 'Escort', guard: 'Keep the peace', trial: 'Trial of arms', relic: 'Recover', beast: 'Clear', bounty: 'Collect a price', capture: 'Take alive', hold: 'Hold the lanes' };
+export type QuestKind = 'hunt' | 'escort' | 'guard' | 'trial' | 'relic' | 'beast' | 'bounty' | 'capture' | 'hold'
+  | 'treaty' | 'tradePact' | 'arbitrate' | 'feast' | 'vote'
+  | 'ledger' | 'plant' | 'leak' | 'sabotage' | 'rescue';
+/** Whose board a deed is on, and so who can be sent. */
+export type Board = 'grandMaster' | 'envoy' | 'spymaster';
+export const BOARD_LABEL: Record<Board, string> = { grandMaster: "The Grand Master's board", envoy: "The Speaker's errands", spymaster: "The Spymaster's work" };
+const BOARD_OF: Record<QuestKind, Board> = {
+  hunt: 'grandMaster', escort: 'grandMaster', guard: 'grandMaster', trial: 'grandMaster', relic: 'grandMaster', beast: 'grandMaster', bounty: 'grandMaster', capture: 'grandMaster', hold: 'grandMaster',
+  treaty: 'envoy', tradePact: 'envoy', arbitrate: 'envoy', feast: 'envoy', vote: 'envoy',
+  ledger: 'spymaster', plant: 'spymaster', leak: 'spymaster', sabotage: 'spymaster', rescue: 'spymaster',
+};
+export const boardOfQuest = (q: Quest): Board => BOARD_OF[q.kind];
+export const QUEST_LABEL: Record<QuestKind, string> = { hunt: 'Hunt', escort: 'Escort', guard: 'Keep the peace', trial: 'Trial of arms', relic: 'Recover', beast: 'Clear', bounty: 'Collect a price', capture: 'Take alive', hold: 'Hold the lanes', treaty: 'Carry terms', tradePact: 'Trade', arbitrate: 'Arbitrate', feast: 'Be seen', vote: 'Win a vote', ledger: 'Steal', plant: 'Plant', leak: 'Find a leak', sabotage: 'Sabotage', rescue: 'Bring home' };
 
 export interface Quest {
   id: string;
@@ -49,7 +67,7 @@ export interface Quest {
   posted: import('./time').GameDate;
 }
 
-export interface QuestState { board: Quest[]; /** Our lanes are held by our knights until then: corsairs think twice. */ heldUntil?: import('./time').GameDate }
+export interface QuestState { board: Quest[]; /** Our lanes are held by our knights until then: corsairs think twice. */ heldUntil?: import('./time').GameDate; /** Trade agreements the Speaker has won: house, and until when it pays. */ pacts?: { houseId: string; until: import('./time').GameDate; perPhase: number }[] }
 
 const HARD = ['', 'an aspirant\'s first', 'a fair test', 'hard', 'very hard', 'a knight\'s last'];
 export const hardWord = (n: number) => HARD[n] ?? '';
@@ -79,6 +97,43 @@ function drafts(w: World, r: Rng): Omit<Quest, 'id' | 'posted'>[] {
   return out;
 }
 
+/** The Speaker's errands: terms, trade, a quarrel settled, a face shown, a vote won. */
+function speakerDrafts(w: World, r: Rng): Omit<Quest, 'id' | 'posted'>[] {
+  const P = w.playerHouseId;
+  const out: Omit<Quest, 'id' | 'posted'>[] = [];
+  const houses = Object.keys(w.houses).filter((h) => h !== P && !atWar(w, P, h));
+  const name = (h: string) => w.houses[h]?.name ?? h;
+  const lukewarm = houses.filter((h) => Math.abs(regardOf(w, h, P)) < 35);
+  if (lukewarm.length) { const h = r.pick(lukewarm); out.push({ kind: 'treaty', where: h, title: `Carry our terms to House ${name(h)}`, text: `House ${name(h)} could be a friend, or could be talked into being one. Go to their court with our terms and a good gift, and come back with their goodwill.`, hard: 2, cycles: 14, reward: 0 }); }
+  const pactable = houses.filter((h) => regardOf(w, h, P) >= -10 && !(w.quests?.pacts ?? []).some((x) => x.houseId === h && absoluteCycle(x.until) > absoluteCycle(w.date)));
+  if (pactable.length) { const h = r.pick(pactable); out.push({ kind: 'tradePact', where: h, title: `Open a trade agreement with House ${name(h)}`, text: `Their factors and ours could do business on better terms than the Exchange gives either of us. Negotiate it: if it holds, it pays every Phase for two Orbits.`, hard: 3, cycles: 16, reward: 250 }); }
+  const feuds = (w.archon?.feuds ?? []).filter((f) => f.a !== P && f.b !== P);
+  if (feuds.length) { const f = r.pick(feuds); out.push({ kind: 'arbitrate', where: `${f.a}|${f.b}`, title: `Settle the quarrel between ${houseName(w, f.a)} and ${houseName(w, f.b)}`, text: `Both houses would rather not lose face. The house that gets them to sit at one table is talked of well in the Numarade.`, hard: 4, cycles: 18, reward: 0 }); }
+  if (houses.length) { const h = r.pick(houses); out.push({ kind: 'feast', where: h, title: r.pick([`Represent us at House ${name(h)}'s feast`, `Stand for us at a funeral at House ${name(h)}'s court`, `Carry our gift to House ${name(h)}'s naming day`]), text: `A small thing, but they will notice who came and who did not. A good pair of ears there learns a great deal about their council.`, hard: 1, cycles: 8, reward: 0 }); }
+  out.push({ kind: 'vote', title: r.pick(['Win the Numarade\'s vote on the levies', 'Carry the vote on the lane tolls', 'Stop the motion against the minor houses']), text: 'A vote is coming in the Numarade. Win it and the house is owed for it, in favour and in othes.', hard: 3, cycles: 12, reward: 800 });
+  return out;
+}
+
+/** The Spymaster's work: ledgers, agents, leaks, sabotage, our own brought home. */
+function spyDrafts(w: World, r: Rng): Omit<Quest, 'id' | 'posted'>[] {
+  const P = w.playerHouseId;
+  const out: Omit<Quest, 'id' | 'posted'>[] = [];
+  const houses = Object.keys(w.houses).filter((h) => h !== P);
+  const name = (h: string) => w.houses[h]?.name ?? h;
+  if (houses.length) {
+    const rich = [...houses].sort((a, b) => econ(w, b).stock.othes - econ(w, a).stock.othes)[0]!;
+    out.push({ kind: 'ledger', where: rich, title: `Steal House ${name(rich)}'s ledgers`, text: `Their counting house keeps everything: who they pay, who they owe, what they hide. Copy it, and skim what can be skimmed on the way out. If our agent is caught, they will know whose.`, hard: 4, cycles: 14, reward: 0 });
+    const h = r.pick(houses);
+    out.push({ kind: 'plant', where: h, title: `Plant an agent in House ${name(h)}'s household`, text: 'A servant, a clerk, a guard who owes us. Once inside, they will send word of what the house is planning and who on their council is weak.', hard: 3, cycles: 16, reward: 0 });
+    const s = r.pick(houses);
+    out.push({ kind: 'sabotage', where: s, title: r.pick([`Foul House ${name(s)}'s shipyard`, `Burn House ${name(s)}'s grain stores`, `Spoil House ${name(s)}'s convoy at the docks`]), text: 'Nothing anyone could prove. Just a bad Phase for them, and a costly one.', hard: 4, cycles: 12, reward: 0 });
+  }
+  out.push({ kind: 'leak', title: 'Find the leak in our own house', text: 'Things said at our table are being heard elsewhere. Someone is talking. Find out who.', hard: 3, cycles: 12, reward: 0 });
+  const held = Object.values(w.captives).find((c) => c.heldBy !== P && w.characters[c.characterId]?.houseId === P && w.characters[c.characterId]?.alive);
+  if (held) { const c = w.characters[held.characterId]!; out.push({ kind: 'rescue', subject: c.id, where: held.heldBy, title: `Bring ${shortName(c.name)} home from House ${name(held.heldBy)}'s cells`, text: `${shortName(c.name)} has been in their cells since ${held.since.year}. A guard can be bought, a door left open. If it goes wrong, we lose two.`, hard: 4, cycles: 14, reward: 0 }); }
+  return out;
+}
+
 export function ensureQuests(w: World): QuestState { return (w.quests ??= { board: [] }); }
 
 /** Each Phase the Grand Master keeps the board stocked; those sent come home and tell how it went. */
@@ -102,33 +157,53 @@ export function advanceQuests(w: World, rng: Rng, phaseTurned: boolean): void {
   if (!phaseTurned) return;
   // Old, untaken work goes off the board after two Orbits.
   s.board = s.board.filter((q) => q.goneId || absoluteCycle(q.posted) + CYCLES_PER_PHASE * 10 > now);
-  if (!seatHolder(w, w.playerHouseId, 'grandMaster')) return;
-  const open = s.board.filter((q) => !q.goneId);
-  if (open.length >= 6) return;
-  const have = new Set(s.board.map((q) => q.title));
-  const fresh = drafts(w, rng).filter((d) => !have.has(d.title));
-  for (const d of fresh.sort(() => rng.next() - 0.5).slice(0, Math.min(3, 6 - open.length))) s.board.push({ ...d, id: `q${w.nextId++}`, posted: w.date });
+  // Trade agreements pay every Phase while they hold.
+  for (const pact of s.pacts ?? []) if (absoluteCycle(pact.until) > now && w.houses[pact.houseId] && !atWar(w, w.playerHouseId, pact.houseId)) record(w, w.playerHouseId, { resource: 'othes', amount: pact.perPhase, label: `Trade agreement with House ${w.houses[pact.houseId]!.name}`, kind: 'trade' });
+  s.pacts = (s.pacts ?? []).filter((x) => absoluteCycle(x.until) > now);
+  const stock = (board: Board, max: number, make: () => Omit<Quest, 'id' | 'posted'>[]) => {
+    if (!seatHolder(w, w.playerHouseId, board)) return;
+    const open = s.board.filter((q) => !q.goneId && BOARD_OF[q.kind] === board);
+    if (open.length >= max) return;
+    const have = new Set(s.board.map((q) => q.title));
+    const fresh = make().filter((d) => !have.has(d.title));
+    for (const d of fresh.sort(() => rng.next() - 0.5).slice(0, Math.min(2, max - open.length))) s.board.push({ ...d, id: `q${w.nextId++}`, posted: w.date });
+  };
+  stock('grandMaster', 6, () => drafts(w, rng));
+  stock('envoy', 4, () => speakerDrafts(w, rng));
+  stock('spymaster', 4, () => spyDrafts(w, rng));
 }
 
-/** Who may be sent: knights and aspirants at home, grown, and unhurt. */
-export function candidatesFor(w: World): Character[] {
+/** What each board's work leans on. */
+export function skillFor(board: Board, c: Character): number {
+  const s = c.stats;
+  if (board === 'envoy') return (s.diplomacy * 0.4 + s.eloquence * 0.3 + s.negotiation * 0.3) * 1.05 + (c.traits.some((t) => t.id === 'silverTongued' || t.id === 'charismatic') ? 1.5 : 0);
+  if (board === 'spymaster') return (s.intrigue * 0.4 + s.stealth * 0.3 + s.deception * 0.3) * 1.05 + (isAgent(c) ? 2 : 0) + (c.traits.some((t) => t.id === 'cunning') ? 1.5 : 0);
+  return fightScore(c);
+}
+
+/** Who may be sent: grown, at home, unhurt, and suited to the board. Knights and aspirants for the Grand Master; anyone with a tongue for the Speaker; agents and the sly for the Spymaster. */
+export function candidatesFor(w: World, board: Board = 'grandMaster'): Character[] {
   const P = w.playerHouseId;
-  return Object.values(w.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full' && !c.seat && !isAway(w, c.id)
+  return Object.values(w.characters).filter((c) => c.alive && c.houseId === P && c.tier === 'full' && !c.seat && !isAway(w, c.id) && !w.captives[c.id]
     && !c.flags.some((f) => f.id === 'wounded') && ageOf(c, w.date) >= SPECIES[c.species].adulthood * 0.8
-    && (isMilitary(w, c) || w.ladder?.of[c.id]?.stage === 'aspirant' || w.ladder?.of[c.id]?.stage === 'blooded'))
-    .sort((a, b) => fightScore(b) - fightScore(a));
+    && (board !== 'grandMaster' || isMilitary(w, c) || w.ladder?.of[c.id]?.stage === 'aspirant' || w.ladder?.of[c.id]?.stage === 'blooded')
+    && (board !== 'spymaster' || isAgent(c) || c.stats.intrigue >= 10))
+    .sort((a, b) => skillFor(board, b) - skillFor(board, a)).slice(0, 12);
 }
 
 export function odds(_w: World, q: Quest, c: Character): number {
-  const skill = fightScore(c) + (q.kind === 'hunt' || q.kind === 'relic' ? (c.stats.perception + c.stats.stealth) / 4 : q.kind === 'guard' ? (c.stats.diplomacy + c.stats.composure) / 4 : q.kind === 'escort' ? (c.stats.tactics + c.stats.perception) / 4 : 0);
-  return Math.max(0.1, Math.min(0.95, 0.5 + (skill - (6 + q.hard * 3)) / 14));
+  const board = BOARD_OF[q.kind];
+  const extra = board !== 'grandMaster' ? 0 : q.kind === 'hunt' || q.kind === 'relic' ? (c.stats.perception + c.stats.stealth) / 4 : q.kind === 'guard' ? (c.stats.diplomacy + c.stats.composure) / 4 : q.kind === 'escort' ? (c.stats.tactics + c.stats.perception) / 4 : 0;
+  const skill = skillFor(board, c) + extra;
+  const bar = board === 'grandMaster' ? 6 + q.hard * 3 : 4 + q.hard * 2.5;
+  return Math.max(0.1, Math.min(0.95, 0.5 + (skill - bar) / (board === 'grandMaster' ? 14 : 10)));
 }
 
 export function cannotSend(w: World, questId: string, personId: string): string | null {
   const q = w.quests?.board.find((x) => x.id === questId);
   if (!q || q.goneId) return 'Already taken';
   const c = w.characters[personId];
-  if (!c || !candidatesFor(w).some((x) => x.id === personId)) return 'They cannot go';
+  if (!c || !candidatesFor(w, BOARD_OF[q.kind]).some((x) => x.id === personId)) return 'They cannot go';
   return null;
 }
 
@@ -151,7 +226,7 @@ export function sendOnQuest(input: World, questId: string, personId: string): Wo
   q.back = addCycles(w.date, Math.round(q.cycles * 2.5));
   c.flags.push({ id: 'quest', since: w.date, detail: q.title });
   shiftMood(c, 6);
-  logRecord(w, { kind: 'world', type: 'mission', severity: 1, seat: 'grandMaster', text: `${displayName(c.name)} rides out: ${q.title.charAt(0).toLowerCase() + q.title.slice(1)}.`, who: [{ id: c.id, part: 'sent' }] });
+  logRecord(w, { kind: 'world', type: 'mission', severity: 1, seat: BOARD_OF[q.kind], text: `${displayName(c.name)} ${BOARD_OF[q.kind] === 'grandMaster' ? 'rides out' : BOARD_OF[q.kind] === 'envoy' ? 'sets out' : 'slips away'}: ${q.title.charAt(0).toLowerCase() + q.title.slice(1)}.`, who: [{ id: c.id, part: 'sent' }] });
   return w;
 }
 
@@ -186,6 +261,18 @@ function resolve(w: World, r: Rng, q: Quest): void {
         if (r.chance(0.4) && f.houseId) { shiftRegard(w, f.houseId, P, -20); ensureIntel(w).wrongs.push({ by: P, against: f.houseId, text: `They took ${shortName(f.name)} from us.`, year: w.date.year }); effects.push(`House ${w.houses[f.houseId]?.name} knows it was us`); }
       } else effects.push('The mark was gone before we got there');
     }
+    const H = q.where && w.houses[q.where] ? q.where : undefined;
+    const HN = H ? w.houses[H]!.name : '';
+    if (q.kind === 'treaty' && H) { const g = great ? 18 : 12; shiftRegard(w, H, P, g); shiftRelation(w, H, P, g); effects.push(`House ${HN} regard +${g}`); }
+    if (q.kind === 'tradePact' && H) { const per = great ? 350 : 250; (ensureQuests(w).pacts ??= []).push({ houseId: H, until: addCycles(w.date, CYCLES_PER_PHASE * 10), perPhase: per }); shiftRegard(w, H, P, 5); effects.push(`A trade agreement with House ${HN}: +${per} othes a Phase for two Orbits`); }
+    if (q.kind === 'arbitrate' && q.where) { const [a, b] = q.where.split('|'); const st = w.houses[P]!.standing; st.respect = Math.min(100, st.respect + 4); if (w.realm?.favour) w.realm.favour[P] = Math.min(100, (w.realm.favour[P] ?? 50) + 5); for (const h of [a!, b!]) if (w.houses[h]) shiftRegard(w, h, P, 6); if (w.archon) w.archon.feuds = w.archon.feuds.filter((f) => !((f.a === a && f.b === b) || (f.a === b && f.b === a))); effects.push('Respect +4', "The Numarade's favour +5", `The feud between ${houseName(w, a!)} and ${houseName(w, b!)} is ended`); }
+    if (q.kind === 'feast' && H) { shiftRegard(w, H, P, 6); for (const k of Object.values(w.characters).filter((x) => x.alive && x.houseId === H && x.seat)) learn(w, P, k.id, great ? 15 : 10); effects.push(`House ${HN} regard +6`, 'We know their council better'); }
+    if (q.kind === 'vote') { if (w.realm?.favour) w.realm.favour[P] = Math.min(100, (w.realm.favour[P] ?? 50) + 6); effects.push("The Numarade's favour +6"); }
+    if (q.kind === 'ledger' && H) { const amt = Math.round(Math.min(econ(w, H).stock.othes * 0.04, 3000) / 50) * 50; if (amt > 0) { econ(w, H).stock.othes -= amt; record(w, P, { resource: 'othes', amount: amt, label: `Skimmed from House ${HN}'s accounts`, kind: 'boon' }); effects.push(`+${amt.toLocaleString('en-US')} othes, skimmed`); } const k = Object.values(w.characters).find((x) => x.alive && x.houseId === H && x.seat); if (k) { const it = intelFrom(w, r, k, `House ${HN}'s ledgers`, false, 3); if (it) effects.push(`Intel: ${it.text}`); } }
+    if (q.kind === 'plant' && H) { const k = Object.values(w.characters).filter((x) => x.alive && x.houseId === H && x.seat); for (const x of k) learn(w, P, x.id, 15); for (let i = 0; i < (great ? 3 : 2); i++) { const src = k.length ? r.pick(k) : undefined; const it = src ? intelFrom(w, r, src, `our agent inside House ${HN}`, false, 2) : null; if (it) effects.push(`Intel: ${it.text}`); } }
+    if (q.kind === 'sabotage' && H) { const hit = Math.round(Math.min(econ(w, H).stock.othes * 0.06, 5000) / 50) * 50; econ(w, H).stock.othes = Math.max(0, econ(w, H).stock.othes - hit); for (const sh of shipsOf(w, H).slice(0, 1)) sh.condition = Math.max(0, sh.condition - 20); effects.push(`House ${HN} loses about ${hit.toLocaleString('en-US')} othes${shipsOf(w, H).length ? ', and a ship is laid up' : ''}`); }
+    if (q.kind === 'leak') { const sly = Object.values(w.characters).find((x) => x.alive && x.houseId === P && x.flags.some((f) => f.id === 'secretLoyalty')); if (sly) { const f = sly.flags.find((x) => x.id === 'secretLoyalty')!; (f.knownBy ??= []).push(P); effects.push(`The leak is ${shortName(sly.name)}: ${f.detail ?? 'loyal to another house'}`); } else { for (const x of Object.values(w.characters).filter((y) => y.alive && y.houseId === P)) learn(w, P, x.id, 3); effects.push('No traitor: a careless tongue, now quiet', 'We know our own people better'); } }
+    if (q.kind === 'rescue') { const f = q.subject ? w.characters[q.subject] : undefined; if (f?.alive && w.captives[f.id]) { const from = w.captives[f.id]!.heldBy; delete w.captives[f.id]; f.flags = f.flags.filter((x) => x.id !== 'captive' && x.id !== 'missing'); shiftMood(f, 15); effects.push(`${shortName(f.name)} is home`); if (r.chance(0.5)) { shiftRegard(w, from, P, -10); effects.push(`House ${w.houses[from]?.name} knows who took them`); } } }
     if (q.kind === 'hunt') { const f = w.lanes?.factions[q.where ?? '']; const m = f?.members.find((x) => x.role === 'captain' && !x.fate); if (m) { m.fate = 'dead'; effects.push(`${m.name} is dead`); } }
     if (q.reward) { const amt = great ? Math.round(q.reward * 1.5) : q.reward; record(w, P, { resource: 'othes', amount: amt, label: q.title, kind: 'boon' }); effects.push(`+${amt.toLocaleString('en-US')} othes`); }
     addGlory(w, c.id, great ? 2 : 1);
@@ -197,8 +284,28 @@ function resolve(w: World, r: Rng, q: Quest): void {
     lines.push(r.pick([`${C} came back with nothing to show for it.`, `It went wrong from the first day, ${C} says.`, `${C} will not talk about it.`]));
     if (q.kind === 'trial') { w.houses[P]!.standing.respect = Math.max(0, w.houses[P]!.standing.respect - 1); effects.push('Respect −1'); addMark(w, c, { kind: 'shame', text: 'lost the trial of arms', place: 'at the academy' }); }
   }
-  if (dead) { kill(w, c, w.date, `killed abroad: ${q.title.toLowerCase()}`); lines.push(`${C} did not come back. The Grand Master brought word.`); effects.push(`${C} is dead`); }
-  else if (hurt) { c.flags.push({ id: 'wounded', since: w.date }); addMark(w, c, { kind: 'wound', text: r.pick(['a cut across the ribs', 'a burn down one arm', 'a cracked shoulder']), place: 'abroad' }); effects.push(`${C} is wounded`); }
-  logRecord(w, { kind: 'world', type: 'mission', severity: dead ? 3 : won ? 2 : 1, seat: 'grandMaster', text: `${q.title}: ${dead ? `${C} is dead` : won ? (great ? `${C} triumphs` : `${C} succeeds`) : `${C} fails`}.`, who: [{ id: c.id, part: 'went' }], effects, account: told('the Grand Master', lines) });
+  const board = BOARD_OF[q.kind];
+  const target = q.where && w.houses[q.where] ? q.where : undefined;
+  // The Spymaster's people can be caught, and the Speaker's can say the wrong thing.
+  if (board === 'spymaster' && target && (!won ? r.chance(0.45) : r.chance(0.12))) {
+    shiftRegard(w, target, P, -15);
+    ensureIntel(w).wrongs.push({ by: P, against: target, text: `They sent an agent against us: ${q.title.toLowerCase()}.`, year: w.date.year });
+    effects.push(`House ${w.houses[target]?.name} found us out: regard −15, and a grievance`);
+    if (!won && r.chance(0.4) && !dead) {
+      w.captives[c.id] = { characterId: c.id, heldBy: target, since: w.date, interrogated: false, reason: 'crime' };
+      c.flags.push({ id: 'captive', since: w.date, detail: `held by House ${w.houses[target]?.name}`, knownBy: [target, P] }, { id: 'missing', since: w.date });
+      lines.push(`${C} was taken. House ${w.houses[target]?.name} has them.`);
+      effects.push(`${C} is held by House ${w.houses[target]?.name}`);
+    }
+  }
+  if (board === 'envoy' && !won && target) { shiftRegard(w, target, P, -3); effects.push(`House ${w.houses[target]?.name} regard −3`); }
+  if (dead && board === 'grandMaster') { kill(w, c, w.date, `killed abroad: ${q.title.toLowerCase()}`); lines.push(`${C} did not come back. The Grand Master brought word.`); effects.push(`${C} is dead`); }
+  else if (hurt && board === 'grandMaster') { c.flags.push({ id: 'wounded', since: w.date }); addMark(w, c, { kind: 'wound', text: r.pick(['a cut across the ribs', 'a burn down one arm', 'a cracked shoulder']), place: 'abroad' }); effects.push(`${C} is wounded`); }
+  const headline = `${q.title}: ${dead && board === 'grandMaster' ? `${C} is dead` : won ? (great ? `${C} triumphs` : `${C} succeeds`) : `${C} fails`}.`;
+  const seatName = board === 'grandMaster' ? 'the Grand Master' : board === 'envoy' ? 'the Speaker' : 'the Spymaster';
+  logRecord(w, { kind: board === 'spymaster' ? 'intrigue' : 'world', type: 'mission', severity: dead ? 3 : won ? 2 : 1, seat: board, text: headline, who: [{ id: c.id, part: 'went' }], effects, account: told(seatName, lines) });
+  // Whoever keeps the board comes to say how it went.
+  const keeper = seatHolder(w, P, board);
+  if (keeper) reportBack(w, { personId: keeper.id, seat: board, ref: q.id, title: headline, approved: `${QUEST_LABEL[q.kind]}: ${shortName(c.name)} sent`, summary: [...lines, ...effects], lines: [] });
   void econ;
 }

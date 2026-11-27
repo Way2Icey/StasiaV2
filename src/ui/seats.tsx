@@ -13,6 +13,7 @@ import { alive, familyHead, isCommoner, sectorsControlledBy } from '../sim/query
 import { opinion } from '../sim/relationships';
 import { ambitionText } from '../sim/ambitions';
 import { cannotTalk } from '../sim/talk';
+import { QuestBoard } from './sections';
 import { concernsOf } from '../sim/concerns';
 import { attitudeColor } from '../sim/relations';
 import { knowledgeOf } from '../sim/knowledge';
@@ -126,6 +127,7 @@ export function SeatPage({ seat }: { seat: CouncilSeat }) {
         ))}
       </div>
       <div className="grid">
+        {seat === 'grandMaster' || seat === 'envoy' || seat === 'spymaster' ? <QuestBoard seat={seat} className="span-12" /> : null}
         <Panel title="The seat" className="span-12">
           <div className="body seat-head">
             {holder ? (

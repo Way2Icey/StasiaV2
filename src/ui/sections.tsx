@@ -8,7 +8,7 @@ import { Go, HouseLink, Panel, PersonLink } from './links';
 import { Term } from './tip';
 import { SUBTABS, type Route, type Section } from './router';
 import { FleetPanel } from './fleet';
-import { candidatesFor, cannotSend, hardWord, odds, QUEST_LABEL, sendOnQuest } from '../sim/quests';
+import { BOARD_LABEL, boardOfQuest, candidatesFor, cannotSend, hardWord, odds, QUEST_LABEL, sendOnQuest, type Board } from '../sim/quests';
 import { shipsOf, upkeepOf } from '../sim/fleet';
 import { EmbassyPanel, OurCourtEmbassies } from './embassies';
 import { LoansPanel } from './loans';
@@ -155,19 +155,20 @@ export function KnightsPage() {
 }
 
 /** The Grand Master's board: deeds ready for a knight or aspirant to take. */
-function QuestBoard({ className }: { className?: string }) {
+export function QuestBoard({ className, seat = 'grandMaster' }: { className?: string; seat?: Board }) {
   const world = useWorld();
   const { run, err } = usePlay();
   const [pick, setPick] = useState<Record<string, string>>({});
-  const board = world.quests?.board ?? [];
+  const board = (world.quests?.board ?? []).filter((q) => boardOfQuest(q) === seat);
   const open = board.filter((q) => !q.goneId);
   const out = board.filter((q) => q.goneId);
-  const who = candidatesFor(world);
-  const gm = Object.values(world.characters).find((c) => c.alive && c.houseId === world.playerHouseId && c.seat === 'grandMaster');
+  const who = candidatesFor(world, seat);
+  const keeper = Object.values(world.characters).find((c) => c.alive && c.houseId === world.playerHouseId && c.seat === seat);
   return (
-    <Panel title="The Grand Master's board" aside={`${open.length} waiting · ${out.length} out`} className={className}>
+    <Panel title={BOARD_LABEL[seat]} aside={`${open.length} waiting · ${out.length} out`} className={className}>
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
-      {board.length === 0 ? <p className="body muted" style={{ margin: 0 }}>{gm ? <>{gm.name.given} posts new work at the turn of each Phase.</> : 'No Grand Master: no one keeps the board.'}</p> : null}
+      {board.length === 0 ? <p className="body muted" style={{ margin: 0 }}>{keeper ? <>{keeper.name.given} posts new work at the turn of each Phase.</> : 'No one holds the seat: no one keeps this board.'}</p> : null}
+      {open.length && !who.length ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{seat === 'spymaster' ? 'No one free with the hands for it. Agents, or anyone with intrigue 10 or better.' : 'No one free to send.'}</p> : null}
       {open.map((q) => {
         const sel = pick[q.id] ?? who[0]?.id ?? '';
         const c = sel ? world.characters[sel] : undefined;
@@ -403,5 +404,25 @@ export function DecisionsPanel({ id }: { id: string }) {
       {ask ? <div className="body" style={{ paddingTop: 0 }}><CouncilViews id={id} /></div> : null}
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : done ? <p className="body muted" style={{ margin: 0, fontSize: 12 }}>✓ {done}</p> : null}
     </Panel>
+  );
+}
+
+/** Missions › The boards: everything the Grand Master, the Speaker and the Spymaster have ready, in one place. */
+export function BoardsPage() {
+  return (
+    <>
+      <div className="page-title">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span className="eyebrow">Missions</span>
+          <h2>The boards</h2>
+          <p>Work kept ready by the three great seats. Knights and aspirants for the Grand Master; anyone with a tongue for the Speaker; agents and the sly for the Spymaster. Send someone, and they come back with a name, a purse, a secret, or not at all.</p>
+        </div>
+      </div>
+      <div className="grid">
+        <QuestBoard seat="grandMaster" className="span-12" />
+        <QuestBoard seat="envoy" className="span-12" />
+        <QuestBoard seat="spymaster" className="span-12" />
+      </div>
+    </>
   );
 }

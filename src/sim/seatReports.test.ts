@@ -37,3 +37,23 @@ describe("the Grand Master's board, fleshed out", () => {
     void placeBounty;
   });
 });
+
+describe("the Speaker's and the Spymaster's boards", () => {
+  it('stock work for their seats, and each sends the right people', async () => {
+    const { advanceQuests, candidatesFor, boardOfQuest, sendOnQuest } = await import('./quests');
+    let w = structuredClone(createWorld());
+    w.quests = { board: [] };
+    const r = new Rng(w.rng);
+    advanceQuests(w, r, true); advanceQuests(w, r, true);
+    const env = w.quests.board.filter((q) => boardOfQuest(q) === 'envoy');
+    const spy = w.quests.board.filter((q) => boardOfQuest(q) === 'spymaster');
+    expect(env.length).toBeGreaterThan(0);
+    expect(spy.length).toBeGreaterThan(0);
+    const c = candidatesFor(w, 'envoy')[0];
+    if (!c) return;
+    w = sendOnQuest(w, env[0]!.id, c.id);
+    w = advanceTurns(w, Math.round(env[0]!.cycles * 2.5) + 2);
+    expect(w.quests!.board.some((q) => q.id === env[0]!.id)).toBe(false);
+    expect(openBriefings(w).some((b) => b.ref === env[0]!.id)).toBe(true);
+  });
+});

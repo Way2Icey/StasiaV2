@@ -3,6 +3,7 @@ import { BountiesPage } from './bounties';
 import { IntelPage } from './intel';
 import { GreatSeatsPage } from './seats';
 import { MilitaryPage } from './military';
+import { BoardsPage } from './sections';
 import { TalkPage } from './talk';
 import { useHouseTheme } from './theme';
 import { InspectLayer, PortShipHead } from './inspect';
@@ -300,6 +301,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'intel': return <IntelPage />;
     case 'greatSeats': return <GreatSeatsPage />;
     case 'military': return <MilitaryPage />;
+    case 'boards': return <BoardsPage />;
     case 'talk': return <TalkPage id={route.id} />;
     case 'mission': return <MissionPage id={route.id} />;
     case 'plan': return <PlanPage key={`${route.mission}-${route.target ?? ''}-${route.petition ?? ''}-${route.lead ?? ''}`} kind={route.mission} target={route.target} leader={route.leader} petition={route.petition} lead={route.lead} />;
