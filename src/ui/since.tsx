@@ -13,7 +13,7 @@ function Move({ d, unit = '', good = 1 }: { d: number; unit?: string; good?: 1 |
   return <span className={up === (good > 0) ? 'up' : 'down'}>{up ? '▲' : '▼'} {fmt(d)}{unit}</span>;
 }
 
-export function ThisOrbit({ className }: { className?: string }) {
+export function ThisOrbit({ className, compact }: { className?: string; compact?: boolean }) {
   const world = useWorld();
   const was = orbitAgo(world);
   const P = world.playerHouseId;
@@ -42,11 +42,11 @@ export function ThisOrbit({ className }: { className?: string }) {
     ['Soldiers', <Move d={now.soldiers - was.soldiers} />],
   ];
   return (
-    <Panel title="This Orbit" aside="since about an Orbit ago" className={className}>
-      <div className="body orbit-grid">
-        <dl className="kv" style={{ margin: 0 }}>
+    <Panel title={compact ? 'Shifts this Orbit' : 'This Orbit'} aside="since about an Orbit ago" className={className}>
+      <div className={compact ? 'body' : 'body orbit-grid'}>
+        {compact ? null : <dl className="kv" style={{ margin: 0 }}>
           {rows.map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd>{v}</dd></Fragment>)}
-        </dl>
+        </dl>}
         <div style={{ display: 'grid', gap: 6, alignContent: 'start', fontSize: 13 }}>
           <span className="eyebrow">Toward us</span>
           {regard.length ? regard.map((r) => <span key={r.h}><HouseLink id={r.h} /> <Move d={r.d} /></span>) : <span className="muted">No house has moved much.</span>}

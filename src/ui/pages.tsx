@@ -43,11 +43,10 @@ import {
 } from '../sim/types';
 import { useGame, useNav, useWorld } from './context';
 import { useSee } from './fog';
-import { MissionRow } from './missions';
 import { moodColor, moodLabel, moodOf } from '../sim/mood';
 import { Desk } from './hall';
 import { ThisOrbit } from './since';
-import { StandingStrip } from './rankings';
+import { DeckTiles, InMotion } from './deck';
 import { CaptivesPanel, RansomDemands, StandingPanel } from './council';
 import { formatRange, KNOW, knowledgeOf } from '../sim/knowledge';
 import { activeMissionOf, activeMissions, MISSION_LABEL } from '../sim/missions';
@@ -106,27 +105,20 @@ function Row({ left, right }: { left: React.ReactNode; right?: React.ReactNode }
 // ---------------------------------------------------------------- Throne Room
 
 export function ThroneRoom() {
-  const world = useWorld();
-  const house = world.houses[world.playerHouseId]!;
-  const missions = activeMissions(world, house.id);
-
   return (
     <>
-      <Title title="The Hall" sub="What needs you, what has changed, and what is coming. Press / to find anything." />
+      <Title title="The Hall" sub="The house at a glance: its numbers, what needs you, what is in motion and what is coming. Press / to find anything." />
+      <RaidPanel />
+      <DeckTiles />
       <div className="grid">
-        <div className="span-8 stack">
-          <RaidPanel />
+        <div className="span-7 stack">
           <Desk />
-          <ThisOrbit />
           <StoriesPanel />
         </div>
-        <div className="span-4 stack">
-          <StandingStrip />
+        <div className="span-5 stack">
+          <InMotion />
           <CalendarPanel />
-          <Panel title={<Term k="mission">In the field</Term>} aside={<Go to={{ kind: 'missions' }}>Missions ›</Go>}>
-            {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. <Go to={{ kind: 'boards' }}>The boards ›</Go></p> : null}
-            {missions.map((m) => <MissionRow key={m.id} id={m.id} />)}
-          </Panel>
+          <ThisOrbit compact />
           <div id="ransoms"><RansomDemands /></div>
         </div>
         <Followed className="span-12" />

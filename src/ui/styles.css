@@ -790,3 +790,13 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .linklike { background: none; border: 0; padding: 0; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
 .linklike[aria-pressed="true"] { color: var(--gold); }
 @media (max-width: 800px) { .rank-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* 9.12: the Hall as a command deck */
+.deck-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 0 0 16px; }
+.deck-tile { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.deck-tile:hover { border-color: var(--gold); }
+.deck-big { font-size: 26px; font-weight: 700; line-height: 1.1; }
+.deck-foot { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deck-motion { display: flex; flex-direction: column; gap: 4px; text-align: left; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+.deck-bar { display: inline-block; width: 120px; vertical-align: middle; margin-right: 6px; }
+@media (max-width: 900px) { .deck-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .deck-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

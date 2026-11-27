@@ -35,7 +35,7 @@ const OUTCOME_COLOR: Record<Outcome, string> = {
   disaster: 'var(--red)',
 };
 
-function schedule(m: Mission) {
+export function schedule(m: Mission) {
   const arrive = addCycles(m.launched, m.travelCycles);
   const finish = addCycles(arrive, m.taskCycles);
   const home = addCycles(finish, m.travelCycles);

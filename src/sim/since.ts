@@ -5,6 +5,7 @@ import { opinion } from './relationships';
 import { regardOf } from './archon';
 import { renownOf } from './renown';
 import { troopsOf } from './crucible';
+import { formationsOf } from './war';
 import type { GameDate } from './time';
 import type { World } from './types';
 
@@ -46,7 +47,7 @@ export function snapshot(w: World): Snapshot {
     renown: Object.fromEntries(ours.map((c) => [c.id, renownOf(w, c)])),
     unrest: sectors.length ? Math.round(sectors.reduce((n, s) => n + s.unrest, 0) / sectors.length) : 0,
     people: sectors.reduce((n, s) => n + s.population, 0),
-    soldiers: troopsOf(w, P),
+    soldiers: troopsOf(w, P) + formationsOf(w, P).filter((f) => f.kind !== 'fleet').reduce((n, f) => n + f.strength, 0),
   };
 }
 
