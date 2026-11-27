@@ -9,6 +9,7 @@ import {
   orderCeasefire, startWar, warsOf, type War,
 } from './war';
 import { fightItOut } from './battle';
+import { orderGroup, theatreOf } from './warroom';
 import { liveHouses } from './archon';
 import type { World } from './types';
 
@@ -46,6 +47,10 @@ describe('war', () => {
     const war = activeWars(w)[0]!;
     expect(war.fronts.map((f) => f.kind).sort()).toEqual(['border', 'orbit']);
     expect(formationsOf(w, w.playerHouseId).every((f) => f.front)).toBe(true);
+    // In the War Room: the fleet goes for the space over their capital, the host rides behind it.
+    const t = theatreOf(war)!;
+    const orbit = Object.values(t.nodes).find((n) => n.kind === 'orbit' && n.target)!;
+    for (const g of Object.values(t.groups).filter((x) => x.house === w.playerHouseId)) w = orderGroup(w, war.id, g.id, { to: g.domain === 'void' ? orbit.id : 'myr:ap' });
     let battles = 0;
     for (let i = 0; i < 60 && w.war!.wars.find((x) => x.id === war.id)!.status === 'active'; i++) {
       w = run(w, 20);

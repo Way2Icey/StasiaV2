@@ -93,7 +93,7 @@ export interface Side {
 
 export interface FeedLine { t: number; text: string; side?: 0 | 1; big?: boolean }
 
-export type MomentKind = 'challenge' | 'surge' | 'wounded' | 'break' | 'nemesis';
+export type MomentKind = 'challenge' | 'surge' | 'wounded' | 'break' | 'nemesis' | 'shout';
 export interface MomentOption { key: string; label: string; hint?: string }
 export interface Moment { kind: MomentKind; text: string; options: MomentOption[]; who?: string; foe?: string }
 
@@ -128,6 +128,9 @@ export interface Battle {
   prompted?: boolean;
   /** Told once it is over, by someone who was in it. */
   account?: import('./details').Account;
+  /** A war's opening word: what each answer does, and which was given. */
+  shouts?: Record<string, { momentum?: number; mass?: number; morale?: number; breakoff?: boolean; join?: string; note: string }>;
+  shouted?: string;
 }
 
 export interface BattlesState { list: Battle[] }
@@ -507,6 +510,18 @@ export function answerMoment(b: Battle, key: string, world?: World): void {
         else { release(b, f); if (foe.state === 'engaged') release(b, foe); engage(b, f, foe); f.power *= 1.08; say(b, `${f.name} goes for ${foe.name}.`, 0, true); }
       }
       break;
+    case 'shout': {
+      const fx = b.shouts?.[key];
+      b.shouted = key;
+      if (fx) {
+        say(b, fx.note, 0, true);
+        if (fx.breakoff) { giveOrder(b, 0, { kind: 'breakoff' }, world); return; }
+        if (fx.momentum) b.momentum = clamp(b.momentum + fx.momentum, -100, 100);
+        if (fx.mass) { b.sides[0].mass = Math.min(160, b.sides[0].mass * fx.mass); b.sides[0].massMax = Math.max(b.sides[0].massMax, b.sides[0].mass); }
+        if (fx.morale) b.sides[0].morale = clamp(b.sides[0].morale + fx.morale, 0, 100);
+      }
+      break;
+    }
     case 'break':
       if (key === 'breakoff') { giveOrder(b, 0, { kind: 'breakoff' }, world); return; }
       if (key === 'sacrifice') { b.sides[0].mass *= 0.7; b.momentum = clamp(b.momentum + 30, -100, 100); b.raised.push('sacrificed'); say(b, 'The rearguard turns and holds. They are not seen again.', 0, true); }
@@ -526,6 +541,7 @@ function autoMoment(b: Battle, r: Rng, world?: World): string {
     case 'wounded': return b.sides[0].commander.skill >= 11 ? 'pull' : 'stay';
     case 'nemesis': return 'let';
     case 'break': return b.sides[0].commander.skill >= 13 ? 'breakoff' : 'hold';
+    case 'shout': return 'hold';
   }
   void world;
   return m.options[0]!.key;

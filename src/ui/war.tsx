@@ -161,7 +161,7 @@ function WarCard({ war }: { war: War }) {
           <span className="muted"> · dead: ours {fmt(war.losses[P] ?? 0)}, theirs {fmt(war.losses[foe] ?? 0)}</span>
         </div>
         {(() => { const cost = -phaseLedger(world, P).filter((l) => l.kind === 'war').reduce((t, l) => t + l.amount, 0); const net = netPerPhase(phaseLedger(world, P)).othes; return cost > 0 ? <div style={{ fontSize: 12 }}><Term k="warcost">The war costs us</Term> <strong className="down">{fmt(cost)}</strong> a Phase{net < 0 ? <span className="down"> · we lose {fmt(-net)} a Phase all told{econ(world, P).stock.othes > 0 ? `; the coffers last about ${Math.max(0, Math.floor(econ(world, P).stock.othes / -net / 5))} Orbits` : '; the coffers are empty'}</span> : null}</div> : null; })()}
-        <div className="fronts">{war.fronts.filter((f) => !f.ended).map((fr) => <FrontRow key={fr.id} war={war} fr={fr} />)}</div>
+        {war.theatre ? <WarRoomLink war={war} /> : <div className="fronts">{war.fronts.filter((f) => !f.ended).map((fr) => <FrontRow key={fr.id} war={war} fr={fr} />)}</div>}
         <div className="actions">
           {war.rung === 'clashes' && war.attacker === P ? <button type="button" className="btn" onClick={() => run((w) => escalate(w, war.id))} title="The fleets go for the space over their world">Make it open war</button> : null}
           {principal ? <button type="button" className="btn primary" onClick={() => run((w) => beginPeaceTalks(w, war.id))} title="Sit down with their envoys: a live negotiation">Open talks</button> : null}
@@ -174,6 +174,22 @@ function WarCard({ war }: { war: War }) {
         </div>
       </div>
     </Panel>
+  );
+}
+
+/** The way into the War Room, with what is happening there at a glance. */
+function WarRoomLink({ war }: { war: War }) {
+  const world = useWorld();
+  const P = world.playerHouseId;
+  const t = war.theatre!;
+  const ours = Object.values(t.groups).filter((g) => g.house === P);
+  const last = t.reports.find((r) => r.sides.attackers.house === P || r.sides.defenders.house === P);
+  const moving = ours.filter((g) => g.path.length).length;
+  return (
+    <div className="wr-link">
+      <Go to={{ kind: 'warroom', id: war.id }} className="btn primary">Open the War Room ›</Go>
+      <span className="muted" style={{ fontSize: 12 }}>{ours.length} groups of ours in the field{moving ? `, ${moving} on the move` : ''}{t.contacts.length ? ' · a battle is being fought' : ''}{last ? ` · last: ${last.title}, ${last.winner === sideOf(war, P) ? 'won' : 'lost'}` : ''}</span>
+    </div>
   );
 }
 

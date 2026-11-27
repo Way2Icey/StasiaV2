@@ -56,6 +56,7 @@ import {
 
 import { FrontierPage, HistoryPage, NewGamePage, NumaradePage } from './archon';
 import { WarPage } from './war';
+import { WarRoomPage } from './warroom';
 
 /** A first visit (nothing saved) opens on choosing a house. */
 const firstVisit = !storage.get(AUTOSAVE);
@@ -331,6 +332,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'frontier': return <FrontierPage />;
     case 'newgame': return <NewGamePage setWorld={setWorld} />;
     case 'war': return <WarPage />;
+    case 'warroom': return <WarRoomPage key={route.id} id={route.id} view={route.view} />;
     case 'ship': return <ShipPage key={route.id} id={route.id} />;
   }
 }

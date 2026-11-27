@@ -58,6 +58,7 @@ export type Route =
   | { kind: 'frontier' }
   | { kind: 'newgame' }
   | { kind: 'war' }
+  | { kind: 'warroom'; id: string; view?: 'board' | 'map' | 'table' }
   | { kind: 'ship'; id: string }
   | { kind: 'log'; person?: string; place?: string; house?: string; open?: string };
 
@@ -70,7 +71,7 @@ export function sectionOf(r: Route): Section | null {
     case 'council': case 'seat': case 'greatSeats': return 'court';
     case 'people': return r.view === 'ambitions' ? 'court' : r.view === 'renown' ? 'archon' : 'people';
     case 'character': case 'talk': case 'trait': case 'flag': case 'species': case 'band': case 'family': return 'people';
-    case 'military': case 'training': case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': case 'war': return 'arms';
+    case 'military': case 'training': case 'crucible': case 'grounds': case 'knights': case 'fleet': case 'ship': case 'war': case 'warroom': return 'arms';
     case 'worlds': case 'planet': case 'sector': case 'port': case 'holdings': case 'build': case 'lanes': case 'frontier': case 'places': return 'realm';
     case 'houses': case 'house': case 'embassies': case 'numarade': case 'history': case 'chair': case 'legacy': case 'rankings': return 'archon';
     case 'economy': case 'exchange': case 'loans': case 'vaults': case 'spend': return 'treasury';
@@ -113,7 +114,7 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
   arms: [
     { label: 'The Fronts', to: { kind: 'military' }, on: (r) => r.kind === 'military' || r.kind === 'fleet' || r.kind === 'ship' || r.kind === 'knights' || r.kind === 'training' },
     { label: 'The Lists', to: { kind: 'grounds' }, on: (r) => r.kind === 'grounds' || r.kind === 'crucible' },
-    { label: 'War', to: { kind: 'war' }, on: is('war') },
+    { label: 'War', to: { kind: 'war' }, on: (r) => r.kind === 'war' || r.kind === 'warroom' },
   ],
   realm: [
     { label: 'The Realm', to: { kind: 'worlds' }, on: (r) => ['worlds', 'planet', 'sector', 'port', 'holdings', 'build', 'places', 'frontier'].includes(r.kind) },
@@ -199,6 +200,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'frontier': return 'The frontier';
     case 'newgame': return 'New game';
     case 'war': return 'War';
+    case 'warroom': return `War Room · ${(world.war?.wars ?? []).find((x) => x.id === r.id)?.name ?? ''}`;
     case 'ship': return (world as unknown as { fleet?: { ships: Record<string, { name: string }> } }).fleet?.ships[r.id]?.name ?? 'Ship';
   }
 }

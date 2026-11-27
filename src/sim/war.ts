@@ -21,6 +21,7 @@ import { Rng } from './rng';
 import { buildWord, displayName, shortName } from './names';
 import { logRecord } from './records';
 import { addThread } from './storystate';
+import { ensureTheatre, joinTheatre, theatreTurn } from './warroom';
 import { createBattle, battleOf, commandOf, fighterPower, outcomes, runOut, applyFates, type FighterSpec, type Theatre } from './battle';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, CYCLES_PER_YEAR, dateParts } from './time';
 import { isAway } from './court';
@@ -128,6 +129,10 @@ export interface War {
   defied?: boolean;
   /** Terms are waiting on our word. */
   asking?: boolean;
+  /** Losses counted at the last Phase, per house. */
+  lossMark?: Record<string, number>;
+  /** The War Room's theatre: places, groups and plans (from 9.25). */
+  theatre?: import('./warroom').TheatreState;
 }
 
 /** Someone from the ranks the war has named: a survivor with a score, or one of ours who did something. */
@@ -392,6 +397,7 @@ export function startWar(w: World, rng: Rng, d: Declaration): War {
   w.archon?.history.push({ year: w.date.year, kind: 'war', text: `${cap(war.name)}: House ${houseName(w, d.attacker)} against House ${houseName(w, d.defender)}.`, houses: [d.attacker, d.defender] });
   // Leaving a pact for war breaks it.
   if (w.archon) w.archon.pacts = w.archon.pacts.filter((r) => !((r.a === d.attacker && r.b === d.defender) || (r.a === d.defender && r.b === d.attacker)));
+  ensureTheatre(w, war);
   return war;
 }
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -416,6 +422,7 @@ export function escalateWar(w: World, rng: Rng, war: War, quiet = false): void {
 
 /** Send each house's forces where they fit (ours stay where we put them, once we have placed them). */
 function deploy(w: World, war: War): void {
+  if (war.theatre) { for (const h of [war.attacker, ...war.attackers, war.defender, ...war.defenders]) joinTheatre(w, war, h); return; }
   const P = w.playerHouseId;
   const open = war.fronts.filter((f) => !f.ended);
   for (const side of ['attackers', 'defenders'] as const) {
@@ -549,6 +556,8 @@ export function advanceWar(w: World, rng: Rng, t: { phase: boolean; orbit: boole
   const s = w.war!;
   // Battles of ours that have finished settle their front.
   for (const war of activeWars(w)) for (const fr of war.fronts) if (fr.battle) settleBattle(w, rng, war, fr);
+  // Every war is fought on its theatre, turn by turn.
+  for (const war of activeWars(w)) theatreTurn(w, rng, war, t.phase);
   if (t.phase) {
     // The dead and the departed leave their places.
     for (const f of Object.values(s.formations)) f.knights = f.knights.filter((k) => w.characters[k]?.alive && w.characters[k]!.houseId === f.houseId);
@@ -566,7 +575,8 @@ export function advanceWar(w: World, rng: Rng, t: { phase: boolean; orbit: boole
 function phaseOf(w: World, rng: Rng, war: War): void {
   const P = w.playerHouseId;
   const ours = sideOf(war, P);
-  for (const fr of war.fronts.filter((x) => !x.ended)) {
+  if (!war.theatre) ensureTheatre(w, war);
+  for (const fr of war.fronts.filter((x) => !x.ended && !war.theatre)) {
     if (fr.battle) continue;
     const pa = sidePower(w, war, fr, 'attackers'), pd = sidePower(w, war, fr, 'defenders');
     const total = Math.max(0.5, pa + pd);
@@ -584,13 +594,18 @@ function phaseOf(w: World, rng: Rng, war: War): void {
   }
   // The score follows the fronts; time and blood wear both sides down.
   const open = war.fronts.filter((x) => !x.ended);
-  war.score = clamp(war.score + open.reduce((t, fr) => t + fr.meter * (fr.kind === 'border' ? 0.03 : fr.kind === 'orbit' ? 0.05 : 0.08), 0), -100, 100);
+  if (!war.theatre) war.score = clamp(war.score + open.reduce((t, fr) => t + fr.meter * (fr.kind === 'border' ? 0.03 : fr.kind === 'orbit' ? 0.05 : 0.08), 0), -100, 100);
   for (const h of [...partiesOf(war, 'attackers'), ...partiesOf(war, 'defenders')]) {
     const lost = war.losses[h] ?? 0;
     const strength = formationsOf(w, h).reduce((t, f) => t + f.max * (f.kind === 'legion' ? 1 : f.kind === 'fleet' ? 1000 : 2), 0) || 1;
     // An empty treasury wears a house out faster than its losses do.
     const broke = isSim(w, h) && econ(w, h).stock.othes < 0 ? 1.2 : 0;
-    war.exhaustion[h] = clamp((war.exhaustion[h] ?? 0) + 0.6 + (war.rung === 'war' ? 0.5 : 0) + (lost / strength) * 4 + broke, 0, 100);
+    // On a theatre, what was lost this Phase weighs at once: a house that loses a third of its army in a Phase knows it.
+    const fresh = war.theatre ? Math.max(0, lost - (war.lossMark?.[h] ?? 0)) / strength * 110 : 0;
+    if (war.theatre) (war.lossMark ??= {})[h] = lost;
+    // A house fighting for its own worlds endures longer than one fighting for someone else's.
+    const home = war.theatre && sideOf(war, h) === 'defenders' ? 0.65 : 1;
+    war.exhaustion[h] = clamp((war.exhaustion[h] ?? 0) + (0.6 + (war.rung === 'war' ? 0.5 : 0)) * home + (lost / strength) * 4 + broke + fresh, 0, 100);
   }
   if (war.ceasefire !== undefined && absoluteCycle(w.date) >= war.ceasefire && war.status === 'active') {
     if (!war.defied) endWar(w, rng, war, 'none', 'The Numarade\'s ceasefire holds.');
