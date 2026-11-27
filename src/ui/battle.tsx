@@ -141,7 +141,7 @@ export function BattleWindow({ id, onClose }: { id: string; onClose: () => void 
                 <span className="eyebrow">A moment</span>
                 <p style={{ margin: '4px 0 8px' }}>{b.moment.text}</p>
                 <div className="actions">
-                  {b.moment.options.map((o) => <button key={o.key} type="button" className="btn small option" onClick={() => game.update((w) => answerBattleMoment(w, id, o.key))}><span>{o.label}</span>{o.hint ? <span className="opt-sub">{o.hint}</span> : null}</button>)}
+                  {b.moment.options.map((o) => <button key={o.key} type="button" className="btn small option" onClick={() => game.update((w) => answerBattleMoment(w, id, o.key))}><span>{o.label}</span>{o.hint ? <span className="opt-sub"><span className="sr-only"> — </span>{o.hint}</span> : null}</button>)}
                 </div>
               </div>
             ) : null}

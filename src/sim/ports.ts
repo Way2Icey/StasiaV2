@@ -164,6 +164,8 @@ export interface PortsState {
   register: Record<string, RegEntry>;
   /** Our agents posted at rival ports. */
   posts: Record<string, Post>;
+  /** Ships held this Phase, told together when the Phase turns. */
+  heldPhase?: { ship: string; at: string }[];
 }
 
 export const PLACE_LABEL: Record<string, string> = { exchange: 'the Imperial Exchange', outer: 'the outer lanes' };
@@ -574,10 +576,11 @@ function dock(world: World, rng: Rng, ship: Ship) {
       if (g >= 3) {
         ship.status = 'held';
         world.ports.alerts++;
+        (world.ports.heldPhase ??= []).push({ ship: ship.name, at: sector?.name ?? 'port' });
         logIncident(world, ship, `Held: ${found.join('; ')}${why}.`, g);
         note(world, `${ship.name} held at berth ${ship.berth}: ${found.join('; ')}${why}.`, ship.id, ship.sectorId);
         tell(world, 'world', `Customs at ${sector?.name} held the ${ship.cls} ${ship.name}.`, undefined, {
-          type: 'seizure', severity: 2, placeId: ship.sectorId, shipId: ship.id, detail: `${found.join('; ')}${why}.`,
+          type: 'seizure', severity: 1, placeId: ship.sectorId, shipId: ship.id, detail: `${found.join('; ')}${why}.`,
           source: harbourmaster(world, ship.sectorId) ? `${displayName(harbourmaster(world, ship.sectorId)!.name)}, harbourmaster` : 'customs',
           who: harbourmaster(world, ship.sectorId) ? [{ id: harbourmaster(world, ship.sectorId)!.id, part: 'harbourmaster' }] : undefined,
         });
@@ -951,6 +954,15 @@ export function advancePorts(world: World, rng: Rng, phaseTurned: boolean): void
       if (rng.chance((patrol ? 0.03 : 0.06) * raidOdds(world))) newRaid(world, rng);
     }
     for (const port of Object.values(ps.ports)) { port.last = port.tally; port.tally = emptyTally(); }
+    // The Phase's holds, told once.
+    const held = ps.heldPhase ?? [];
+    if (held.length) {
+      const at = [...new Set(held.map((h) => h.at))];
+      tell(world, 'world', held.length === 1 ? `Customs held one ship this Phase: the ${held[0]!.ship} at ${held[0]!.at}.` : `Customs held ${held.length} ships this Phase, at ${at.slice(0, 3).join(', ')}${at.length > 3 ? ` and ${at.length - 3} more` : ''}.`, undefined, {
+        type: 'seizure', severity: 2, detail: held.map((h) => `${h.ship} at ${h.at}`).join('; ') + '.', source: 'customs',
+      });
+    }
+    ps.heldPhase = [];
     tendPosts(world, rng);
   }
   // Forget old traffic.

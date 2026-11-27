@@ -199,7 +199,8 @@ function bulletin(w: World, prev: HouseRank[], table: HouseRank[]): Bulletin {
   const P = w.playerHouseId;
   const before = Object.fromEntries(prev.map((r) => [r.id, r]));
   const top = table[0];
-  if (top) lines.push({ text: before[top.id]?.place === 1 ? `House ${nameOf(w, top.id)} holds first place in the Archon.` : `House ${nameOf(w, top.id)} takes first place in the Archon.`, houseIds: [top.id] });
+  // First place is news only when it changes hands.
+  if (top && before[top.id]?.place !== 1) lines.push({ text: `House ${nameOf(w, top.id)} takes first place in the Archon.`, houseIds: [top.id] });
   for (const k of RANK_KEYS) {
     const lead = table.find((r) => r.rank[k] === 1);
     const was = prev.find((r) => r.rank[k] === 1);
@@ -220,7 +221,7 @@ function bulletin(w: World, prev: HouseRank[], table: HouseRank[]): Bulletin {
     const d = was ? was.place - us.place : 0;
     const best = [...RANK_KEYS].sort((x, y) => us.rank[x] - us.rank[y])[0]!;
     const reason = d ? why(was, us, d > 0) : '';
-    lines.push({ text: `House ${nameOf(w, P)} stands ${ordinal(us.place)} of ${table.length}${d ? ` (${d > 0 ? 'up' : 'down'} ${Math.abs(d)}${reason ? `,${reason}` : ''})` : ''}. Our best ranking: ${RANK_LABEL[best]}, ${ordinal(us.rank[best])}.`, houseIds: [P], tone: 'ours' });
+    lines.unshift({ text: `House ${nameOf(w, P)} stands ${ordinal(us.place)} of ${table.length}${d ? ` (${d > 0 ? 'up' : 'down'} ${Math.abs(d)}${reason ? `,${reason}` : ''})` : ''}. Our best ranking: ${RANK_LABEL[best]}, ${ordinal(us.rank[best])}.`, houseIds: [P], tone: 'ours' });
   }
   return { date: w.date, lines };
 }

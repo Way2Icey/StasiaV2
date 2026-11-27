@@ -87,7 +87,7 @@ function Reports({ className }: { className?: string }) {
   const others = world.crucible.entrants.filter((h) => h !== P);
   const LV = ['Nothing but rumour', 'Their habits', 'Their people', 'Their numbers'];
   return (
-    <Panel title="Reports on the drawn houses" aside="Before we sail" className={className}>
+    <Panel title="Reports on the drawn houses" aside="Before we leave" className={className}>
       <p className="body muted" style={{ margin: '0 0 8px', fontSize: 12 }}>What we know comes from the Spymaster, from our ambassadors in their capitals, from having met them here before, and from agents sent to watch them ({AGENTS_COST} othes a house). A Marshal who knows a house's habits can set the stance that beats them.</p>
       {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>

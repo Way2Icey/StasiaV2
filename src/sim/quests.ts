@@ -68,7 +68,12 @@ export interface Quest {
   posted: import('./time').GameDate;
 }
 
-export interface QuestState { board: Quest[]; /** Our lanes are held by our knights until then: corsairs think twice. */ heldUntil?: import('./time').GameDate; /** Trade agreements the Speaker has won: house, and until when it pays. */ pacts?: { houseId: string; until: import('./time').GameDate; perPhase: number }[] }
+export interface QuestState { board: Quest[]; /** Our lanes are held by our knights until then: corsairs think twice. */ heldUntil?: import('./time').GameDate; /** Trade agreements the Speaker has won: house, and until when it pays. */ pacts?: { houseId: string; until: import('./time').GameDate; perPhase: number }[]; /** Work lately done, by title, and when: it does not go back on the board for a while. Found once, gone for good. */ lately?: Record<string, number>; found?: string[] }
+
+/** Work that can only be done once: when it succeeds it never comes back. */
+const ONCE = new Set(["Find the lost blade of the house's founder"]);
+/** How long done work stays off the board: two Orbits. */
+const REST = CYCLES_PER_PHASE * 10;
 
 const HARD = ['', 'an aspirant\'s first', 'a fair test', 'hard', 'very hard', 'a knight\'s last'];
 export const hardWord = (n: number) => HARD[n] ?? '';
@@ -166,6 +171,8 @@ export function advanceQuests(w: World, rng: Rng, phaseTurned: boolean): void {
     const open = s.board.filter((q) => !q.goneId && BOARD_OF[q.kind] === board);
     if (open.length >= max) return;
     const have = new Set(s.board.map((q) => q.title));
+    for (const [t, at] of Object.entries(s.lately ?? {})) { if (at + REST > now) have.add(t); else delete s.lately![t]; }
+    for (const t of s.found ?? []) have.add(t);
     // One job of a kind against any one house at a time.
     const kindAt = new Set(s.board.filter((q) => q.where).map((q) => `${q.kind}:${q.where}`));
     const fresh = make().filter((d) => !have.has(d.title) && !(d.where && kindAt.has(`${d.kind}:${d.where}`)) && (kindAt.add(`${d.kind}:${d.where ?? d.title}`), true));
@@ -238,6 +245,7 @@ function resolve(w: World, r: Rng, q: Quest): void {
   const c = q.goneId ? w.characters[q.goneId] : undefined;
   if (!c) return;
   c.flags = c.flags.filter((f) => f.id !== 'quest');
+  (ensureQuests(w).lately ??= {})[q.title] = absoluteCycle(w.date);
   if (!c.alive) return;
   const P = w.playerHouseId;
   const p = odds(w, q, c);
@@ -250,6 +258,7 @@ function resolve(w: World, r: Rng, q: Quest): void {
   const effects: string[] = [];
   const lines: string[] = [];
   if (won) {
+    if (ONCE.has(q.title)) (ensureQuests(w).found ??= []).push(q.title);
     tally(w, c.id, 'missions');
     if (great) tally(w, c.id, 'triumphs');
     if (q.kind === 'trial') tally(w, c.id, 'duelsWon');

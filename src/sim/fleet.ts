@@ -302,7 +302,7 @@ function dutyInPlace(w: World, s: CapitalShip, duty: Duty, target?: string) {
     logRecord(w, {
       kind: 'world', type: 'world', severity: duty === 'blockade' || (duty === 'show' && s.houseId !== P) ? 2 : 0,
       text: s.houseId === P
-        ? `The ${s.name} ${duty === 'harbour' ? 'returns to harbour' : `sails ${duty === 'patrol' ? `to patrol ${where?.sector.name}` : duty === 'escort' ? 'to escort the convoys' : `${duty === 'show' ? 'to show our flag over' : 'to blockade'} ${H(w, target ?? '')}`}`}.`
+        ? `The ${s.name} ${duty === 'harbour' ? 'returns to harbour' : `leaves ${duty === 'patrol' ? `to patrol ${where?.sector.name}` : duty === 'escort' ? 'to escort the convoys' : `${duty === 'show' ? 'to show our flag over' : 'to blockade'} ${H(w, target ?? '')}`}`}.`
         : `${H(w, s.houseId)}'s ${CAPITAL_CLASSES[s.cls].label.toLowerCase()} ${s.name} is coming ${duty === 'blockade' ? 'to blockade our port' : 'to take station over our world'}.`,
       houseIds: [s.houseId, ...(s.target ? [s.target] : [])], placeId: dest, who: s.captainId ? [{ id: s.captainId, part: 'captain' }] : [],
     });
@@ -432,7 +432,7 @@ function mutiny(w: World, rng: Rng, s: CapitalShip) {
     s.crewMood = 45;
     if (s.duty !== 'harbour') dutyInPlace(w, s, 'harbour');
     st.respect = clamp(st.respect - 3, 0, 100);
-    if (s.houseId === P) logRecord(w, { kind: 'world', type: 'condition', severity: 3, text: `Mutiny on the ${s.name}: the crew have put ${cap ? displayName(cap.name) : 'their officers'} ashore and refuse to sail until they are paid and heard.`, detail: 'Name a new captain they can stomach, keep them paid, and bring the ship home.', who: cap ? [{ id: cap.id, part: 'put ashore' }] : [], effects: ['Respect −3', 'No captain'] });
+    if (s.houseId === P) logRecord(w, { kind: 'world', type: 'condition', severity: 3, text: `Mutiny on the ${s.name}: the crew have put ${cap ? displayName(cap.name) : 'their officers'} ashore and refuse to fly until they are paid and heard.`, detail: 'Name a new captain they can stomach, keep them paid, and bring the ship home.', who: cap ? [{ id: cap.id, part: 'put ashore' }] : [], effects: ['Respect −3', 'No captain'] });
   } else {
     // The ship is gone: turned corsair.
     s.lost = { date: w.date, how: 'mutiny: turned corsair' };

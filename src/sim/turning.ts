@@ -321,7 +321,7 @@ export function cannotStrike(w: World, intelId: string, shipIds: string[]): stri
   if (!site || site.holder !== it.houseId) return 'It has changed hands since';
   if (!shipIds.length) return 'Send at least one ship';
   const free = new Set(shipsFree(w, w.playerHouseId).map((x) => x.id));
-  if (shipIds.some((id) => !free.has(id))) return 'Those ships are not ready to sail';
+  if (shipIds.some((id) => !free.has(id))) return 'Those ships are not ready to fly';
   return null;
 }
 

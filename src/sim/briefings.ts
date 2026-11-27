@@ -68,7 +68,9 @@ export function advanceBriefings(w: World, phaseTurned: boolean): void {
   const P = w.playerHouseId;
   const s = ensureBriefings(w);
   // What has gone away by itself leaves the queue (answered elsewhere, lapsed, or over).
-  s.queue = s.queue.filter((b) => b.done || stillOpen(w, b));
+  // Word already given goes stale: news of the Phase after a Phase unread, reports read back after an Orbit.
+  const at = absoluteCycle(w.date);
+  s.queue = s.queue.filter((b) => (b.kind === 'word' ? absoluteCycle(b.date) >= at - 16 : b.done ? absoluteCycle(b.date) >= at - 80 : stillOpen(w, b)));
   for (const c of w.concerns ?? []) {
     const by = w.characters[c.raisedBy];
     if (by) push(w, { kind: 'concern', ref: c.id, personId: by.id, seat: by.seat as CouncilSeat | undefined, title: `${c.yes}?`, lines: [c.text, `${c.backers.length} of the court stand behind this${c.against.length ? `, and ${c.against.length} against` : ''}. ${c.cost}.`] });
@@ -141,6 +143,13 @@ export function briefDone(w: World, id: string, approved: string, summary: strin
 export function dismissBriefing(input: World, id: string): World {
   const w = structuredClone(input);
   if (w.briefings) w.briefings.queue = w.briefings.queue.filter((b) => b.id !== id);
+  return w;
+}
+
+/** Send several away at once: the reports read back together. */
+export function dismissBriefings(input: World, ids: string[]): World {
+  const w = structuredClone(input);
+  if (w.briefings) w.briefings.queue = w.briefings.queue.filter((b) => !ids.includes(b.id));
   return w;
 }
 

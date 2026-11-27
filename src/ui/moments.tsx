@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { formatDate } from '../sim/time';
 import { AtTheDoor, Speaker } from './briefing';
-import { bringer, openBriefings, SEAT_FOR_CATEGORY } from '../sim/briefings';
+import { bringer, dismissBriefings, openBriefings, SEAT_FOR_CATEGORY } from '../sim/briefings';
 import { eventDef, type ResolvedEvent } from '../sim/events';
 import { useWorld } from './context';
 import { Decision } from './events';
@@ -46,7 +46,7 @@ export function MomentWindow({ ids, reason, battle, onClose, onCommand }: { ids:
             </div>
           </div>
         ) : !live.length && !door.some((b) => !b.done) ? (
-          <div className="actions body"><button type="button" className="btn primary" onClick={() => onClose(true)}>Carry on ▶</button><button type="button" className="btn" onClick={() => { nav.to({ kind: 'throne' }); onClose(false); }}>See the desk ›</button></div>
+          <div className="actions body"><button type="button" className="btn primary" onClick={() => { const read = door.filter((b) => b.done || b.kind === 'word').map((b) => b.id); if (read.length) game.update((w) => dismissBriefings(w, read)); onClose(true); }}>Carry on ▶</button><button type="button" className="btn" onClick={() => { nav.to({ kind: 'throne' }); onClose(false); }}>See the desk ›</button></div>
         ) : null}
       </div>
     </div>

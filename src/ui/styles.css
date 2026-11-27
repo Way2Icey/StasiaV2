@@ -766,6 +766,8 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .brief-done { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--gold); }
 .brief-done ul { margin: 0 0 0 16px; padding: 0; font-size: 12px; color: var(--fg-2); }
 .brief-queue { padding: 6px 16px 0; font-size: 11px; }
+.brief-digest { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 12px; max-height: 46vh; overflow: auto; }
+.brief-digest .muted { font-size: 11px; }
 .btn.option.counsel { border-color: var(--gold); }
 
 .ct-row.ct-sub { grid-template-columns: repeat(3, 1fr); }

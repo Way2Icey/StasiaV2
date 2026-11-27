@@ -443,7 +443,7 @@ function pirates(world: World, rng: Rng, c: Convoy, f: Faction, lane: Lane) {
     chronicle(world, f, `They took ${what} on the ${where} lane${by}: ${crewFate}.`);
     logRecord(world, { kind: 'world', type: 'raid', severity: 2, seat: 'steward', houseIds: [P], placeId: undefined,
       text: `${what[0]!.toUpperCase() + what.slice(1)} was taken by ${f.name}${by} on the ${where} lane: ${crewFate}.`,
-      effects: [`Lost ${val}`], detail: held ? `They will give the crew back for ${fmt(held.ransom)} othes.` : ship ? `The ${ship.name} could not hold them off.` : 'It sailed without an escort.',
+      effects: [`Lost ${val}`], detail: held ? `They will give the crew back for ${fmt(held.ransom)} othes.` : ship ? `The ${ship.name} could not hold them off.` : 'It flew without an escort.',
       quote: st ? { from: st.id, text: c.kind === 'quota' ? 'The whole quota, my lord. The Numarade will not grant it twice.' : ship ? 'Even with an escort. They are getting bolder.' : 'An escort costs less than this. I have said so before.' } : undefined,
       who: st ? [{ id: st.id, part: 'brought the news' }] : [] });
   } else if (victim !== 'free' && !marquesAgainst(world, f.id, victim).some((d) => d.house === P)) {
@@ -795,7 +795,7 @@ export function raidOdds(world: World): number {
   const dread = world.houses[P]?.standing.dread ?? 0;
   const held = world.quests?.heldUntil && absoluteCycle(world.quests.heldUntil) > absoluteCycle(world.date) ? 0.6 : 1;
   // Raiders read the Numarade's rankings too: the strong are let be, the weak are picked on.
-  const rank = inTopThree(world, P, 'power') ? 0.75 : weakestInPower(world, P) ? 1.25 : 1;
+  const rank = inTopThree(world, P, 'power') ? 0.75 : weakestInPower(world, P) ? 1.1 : 1;
   return (avg >= 40 ? 0.6 : avg >= 15 ? 0.85 : avg <= -40 ? 1.4 : avg <= -15 ? 1.15 : 1) * (watched ? 0.8 : 1) * (1 - dread / 400) * held * rank;
 }
 

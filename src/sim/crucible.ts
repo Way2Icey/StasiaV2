@@ -249,7 +249,7 @@ export function cannotEnter(world: World, c: Contingent): string | null {
   const cr = world.crucible;
   const P = world.playerHouseId;
   if (cr.stage !== 'drawn' || !cr.entrants.includes(P)) return 'We are not drawn this year';
-  if (cr.contingents[P]) return 'Our contingent has already sailed';
+  if (cr.contingents[P]) return 'Our contingent has already left';
   if (!c.marshalId) return 'Name a Marshal';
   if (!c.championId) return 'Name a champion';
   if (c.knights.length > MAX_KNIGHTS) return `At most ${MAX_KNIGHTS} knights`;
@@ -459,7 +459,7 @@ export function intelOn(world: World, h: string): number {
 export const AGENTS_COST = 400;
 export function cannotSendAgents(world: World, h: string): string | null {
   const cr = world.crucible;
-  if (cr.stage !== 'drawn' || !cr.entrants.includes(world.playerHouseId)) return 'Only before we sail';
+  if (cr.stage !== 'drawn' || !cr.entrants.includes(world.playerHouseId)) return 'Only before we leave';
   if (cr.agents?.includes(h)) return 'Already watched';
   if (intelOn(world, h) >= 3) return 'We know all we can';
   if (econ(world, world.playerHouseId).stock.othes < AGENTS_COST) return 'Not enough othes';

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { PersonLink } from './links';
 import { Portrait } from './portrait';
-import { briefDone, dismissBriefing, openBriefings, summarySince, type Briefing } from '../sim/briefings';
+import { briefDone, dismissBriefing, dismissBriefings, openBriefings, summarySince, type Briefing } from '../sim/briefings';
 import { answerConcern } from '../sim/concerns';
 import { approvePetition, dismissPetition, petitionPlan } from '../sim/council';
 import { receiveRequest, turnAway } from '../sim/talk';
@@ -98,16 +98,42 @@ export function BriefingCard({ b }: { b: Briefing }) {
   );
 }
 
-/** The queue at the door, head first. */
+/** Reports that only need hearing: read together, thanked together. */
+const isReport = (b: Briefing) => !!b.done || b.kind === 'word';
+
+/** The queue at the door: what needs an answer one at a time, then everything already done as one digest. */
 export function AtTheDoor() {
   const world = useWorld();
   const q = openBriefings(world);
   if (!q.length) return null;
-  const head = q.find((b) => b.done && b.kind !== 'task' && b.kind !== 'report') ?? q.find((b) => !b.done) ?? q[0]!;
-  return (
+  const asks = q.filter((b) => !isReport(b));
+  const head = asks[0];
+  if (head) return (
     <>
-      {q.length > 1 ? <div className="brief-queue muted">{q.length - 1} more waiting: {[...new Set(q.filter((b) => b !== head).map((b) => world.characters[b.personId]?.name.given).filter(Boolean))].join(', ')}</div> : null}
+      {q.length > 1 ? <div className="brief-queue muted">{asks.length > 1 ? `${asks.length - 1} more to answer` : ''}{asks.length > 1 && q.length > asks.length ? ' · ' : ''}{q.length > asks.length ? `${q.length - asks.length} report${q.length - asks.length === 1 ? '' : 's'} after` : ''}</div> : null}
       <BriefingCard key={head.id} b={head} />
     </>
+  );
+  return <Digest items={q} />;
+}
+
+/** Everything the council has seen to, on one card. */
+function Digest({ items }: { items: Briefing[] }) {
+  const world = useWorld();
+  const game = useGame();
+  if (items.length === 1) return <BriefingCard key={items[0]!.id} b={items[0]!} />;
+  const names = [...new Set(items.map((b) => world.characters[b.personId]?.name.given).filter(Boolean))];
+  return (
+    <div className="briefing">
+      <span className="eyebrow gold">The council reports</span>
+      <strong className="brief-title">{items.length} matters seen to · {names.slice(0, 4).join(', ')}{names.length > 4 ? ` and ${names.length - 4} more` : ''}</strong>
+      <ul className="brief-digest">
+        {items.map((b) => {
+          const c = world.characters[b.personId];
+          return <li key={b.id}><strong>{b.title}</strong>{b.done?.approved ? <span className="muted"> · {b.done.approved}</span> : null}{(b.done?.summary[0] ?? b.lines[0]) ? <div className="muted">{b.done?.summary[0] ?? b.lines[0]}{c ? ` (${c.name.given})` : ''}</div> : null}</li>;
+        })}
+      </ul>
+      <div className="actions"><button type="button" className="btn primary" onClick={() => game.update((w) => dismissBriefings(w, items.map((b) => b.id)))}>Thank them all ›</button></div>
+    </div>
   );
 }

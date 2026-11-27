@@ -1,2 +1,2 @@
 // The build's version, shown in the corner. Bump with each release.
-export const VERSION = '9.18.0';
+export const VERSION = '9.19.0';

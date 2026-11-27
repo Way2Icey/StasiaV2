@@ -59,7 +59,7 @@ export function SceneWindow({ id, onClose }: { id: string; onClose: () => void }
                   {s.options.map((o) => (
                     <button key={o.key} type="button" className="btn small option" disabled={!!o.why} title={o.why ?? undefined} onClick={() => game.update((w) => actScene(w, id, o.key))}>
                       <span>{o.label}</span>
-                      {o.hint || o.odds !== undefined || o.why ? <span className="opt-sub">{o.why ?? [o.hint, o.odds !== undefined ? `${Math.round(o.odds * 100)}%` : null].filter(Boolean).join(' · ')}</span> : null}
+                      {o.hint || o.odds !== undefined || o.why ? <span className="opt-sub"><span className="sr-only"> — </span>{o.why ?? [o.hint, o.odds !== undefined ? `${Math.round(o.odds * 100)}%` : null].filter(Boolean).join(' · ')}</span> : null}
                     </button>
                   ))}
                 </div>

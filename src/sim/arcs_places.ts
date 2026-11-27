@@ -32,7 +32,7 @@ export function cannotAssault(w: World, siteId: string, shipIds: string[]): stri
   if (!atWar(w, P, s.holder)) return `We are not at war with House ${hn(w, s.holder)}.`;
   if (!shipIds.length) return 'Send at least one ship.';
   const free = new Set(shipsFree(w, P).map((x) => x.id));
-  if (shipIds.some((id) => !free.has(id))) return 'Those ships are not ready to sail.';
+  if (shipIds.some((id) => !free.has(id))) return 'Those ships are not ready to fly.';
   return null;
 }
 

@@ -92,7 +92,7 @@ export function Decision({ p }: { p: PendingEvent }) {
                 onClick={() => game.update((w) => orderEvent(w, p.id, i, voice?.id))}>
                 <span>{i === pick ? '★ ' : ''}{optionLabel(o, ctx)}</span>
                 {o.hint || chance !== null || why ? (
-                  <span className="opt-sub">
+                  <span className="opt-sub"><span className="sr-only"> — </span>
                     {why ?? [o.hint, foe && tester ? `${shortName(tester.name)} vs ${shortName(foe.name)}` : null, band ? `${oddsWord(chance!)} · ${band[1] - band[0] < 0.04 ? `${Math.round(chance! * 100)}%` : `${Math.round(band[0] * 100)}–${Math.round(band[1] * 100)}%`}` : null].filter(Boolean).join(' · ')}
                   </span>
                 ) : null}
