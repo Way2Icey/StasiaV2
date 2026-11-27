@@ -24,7 +24,7 @@ function nextSettlement(world: World) {
   return { phase: addCycles(world.date, phaseLeft), phaseLeft, orbit: addCycles(world.date, orbitLeft) };
 }
 
-export function EconomyPage() {
+export function EconomyPage({ bare }: { bare?: boolean } = {}) {
   const world = useWorld();
   const game = useGame();
   const house = world.playerHouseId;
@@ -48,12 +48,14 @@ export function EconomyPage() {
 
   return (
     <>
+      {bare ? null : (
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <h2>Ledger &amp; exchange</h2>
           <p>Standing flows settle at the start of each Phase: next on {formatDate(next.phase)}, in {next.phaseLeft} {next.phaseLeft === 1 ? "cycle" : "cycles"}. Trades, missions and ransoms settle at once.</p>
         </div>
       </div>
+      )}
 
       <div className="stocks">
         {RESOURCES.map((r) => (

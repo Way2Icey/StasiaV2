@@ -186,16 +186,18 @@ function who(world: ReturnType<typeof useWorld>, id: string): string {
 }
 
 /** The Exchange as its own page: our stores and the Steward, the markets, orders by hand, and the news. */
-export function ExchangePage() {
+export function ExchangePage({ bare }: { bare?: boolean } = {}) {
   const world = useWorld();
   return (
     <>
+      {bare ? null : (
       <div className="page-title">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <h2>The Exchange</h2>
           <p>What we hold against what we need, what the Steward does with the rest, and what every market will pay. Prices clear at each Phase.</p>
         </div>
       </div>
+      )}
       <div className="grid">
         <ExchangePanels />
         <Panel fold="open" scroll={300} title="News on the Exchange" className="span-12">

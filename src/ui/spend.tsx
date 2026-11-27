@@ -17,7 +17,7 @@ function usePlay() {
   return { run, err };
 }
 
-export function SpendPage() {
+export function SpendPage({ bare }: { bare?: boolean } = {}) {
   const world = useWorld();
   const { run, err } = usePlay();
   const P = world.playerHouseId;
@@ -27,10 +27,12 @@ export function SpendPage() {
   const mult = PAY_SCALE[scale].mult;
   return (
     <>
+      {bare ? null : (
       <div className="page-title">
         <h2>Pay &amp; great works</h2>
         <p>What the house costs to run, how it pays the people who fight and serve for it, and what a rich house spends on when the bills are paid. The higher the house stands, the more all of it costs: our station asks {standingMult(world, P).toFixed(2)}× what a modest Minor House pays.</p>
       </div>
+      )}
       {err ? <p className="body error">{err}</p> : null}
       <div className="grid">
         <Panel scroll={420} title="How we pay" aside={`${fmt(-lines.reduce((n, l) => n + l.amount, 0))} othes a Phase`} className="span-6">

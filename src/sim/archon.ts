@@ -774,7 +774,9 @@ function askUs(w: World, rng: Rng): void {
   }
 }
 
-let sessionHook: ((w: World, m: Motion) => boolean) | null = null;
+// A var, not a let: scenes_court registers its hook at load, and module order must not matter.
+// eslint-disable-next-line no-var
+var sessionHook: ((w: World, m: Motion) => boolean) | undefined;
 /** The scenes module opens a live session of the Numarade through this. */
 export function onSession(fn: (w: World, m: Motion) => boolean): void { sessionHook = fn; }
 

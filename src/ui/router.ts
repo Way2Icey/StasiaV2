@@ -125,11 +125,7 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'The Annals', to: { kind: 'history' }, on: (r) => r.kind === 'history' || r.kind === 'legacy' || (r.kind === 'people' && r.view === 'renown') },
   ],
   treasury: [
-    { label: 'Ledger', to: { kind: 'economy' }, on: is('economy') },
-    { label: 'The Exchange', to: { kind: 'exchange' }, on: is('exchange') },
-    { label: 'Loans', to: { kind: 'loans' }, on: is('loans') },
-    { label: 'Vaults', to: { kind: 'vaults' }, on: is('vaults') },
-    { label: 'Pay & great works', to: { kind: 'spend' }, on: is('spend') },
+    { label: 'The Exchequer', to: { kind: 'economy' }, on: (r) => ['economy', 'exchange', 'loans', 'vaults', 'spend'].includes(r.kind) },
   ],
   missions: [
     { label: 'Missions', to: { kind: 'missions' }, on: (r) => r.kind === 'missions' || r.kind === 'mission' || r.kind === 'plan' || r.kind === 'boards' },
@@ -161,7 +157,7 @@ export function routeLabel(world: World, r: Route): string {
     case 'talk': return `Audience · ${world.characters[r.id]?.name.given ?? ''}`;
     case 'council': return 'Council';
     case 'seat': return SEAT_TITLE[r.id];
-    case 'economy': return 'Ledger';
+    case 'economy': return 'The Exchequer';
     case 'exchange': return 'The Exchange';
     case 'glossary': return 'Glossary';
     case 'log': return r.person ? `Record: ${world.characters[r.person]?.name.given ?? ''}` : r.place ? `Log: ${findSector(world, r.place)?.sector.name ?? world.planets[r.place]?.name ?? ''}` : r.house ? `Log: ${world.houses[r.house]?.name ?? ''}` : 'Log';

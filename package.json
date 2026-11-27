@@ -1,6 +1,6 @@
 {
   "name": "stasia",
-  "version": "9.16.0",
+  "version": "9.17.0",
   "description": "Stasia: a house-management game set in the Houses of Archon",
   "scripts": {
     "dev": "vite",

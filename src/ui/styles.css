@@ -863,3 +863,23 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .chamber-floor { position: absolute; left: 50%; top: 62%; transform: translate(-50%, -50%); width: 260px; border: 1px solid var(--gold); padding: 10px; display: grid; gap: 4px; font-size: 12px; background: var(--panel, #0e0c09); }
 .chamber-gallery { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 70%; border-top: 1px dashed var(--line); padding-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: center; font-size: 12px; }
 @media (max-width: 700px) { .chamber { height: 520px; } .seat { width: 64px; font-size: 10px; } }
+/* 9.17: the Exchequer */
+.ticker { display: flex; gap: 24px; flex-wrap: wrap; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 8px 0; margin-bottom: 14px; font-size: 12px; align-items: center; }
+.xq-layout { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.xq-layout > .stack { flex: 999 1 760px; }
+.xq-side { flex: 1 1 260px; display: flex; flex-direction: column; gap: 8px; }
+.xq-flow { display: grid; grid-template-columns: minmax(0, 1fr) 190px minmax(0, 1fr); gap: 14px; align-items: stretch; }
+.xq-bank { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.xq-line { display: grid; grid-template-columns: minmax(0, 1fr) 92px 70px; gap: 8px; align-items: center; font-size: 12px; padding: 4px 2px; border-bottom: 1px dotted var(--line-soft, #2a2216); }
+.xq-line > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xq-line .mono { text-align: right; }
+.xq-line.total { border-bottom: 0; }
+.xq-bar { height: 8px; justify-self: start; }
+.xq-bar.in { background: #8cc98c; opacity: .8; justify-self: end; }
+.xq-bar.out { background: #e8875a; opacity: .8; }
+.xq-coffers { border: 2px solid var(--gold); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 12px; text-align: center; background: linear-gradient(90deg, rgba(140,201,140,.10), rgba(242,169,59,.05), rgba(232,135,90,.10)); }
+.xq-goods { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.xq-good { border: 1px solid var(--line); padding: 10px; display: flex; flex-direction: column; gap: 5px; font-size: 12px; min-width: 0; }
+.xq-drawer { text-align: left; border: 1px solid var(--line); padding: 9px 12px; background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.xq-drawer[aria-expanded="true"] { border-color: var(--gold); color: var(--gold); }
+@media (max-width: 900px) { .xq-flow { grid-template-columns: 1fr; } .xq-goods { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

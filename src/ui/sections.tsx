@@ -289,13 +289,15 @@ export function EmbassiesPage() {
 
 // ---------------------------------------------------------------- Treasury
 
-export function LoansPage() {
+export function LoansPage({ bare }: { bare?: boolean } = {}) {
   return (
     <>
+      {bare ? null : (
       <div className="page-title">
         <h2>Loans</h2>
         <p>Othes lent and borrowed between houses: what we owe, what is owed to us, and what others ask of us.</p>
       </div>
+      )}
       <div className="grid"><LoansPanel className="span-12" /><Lenders /></div>
     </>
   );
@@ -320,16 +322,18 @@ function Lenders() {
   );
 }
 
-export function VaultsPage() {
+export function VaultsPage({ bare }: { bare?: boolean } = {}) {
   const world = useWorld();
   const P = world.playerHouseId;
   const vaults = modulesOf(world, P, 'vault');
   return (
     <>
+      {bare ? null : (
       <div className="page-title">
         <h2>Vaults</h2>
         <p>Reserves kept off the ledger, Caiges under watch, the house records. Reserves now: {fmt(reservesOf(world, P))} othes.</p>
       </div>
+      )}
       <div className="grid">
         {vaults.length === 0 ? <Panel title="No vaults" className="span-12"><p className="body muted" style={{ margin: 0 }}>We have none. <Go to={{ kind: 'build' }}>Build one ›</Go></p></Panel> : null}
         {vaults.map((v) => <div key={v.id} className="span-12 stack"><ModuleView m={v} /></div>)}
