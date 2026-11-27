@@ -77,6 +77,7 @@ import {
   type GameDate,
 } from './time';
 import { advanceSince } from './since';
+import { advanceRankings } from './rankings';
 import type { World } from './types';
 
 
@@ -163,6 +164,7 @@ function stepInPlace(world: World): void {
   advanceStory(world, rng, crossed.phases > 0);
   if (crossed.orbits > 0) checkDeaths(world, rng, to);
   advanceSince(world, crossed.phases > 0);
+  advanceRankings(world, crossed.orbits > 0);
 
   world.rng = rng.state;
   trimFeed(world);

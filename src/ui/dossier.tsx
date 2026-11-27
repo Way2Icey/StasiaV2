@@ -9,6 +9,7 @@ import { EmbassyPanel } from './embassies';
 import { DeclarePanel } from './war';
 import { RivalVaults } from './holdings';
 import { Regard } from './council';
+import { HouseRanks } from './rankings';
 import { cannotCourt, courtHouse, COURT_COST, houseName, liveHouses, regardOf } from '../sim/archon';
 import { attitudeColor, relation } from '../sim/relations';
 import { envyOf, envyWord } from '../sim/envy';
@@ -116,6 +117,7 @@ function Know({ id }: { id: string }) {
         <dl className="kv body">
           <dt>Highroy</dt><dd>{ruler ? <PersonLink c={ruler} /> : a?.ruler ? `${a.ruler.name}, ${year - a.ruler.born}` : '—'}</dd>
           <dt>Known for</dt><dd>{a?.focus ?? '—'}</dd>
+          <dt>Ranked</dt><dd><HouseRanks id={id} /></dd>
           <dt>Capital</dt><dd>{a?.capital ?? (h ? world.planets[h.capitalPlanetId]?.name : '—')}</dd>
           <dt>Worlds</dt><dd className="mono">{a?.worlds ?? Object.values(world.planets).filter((p) => p.houseId === id).length}</dd>
           <dt>After</dt><dd>{aim?.known ? <>{AIM_LABEL[aim.kind]}{aim.target ? <> · {aim.target === P ? 'us' : <HouseLink id={aim.target} />}</> : null}</> : <span className="muted">unknown; investigate their Highroy, or question one of theirs</span>}</dd>

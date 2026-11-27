@@ -1,3 +1,4 @@
+import { inTopThree } from './rankcheck';
 // The Grand Master's board: deeds kept ready for the house's knights and aspirants to ride out and do.
 //
 // A knight with nothing to do grows restless and an aspirant needs proof. The Grand Master keeps a handful of
@@ -193,12 +194,13 @@ export function candidatesFor(w: World, board: Board = 'grandMaster'): Character
     .sort((a, b) => skillFor(board, b) - skillFor(board, a)).slice(0, 12);
 }
 
-export function odds(_w: World, q: Quest, c: Character): number {
+export function odds(w: World, q: Quest, c: Character): number {
   const board = BOARD_OF[q.kind];
   const extra = board !== 'grandMaster' ? 0 : q.kind === 'hunt' || q.kind === 'relic' ? (c.stats.perception + c.stats.stealth) / 4 : q.kind === 'guard' ? (c.stats.diplomacy + c.stats.composure) / 4 : q.kind === 'escort' ? (c.stats.tactics + c.stats.perception) / 4 : 0;
   const skill = skillFor(board, c) + extra;
   const bar = board === 'grandMaster' ? 6 + q.hard * 3 : 4 + q.hard * 2.5;
-  return Math.max(0.1, Math.min(0.95, 0.5 + (skill - bar) / (board === 'grandMaster' ? 14 : 10)));
+  const famed = board === 'grandMaster' && inTopThree(w, c.houseId, 'knights') ? 0.05 : 0;
+  return Math.max(0.1, Math.min(0.95, 0.5 + (skill - bar) / (board === 'grandMaster' ? 14 : 10) + famed));
 }
 
 export function cannotSend(w: World, questId: string, personId: string): string | null {

@@ -1,3 +1,4 @@
+import { inTopThree, weakestInPower } from './rankcheck';
 // Dynamic lanes: everything the houses make, buy, sell and are granted actually travels. The Numarade's
 // Navisium leaves the Reserve each Orbit for every capital; surpluses go out to the Exchange and
 // shortfalls come back from it; free traders run ore out of the Outer Reach. Every run crosses a lane,
@@ -793,7 +794,9 @@ export function raidOdds(world: World): number {
   const watched = (world.lanes?.watches ?? []).some((w) => w.house === P);
   const dread = world.houses[P]?.standing.dread ?? 0;
   const held = world.quests?.heldUntil && absoluteCycle(world.quests.heldUntil) > absoluteCycle(world.date) ? 0.6 : 1;
-  return (avg >= 40 ? 0.6 : avg >= 15 ? 0.85 : avg <= -40 ? 1.4 : avg <= -15 ? 1.15 : 1) * (watched ? 0.8 : 1) * (1 - dread / 400) * held;
+  // Raiders read the Numarade's rankings too: the strong are let be, the weak are picked on.
+  const rank = inTopThree(world, P, 'power') ? 0.75 : weakestInPower(world, P) ? 1.25 : 1;
+  return (avg >= 40 ? 0.6 : avg >= 15 ? 0.85 : avg <= -40 ? 1.4 : avg <= -15 ? 1.15 : 1) * (watched ? 0.8 : 1) * (1 - dread / 400) * held * rank;
 }
 
 // ---------------------------------------------------------------- the Highroy's hand

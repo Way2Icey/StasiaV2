@@ -14,6 +14,7 @@ import { ChairPage } from './chair';
 import { PlacesPage } from './places';
 import { PersonMenuLayer, Toast } from './personmenu';
 import { RenownPage } from './realm';
+import { RankingsPage } from './rankings';
 import { VERSION } from '../version';
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { Term } from './tip';
@@ -325,6 +326,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
     case 'spend': return <SpendPage />;
     case 'lanes': return <LanesPage />;
     case 'numarade': return <NumaradePage />;
+    case 'rankings': return <RankingsPage />;
     case 'history': return <HistoryPage />;
     case 'legacy': return <LegacyPage />;
     case 'chair': return <ChairPage />;

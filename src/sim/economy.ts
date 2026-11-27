@@ -1,3 +1,4 @@
+import { inTopThree } from './rankcheck';
 // The economy: othes and five resources. Standing flows (quarters, taxes,
 // food, stipends) settle once a Phase; trades, missions and ransoms settle at
 // once. Prices on the Imperial Exchange move with what the houses buy and sell.
@@ -74,7 +75,7 @@ function efficiency(c: Character | undefined): number {
 
 export function quotaFor(world: World, houseId: string): number {
   const h = world.houses[houseId]!;
-  return round(QUOTA_BASE[h.tier] * (0.8 + h.standing.respect / 250) * favourQuota(world, houseId));
+  return round(QUOTA_BASE[h.tier] * (0.8 + h.standing.respect / 250) * favourQuota(world, houseId) * (inTopThree(world, houseId, 'influence') ? 1.15 : 1));
 }
 
 /**
@@ -428,7 +429,7 @@ function settlePhase(world: World, rng: Rng, houseId: string) {
 /** Each Phase: great honour and respect are kept only by deeds. Above 55, they slip back a little unless renewed. */
 export function fadeStanding(world: World, rng: Rng, houseId: string): void {
   const st = world.houses[houseId]?.standing;
-  if (!st) return;
+  if (!st || inTopThree(world, houseId, 'legacy')) return;
   for (const k of ['honour', 'respect'] as const) if (st[k] > 55 && rng.chance(Math.min(1, (st[k] - 55) / 45))) st[k] -= 1;
 }
 

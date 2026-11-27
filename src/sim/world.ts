@@ -1,3 +1,4 @@
+import { ensureRankings } from './rankings';
 import { ensurePlaces } from './places';
 import { advanceQuests } from './quests';
 import { CULTURES } from '../data/cultures';
@@ -199,6 +200,7 @@ export function createWorld(seed: string = DEFAULT_SEED, opts: NewGame = {}): Wo
   ensureCaigeDepth(world);
   // The Grand Master's board starts with work on it, drawn on its own thread so nothing else shifts.
   advanceQuests(world, Rng.fromSeed(`${seed}:deeds`), true);
+  ensureRankings(world);
   world.rng = rng.state;
   return world;
 }

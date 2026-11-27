@@ -1,3 +1,4 @@
+import { inTopThree } from './rankcheck';
 // The regional Exchange. There is no bottomless buyer: a good sells only to a house, or a world, that
 // wants it, at what it will pay for it. Every house wants goods according to how short it is: a starving
 // house pays two and a half times the usual price for provisions, a fed one will only stock up cheaply.
@@ -379,12 +380,14 @@ function match(world: World, g: Good, bids: Quote[], asks: Quote[], totals: Tota
 
 /** The Exchange's dues on every sale. */
 export const EXCHANGE_DUES = 0.1;
+/** The dues a house pays: less for the three richest houses of the Archon. */
+export const duesFor = (world: World, houseId: string) => (inTopThree(world, houseId, 'economy') ? 0.06 : EXCHANGE_DUES);
 
 function execute(world: World, g: Good, q: number, unit: number, a: Quote, b: Quote, totals: Totals): void {
   const ex = ensureExchange(world);
   const cost = haul(world, g, a.region, b.region);
   // The Exchange keeps its dues from every sale.
-  const toSeller = (unit - cost) * q * (1 - EXCHANGE_DUES);
+  const toSeller = (unit - cost) * q * (1 - (isHouse(a.who) ? duesFor(world, a.who) : EXCHANGE_DUES));
   const fromBuyer = isHouse(b.who) ? unit * q * purchaseMarkup(world, b.who) : 0;
   const add = (who: string, side: 'sell' | 'buy', value: number, where: string) => {
     const k = `${who}|${g}|${side}|${where}`;
@@ -520,7 +523,7 @@ export function quote(world: World, houseId: string, g: Good, qty: number): { do
 function quoteFrom(world: World, houseId: string, g: Good, qty: number, list: Quote[], _live: boolean): { done: number; value: number; avg: number } {
   const home = homeRegion(world, houseId);
   const want = Math.abs(qty);
-  const priced = list.filter((q) => q.qty > 0 && q.who !== houseId).map((q) => ({ q, unit: qty > 0 ? q.price + haul(world, g, q.region, home) : (q.price - haul(world, g, home, q.region)) * (1 - EXCHANGE_DUES) }))
+  const priced = list.filter((q) => q.qty > 0 && q.who !== houseId).map((q) => ({ q, unit: qty > 0 ? q.price + haul(world, g, q.region, home) : (q.price - haul(world, g, home, q.region)) * (1 - duesFor(world, houseId)) }))
     .filter((x) => x.unit > 0)
     .sort((a, b) => (qty > 0 ? a.unit - b.unit : b.unit - a.unit));
   let done = 0, value = 0;

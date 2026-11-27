@@ -47,6 +47,7 @@ import { MissionRow } from './missions';
 import { moodColor, moodLabel, moodOf } from '../sim/mood';
 import { Desk } from './hall';
 import { ThisOrbit } from './since';
+import { StandingStrip } from './rankings';
 import { CaptivesPanel, RansomDemands, StandingPanel } from './council';
 import { formatRange, KNOW, knowledgeOf } from '../sim/knowledge';
 import { activeMissionOf, activeMissions, MISSION_LABEL } from '../sim/missions';
@@ -120,6 +121,7 @@ export function ThroneRoom() {
           <StoriesPanel />
         </div>
         <div className="span-4 stack">
+          <StandingStrip />
           <CalendarPanel />
           <Panel title={<Term k="mission">In the field</Term>} aside={<Go to={{ kind: 'missions' }}>Missions ›</Go>}>
             {missions.length === 0 ? <p className="body muted" style={{ margin: 0 }}>No one is out. <Go to={{ kind: 'boards' }}>The boards ›</Go></p> : null}
