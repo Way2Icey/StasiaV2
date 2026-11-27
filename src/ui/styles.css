@@ -800,3 +800,22 @@ th, .ctable th { color: var(--muted); font-weight: 500; }
 .deck-bar { display: inline-block; width: 120px; vertical-align: middle; margin-right: 6px; }
 @media (max-width: 900px) { .deck-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .deck-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* 9.13: the House as its rooms */
+.house-layout { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.house-layout > .stack { flex: 999 1 720px; }
+.house-drawer { flex: 1 1 300px; position: sticky; top: 12px; }
+.hroom { border: 2px solid var(--line); }
+.hroom-head { display: flex; gap: 10px; align-items: center; width: 100%; padding: 9px 12px; background: transparent; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; flex-wrap: wrap; }
+.hroom-name { font-size: 12px; letter-spacing: .16em; color: var(--gold); }
+.hroom-body { padding: 4px 12px 12px; display: grid; gap: 10px; }
+.htree { display: flex; flex-direction: column; align-items: stretch; }
+.hrow { display: flex; gap: 10px; justify-content: center; }
+.hrow.wrap { flex-wrap: wrap; justify-content: flex-start; }
+.hline { width: 1px; height: 16px; background: var(--line); align-self: center; }
+.hfams { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.hfam { border: 1px dashed var(--line); padding: 8px; display: grid; gap: 6px; }
+.hfam.t-down { border-color: var(--orange); }
+.hfam-head { display: flex; justify-content: space-between; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+.hnode { border: 1px solid var(--line); padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; background: var(--bg, transparent); color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 120px; }
+.hnode.t-up { border-color: var(--green); } .hnode.t-down { border-color: var(--orange); } .hnode.t-gold { border-color: var(--gold); }
+.hnode.sel { box-shadow: 0 0 0 2px var(--gold); }

@@ -86,7 +86,7 @@ export interface SectionDef { id: Section; label: string; key: string; home: Rou
 export const SECTIONS: SectionDef[] = [
   { id: 'hall', label: 'HALL', key: '1', home: { kind: 'throne' } },
   { id: 'court', label: 'COURT', key: '2', home: { kind: 'council' } },
-  { id: 'people', label: 'HOUSE', key: '3', home: { kind: 'people', view: 'opinions' } },
+  { id: 'people', label: 'HOUSE', key: '3', home: { kind: 'people' } },
   { id: 'arms', label: 'ARMS', key: '4', home: { kind: 'military' } },
   { id: 'realm', label: 'REALM', key: '5', home: { kind: 'worlds' } },
   { id: 'archon', label: 'ARCHON', key: '6', home: { kind: 'rankings' } },
@@ -107,10 +107,8 @@ export const SUBTABS: Partial<Record<Section, SubTab[]>> = {
     { label: 'Seats of the court', to: { kind: 'greatSeats' }, on: is('greatSeats') },
   ],
   people: [
-    { label: 'Opinions', to: { kind: 'people', view: 'opinions' }, on: (r) => r.kind === 'people' && ((!r.view && !r.focus) || r.view === 'opinions') },
-    { label: 'Ties', to: { kind: 'people', view: 'web' }, on: (r) => r.kind === 'people' && (r.view === 'web' || (!r.view && !!r.focus)) },
-    { label: 'Younglings & wards', to: { kind: 'people', view: 'young' }, on: (r) => r.kind === 'people' && r.view === 'young' },
-    { label: 'Guards', to: { kind: 'people', view: 'guards' }, on: (r) => r.kind === 'people' && r.view === 'guards' },
+    { label: 'The House', to: { kind: 'people' }, on: (r) => r.kind === 'people' && !r.focus && r.view !== 'web' },
+    { label: 'Ties', to: { kind: 'people', view: 'web' }, on: (r) => r.kind === 'people' && (r.view === 'web' || !!r.focus) },
   ],
   arms: [
     { label: 'Military', to: { kind: 'military' }, on: is('military') },
@@ -160,7 +158,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export function routeLabel(world: World, r: Route): string {
   switch (r.kind) {
     case 'throne': return 'Hall';
-    case 'people': return r.view === 'guards' ? 'Guards' : r.view === 'ambitions' ? 'Audiences & ambitions' : r.view === 'factions' ? 'Factions' : r.view === 'young' ? 'Younglings & wards' : r.view === 'renown' ? 'Renown' : r.view === 'web' || r.focus ? 'Ties' : 'Opinions';
+    case 'people': return r.view === 'ambitions' ? 'Audiences & ambitions' : r.view === 'renown' ? 'Renown' : r.view === 'web' || r.focus ? 'Ties' : 'The House';
     case 'houses': return 'Houses';
     case 'rankings': return 'Rankings';
     case 'worlds': return 'Star map';

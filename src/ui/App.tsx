@@ -15,6 +15,7 @@ import { PlacesPage } from './places';
 import { PersonMenuLayer, Toast } from './personmenu';
 import { RenownPage } from './realm';
 import { RankingsPage } from './rankings';
+import { HousePage as HouseRooms } from './house';
 import { VERSION } from '../version';
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { Term } from './tip';
@@ -283,6 +284,7 @@ function Page({ route, setWorld }: { route: Route; setWorld: (w: World) => void 
   switch (route.kind) {
     case 'throne': return <ThroneRoom />;
     case 'people': if (route.view === 'renown') return <RenownPage />;
+      if (!route.focus && (!route.view || route.view === 'opinions' || route.view === 'guards' || route.view === 'young' || route.view === 'factions')) return <HouseRooms key={route.view ?? 'house'} room={route.view === 'guards' ? 'guards' : route.view === 'young' ? 'nursery' : undefined} />;
       return <RelationsPage key={route.view ?? (route.focus ? 'web' : 'opinions')} focus={route.focus} view={route.view} />;
     case 'houses': return <HousesPage />;
     case 'worlds': return <StarMapPage />;
