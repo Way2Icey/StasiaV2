@@ -1175,7 +1175,7 @@ export function answerRaid(input: World, raidId: string, answer: 'muster' | 'tri
   const P = world.playerHouseId;
   if (answer === 'tribute') {
     const cost = tributeFor(raid);
-    if (econ(world, P).stock.othes < cost) return input;
+    if (econ(world, P).stock.othes < cost) throw new Error(`The corsairs want ${cost.toLocaleString('en-US')} othes, and the treasury cannot pay it.`);
     record(world, P, { resource: 'othes', amount: -cost, label: 'Tribute to corsairs', kind: 'raid', sectorId: raid.sectorId });
     world.houses[P]!.standing.respect = Math.max(0, world.houses[P]!.standing.respect - 2);
   }

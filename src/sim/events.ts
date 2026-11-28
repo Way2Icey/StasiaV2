@@ -536,7 +536,7 @@ export function settle(world: World, rng: Rng, eventId: string, choice: number |
     const vs = use.check.vs?.(ctx);
     const bar = use.check.vs ? checkValue(vs, use.check.vsStats ?? use.check.stats) + rng.gauss() * SPREAD : use.check.dc;
     passed = checkValue(who, use.check.stats) + rng.gauss() * SPREAD >= bar;
-    ctx.fx.say(`${who ? shortName(who.name) : 'Our people'} ${passed ? (vs ? `get the better of ${shortName(vs.name)}` : 'succeed') : (vs ? `are bested by ${shortName(vs.name)}` : 'fail')}`);
+    ctx.fx.say(who ? `${shortName(who.name)} ${passed ? (vs ? `gets the better of ${shortName(vs.name)}` : 'succeeds') : (vs ? `is bested by ${shortName(vs.name)}` : 'fails')}` : `Our people ${passed ? (vs ? `get the better of ${shortName(vs.name)}` : 'succeed') : (vs ? `are bested by ${shortName(vs.name)}` : 'fail')}`);
   }
   // A broken resolve must never stop the clock: what it managed stands, and the game goes on.
   try { use.resolve(ctx, passed); } catch (e) { console.error(`event ${def.id}: ${(e as Error).message}`); ctx.fx.say('It came to nothing'); }

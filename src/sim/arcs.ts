@@ -13,8 +13,10 @@ import { startStruggle, endStruggle, pushStruggle, naturalFor } from './story';
 import { addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from './time';
 import { shiftFavour } from './houses';
 import { learn } from './knowledge';
-import type { Character, CouncilSeat } from './types';
+import type { Character, CouncilSeat, World } from './types';
 
+/** A person's family name: the family's own, then the name they carry, then a word that stands in. */
+const fam = (w: World, c: Character | undefined, or: string) => (c?.familyId ? w.families[c.familyId]?.name : undefined) || c?.name.family || or;
 const nm = (c?: Character) => (c ? shortName(c.name) : 'someone');
 const full = (c?: Character) => (c ? displayName(c.name) : 'someone');
 const seat = (c: Ctx, s: CouncilSeat) => seatHolder(c.world, c.house, s);
@@ -365,7 +367,7 @@ const feud: EventDef[] = [
       }
       return false;
     },
-    text: (c) => `The ${c.person?.name.family ?? 'one'} and ${c.second?.name.family ?? 'other'} families are not speaking. It started with ${nm(c.person)} and ${nm(c.second)}; now cousins cross the street to avoid each other and someone's hound was found dead.`,
+    text: (c) => `The ${fam(c.world, c.person, 'one')} and ${fam(c.world, c.second, 'other')} families are not speaking. It started with ${nm(c.person)} and ${nm(c.second)}; now cousins cross the street to avoid each other and someone's hound was found dead.`,
     options: [
       { label: 'Set the Speaker to mend it', resolve: (c) => { const s = naturalFor(c.world, 'feud'); startStruggle(c.world, 'feud', { strength: feudStrength(c), theirName: 'old blood', cast: { personId: c.person?.id, secondId: c.second?.id }, ours: s ? [s.id] : [] }); } },
       { label: 'Mend it yourself', resolve: (c) => { const h = highroy(c); startStruggle(c.world, 'feud', { strength: feudStrength(c), theirName: 'old blood', cast: { personId: c.person?.id, secondId: c.second?.id }, ours: h ? [h.id] : [], meter: 10 }); } },
@@ -376,7 +378,7 @@ const feud: EventDef[] = [
   {
     id: 'str:feud:down', title: 'Blood in the street', category: 'Family', trigger: 'home', weight: 0, stage: true, urgent: true,
     setup: (c) => !!c.person?.alive && !!c.second?.alive,
-    text: (c) => `A ${c.person?.name.family ?? ''} cousin was knifed outside a ${c.second?.name.family ?? ''} house. He lives. The families are arming.`,
+    text: (c) => `A ${fam(c.world, c.person, 'young')} cousin was knifed outside a ${fam(c.world, c.second, 'rival')} house. He lives. The families are arming.`,
     options: [
       { label: 'Send the knights between them', resolve: (c) => { c.fx.dread(1); pushStruggle(c.world, strug(c)?.id, 12, 'The knights kept the peace'); } },
       { label: 'Punish the knife', resolve: (c) => { c.fx.mood(c.second, -8); pushStruggle(c.world, strug(c)?.id, 4); } },
@@ -394,7 +396,7 @@ const feud: EventDef[] = [
   {
     id: 'str:feud:won', title: 'The feud is ended', category: 'Family', trigger: 'home', weight: 0, stage: true,
     setup: () => true,
-    text: (c) => `The ${c.person?.name.family ?? ''} and ${c.second?.name.family ?? ''} heads have clasped hands before the court.`,
+    text: (c) => `The heads of the ${fam(c.world, c.person, 'one')} and ${fam(c.world, c.second, 'other')} families have clasped hands before the court.`,
     options: [{ label: 'Witness it', resolve: (c) => { if (c.person && c.second) { shiftBoth(c.world, c.person.id, c.second.id, 30, 'the feud ended'); setBond(c.world, c.person.id, c.second.id, 'friend', 'friend', 'the feud ended'); } c.fx.respect(1); endStruggle(c.world, strug(c)?.id, true, 'Reconciled.'); } }],
     fallback: 0,
   },

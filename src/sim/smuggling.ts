@@ -39,12 +39,12 @@ function motive(world: World, rng: Rng, c: Character): { goods: SmuggleKind; why
   if (!powerHungry && !greedy) return undefined;
   // A Caige is rare even on the black market: only the hungriest try, and only once.
   if (powerHungry && c.resonance && c.hidden.ambition >= 16 && !c.flags.some((f) => f.id === 'caigeBonded' || f.id === 'triedCaige') && rng.chance(0.25)) {
-    return { goods: 'caige', why: 'wants power the house has not given them: a Caige of their own', p: 0.004 * (c.hidden.ambition - 14) };
+    return { goods: 'caige', why: 'wants power the house has not given them: a Caige of their own', p: 0.008 * (c.hidden.ambition - 14) };
   }
   if (!greedy) return undefined;
   const goods = rng.weighted([['slaves', 1 + (c.hidden.greed - 13) * 0.3], ['prisoners', 1], ['navisium', 2], ['relics', 1.5], ['contraband', 2.5]] as const);
   const why = rng.pick(['want money, and more of it than the house pays', 'have debts nobody knows about', 'want a fortune of their own before they are old', 'think the house owes them']);
-  return { goods, why, p: 0.006 * (c.hidden.greed - 12) };
+  return { goods, why, p: 0.012 * (c.hidden.greed - 12) };
 }
 
 const VALUE: Record<SmuggleKind, [number, number]> = { caige: [12000, 18000], slaves: [4000, 9000], prisoners: [2500, 6000], navisium: [3000, 7000], relics: [3000, 10000], contraband: [1500, 5000] };

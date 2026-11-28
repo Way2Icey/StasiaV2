@@ -7,6 +7,7 @@ import { advanceBriefings } from './briefings';
 import { advanceSeatReports } from './seatReports';
 import { advanceTalkRequests } from './talk';
 import { advanceEvents } from './events';
+import { housekeeping } from './housekeeping';
 import { advanceStory } from './story';
 import { advanceCrash, checkDebt, marketShocks, maybeCrash } from './arcs_economy';
 import './arcs';
@@ -110,6 +111,7 @@ function stepInPlace(world: World): void {
   }
 
   expireFlags(world, to);
+  if (crossed.orbits > 0) housekeeping(world);
   advanceMissions(world, rng);
   advanceEconomy(world, rng, crossed.phases > 0, crossed.orbits > 0);
   if (crossed.orbits > 0) marketShocks(world, rng);

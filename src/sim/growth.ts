@@ -125,10 +125,17 @@ function comingOfAge(world: World, houseId: string) {
 
 const CAIGE_NAMES = ['Coldwake', 'the Ninth Oath', 'Briar Crown', 'Duskhorn', 'Ironpsalm', 'the Grey Widow', 'Sunken Bell', 'Harrowlight'];
 
+/** The most named people a rival court keeps: past it, they take no more retainers in. */
+export const RIVAL_COURT_CAP = 40;
+const courtSize = (w: World, h: string) => Object.values(w.characters).filter((c) => c.alive && c.houseId === h && c.tier === 'full').length;
+export const rivalHasRoom = (w: World, h: string) => courtSize(w, h) < RIVAL_COURT_CAP && (w.economy.houses[h]?.stock.othes ?? 0) >= 600;
+
 /** A rival takes in someone talented. Poaching a person we had our eye on is noticed. */
 export function rivalRecruit(world: World, rng: Rng, houseId: string, c: Character): void {
   const e = world.economy.houses[houseId]!;
   if (e.stock.othes < 600) return;
+  // A court has only so many places at its table; a full one takes no one in.
+  if (courtSize(world, houseId) >= RIVAL_COURT_CAP) return;
   e.stock.othes -= 300;
   const from = c.houseId;
   const fam = `${houseId}:line-${world.nextId++}`;
@@ -180,6 +187,7 @@ export function rivalFind(world: World, rng: Rng, houseId: string, kind: 'invest
   if (pick === 'recruit') {
     // Prefer someone we already had our eye on, if they are on that world.
     const ours = world.leads.find((l) => l.kind === 'recruit' && l.planetId === where.planetId && l.targetId && world.characters[l.targetId]?.alive);
+    if (!rivalHasRoom(world, houseId)) return;
     const c = ours ? world.characters[ours.targetId!]! : materialize(world, rng, where.planetId, where.sectorId);
     rivalRecruit(world, rng, houseId, c);
   } else if (pick === 'caige') {
@@ -202,7 +210,7 @@ export function advanceGrowth(world: World, rng: Rng, phaseTurned: boolean): voi
     if (h.id === world.playerHouseId) continue; // the player finds things by sending people out
     // Their own agents at work, beyond the missions we can see.
     const talent = 0.025 + h.standing.respect / 2000 + h.personality.intrigue * 0.02;
-    if (rng.chance(talent)) {
+    if (rng.chance(talent) && rivalHasRoom(world, h.id)) {
       const home = world.planets[h.capitalPlanetId]!;
       const sector = rng.pick(home.sectors);
       rivalRecruit(world, rng, h.id, materialize(world, rng, home.id, sector.id));
