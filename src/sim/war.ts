@@ -677,9 +677,21 @@ function checkEnd(w: World, rng: Rng, war: War): void {
   if (war.status !== 'active') return;
   const A = war.attacker, D = war.defender;
   const ea = war.exhaustion[A] ?? 0, ed = war.exhaustion[D] ?? 0;
-  if (war.score >= 100 || ed >= 100) endWar(w, rng, war, 'attackers', war.score >= 100 ? `House ${houseName(w, D)} is beaten.` : `House ${houseName(w, D)} cannot go on.`);
-  else if (war.score <= -100 || ea >= 100) endWar(w, rng, war, 'defenders', war.score <= -100 ? `House ${houseName(w, A)} is thrown back.` : `House ${houseName(w, A)} cannot go on.`);
-  else if (ea >= 75 && ed >= 75) endWar(w, rng, war, 'none', 'Both houses are spent.');
+  if (war.score >= 100) return endWar(w, rng, war, 'attackers', `House ${houseName(w, D)} is beaten.`);
+  if (war.score <= -100) return endWar(w, rng, war, 'defenders', `House ${houseName(w, A)} is thrown back.`);
+  // A house worn out ends the war, but not always as the loser: one well ahead when it runs out forces terms
+  // before its weakness shows, and one roughly level settles for what it holds.
+  const spentA = ea >= 100, spentD = ed >= 100;
+  if (spentA || spentD) {
+    const s = war.score;
+    const lead = spentA && spentD ? (s >= 20 ? 'attackers' : s <= -20 ? 'defenders' : 'none') : spentA ? (s >= 50 ? 'attackers' : s >= 20 ? 'none' : 'defenders') : (s <= -50 ? 'defenders' : s <= -20 ? 'none' : 'attackers');
+    const spent = spentA && spentD ? 'Both houses are spent' : `House ${houseName(w, spentA ? A : D)} cannot go on`;
+    const text = lead === 'none' ? `${spent}; neither can force the other, and each keeps what it holds.`
+      : (lead === 'attackers') === spentA ? `${spent}, but it is ahead: House ${houseName(w, spentA ? D : A)} sues for peace before that weakness shows.`
+      : `${spent}.`;
+    return endWar(w, rng, war, lead, text);
+  }
+  if (ea >= 75 && ed >= 75) endWar(w, rng, war, 'none', 'Both houses are spent.');
 }
 
 // ---------------------------------------------------------------- battles of ours

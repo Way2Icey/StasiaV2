@@ -16,7 +16,7 @@ import { alive, findSector } from './query';
 import { shiftMood } from './mood';
 import { courtTotals } from './court';
 import { displayName, shortName } from './names';
-import { absoluteCycle, addCycles, CYCLES_PER_PHASE } from './time';
+import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE } from './time';
 import {
   BASE_PRICE, DEVELOP_COST, ESTATES, GOODS, MISSION_COST, PEOPLE_PER_PROVISION, QUARTER_ECONOMY, QUOTA_BASE, RESOURCE_LABEL,
   RESOURCES, STARTING_STOCK, STIPEND, TAX, TAX_PER_PERSON, type Flow, type Good, type Resource,
@@ -535,6 +535,8 @@ export function stewardBuys(world: World, houseId: string, g: Good): boolean {
 /** What a house keeps in store before the Steward calls it surplus. */
 export const RESERVE: Record<Good, number> = { navisium: 250, metals: 400, provisions: 600, fuel: 300, components: 150 };
 
+const SOLD = 'The Steward sold stores we had too much of for ';
+
 /** The Steward raises `want` othes by selling stores beyond the reserve, the dearest first. */
 export function sellSurplus(world: World, houseId: string, want: number, not?: Good): number {
   const e = econ(world, houseId);
@@ -549,7 +551,15 @@ export function sellSurplus(world: World, houseId: string, want: number, not?: G
     tradeInPlace(world, houseId, g, -n, true);
     got += e.stock.othes - before;
   }
-  if (got > 0) tell(world, houseId, `The Steward sold stores we had too much of for ${round(got).toLocaleString('en-US')} othes, to keep the house fed and paid.`);
+  if (got > 0 && houseId === world.playerHouseId) {
+    // One line an Orbit, its sum kept up to date, rather than a line every time the Steward goes to market.
+    const orbit = Math.floor(absoluteCycle(world.date) / CYCLES_PER_ORBIT);
+    const last = [...world.feed].reverse().find((f) => f.text.startsWith(SOLD) && Math.floor(absoluteCycle(f.date) / CYCLES_PER_ORBIT) === orbit);
+    const sum = round(got + (last ? Number((last as { soldSum?: number }).soldSum ?? 0) : 0));
+    const text = `${SOLD}${sum.toLocaleString('en-US')} othes this Orbit, to keep the house fed and paid.`;
+    if (last) { last.text = text; (last as { soldSum?: number }).soldSum = sum; }
+    else world.feed.push({ date: world.date, kind: 'council', text, soldSum: sum } as World['feed'][number]);
+  }
   return got;
 }
 

@@ -258,7 +258,7 @@ export class Fx {
     for (const c of Object.values(this.w.characters)) {
       if (c.alive && c.houseId === houseId && (councilOnly ? !!c.seat : c.tier === 'full')) learn(this.w, this.c.house, c.id, n);
     }
-    return this.say(`We learn more of House ${this.w.houses[houseId]?.name}${councilOnly ? "'s council" : ''}`);
+    return this.say(`We learn more of House ${this.w.houses[houseId]?.name ?? this.w.archon?.houses[houseId]?.name ?? houseId}${councilOnly ? "'s council" : ''}`);
   }
   learnOf(c: Character | undefined, n: number) {
     if (!c) return this;

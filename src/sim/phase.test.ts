@@ -163,3 +163,23 @@ describe('spies and whole plans', () => {
     expect(new Set(plans.map((p) => JSON.stringify(p.orders))).size).toBe(plans.length);
   }, 60000);
 });
+
+describe('what the soak games taught', () => {
+  it('the forecast counts the blood a Phase costs, not only the ground', () => {
+    const w = atWar();
+    const f = forecastWar(w, w.war!.wars[0]!.id, 3)!;
+    expect(Number.isFinite(f.wear)).toBe(true);
+  });
+
+  it('a house worn out while well ahead still forces terms', async () => {
+    const { advanceTurns: adv } = await import('./tick');
+    let w = atWar();
+    const war = w.war!.wars[0]!;
+    war.score = 70;
+    war.exhaustion[war.attacker] = 99.9;
+    for (let i = 0; i < 16 && w.war!.wars[0]!.status === 'active'; i++) { w.war!.wars[0]!.exhaustion[war.attacker] = 100; w.war!.wars[0]!.score = Math.max(60, w.war!.wars[0]!.score); w = adv(w, 1); }
+    const end = w.war!.wars[0]!;
+    expect(end.status).toBe('ended');
+    expect(end.result?.winner).toBe('attackers');
+  }, 60000);
+});

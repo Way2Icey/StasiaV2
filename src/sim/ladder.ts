@@ -380,7 +380,7 @@ function pullOf(world: World, c: Character): { house: string; pull: number; why:
   }
   for (const h of Object.values(world.houses)) {
     if (h.id === c.houseId) continue;
-    if (h.standing.respect - mine.standing.respect >= 15) { const e = (byHouse[h.id] ??= { pull: 0, why: [] }); e.pull += 1; e.why.push(`House ${h.name}'s name`); }
+    if (h.standing.respect - mine.standing.respect >= 15) { const e = (byHouse[h.id] ??= { pull: 0, why: [] }); e.pull += 1; e.why.push('the greater name that house has'); }
   }
   const best = Object.entries(byHouse).sort((a, b) => b[1].pull - a[1].pull)[0];
   return best && best[1].pull > 0 ? { house: best[0], pull: best[1].pull, why: best[1].why.slice(0, 2).join(' and ') } : undefined;

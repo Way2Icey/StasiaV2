@@ -43,6 +43,8 @@ export interface Forecast {
   pWin: number;
   /** Mean change in the war's score, from our side. */
   score: number;
+  /** Mean exhaustion the Phase costs us more than them (losses against strength, an empty treasury). */
+  wear: number;
   ourLoss: number;
   theirLoss: number;
   /** Mean of what we use, by good (positive = used). */
@@ -98,7 +100,7 @@ function fog(t: TheatreState, side: WSide): void {
   for (const g of Object.values(t.groups)) g.engaged = undefined;
 }
 
-interface Run { score: number; ourLoss: number; theirLoss: number; used: Record<Good, number>; stock: Record<Good, number[]>; tracks: Track[]; reports: { node: string; cycle: number; title: string; won: boolean; p: number }[]; taken: Forecast['taken'] }
+interface Run { score: number; wear: number; ourLoss: number; theirLoss: number; used: Record<Good, number>; stock: Record<Good, number[]>; tracks: Track[]; reports: { node: string; cycle: number; title: string; won: boolean; p: number }[]; taken: Forecast['taken'] }
 
 function runOnce(base: World, warId: string, seed: string, keepTracks: boolean): Run {
   const w = lightCopy(base);
@@ -146,8 +148,14 @@ function runOnce(base: World, warId: string, seed: string, keepTracks: boolean):
   const lost = (houses: string[]) => houses.reduce((n, h) => n + (war.losses[h] ?? 0) - (loss0[h] ?? 0), 0);
   const ours = [war.attacker, ...war.attackers, war.defender, ...war.defenders].filter((h) => sideOf(war, h) === side);
   const theirs = [war.attacker, ...war.attackers, war.defender, ...war.defenders].filter((h) => sideOf(war, h) !== side);
+  // What the Phase costs in exhaustion, which ends wars as surely as the score: the share of each side's
+  // strength lost (weighed as the war weighs it), and an empty treasury.
+  const strength = (houses: string[]) => Object.values(w.war!.formations).filter((f) => houses.includes(f.houseId)).reduce((t, f) => t + f.max * (f.kind === 'legion' ? 1 : f.kind === 'fleet' ? 1000 : 2), 0) || 1;
+  const broke = (houses: string[]) => houses.some((h) => (w.economy.houses[h]?.stock.othes ?? 0) < 0) ? 1.2 * (HORIZON / 16) : 0;
+  const wear = (lost(ours) / strength(ours) - lost(theirs) / strength(theirs)) * 110 + broke(ours) - broke(theirs);
   return {
     score: (war.score - score0) * sign,
+    wear,
     ourLoss: lost(ours), theirLoss: lost(theirs),
     used: Object.fromEntries(FORECAST_GOODS.map((g) => [g, stock0[g] - (e?.stock[g] ?? 0)])) as Record<Good, number>,
     stock,
@@ -201,8 +209,10 @@ function summarise(base: World, warId: string, runs: number, salt: string): Fore
   return {
     runs,
     // Each run's outcome read softly (a narrow win is not a sure one), so the odds move with every choice.
-    pWin: out.reduce((a, x) => a + 1 / (1 + Math.exp(-x.score / 5)), 0) / runs,
+    // A Phase goes our way when what it gains outweighs what it wears out of us.
+    pWin: out.reduce((a, x) => a + 1 / (1 + Math.exp(-(x.score - x.wear) / 5)), 0) / runs,
     score: mean((x) => x.score),
+    wear: mean((x) => x.wear),
     ourLoss: mean((x) => x.ourLoss),
     theirLoss: mean((x) => x.theirLoss),
     cost: Object.fromEntries(FORECAST_GOODS.map((g) => [g, mean((x) => x.used[g])])) as Record<Good, number>,
@@ -234,7 +244,7 @@ export function whatIf(w: World, warId: string, gid: string, options: GroupOrder
     // The same dice for every option, so the difference between them is the choice and not the luck.
     const f = forecastWith(w, warId, { [gid]: o }, runs);
     void i;
-    return { order: o, pWin: f?.pWin ?? 0, score: f?.score ?? 0 };
+    return { order: o, pWin: f?.pWin ?? 0, score: (f?.score ?? 0) - (f?.wear ?? 0) };
   });
 }
 
@@ -247,7 +257,7 @@ export function bestPlan(w: World, warId: string, runs = 4, start: Record<string
   const orders: Record<string, GroupOrder> = structuredClone(start);
   let best = forecastWith(w, warId, orders, runs);
   if (!best) return null;
-  const better = (f: Forecast | null): f is Forecast => !!f && (f.pWin > best!.pWin + 0.005 || (Math.abs(f.pWin - best!.pWin) <= 0.005 && f.score > best!.score + 0.5));
+  const better = (f: Forecast | null): f is Forecast => !!f && (f.pWin > best!.pWin + 0.005 || (Math.abs(f.pWin - best!.pWin) <= 0.005 && f.score - f.wear > best!.score - best!.wear + 0.5));
   const tryOrder = (gid: string, o: GroupOrder) => {
     const next = { ...orders, [gid]: { ...orders[gid], ...o } };
     const f = forecastWith(w, warId, next, runs);
@@ -272,7 +282,7 @@ export function bestPlan(w: World, warId: string, runs = 4, start: Record<string
 }
 
 /** A whole plan: an order for every group of ours, judged together. */
-export interface StaffPlan { name: string; note: string; orders: Record<string, GroupOrder>; pWin: number; score: number; ourLoss: number; theirLoss: number }
+export interface StaffPlan { name: string; note: string; orders: Record<string, GroupOrder>; pWin: number; score: number; wear: number; ourLoss: number; theirLoss: number }
 
 /** The staff's plans: whole plans for every group at once (stand fast, everything at one place, the fleet over a
  *  world with the troops on it), each judged as one thing, and the best of them refined group by group. The top
@@ -310,15 +320,15 @@ export function staffPlans(w: World, warId: string, runs = 4): StaffPlan[] {
       if (Object.keys(o).length) candidates.push({ name: troops ? `Fleet over ${short(n.id)}, troops onto it` : `The fleet over ${short(n.id)}`, note: troops ? 'the fleet clears the space; the troops follow two cycles behind' : 'the fleet takes the space over it; the troops stay', orders: o });
     }
   }
-  const judged = candidates.map((c) => { const f = forecastWith(w, warId, c.orders, runs); return f ? { ...c, pWin: f.pWin, score: f.score, ourLoss: f.ourLoss, theirLoss: f.theirLoss } : null; }).filter((x): x is StaffPlan => !!x);
-  judged.sort((a, b) => b.pWin - a.pWin || b.score - a.score);
+  const judged = candidates.map((c) => { const f = forecastWith(w, warId, c.orders, runs); return f ? { ...c, pWin: f.pWin, score: f.score, wear: f.wear, ourLoss: f.ourLoss, theirLoss: f.theirLoss } : null; }).filter((x): x is StaffPlan => !!x);
+  judged.sort((a, b) => b.pWin - a.pWin || b.score - b.wear - (a.score - a.wear));
   // The best whole plan, then refined group by group from there.
   const top = judged[0];
   if (top) {
     const refined = bestPlan(w, warId, runs, top.orders);
     if (refined && refined.pWin > top.pWin + 0.01) {
       const f = forecastWith(w, warId, refined.orders, runs)!;
-      judged.unshift({ name: `${top.name}, refined`, note: 'the best whole plan, then each group bettered in turn', orders: refined.orders, pWin: f.pWin, score: f.score, ourLoss: f.ourLoss, theirLoss: f.theirLoss });
+      judged.unshift({ name: `${top.name}, refined`, note: 'the best whole plan, then each group bettered in turn', orders: refined.orders, pWin: f.pWin, score: f.score, wear: f.wear, ourLoss: f.ourLoss, theirLoss: f.theirLoss });
     }
   }
   // The finalists judged again on the same dice as the odds at the top of the page, so a plan reads the same
@@ -326,8 +336,8 @@ export function staffPlans(w: World, warId: string, runs = 4): StaffPlan[] {
   const sig = (o: Record<string, GroupOrder>) => JSON.stringify(Object.entries(o).sort());
   const finalists: StaffPlan[] = [];
   for (const p of judged) { if (finalists.some((x) => sig(x.orders) === sig(p.orders))) continue; finalists.push(p); if (finalists.length >= 5) break; }
-  const rejudged = finalists.map((p) => { const f = forecastWith(w, warId, p.orders, 8); return f ? { ...p, pWin: f.pWin, score: f.score, ourLoss: f.ourLoss, theirLoss: f.theirLoss } : p; });
-  return rejudged.sort((a, b) => b.pWin - a.pWin || b.score - a.score).slice(0, 3);
+  const rejudged = finalists.map((p) => { const f = forecastWith(w, warId, p.orders, 8); return f ? { ...p, pWin: f.pWin, score: f.score, wear: f.wear, ourLoss: f.ourLoss, theirLoss: f.theirLoss } : p; });
+  return rejudged.sort((a, b) => b.pWin - a.pWin || b.score - b.wear - (a.score - a.wear)).slice(0, 3);
 }
 
 // ---------------------------------------------------------------- the brief: what needs an answer this Phase

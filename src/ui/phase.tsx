@@ -153,6 +153,7 @@ function Odds({ f, prev, handsOff, setHandsOff, commit, edition, setEdition, bes
       </div>
       <div className="ph-facts">
         <div><span className="eyebrow">War score</span><b className={f.score >= 0 ? 'up' : 'down'}>{f.score >= 0 ? '+' : ''}{f.score.toFixed(1)}</b></div>
+        <div title="Exhaustion this Phase costs us beyond what it costs them: losses against strength, and an empty treasury. A war ends when a house is worn out, whatever the score."><span className="eyebrow">Wear on us</span><b className={f.wear > 2 ? 'down' : f.wear < -2 ? 'up' : undefined}>{f.wear >= 0 ? '+' : '−'}{Math.abs(f.wear).toFixed(1)}</b></div>
         <div><span className="eyebrow">Our dead</span><b>{fmt(f.ourLoss)}</b></div>
         <div><span className="eyebrow">Theirs</span><b>{fmt(f.theirLoss)}</b></div>
         {FORECAST_GOODS.map((g) => <div key={g}><span className="eyebrow">{RESOURCE_LABEL[g]}</span><b className={f.stock[g].at(-1)! <= 0 ? 'down' : undefined}>{f.cost[g] >= 0.5 ? `−${fmt(f.cost[g])}` : '0'}</b></div>)}
@@ -190,7 +191,7 @@ function PlanCards({ war, plans, adopted, adopt, close }: { war: War; plans: Sta
           <b className="ph-card-t">{p.name}</b>
           <span className="muted" style={{ fontSize: 11 }}>{p.note}</span>
           <span className="ph-plan-o">{Object.entries(p.orders).map(([gid, o]) => line(gid, o)).join(' · ') || 'no new orders'}</span>
-          <span className="mono muted" style={{ fontSize: 11 }}>score {sc(p.score)} · our dead {fmt(p.ourLoss)} · theirs {fmt(p.theirLoss)}</span>
+          <span className="mono muted" style={{ fontSize: 11 }}>score {sc(p.score)} · wear {sc(p.wear)} · our dead {fmt(p.ourLoss)} · theirs {fmt(p.theirLoss)}</span>
           <button type="button" className={`btn${adopted === i ? '' : ' primary'}`} disabled={adopted === i} onClick={() => adopt(i)}>{adopted === i ? 'Adopted' : 'Adopt this plan'}</button>
         </div>
       ))}
