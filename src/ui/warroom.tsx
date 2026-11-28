@@ -21,9 +21,9 @@ import {
   type DoctrineId, type Duty, type Instructions, type KnightsAt, type Leash, type LineAt, type Opp, type Quarter, type Role, type SupplyAt,
 } from '../data/doctrine';
 import { GOAL_LABEL, type War } from '../sim/war';
-import { econ, netPerPhase, phaseLedger } from '../sim/economy';
+import { econ, phaseLedger } from '../sim/economy';
 import { RESOURCE_LABEL, type Resource } from '../data/economy';
-import { runway } from './stores';
+import { netWithQuota, runway } from './stores';
 import type { World } from '../sim/types';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
@@ -493,7 +493,7 @@ function WarCosts() {
   const P = world.playerHouseId;
   const e = econ(world, P);
   const lines = phaseLedger(world, P);
-  const net = netPerPhase(lines);
+  const net = netWithQuota(world, P);
   const war = lines.filter((l) => l.kind === 'war');
   const goods = ['provisions', 'fuel', 'components', 'navisium'] as const;
   return (
