@@ -33,7 +33,7 @@ export function classify(world: World, e: FeedEntry): { type: RecordType; severi
     case 'time': type = 'time'; severity = 0; break;
     case 'death': type = 'death'; severity = ours ? 3 : 2; break;
     case 'birth': type = 'birth'; severity = ours ? 2 : 1; break;
-    case 'flag': type = 'condition'; severity = has(t, 'travelling', 'grieving', 'counselled', 'at sea') ? 0 : 1; break;
+    case 'flag': type = 'condition'; severity = has(t, 'travelling', 'grieving', 'counselled', 'aboard ship') ? 0 : 1; break;
     case 'mission':
       type = 'mission';
       severity = has(t, 'disaster', 'captured', 'killed', 'taken') ? 2 : has(t, 'returns', 'home') ? 1 : 0;

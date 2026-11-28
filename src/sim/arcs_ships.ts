@@ -10,7 +10,7 @@ import type { World } from './types';
 const str = (c: Ctx, k: string) => String(c.arc?.data?.[k] ?? c.memo?.[k] ?? '');
 
 const WRECKS: { era: string; text: (place: string) => string; cls: CapitalClass }[] = [
-  { era: 'the War for Life', cls: 'cruiser', text: (p) => `A survey crew has found a cruiser of the War for Life drifting dark beyond ${p}: her hull is scorched, her guns are spiked, and she has been out there longer than the Silence. Her keel is sound.` },
+  { era: 'the War for Life', cls: 'cruiser', text: (p) => `A survey crew has found a cruiser of the War for Life drifting dark beyond ${p}: her hull is scorched, her guns are spiked, and she has been out there longer than the Silence. Her spine is sound.` },
   { era: 'the Silence', cls: 'destroyer', text: (p) => `A destroyer that went dark in the Silence has drifted back into the lanes near ${p}. Her log is still aboard. Nobody has opened it.` },
   { era: 'the War for Life', cls: 'carrier', text: (p) => `In the debris field off ${p}, a carrier of the War for Life, her hangars full of fighters that never launched. A Shardsaint stands on her bridge.` },
 ];

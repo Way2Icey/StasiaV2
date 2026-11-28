@@ -126,6 +126,8 @@ export function App() {
   }), [current, history]);
   const navRef = useRef(nav);
   navRef.current = nav;
+  // For automated play-throughs: go to any page by route.
+  (window as unknown as { __stasiaNav?: Nav }).__stasiaNav = nav;
 
   const hover: Hover = useMemo(() => ({
     show: (id, el) => {

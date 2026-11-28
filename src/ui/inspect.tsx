@@ -228,7 +228,7 @@ function SiteCard({ id }: { id: string }) {
         <div className="inspect-act">
           <span className="eyebrow">Assault · we are at war with its holder</span>
           <div className="actions">
-            {free.length ? free.map((sh) => <button key={sh.id} type="button" className="pill" aria-pressed={chosen.includes(sh.id)} onClick={() => setChosen((c) => (c.includes(sh.id) ? c.filter((x) => x !== sh.id) : [...c, sh.id]))}>{sh.name} ({powerOf(world, sh)})</button>) : <span className="muted">No ship of ours is in harbour and fit to sail.</span>}
+            {free.length ? free.map((sh) => <button key={sh.id} type="button" className="pill" aria-pressed={chosen.includes(sh.id)} onClick={() => setChosen((c) => (c.includes(sh.id) ? c.filter((x) => x !== sh.id) : [...c, sh.id]))}>{sh.name} ({powerOf(world, sh)})</button>) : <span className="muted">No ship of ours is at dock and fit to fly.</span>}
           </div>
           <div className="actions">
             <button type="button" className="btn small primary" disabled={!!assaultWhy} title={assaultWhy ?? undefined} onClick={() => run((w) => assaultSite(w, s.id, chosen))}>{chosen.length ? `Assault · ${Math.round(ourPower)} against ${Math.round(siteDefence(world, s))}` : 'Choose ships to send'}</button>

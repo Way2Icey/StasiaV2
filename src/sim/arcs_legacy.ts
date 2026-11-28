@@ -61,7 +61,7 @@ const evs: EventDef[] = [
   {
     id: 'leg:derelict', title: 'A derelict from the Silence', arc: 'The derelict', category: 'Legacy', trigger: 'home', weight: 1.2,
     setup: (c) => { const s = oldSites(c); if (!s.length) return false; const x = c.rng.pick(s); data(c).site = x.name; data(c).region = x.region; return true; },
-    text: (c) => `Surveyors near ${str(c, 'site')}, in ${str(c, 'region')}, have found a station adrift since the Silence. Its docking ring still holds air. No one has been aboard since contact between the stars ceased.`,
+    text: (c) => `Surveyors near ${str(c, 'site')}, in ${str(c, 'region')}, have found a station drifting since the Silence. Its docking ring still holds air. No one has been aboard since contact between the stars ceased.`,
     options: [
       { label: 'Send a party aboard', hint: 'a knight leads; there may be things still awake', check: { who: (c) => best(knights(c), (x) => x.stats.perception + x.stats.valor), stats: ['perception', 'valor'], dc: 12 },
         resolve: (c, ok) => {

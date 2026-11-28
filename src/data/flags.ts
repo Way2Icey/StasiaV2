@@ -59,7 +59,7 @@ export const FLAGS: FlagDef[] = [
   { id: 'quest', label: 'Away on a deed', kind: 'condition', visibility: 'all', endsBy: 'They come home, one way or another' },
   { id: 'bounty', label: 'After a bounty', kind: 'condition', visibility: 'all', endsBy: 'The price is collected, or they come home without it' },
   { id: 'hunting', label: 'Hunting corsairs', kind: 'condition', visibility: 'all', endsBy: 'The hunt ends, one way or another' },
-  { id: 'aboard', label: 'At sea', kind: 'condition', visibility: 'all', endsBy: 'The ship comes home' },
+  { id: 'aboard', label: 'Aboard ship', kind: 'condition', visibility: 'all', endsBy: 'The ship comes home' },
   { id: 'turncoat', label: 'Turncoat', kind: 'relation', visibility: 'all', endsBy: 'Permanent' },
   { id: 'keeper', label: 'Vault keeper', kind: 'condition', visibility: 'all', endsBy: 'Relieved of the duty' },
   { id: 'posted', label: 'Posted abroad', kind: 'secret', visibility: 'secret', endsBy: 'Recalled, exposed or caught' },
