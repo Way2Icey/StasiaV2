@@ -235,25 +235,34 @@ export function stepClock(input: World, stops: boolean | Partial<StopPrefs> = tr
   // A war of ours: at the start of each Phase the clock stops for the plan (once; carrying on keeps the last plan).
   const plan = warToPlan(w);
   if (plan) return { world: w, freeze: { reason: `${plan.name.charAt(0).toUpperCase()}${plan.name.slice(1)}: plan the next Phase.`, events: [], war: plan.id } };
+  // A Phase given hands off is watched through: what is not urgent waits on the desk.
+  const watching = watchedWar(w);
   const fresh = (w.events?.pending ?? []).filter((p) => !had.has(p.id));
   const urgent = fresh.filter((p) => p.urgent);
   if (urgent.length) return { world: w, freeze: { reason: 'Something needs you now.', events: urgent.map((p) => p.id) } };
-  if (fresh.length && prefs.decision) return { world: w, freeze: { reason: 'A decision awaits your word.', events: fresh.map((p) => p.id) } };
+  if (fresh.length && prefs.decision && !watching) return { world: w, freeze: { reason: 'A decision awaits your word.', events: fresh.map((p) => p.id) } };
   const briefed = (w.briefings?.queue ?? []).find((b) => !hadB.has(b.id) && !b.done);
-  if (briefed && prefs.decision) return { world: w, freeze: { reason: `${w.characters[briefed.personId]?.name.given ?? 'A councillor'} is at the door.`, events: [] } };
+  if (briefed && prefs.decision && !watching) return { world: w, freeze: { reason: `${w.characters[briefed.personId]?.name.given ?? 'A councillor'} is at the door.`, events: [] } };
   const P = w.playerHouseId;
   const news = w.feed.slice(before.last ? w.feed.indexOf(before.last) + 1 : 0);
   const death = news.find((f) => f.kind === 'death' && f.characterIds?.some((id) => w.characters[id]?.houseId === P && w.characters[id]?.tier === 'full'));
-  if (death && prefs.death) return { world: w, freeze: { reason: death.text, events: [] } };
+  if (death && prefs.death && !watching) return { world: w, freeze: { reason: death.text, events: [] } };
   const raidsBefore = new Set((input.ports?.raids ?? []).filter((r) => r.status === 'revealed').map((r) => r.id));
   const raid = (w.ports?.raids ?? []).find((r) => r.status === 'revealed' && !raidsBefore.has(r.id));
-  if (raid && prefs.word) return { world: w, freeze: { reason: 'Raiders are coming for one of our worlds. See the Hall.', events: [] } };
+  if (raid && prefs.word && !watching) return { world: w, freeze: { reason: 'Raiders are coming for one of our worlds. See the Hall.', events: [] } };
   // Everything else is a notice either way: the clock runs on, and it waits on the desk.
   const stop = needsAttention(w, before, { ...prefs, decision: false });
+  if (stop && watching) return { world: w, notice: stop.reason };
   if (stop) return { world: w, freeze: { reason: stop.reason, events: [] } };
   const all = Object.fromEntries(Object.keys(DEFAULT_STOPS).map((k) => [k, true])) as StopPrefs;
   const hit = needsAttention(w, before, all);
   return hit ? { world: w, notice: hit.reason } : { world: w };
+}
+
+/** Whether a war of ours is being watched through a Phase given hands off. */
+function watchedWar(w: World): boolean {
+  const ph = Math.floor(absoluteCycle(w.date) / CYCLES_PER_PHASE);
+  return (w.war?.wars ?? []).some((x) => x.status === 'active' && x.theatre?.phase?.handsOff && x.theatre.phase.committed === ph);
 }
 
 /** The war of ours whose Phase has not yet been planned or asked about, marking it asked. */

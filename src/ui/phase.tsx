@@ -34,6 +34,20 @@ function usePlay() {
   return { run, err };
 }
 
+/** A heavy reckoning done just after the page draws, not while it draws: the last answer stays up (marked stale)
+ *  until the new one is ready, so a click never freezes the screen. */
+function useLater<T>(fn: () => T, deps: unknown[]): { value: T | null; stale: boolean } {
+  const [state, setState] = useState<{ value: T | null; key: unknown[] | null }>({ value: null, key: null });
+  const fresh = state.key !== null && state.key.length === deps.length && state.key.every((d, i) => d === deps[i]);
+  useEffect(() => {
+    let live = true;
+    const id = setTimeout(() => { const v = fn(); if (live) setState({ value: v, key: deps }); }, 0);
+    return () => { live = false; clearTimeout(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return { value: state.value, stale: !fresh };
+}
+
 const sideOf = (war: War, h: string): WSide => (war.attacker === h || war.attackers.includes(h) ? 'attackers' : 'defenders');
 const colOf = (n: WNode, side: WSide) => (side === 'attackers' ? n.depth : 4 - n.depth);
 
@@ -71,7 +85,7 @@ function Plan({ war, t, edition, setEdition }: { war: War; t: TheatreState; edit
       setBusy(false);
       if (!b || !Object.keys(b.orders).length) { setBestNote('The staff cannot better the plan as it stands.'); return; }
       const t2 = theatreOf(world.war!.wars.find((y) => y.id === war.id)!)!;
-      setBestNote(Object.entries(b.orders).map(([gid, o]) => `${t2.groups[gid]?.name ?? gid} → ${o.to ? short(t2.nodes[o.to]) : 'hold'}`).join(' · '));
+      setBestNote(Object.entries(b.orders).map(([gid, o]) => `${t2.groups[gid]?.name ?? gid}: ${'to' in o ? (o.to ? `→ ${short(t2.nodes[o.to])}` : 'hold') : ''}${o.leave ? ` at c${o.leave}` : ''}${o.duty ? ` · ${o.duty}` : ''}`.replace(': ·', ':')).join(' · '));
       run((w) => orderMany(w, war.id, b.orders));
     }, 30);
   };
@@ -149,7 +163,8 @@ function Odds({ f, prev, handsOff, setHandsOff, commit, edition, setEdition, bes
 
 function Brief({ war, items, run, compact }: { war: War; items: BriefItem[]; run: (fn: (w: World) => World) => void; compact?: boolean }) {
   const world = useWorld();
-  const odds = useMemo(() => items.map((it) => it.options.map((o) => { if (!Object.keys(o.orders).length) return null; const f = forecastWith(world, war.id, o.orders, 4); return f ? { p: f.pWin, s: f.score } : null; })), [world, war.id, items]);
+  const later = useLater(() => items.map((it) => it.options.map((o) => { if (!Object.keys(o.orders).length) return null; const f = forecastWith(world, war.id, o.orders, 4); return f ? { p: f.pWin, s: f.score } : null; })), [world, war.id, items]);
+  const odds = later.value ?? [];
   if (!items.length) return <Panel title="The brief" aside="nothing presses"><div className="body muted">Nothing is coming at us that the staff can see. Use the time: move, raid, or look.</div></Panel>;
   return (
     <section className={`ph-brief${compact ? ' compact' : ''}`}>
@@ -163,7 +178,7 @@ function Brief({ war, items, run, compact }: { war: War; items: BriefItem[]; run
               return (
                 <button key={j} type="button" className="ph-opt" disabled={!Object.keys(o.orders).length} onClick={() => run((w) => orderMany(w, war.id, o.orders))} title={o.note}>
                   <span>{o.label}</span>
-                  {p ? <b className={p.p >= 0.6 ? 'up' : p.p <= 0.4 ? 'down' : ''}>{pct(p.p)} <span className="muted">{sc(p.s)}</span></b> : <span className="muted">as now</span>}
+                  {later.stale && !p ? <span className="muted">…</span> : p ? <b className={p.p >= 0.6 ? 'up' : p.p <= 0.4 ? 'down' : ''}>{pct(p.p)} <span className="muted">{sc(p.s)}</span></b> : <span className="muted">as now</span>}
                 </button>
               );
             })}
@@ -182,26 +197,29 @@ function Editor({ war, t, sel, setSel, f, run }: { war: War; t: TheatreState; se
   const ours = Object.values(t.groups).filter((g) => g.house === P);
   const g = (sel && t.groups[sel]?.house === P ? t.groups[sel] : undefined) ?? ours[0];
   const now = absoluteCycle(world.date);
-  const options = useMemo(() => {
+  const options = useLater(() => {
     if (!g) return null;
     const places = Object.keys(t.nodes).filter((id) => id === g.at || !cannotOrder(world, war.id, g.id, { to: id }));
     const dests = whatIf(world, war.id, g.id, [{ to: null }, ...places.filter((id) => id !== g.at).map((id) => ({ to: id }))], 4);
     const leaves = g.to ? whatIf(world, war.id, g.id, [0, 2, 4, 6, 8].map((c) => ({ to: g.to, leave: c })), 4) : [];
     const duties = whatIf(world, war.id, g.id, (['attack', 'defend', 'support'] as const).map((d) => ({ duty: d })), 4);
-    return { dests: dests.sort((a, b) => b.pWin - a.pWin || b.score - a.score), leaves, duties };
+    return { gid: g.id, dests: dests.sort((a, b) => b.pWin - a.pWin || b.score - a.score), leaves, duties };
   }, [world, war.id, g?.id, g?.to, g?.at]);
-  if (!g || !options) return <Panel title="Our groups"><div className="body muted">No groups of ours in the field.</div></Panel>;
+  if (!g) return <Panel title="Our groups"><div className="body muted">No groups of ours in the field.</div></Panel>;
+  const groupPicker = <div className="ph-pick">{ours.map((x) => <button key={x.id} type="button" className={`ph-g ${x.domain}${x.id === g.id ? ' on' : ''}`} aria-pressed={x.id === g.id} onClick={() => setSel(x.id)}>{x.domain === 'void' ? '◇' : '▪'} {x.name}</button>)}</div>;
+  if (!options.value || options.value.gid !== g.id) return <Panel title="Orders" aside={`${ours.length} groups`}><div className="body ph-ed-body">{groupPicker}<span className="muted ph-working">The staff are working out each choice for {g.name}…</span></div></Panel>;
+  const opts = options.value;
   const cmd = commanderOfGroup(world, g);
   const holdUntil = g.hold && g.hold > now ? g.hold - now : 0;
-  const best = options.dests[0];
+  const best = opts.dests[0];
   return (
-    <Panel title="Orders" aside={`${ours.length} groups`}>
-      <div className="body ph-ed-body">
-        <div className="ph-pick">{ours.map((x) => <button key={x.id} type="button" className={`ph-g ${x.domain}${x.id === g.id ? ' on' : ''}`} aria-pressed={x.id === g.id} onClick={() => setSel(x.id)}>{x.domain === 'void' ? '◇' : '▪'} {x.name}</button>)}</div>
+    <Panel title="Orders" aside={options.stale ? 'reckoning…' : `${ours.length} groups`}>
+      <div className={`body ph-ed-body${options.stale ? ' stale' : ''}`}>
+        {groupPicker}
         <div className="muted" style={{ fontSize: 12 }}>{x(g)} · {ROLE_DEF[g.role].label} · {cmd.name} · at {short(t.nodes[g.at])}{g.to ? ` → ${short(t.nodes[g.to])}${holdUntil ? `, leaving in ${holdUntil}c` : ''}` : ', holding'} · {Math.round(legFuel(world, g) * 10) / 10} fuel a lane</div>
         <span className="eyebrow">Where · odds the Phase goes our way</span>
         <div className="ph-what">
-          {options.dests.map((o) => {
+          {opts.dests.map((o) => {
             const cur = (o.order.to ?? null) === (g.to ?? null);
             return (
               <button key={String(o.order.to)} type="button" className={`ph-w${cur ? ' cur' : ''}`} onClick={() => run((w) => orderGroup(w, war.id, g.id, { to: o.order.to ?? null }))}>
@@ -213,14 +231,14 @@ function Editor({ war, t, sel, setSel, f, run }: { war: War; t: TheatreState; se
             );
           })}
         </div>
-        {options.leaves.length ? (
+        {opts.leaves.length ? (
           <>
             <span className="eyebrow">When it leaves</span>
-            <div className="ph-seg">{options.leaves.map((o) => <button key={o.order.leave} type="button" className={holdUntil === o.order.leave || (!holdUntil && o.order.leave === 0) ? 'on' : ''} onClick={() => run((w) => orderGroup(w, war.id, g.id, { to: g.to, leave: o.order.leave }))}>{o.order.leave ? `c${o.order.leave}` : 'now'}<b>{pct(o.pWin)}</b></button>)}</div>
+            <div className="ph-seg">{opts.leaves.map((o) => <button key={o.order.leave} type="button" className={holdUntil === o.order.leave || (!holdUntil && o.order.leave === 0) ? 'on' : ''} onClick={() => run((w) => orderGroup(w, war.id, g.id, { to: g.to, leave: o.order.leave }))}>{o.order.leave ? `c${o.order.leave}` : 'now'}<b>{pct(o.pWin)}</b></button>)}</div>
           </>
         ) : null}
         <span className="eyebrow">How it fights</span>
-        <div className="ph-seg">{options.duties.map((o) => <button key={o.order.duty} type="button" className={g.duty === o.order.duty ? 'on' : ''} onClick={() => run((w) => orderGroup(w, war.id, g.id, { duty: o.order.duty }))}>{cap(o.order.duty!)}<b>{pct(o.pWin)}</b></button>)}</div>
+        <div className="ph-seg">{opts.duties.map((o) => <button key={o.order.duty} type="button" className={g.duty === o.order.duty ? 'on' : ''} onClick={() => run((w) => orderGroup(w, war.id, g.id, { duty: o.order.duty }))}>{cap(o.order.duty!)}<b>{pct(o.pWin)}</b></button>)}</div>
         {best && (best.order.to ?? null) !== (g.to ?? null) && best.pWin > f.pWin + 0.05 ? <span className="up" style={{ fontSize: 12 }}>The staff's best guess for {g.name}: {best.order.to ? short(t.nodes[best.order.to]) : 'hold'} ({pct(best.pWin)}).</span> : null}
       </div>
     </Panel>
@@ -260,7 +278,7 @@ function Timeline({ war, t, f, cycle, setCycle, sel, setSel }: { war: War; t: Th
         {ours.map((tr) => <div key={tr.id} className={`ph-tl-row${sel === tr.id ? ' sel' : ''}`}><button type="button" className="ph-tl-name" onClick={() => setSel(tr.id)}><b>{tr.domain === 'void' ? '◇' : '▪'} {tr.name}</b><span className="muted">{tr.domain === 'void' ? `${tr.n[0]} ships` : fmt(tr.n[0] ?? 0)}{(tr.n.at(-1) ?? 0) < (tr.n[0] ?? 0) ? ` → ${tr.domain === 'void' ? tr.n.at(-1) : fmt(tr.n.at(-1)!)}` : ''}</span></button><div className="ph-tl-cells">{row(tr)}</div></div>)}
         {allies.length ? allies.map((tr) => <div key={tr.id} className="ph-tl-row ally"><span className="ph-tl-name"><b>{tr.name}</b><span className="muted">{houseName(world, tr.house)}</span></span><div className="ph-tl-cells">{row(tr)}</div></div>) : null}
         <div className="ph-tl-sep"><span className="eyebrow down">Theirs · as we expect them</span></div>
-        {theirs.length ? theirs.map((tr) => <div key={tr.id} className="ph-tl-row foe"><span className="ph-tl-name"><b>{name(tr)}</b><span className="muted">{tr.domain === 'void' ? `~${tr.n[0]} ships` : `~${fmt(tr.n[0] ?? 0)}`}{tr.seen === 0 ? ' · last seen' : tr.seen === 1 ? ' · rumour' : ''}</span></span><div className="ph-tl-cells">{row(tr)}</div></div>) : <div className="muted" style={{ padding: 8, fontSize: 12 }}>We see none of them.</div>}
+        {theirs.length ? theirs.map((tr) => <div key={tr.id} className="ph-tl-row foe"><span className="ph-tl-name"><b>{name(tr)}</b><span className="muted">{tr.domain === 'void' ? `~${tr.n[0]} ships` : `~${fmt(tr.n[0] ?? 0)}`}{tr.seen === -1 ? ' · unseen, a guess' : tr.seen === 0 ? ' · last seen' : tr.seen === 1 ? ' · rumour' : ''}</span></span><div className="ph-tl-cells">{row(tr)}</div></div>) : <div className="muted" style={{ padding: 8, fontSize: 12 }}>We see none of them.</div>}
         <div className="ph-tl-sep"><span className="eyebrow">Our stores · by cycle</span></div>
         {FORECAST_GOODS.map((gd) => <div key={gd} className="ph-tl-row stock"><span className="ph-tl-name"><b>{RESOURCE_LABEL[gd]}</b><span className="muted">{fmt(econ(world, world.playerHouseId).stock[gd])} now</span></span><div className="ph-tl-cells">{cycles.map((c) => { const v = f.stock[gd][c] ?? 0; return <span key={c} className={`ph-num${v <= 0 ? ' bad' : v < (f.stock[gd][0] ?? 0) * 0.25 ? ' low' : ''}`}>{c % 2 === 0 ? fmt(v) : ''}</span>; })}</div></div>)}
       </div>

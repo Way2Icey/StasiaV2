@@ -1,15 +1,16 @@
 // The forecast: the next 16 cycles of a war, played out several times on a copy, from what we know.
 //
 // The copy holds only the war and the stores; nothing outside them is touched, no battle opens and no one dies.
-// The enemy in the copy is the enemy as we see it: groups we have never seen are left out, rumours stand at their
-// rumoured strength, and groups we have lost sight of stand where we last saw them. Their commanders then act as
+// The enemy in the copy is the enemy as we see it: rumours stand at their rumoured strength, groups we have lost
+// sight of stand where we last saw them, and groups we have never seen stand where the staff fear them most (at
+// the place their side holds nearest the front, at the strength the registers give). Their commanders then act as
 // their doctrine says they would. So the forecast is only as good as our intel, as a staff's would be.
 //
 // It answers: what are the odds this Phase goes our way, what will it cost, where will everyone be each cycle, and
 // which fights are coming. The calculator asks it the same question for each alternative order.
 import { Rng } from './rng';
 import { absoluteCycle, addCycles, CYCLES_PER_PHASE } from './time';
-import { applyOrder, cannotOrder, groupsOf, theatreOf, theatreTurn, type GroupOrder, type TheatreState, type WGroup, type WSide } from './warroom';
+import { applyOrder, cannotOrder, groupsOf, theatreOf, theatreTurn, type GroupOrder, type TheatreState, type WGroup, type WNode, type WSide } from './warroom';
 import { HULL_TYPES, mixFor } from '../data/hulls';
 import type { Good } from '../data/economy';
 import type { War } from './war';
@@ -28,7 +29,7 @@ export interface Track {
   /** Where it is at the end of each cycle, 0..HORIZON (0 = now). */
   at: string[];
   n: number[];
-  /** How well we see it now: 3 known .. 0 last seen. Ours are 3. */
+  /** How well we see it now: 3 known .. 0 last seen, -1 never seen (placed by the staff's guess). Ours are 3. */
   seen: number;
 }
 
@@ -68,11 +69,22 @@ function lightCopy(w: World): World {
 const sideOf = (war: War, h: string): WSide | null => (war.attacker === h || war.attackers.includes(h) ? 'attackers' : war.defender === h || war.defenders.includes(h) ? 'defenders' : null);
 
 /** Replace the enemy with the enemy as we see it. */
+/** Unseen groups, and where each might be: read by every run (fog fills it, a run places them). */
+const MAYBE = new Map<string, string[]>();
+
 function fog(t: TheatreState, side: WSide): void {
   for (const g of Object.values(t.groups)) {
     if (g.side === side) continue;
     const s = t.sight[side][g.id];
-    if (!s) { delete t.groups[g.id]; continue; }
+    if (!s) {
+      // Never seen: the staff know the house's strength from the registers, not where it is. Each run of the
+      // forecast puts it somewhere else its side holds that it could stand in, so the odds carry the doubt.
+      const fits = (n: WNode) => n.holder === g.side && (g.domain === 'void' ? n.kind !== 'ground' : n.kind === 'ground' || n.kind === 'station');
+      const maybe = Object.values(t.nodes).filter(fits).map((n) => n.id);
+      if (!maybe.length) { delete t.groups[g.id]; continue; }
+      MAYBE.set(g.id, maybe);
+      continue;
+    }
     const ratio = g.n > 0 ? s.n / g.n : 1;
     g.n = Math.max(1, Math.round(s.n));
     if (g.domain === 'void') g.hulls = mixFor(g.n);
@@ -106,13 +118,18 @@ function runOnce(base: World, warId: string, seed: string, keepTracks: boolean):
   const tracks: Record<string, Track> = {};
   const snap = (cycle: number) => {
     for (const g of Object.values(t.groups)) {
-      const tr = tracks[g.id] ??= { id: g.id, name: g.name, house: g.house, side: g.side, domain: g.domain, ours: g.side === side, at: [], n: [], seen: g.side === side ? 3 : t.sight[side][g.id]?.level ?? 0 };
+      const tr = tracks[g.id] ??= { id: g.id, name: g.name, house: g.house, side: g.side, domain: g.domain, ours: g.side === side, at: [], n: [], seen: g.side === side ? 3 : t.sight[side][g.id] ? t.sight[side][g.id]!.level : -1 };
       while (tr.at.length < cycle) { tr.at.push(tr.at.at(-1) ?? g.at); tr.n.push(tr.n.at(-1) ?? g.n); }
       tr.at[cycle] = g.at; tr.n[cycle] = g.n;
     }
   };
-  if (keepTracks) snap(0);
   const rng = Rng.fromSeed(seed);
+  for (const [gid, maybe] of MAYBE) {
+    const g = t.groups[gid];
+    if (!g) continue;
+    g.at = maybe[Math.floor(rng.next() * maybe.length)]!; g.path = []; g.to = undefined; g.arrive = undefined; g.hold = undefined;
+  }
+  if (keepTracks) snap(0);
   for (let step = 1; step <= HORIZON / 2; step++) {
     const before = absoluteCycle(w.date);
     w.date = addCycles(w.date, 2);
@@ -143,21 +160,22 @@ function runOnce(base: World, warId: string, seed: string, keepTracks: boolean):
 }
 
 /** Play the next 16 cycles out `runs` times and sum it up. */
-export function forecastWar(w: World, warId: string, runs = 6, salt = ''): Forecast | null {
+export function forecastWar(w: World, warId: string, runs = 6, salt = '', truth = false): Forecast | null {
   const war = w.war?.wars.find((x) => x.id === warId && x.status === 'active');
   const t = war ? theatreOf(war) : undefined;
   if (!war || !t) return null;
   const side = sideOf(war, w.playerHouseId);
   if (!side) return null;
-  const base = prepared(w, warId, side);
+  const base = prepared(w, warId, side, truth);
   return summarise(base, warId, runs, salt);
 }
 
 /** A copy of the world with the enemy fogged, ready to be played forward (and to take what-if orders). */
-function prepared(w: World, warId: string, side: WSide): World {
+function prepared(w: World, warId: string, side: WSide, truth = false): World {
   const base = lightCopy(w);
   const war = base.war!.wars.find((x) => x.id === warId)!;
-  fog(theatreOf(war)!, side);
+  MAYBE.clear();
+  if (!truth) fog(theatreOf(war)!, side);
   return base;
 }
 
@@ -218,8 +236,8 @@ export function whatIf(w: World, warId: string, gid: string, options: GroupOrder
   });
 }
 
-/** The staff's best plan: each of our groups in turn given its best destination (with the others' best so far),
- *  one pass. Returns the orders and the odds with them. */
+/** The staff's best plan, one pass over our groups: first where each goes (with the others' best so far), then
+ *  when each that is going leaves, then how each fights. Returns the orders and the odds with them. */
 export function bestPlan(w: World, warId: string, runs = 4): { orders: Record<string, GroupOrder>; pWin: number; score: number } | null {
   const war = w.war?.wars.find((x) => x.id === warId && x.status === 'active');
   const t = war ? theatreOf(war) : null;
@@ -227,15 +245,27 @@ export function bestPlan(w: World, warId: string, runs = 4): { orders: Record<st
   const orders: Record<string, GroupOrder> = {};
   let best = forecastWith(w, warId, {}, runs);
   if (!best) return null;
-  const ours = Object.values(t.groups).filter((g) => g.house === w.playerHouseId).sort((a, b) => b.n * (b.domain === 'void' ? 1000 : 1) - a.n * (a.domain === 'void' ? 1000 : 1));
+  const better = (f: Forecast | null): f is Forecast => !!f && (f.pWin > best!.pWin + 0.005 || (Math.abs(f.pWin - best!.pWin) <= 0.005 && f.score > best!.score + 0.5));
+  const tryOrder = (gid: string, o: GroupOrder) => {
+    const next = { ...orders, [gid]: { ...orders[gid], ...o } };
+    const f = forecastWith(w, warId, next, runs);
+    if (better(f)) { best = f; orders[gid] = next[gid]!; }
+  };
+  const ours = Object.values(t.groups).filter((g) => g.house === w.playerHouseId && !g.engaged).sort((a, b) => b.n * (b.domain === 'void' ? 1000 : 1) - a.n * (a.domain === 'void' ? 1000 : 1));
+  const destOf = (g: WGroup) => (orders[g.id] && 'to' in orders[g.id]! ? orders[g.id]!.to ?? null : g.to ?? null);
+  // Where.
   for (const g of ours) {
     const places = Object.keys(t.nodes).filter((id) => id !== g.at && !cannotOrder(w, warId, g.id, { to: id }));
-    for (const to of [null, ...places]) {
-      if ((to ?? null) === (g.to ?? null)) continue;
-      const f = forecastWith(w, warId, { ...orders, [g.id]: { to } }, runs);
-      if (f && (f.pWin > best.pWin + 0.005 || (Math.abs(f.pWin - best.pWin) <= 0.005 && f.score > best.score + 0.5))) { best = f; orders[g.id] = { to }; }
-    }
+    for (const to of [null, ...places]) if (to !== destOf(g)) tryOrder(g.id, { to });
   }
+  // When: a group that waits can arrive with another, or after the enemy has committed.
+  for (const g of ours) {
+    const to = destOf(g);
+    if (!to) continue;
+    for (const leave of [2, 4, 6, 8]) tryOrder(g.id, { to, leave });
+  }
+  // How.
+  for (const g of ours) for (const duty of ['attack', 'defend', 'support'] as const) if (duty !== (orders[g.id]?.duty ?? g.duty)) tryOrder(g.id, { duty });
   return { orders, pWin: best.pWin, score: best.score };
 }
 

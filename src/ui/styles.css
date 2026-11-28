@@ -1134,3 +1134,6 @@ span.ph-tl-name { cursor: default; } .ph-tl-name b { font-weight: 600; overflow:
   .ph-two, .ph-two.wide { grid-template-columns: 1fr; }
   .ph-stocks { grid-template-columns: repeat(2, 1fr); }
 }
+
+.ph-ed-body.stale .ph-what, .ph-ed-body.stale .ph-seg { opacity: .55; transition: opacity .2s; }
+.ph-working { font-size: 12px; padding: 8px 0; }

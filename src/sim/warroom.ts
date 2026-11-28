@@ -18,9 +18,9 @@ import { absoluteCycle } from './time';
 import { houseName, personName, shiftRegard, type ArchonHouse } from './archon';
 import { createBattle, battleOf, commandOf, fighterPower, runOut, applyFates, type FighterSpec, type Theatre as BattleTheatre } from './battle';
 import { buildWord, shortName } from './names';
-import { econ } from './economy';
+import { buyPrice, econ, PANIC_PRICE, stewardBuys } from './economy';
 import { spend } from './bills';
-import { FUEL_PER_LANE, GREAT_FUEL_PER_LANE, TROOP_FUEL_PER_LANE, FIGHT_WEAR } from '../data/economy';
+import { BASE_PRICE, FUEL_PER_LANE, GREAT_FUEL_PER_LANE, TROOP_FUEL_PER_LANE, FIGHT_WEAR } from '../data/economy';
 import { garrisonTotal } from './garrisons';
 import { profileOf } from '../data/profiles';
 import { mixFor, type HullType, HULL_TYPES } from './register';
@@ -219,7 +219,8 @@ export function weightOf(w: World, g: WGroup): number {
 
 export { fieldSoldiers } from './economy';
 
-/** Pay a war bill: for real, or, in a forecast, from the copied stores without trading. */
+/** Pay a war bill: for real, or, in a forecast, from the copied stores, buying what is short at today's price
+ *  (as the Steward would) without touching the market. */
 function payWar(w: World, t: TheatreState, h: string, bill: Partial<Record<'fuel' | 'components' | 'navisium' | 'provisions', number>>, label: string): number {
   if (!t.sim) return spend(w, h, bill, label, 'war');
   const e = w.economy?.houses[h];
@@ -227,6 +228,13 @@ function payWar(w: World, t: TheatreState, h: string, bill: Partial<Record<'fuel
   let met = 1;
   for (const [g, v] of Object.entries(bill) as ['fuel' | 'components' | 'navisium' | 'provisions', number][]) {
     if (!v) continue;
+    if (e.stock[g] < v && stewardBuys(w, h, g)) {
+      const price = buyPrice(w, h, g);
+      if (price <= BASE_PRICE[g] * PANIC_PRICE) {
+        const n = Math.max(0, Math.min(v - Math.max(0, e.stock[g]), Math.floor(e.stock.othes / Math.max(0.01, price))));
+        e.stock[g] += n; e.stock.othes -= n * price;
+      }
+    }
     const paid = Math.max(0, Math.min(v, e.stock[g]));
     e.stock[g] -= v;
     met = Math.min(met, paid / v);

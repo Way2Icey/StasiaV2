@@ -74,3 +74,44 @@ describe('the Phase: forecast, plan, commit, watch', () => {
     if (t) expect(t.phase?.committed === phaseIndex(w) || t.phase?.asked === phaseIndex(w)).toBe(true);
   }, 60000);
 });
+
+describe('the fixes of 9.27.1', () => {
+  it('the Steward buys nothing for us when told never to', async () => {
+    const { setPolicy } = await import('./exchange');
+    const { buyUpTo, econ } = await import('./economy');
+    let w = createWorld();
+    const P = w.playerHouseId;
+    w.economy.houses[P]!.stock.othes = 100000;
+    w = setPolicy(w, 'fuel', { buy: 'off' });
+    expect(buyUpTo(w, P, 'fuel', 50)).toBe(0);
+    w = setPolicy(w, 'fuel', { buy: 'cover' });
+    const before = econ(w, P).stock.fuel;
+    expect(buyUpTo(w, P, 'fuel', 50)).toBeGreaterThan(0);
+    expect(econ(w, P).stock.fuel).toBeGreaterThan(before);
+  });
+
+  it('a Phase given hands off is not stopped for court business', () => {
+    let w = atWar();
+    const war = w.war!.wars[0]!;
+    w = commitPhase(w, war.id, true);
+    const ph = phaseIndex(w);
+    let stops = 0;
+    for (let i = 0; i < 6 && phaseIndex(w) === ph; i++) {
+      const s = stepClock(w, true);
+      w = s.world;
+      if (phaseIndex(w) === ph && s.freeze && !s.freeze.battle && s.freeze.events.length === 0 && !s.freeze.war && !s.freeze.scene) stops++;
+      if (phaseIndex(w) === ph && s.freeze && s.freeze.events.length && !/needs you now/.test(s.freeze.reason)) stops++;
+    }
+    expect(stops).toBe(0);
+  }, 60000);
+
+  it('unseen enemy groups are not left out of the forecast', () => {
+    const w = atWar();
+    const war = w.war!.wars[0]!;
+    const t = theatreOf(war)!;
+    const side = war.attacker === w.playerHouseId ? 'attackers' : 'defenders';
+    const unseen = Object.values(t.groups).filter((g) => g.side !== side && !t.sight[side][g.id]);
+    const f = forecastWar(w, war.id, 2)!;
+    for (const g of unseen) expect(f.tracks.some((tr) => tr.id === g.id && tr.seen === -1)).toBe(true);
+  });
+});

@@ -509,6 +509,7 @@ export const PANIC_PRICE = 2.5;
 
 /** Buy up to `need` of a good, a little at a time, while we can pay and the price stays sane. Returns what was bought. */
 export function buyUpTo(world: World, houseId: string, g: Good, need: number): number {
+  if (!stewardBuys(world, houseId, g)) return 0;
   const e = econ(world, houseId);
   let got = 0;
   while (got < need) {
@@ -522,6 +523,13 @@ export function buyUpTo(world: World, houseId: string, g: Good, need: number): n
     got += d;
   }
   return got;
+}
+
+/** Whether the Steward may buy this good for the house: the player can tell him never to. */
+export function stewardBuys(world: World, houseId: string, g: Good): boolean {
+  if (houseId !== world.playerHouseId) return true;
+  const ex = (world.economy as World['economy'] & { exchange?: { policy?: Partial<Record<Good, { buy?: string }>> } }).exchange;
+  return ex?.policy?.[g]?.buy !== 'off';
 }
 
 /** What a house keeps in store before the Steward calls it surplus. */
