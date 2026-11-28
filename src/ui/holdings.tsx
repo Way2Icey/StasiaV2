@@ -1,11 +1,12 @@
 // Holdings: cells, vaults and academies the house has built, and what is in them.
+import { billText } from '../sim/bills';
 import { Peek } from './links';
 import { Fragment, useState } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { Go, HouseLink, Panel, PersonById, PersonLink, SectorLink } from './links';
 import { Term } from './tip';
 import {
-  baseStrength, buildCost, buildModule, caigeRoom, SECTOR_KINDS, caigesIn, cannotBuild, cannotHeist, cannotRescue, cellCapacity, cellLoad, cellSecurity, deposit, escapeChance,
+  baseStrength, buildCost, buildBill, buildModule, caigeRoom, SECTOR_KINDS, caigesIn, cannotBuild, cannotHeist, cannotRescue, cellCapacity, cellLoad, cellSecurity, deposit, escapeChance,
   executePrisoner, HEIST_COST, inmates, keeperCoverage, MODULE_LABEL, MODULE_NOTE, modulesOf, mountHeist, mountRescue, OVERSEER_TITLE,
   placeOf, REASON_LABEL, releasePrisoner, RESCUE_COST, reservesOf, returnCaige, setKeeper, setModuleOverseer, setReason, setTreatment,
   stabilityWord, TREATMENT_LABEL, TREATMENT_NOTE, upgradeModule, VAULT_CAPACITY, vaultSecurity, withdraw,
@@ -87,13 +88,13 @@ function BuildPanel() {
     <div className="body" style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--line)', marginTop: 8 }}>
       <div className="eyebrow">Build</div>
       <select className="select" aria-label="What to build" value={kind} onChange={(e) => setKind(e.target.value as ModuleKind)}>
-        {(['cells', 'vault', 'academy'] as ModuleKind[]).map((k) => <option key={k} value={k}>{MODULE_LABEL[k]} · {fmt(buildCost(k, 1))} othes</option>)}
+        {(['cells', 'vault', 'academy'] as ModuleKind[]).map((k) => <option key={k} value={k}>{MODULE_LABEL[k]} · {billText(buildBill(k, 1))}</option>)}
       </select>
       <select className="select" aria-label="Where" value={sector} onChange={(e) => setSector(e.target.value)}>
         {sectors.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
       </select>
       <p className="muted" style={{ margin: 0, fontSize: 12 }}>{MODULE_NOTE[kind]} Takes a Phase.</p>
-      <button type="button" className="btn small primary" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => buildModule(w, kind, sector))}>{why ?? `Build for ${fmt(buildCost(kind, 1))}`}</button>
+      <button type="button" className="btn small primary" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => buildModule(w, kind, sector))}>{why ?? `Build for ${billText(buildBill(kind, 1))}`}</button>
       {err ? <p className="error" style={{ margin: 0 }}>{err}</p> : null}
     </div>
   );
@@ -411,7 +412,7 @@ export function SectorHoldings({ sectorId }: { sectorId: string }) {
           <div className="actions body">
             {missing.map((k) => {
               const why = cannotBuild(world, k, sectorId);
-              return <button key={k} type="button" className="btn small" disabled={!!why} title={why ?? MODULE_NOTE[k]} onClick={() => run((w) => buildModule(w, k, sectorId))}>Build {MODULE_LABEL[k].toLowerCase()} · {fmt(buildCost(k, 1))}{why && why !== 'Not enough othes' ? '' : ''}</button>;
+              return <button key={k} type="button" className="btn small" disabled={!!why} title={why ?? MODULE_NOTE[k]} onClick={() => run((w) => buildModule(w, k, sectorId))}>Build {MODULE_LABEL[k].toLowerCase()} · {billText(buildBill(k, 1))}{why && why !== 'Not enough othes' ? '' : ''}</button>;
             })}
             <span className="muted" style={{ fontSize: 12 }}>Each takes a Phase to build.</span>
           </div>

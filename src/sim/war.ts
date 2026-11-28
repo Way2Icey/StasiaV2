@@ -22,6 +22,8 @@ import { buildWord, displayName, shortName } from './names';
 import { logRecord } from './records';
 import { addThread } from './storystate';
 import { ensureTheatre, joinTheatre, theatreTurn } from './warroom';
+import { spend } from './bills';
+import { RAISE_BILL } from '../data/economy';
 import { createBattle, battleOf, commandOf, fighterPower, outcomes, runOut, applyFates, type FighterSpec, type Theatre } from './battle';
 import { absoluteCycle, addCycles, CYCLES_PER_ORBIT, CYCLES_PER_PHASE, CYCLES_PER_YEAR, dateParts } from './time';
 import { isAway } from './court';
@@ -563,7 +565,18 @@ export function advanceWar(w: World, rng: Rng, t: { phase: boolean; orbit: boole
     for (const f of Object.values(s.formations)) f.knights = f.knights.filter((k) => w.characters[k]?.alive && w.characters[k]!.houseId === f.houseId);
     for (const war of activeWars(w)) phaseOf(w, rng, war);
     for (const f of Object.values(s.formations)) {
-      if (!f.front) { f.strength = Math.min(f.max, f.strength + Math.max(1, f.max * 0.012)); f.morale = clamp(f.morale + 1.5, 0, 80); }
+      if (!f.front) {
+        // Replacing losses is paid for: arms, armour and hulls in metals and components, training in othes. A house
+        // that cannot pay replaces only what it can.
+        const want = Math.min(f.max - f.strength, Math.max(1, f.max * 0.012));
+        if (want > 0) {
+          const per = RAISE_BILL[f.kind];
+          const unit = f.kind === 'legion' ? want / 1000 : want;
+          const met = spend(w, f.houseId, { othes: Math.round(per.othes * unit), metals: Math.round(per.metals * unit * 10) / 10, components: Math.round(per.components * unit * 10) / 10 }, `Replacing losses: ${f.name}`, 'forces', { partial: true });
+          f.strength = Math.min(f.max, f.strength + want * met);
+        }
+        f.morale = clamp(f.morale + 1.5, 0, 80);
+      }
       if (!f.front || !activeWars(w).some((x) => x.fronts.some((fr) => fr.id === f.front && !fr.ended))) f.front = undefined;
     }
     named(w, rng);
@@ -1068,6 +1081,9 @@ function maybeWar(w: World, rng: Rng): void {
     let weight = (x.personality.aggression + 0.2) * (Math.max(0, -r) / 50 + (feud ? 0.6 : 0) + (rebel ? 0.5 : 0)) * (x.might / Math.max(0.5, y.might));
     // We are not picked on often, unless we have become the house everyone resents.
     if (y.id === P) weight *= 0.3 + Math.min(1.2, envyOf(w, x.id, P) / 25);
+    // A house whose stores could not feed a host for two Phases thinks twice: war is paid in food and fuel.
+    const st = w.economy?.houses[x.id]?.stock;
+    if (st) { const need = (standingArmy(x.id) * 0.6) / 200 * 2; if (st.provisions < need || st.othes < 4000) weight *= 0.15; }
     if (x.id === P) continue;
     if (weight > 0) pairs.push([x, y, weight]);
   }

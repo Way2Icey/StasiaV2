@@ -1,4 +1,5 @@
 import { inTopThree } from './rankcheck';
+import { mixFor } from '../data/hulls';
 // The economy: othes and five resources. Standing flows (quarters, taxes,
 // food, stipends) settle once a Phase; trades, missions and ransoms settle at
 // once. Prices on the Imperial Exchange move with what the houses buy and sell.
@@ -19,6 +20,7 @@ import { absoluteCycle, addCycles, CYCLES_PER_PHASE } from './time';
 import {
   BASE_PRICE, DEVELOP_COST, ESTATES, GOODS, MISSION_COST, PEOPLE_PER_PROVISION, QUARTER_ECONOMY, QUOTA_BASE, RESOURCE_LABEL,
   RESOURCES, STARTING_STOCK, STIPEND, TAX, TAX_PER_PERSON, type Flow, type Good, type Resource,
+  SOLDIERS_PER_PROVISION, CREW_PER_PROVISION, FUEL_PER_LANE, GREAT_FUEL_PER_LANE, STATION_FUEL_SHARE, REALLOY_SOLDIERS_PER_NAVISIUM, CAIGE_NAVISIUM,
 } from '../data/economy';
 import type { Approach, Character, HouseEconomy, LedgerLine, MissionKind, Sector, World } from './types';
 
@@ -154,8 +156,61 @@ export function phaseLedger(world: World, houseId: string): LedgerLine[] {
   // A full treasury is spent: kin, courtiers and household live up to what the coffers hold.
   const lavish = lavishness(e.stock.othes);
   if (lavish) lines.push({ resource: 'othes', amount: -lavish, label: 'The court lives by the coffers', kind: 'stipend' });
-  lines.push(...standingLines(world, houseId), ...siteLines(world, houseId), ...hunterLines(world, houseId));
+  lines.push(...standingLines(world, houseId), ...siteLines(world, houseId), ...hunterLines(world, houseId), ...upkeepLines(world, houseId));
   return lines;
+}
+
+/** What a house's soldiers and ships use each Phase besides wages: food for every soldier and crew, fuel to keep
+ *  ships on station, navisium to re-alloy the shard arms of a host in the field and to keep vaulted Caiges stable. */
+export function upkeepLines(world: World, houseId: string): LedgerLine[] {
+  const out: LedgerLine[] = [];
+  const s = world.war;
+  // In the field means away from our own worlds: a host still on its home world eats at home rates.
+  let home = 0;
+  for (const f of Object.values(s?.formations ?? {})) if (f.houseId === houseId && f.strength > 0 && f.kind !== 'fleet') home += f.strength;
+  const field = Math.min(home, fieldSoldiers(world, houseId));
+  home -= field;
+  if (home) out.push({ resource: 'provisions', amount: -round(home / SOLDIERS_PER_PROVISION.home), label: `Feeding the legions (${home.toLocaleString('en-US')})`, kind: 'forces' });
+  if (field) {
+    out.push({ resource: 'provisions', amount: -round(field / SOLDIERS_PER_PROVISION.field), label: `Feeding the host in the field (${field.toLocaleString('en-US')})`, kind: 'war' });
+    out.push({ resource: 'navisium', amount: -Math.max(1, round(field / REALLOY_SOLDIERS_PER_NAVISIUM)), label: 'Re-alloying the shard arms in the field', kind: 'war' });
+  }
+  const hulls = Object.values(s?.formations ?? {}).filter((f) => f.houseId === houseId && f.kind === 'fleet').reduce((n, f) => n + f.strength, 0);
+  const mix = mixOf(hulls);
+  const great = Object.values(world.fleet?.ships ?? {}).filter((x) => x.houseId === houseId && !x.lost && !x.ready);
+  const crew = mix.crew + great.reduce((n, x) => n + x.crew, 0);
+  if (crew) out.push({ resource: 'provisions', amount: -Math.max(1, round(crew / CREW_PER_PROVISION)), label: `Feeding the crews (${crew.toLocaleString('en-US')})`, kind: 'forces' });
+  const station = (mix.fuel + great.reduce((n, x) => n + (GREAT_FUEL_PER_LANE[x.cls] ?? 3), 0)) * STATION_FUEL_SHARE;
+  if (station >= 0.5) out.push({ resource: 'fuel', amount: -round(station), label: 'Ships on station', kind: 'forces' });
+  const caiges = Object.values(world.holdings?.modules ?? {}).filter((m) => m.houseId === houseId && m.kind === 'vault').reduce((n, m) => n + Object.values(world.armoury ?? {}).filter((c) => c.vaultId === m.id && !c.bondedTo).length, 0);
+  if (caiges) out.push({ resource: 'navisium', amount: -caiges * CAIGE_NAVISIUM, label: `Keeping ${caiges} Caige${caiges === 1 ? '' : 's'} stable in the vault`, kind: 'stipend' });
+  return out;
+}
+
+/** A house's soldiers away from its own worlds, in every war it is in (read from the War Room's theatres). */
+export function fieldSoldiers(w: World, h: string): number {
+  let n = 0;
+  for (const war of w.war?.wars ?? []) {
+    if (war.status !== 'active' || !war.theatre) continue;
+    const t = war.theatre;
+    for (const g of Object.values(t.groups)) {
+      if (g.house !== h || g.domain !== 'ground') continue;
+      const node = t.nodes[g.at];
+      if (node && node.kind === 'ground' && node.owner === g.side && node.house === h) continue;
+      n += g.n;
+    }
+  }
+  return n;
+}
+
+/** A fleet of so many hulls, in the usual mix: its crew and its fuel per lane. */
+export function mixOf(hulls: number): { crew: number; fuel: number } {
+  if (hulls <= 0) return { crew: 0, fuel: 0 };
+  const m = mixFor(hulls);
+  return {
+    crew: m.cruiser * 400 + m.destroyer * 290 + m.gunship * 57 + m.fighter * 1.4,
+    fuel: m.cruiser * FUEL_PER_LANE.cruiser + m.destroyer * FUEL_PER_LANE.destroyer + m.gunship * FUEL_PER_LANE.gunship + m.fighter * FUEL_PER_LANE.fighter,
+  };
 }
 
 /** Above this, a house's kin and court spend more freely each Phase. */
@@ -167,9 +222,10 @@ export function lavishness(othes: number): number {
   return Math.round(Math.min(over, 15000) * 0.02 + Math.max(0, Math.min(over, 45000) - 15000) * 0.04 + Math.max(0, over - 45000) * 0.06);
 }
 
-/** Per Phase: what a soldier, a ship or a sworn blade costs to keep at home. In the field at war it is six times that. */
+/** Per Phase: what a soldier, a ship or a sworn blade costs to keep at home, in othes. */
 export const FORCE_UPKEEP = { legion: 0.003, fleet: 6, company: 0.15 } as const;
-export const FIELD_MULT = { war: 6, clashes: 2.5 } as const;
+/** Wages in the field: double at war. Food, fuel and wear now carry the rest of war's cost (9.26). */
+export const FIELD_MULT = { war: 2, clashes: 1.5 } as const;
 
 /** What a house's forces cost it this Phase, at home and in the field. */
 export function forcesCost(world: World, houseId: string): { home: number; field: number; rung: 'war' | 'clashes' | null; blockaded: boolean } {
@@ -404,7 +460,7 @@ function settlePhase(world: World, rng: Rng, houseId: string) {
     if (e.stock[g] >= 0) continue;
     const need = Math.ceil(-e.stock[g]);
     if (e.stock.othes < buyPrice(world, houseId, g) * need) sellSurplus(world, houseId, buyPrice(world, houseId, g) * need - e.stock.othes, g);
-    tradeInPlace(world, houseId, g, need, true);
+    buyUpTo(world, houseId, g, need);
     if (e.stock[g] >= 0) {
       const st = alive(world).find((c) => c.houseId === houseId && c.seat === 'steward');
       tell(world, houseId, `${st ? shortName(st.name) : 'The Steward'} bought ${need} ${RESOURCE_LABEL[g].toLowerCase()} on the Exchange, at whatever the sellers asked, to cover a shortfall.`, st ? [st.id] : undefined);
@@ -413,9 +469,20 @@ function settlePhase(world: World, rng: Rng, houseId: string) {
       if (!isPlayer) rivalShort(world, houseId, g);
       if (g === 'provisions') {
         for (const s of heldSectors(world, houseId)) s.unrest = clamp(s.unrest + 3, 0, 100);
-        tell(world, houseId, 'Food shortage: the stores ran dry and we could not buy enough. Unrest rises in every sector.');
+        // Hungry soldiers leave: a fortieth of every legion and company, and the rest lose heart.
+        let gone = 0;
+        for (const f of Object.values(world.war?.formations ?? {})) {
+          if (f.houseId !== houseId || f.kind === 'fleet' || f.strength <= 0) continue;
+          const n = Math.round(f.strength * 0.025);
+          f.strength -= n; gone += n; f.morale = clamp(f.morale - 6, 0, 100);
+        }
+        tell(world, houseId, `Food shortage: the stores ran dry and we could not buy enough. Unrest rises in every sector${gone ? `, and ${gone.toLocaleString('en-US')} soldiers have deserted` : ''}.`);
       } else {
-        tell(world, houseId, `${RESOURCE_LABEL[g]} ran out; work that needs it went short this Phase.`);
+        tell(world, houseId, g === 'fuel' ? 'Fuel ran out: our ships cannot leave where they are until we have more.'
+          : g === 'components' ? 'Components ran out: no repairs or refits, and the shard arms wear without them.'
+          : g === 'metals' ? 'Metals ran out: building and shipwork stop, and losses cannot be replaced.'
+          : g === 'navisium' ? 'Navisium ran out: the refinery and the shard works stand idle, and the vaulted Caiges grow restless.'
+          : `${RESOURCE_LABEL[g]} ran out; work that needs it went short this Phase.`);
       }
     }
   }
@@ -435,6 +502,26 @@ export function fadeStanding(world: World, rng: Rng, houseId: string): void {
   const st = world.houses[houseId]?.standing;
   if (!st || inTopThree(world, houseId, 'legacy')) return;
   for (const k of ['honour', 'respect'] as const) if (st[k] > 55 && rng.chance(Math.min(1, (st[k] - 55) / 45))) st[k] -= 1;
+}
+
+/** The Steward will not pay more than this many times the base price: past it, the house rations instead. */
+export const PANIC_PRICE = 2.5;
+
+/** Buy up to `need` of a good, a little at a time, while we can pay and the price stays sane. Returns what was bought. */
+export function buyUpTo(world: World, houseId: string, g: Good, need: number): number {
+  const e = econ(world, houseId);
+  let got = 0;
+  while (got < need) {
+    const price = buyPrice(world, houseId, g);
+    const n = Math.min(10, need - got);
+    if (price > BASE_PRICE[g] * PANIC_PRICE || e.stock.othes < price * n) break;
+    const before = e.stock[g];
+    tradeInPlace(world, houseId, g, n, true);
+    const d = e.stock[g] - before;
+    if (d <= 0) break;
+    got += d;
+  }
+  return got;
 }
 
 /** What a house keeps in store before the Steward calls it surplus. */

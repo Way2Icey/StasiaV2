@@ -1,4 +1,5 @@
 // Great ships: the fleet list, a ship's own page, and ships at a world.
+import { billText } from '../sim/bills';
 import { regardOf } from '../sim/archon';
 import { Peek } from './links';
 import { useState } from 'react';
@@ -8,7 +9,7 @@ import {
   CAPITAL_CLASSES, FITS, buildOrbits, cannotCommission, cannotRefit, commission, conditionCap, hasFit, onSlips, DUTY_LABEL, DUTY_NOTE, mainPortOf, moodWord, powerOf, refit, renameShip,
   retireShip, setCaptain, setDuty, shipAge, shipsOf, stripFit, upkeepOf, type CapitalClass, type CapitalShip, type Duty, type Fit,
 } from '../sim/fleet';
-import { buildCost, cannotFit, fitModule, MODULE_LABEL, shipSeen, upgradeModule, type Module, type ModuleKind } from '../sim/holdings';
+import { buildBill, cannotFit, fitModule, MODULE_LABEL, shipSeen, upgradeModule, type Module, type ModuleKind } from '../sim/holdings';
 import { findSector } from '../sim/query';
 import { heldSectors as heldSectorsOf } from '../sim/economy';
 import { isAway } from '../sim/court';
@@ -185,13 +186,13 @@ export function ShipPage({ id }: { id: string }) {
               <div key={m.id} className="row" style={{ gap: 8 }}>
                 <span style={{ flex: 1 }}>{m.kind === 'cells' ? 'Brig' : m.kind === 'vault' ? 'Strongroom' : MODULE_LABEL[m.kind]} · level {m.level}{m.works ? ` (works to ${m.works.to}, ${formatDate(m.works.done)})` : ''}</span>
                 {m.kind !== 'hangar' ? <Go to={{ kind: 'holdings', id: m.id }} className="btn small">Open</Go> : null}
-                {!m.works && m.level < 3 && m.level > 0 ? <button type="button" className="btn small" onClick={() => run((w) => upgradeModule(w, m.id))}>Improve · {fmt(buildCost(m.kind, m.level + 1))}</button> : null}
+                {!m.works && m.level < 3 && m.level > 0 ? <button type="button" className="btn small" onClick={() => run((w) => upgradeModule(w, m.id))}>Improve · {billText(buildBill(m.kind, m.level + 1))}</button> : null}
               </div>
             ))}
             <div className="actions body">
               {(['cells', 'vault', 'hangar'] as ModuleKind[]).map((k) => {
                 const why = cannotFit(world, k, s.id);
-                return <button key={k} type="button" className="btn small" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => fitModule(w, k, s.id))}>Fit {k === 'cells' ? 'a brig' : k === 'vault' ? 'a strongroom' : 'a hangar'} · {fmt(buildCost(k, 1))}</button>;
+                return <button key={k} type="button" className="btn small" disabled={!!why} title={why ?? undefined} onClick={() => run((w) => fitModule(w, k, s.id))}>Fit {k === 'cells' ? 'a brig' : k === 'vault' ? 'a strongroom' : 'a hangar'} · {billText(buildBill(k, 1))}</button>;
               })}
             </div>
             <p className="body muted" style={{ margin: 0, fontSize: 12 }}>A brig in the void is hard to break into. A strongroom carries othes beyond any raider's reach. A hangar adds fighter wings.</p>

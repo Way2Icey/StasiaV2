@@ -10,6 +10,7 @@ import { RESOURCE_LABEL, RESOURCE_NOTE, RESOURCES, TAX, type Resource, type TaxR
 import type { LedgerLine, World } from '../sim/types';
 import { useGame, useWorld } from './context';
 import { Go, Panel, PersonById, SectorLink } from './links';
+import { StoresPanel } from './stores';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const BLOCKS = '▁▂▃▄▅▆▇█';
@@ -74,6 +75,7 @@ export function EconomyPage({ bare }: { bare?: boolean } = {}) {
       </div>
 
       <div className="grid">
+        <StoresPanel className="span-12" />
         <Panel scroll={520} title={<Term k="ledger">{`${RESOURCE_LABEL[sel]} ledger`}</Term>} aside="Per Phase, at today's rates" className="span-8">
           <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{RESOURCE_NOTE[sel]}{sel === 'othes' ? ' What the Steward sells at the Exchange comes on top, less its dues.' : ''}</p>
           <div className="table-wrap">

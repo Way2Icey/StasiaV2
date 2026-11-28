@@ -11,7 +11,7 @@ import { houseName } from '../sim/archon';
 import { absoluteCycle } from '../sim/time';
 import { HULL_TYPES } from '../sim/register';
 import {
-  cannotOrder, cannotProbe, commanderOfGroup, dangerFor, doctrineOf, freeOf, mergeGroups, orderGroup, picture, probe, PROBE_COST, raiseGroup,
+  cannotOrder, cannotProbe, commanderOfGroup, legFuel, dangerFor, doctrineOf, freeOf, mergeGroups, orderGroup, picture, probe, PROBE_COST, raiseGroup,
   routeFor, setAgainst, setDoctrines, setGroupKnight, setInstruction, splitGroup, staffRead, standDown,
   type Report, type TheatreState, type WGroup, type WNode, type WSide,
 } from '../sim/warroom';
@@ -21,6 +21,9 @@ import {
   type DoctrineId, type Duty, type Instructions, type KnightsAt, type Leash, type LineAt, type Opp, type Quarter, type Role, type SupplyAt,
 } from '../data/doctrine';
 import { GOAL_LABEL, type War } from '../sim/war';
+import { econ, netPerPhase, phaseLedger } from '../sim/economy';
+import { RESOURCE_LABEL, type Resource } from '../data/economy';
+import { runway } from './stores';
 import type { World } from '../sim/types';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
@@ -96,6 +99,7 @@ export function WarRoomPage({ id, view: v }: { id: string; view?: View }) {
         </div>
         <div className="wr-side">
           <Inspector war={war} t={t} side={side} sel={sel} setSel={setSel} run={run} />
+          <WarCosts />
           <Staff war={war} t={t} side={side} setSel={setSel} />
           <PlanPanel war={war} t={t} run={run} />
         </div>
@@ -378,7 +382,7 @@ function OurInspector({ war, t, side, g, setSel, run }: { war: War; t: TheatreSt
         </label>
         {go && path ? (
           <div className="wr-note">
-            {path.length} step{path.length === 1 ? '' : 's'}: {path.map((x) => t.nodes[x]?.name).join(' → ')}.
+            {path.length} step{path.length === 1 ? '' : 's'}: {path.map((x) => t.nodes[x]?.name).join(' → ')}. Fuel: about {Math.round(path.reduce((a, x, i) => a + legFuel(world, g) * ((t.edges.find((e) => (e.a === (i ? path[i - 1] : g.at) && e.b === x) || (e.b === (i ? path[i - 1] : g.at) && e.a === x))?.cycles ?? 2) / 2), 0))}.
             {risky.length ? <span className="down"> Their ships wait at {risky.map((x) => t.nodes[x]?.name).join(', ')}: unescorted transports will be caught.</span> : null}
             <div className="actions"><button type="button" className="btn small primary" onClick={() => { run((w) => orderGroup(w, war.id, g.id, { to: go })); setGo(''); }}>Send it</button></div>
           </div>
@@ -480,6 +484,29 @@ function RaisePanel({ war, t, run }: { war: War; t: TheatreState; run: (fn: (w: 
 
 function Seg<T extends string>({ value, options, label, onPick }: { value: T; options: T[]; label: (x: T) => string; onPick: (x: T) => void }) {
   return <span className="wr-seg">{options.map((o) => <button key={o} type="button" className={o === value ? 'on' : ''} aria-pressed={o === value} onClick={() => onPick(o)}>{label(o)}</button>)}</span>;
+}
+
+// ---------------------------------------------------------------- what it costs
+
+function WarCosts() {
+  const world = useWorld();
+  const P = world.playerHouseId;
+  const e = econ(world, P);
+  const lines = phaseLedger(world, P);
+  const net = netPerPhase(lines);
+  const war = lines.filter((l) => l.kind === 'war');
+  const goods = ['provisions', 'fuel', 'components', 'navisium'] as const;
+  return (
+    <Panel title="What it costs" aside="per Phase">
+      <div className="body wr-insp">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
+          {goods.map((g) => { const r = runway(e.stock[g], net[g]); return <div key={g} style={{ display: 'flex', flexDirection: 'column', fontSize: 11 }}><span className="muted">{RESOURCE_LABEL[g]}</span><b className="mono">{Math.round(e.stock[g]).toLocaleString('en-US')}</b><span className={r < 3 ? 'down' : 'muted'}>{r === Infinity ? 'holding' : `${Math.floor(r)} Ph left`}</span></div>; })}
+        </div>
+        {war.map((l, i) => <div key={i} className="row" style={{ fontSize: 12 }}><span>{l.label}</span><span className="mono down">{Math.round(l.amount).toLocaleString('en-US')} {l.resource === 'othes' ? '' : RESOURCE_LABEL[l.resource as Resource].toLowerCase()}</span></div>)}
+        <span className="muted" style={{ fontSize: 11 }}>Every lane crossed burns fuel; every fight costs components and a little navisium.</span>
+      </div>
+    </Panel>
+  );
 }
 
 // ---------------------------------------------------------------- the staff

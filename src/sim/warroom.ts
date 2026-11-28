@@ -19,6 +19,8 @@ import { houseName, personName, shiftRegard, type ArchonHouse } from './archon';
 import { createBattle, battleOf, commandOf, fighterPower, runOut, applyFates, type FighterSpec, type Theatre as BattleTheatre } from './battle';
 import { buildWord, shortName } from './names';
 import { econ } from './economy';
+import { spend } from './bills';
+import { FUEL_PER_LANE, GREAT_FUEL_PER_LANE, TROOP_FUEL_PER_LANE, FIGHT_WEAR } from '../data/economy';
 import { garrisonTotal } from './garrisons';
 import { profileOf } from '../data/profiles';
 import { mixFor, type HullType, HULL_TYPES } from './register';
@@ -130,6 +132,8 @@ export interface WGroup {
   ordered?: boolean;
   /** It is falling back. */
   falling?: boolean;
+  /** Held where it is for want of fuel. */
+  dry?: boolean;
 }
 
 export interface Plan extends Instructions { doctrines: DoctrineId[]; familiarity: number; against: Record<string, Opp> }
@@ -205,6 +209,15 @@ export function weightOf(w: World, g: WGroup): number {
   }
   const great = g.great.map((id) => w.fleet?.ships[id]).filter((s): s is CapitalShip => !!s && !s.lost).reduce((t, s) => t + powerOf(w, s) / 2.5, 0);
   return g.hulls.cruiser * 6 + g.hulls.destroyer * 4 + g.hulls.gunship * 1.5 + g.hulls.fighter * 0.4 + great;
+}
+
+export { fieldSoldiers } from './economy';
+
+/** Fuel for this group to cross one lane: its hulls and great ships, or the troopships that carry it. */
+export function legFuel(w: World, g: WGroup): number {
+  if (g.domain === 'ground') return (g.n / 1000) * TROOP_FUEL_PER_LANE;
+  const great = g.great.map((id) => w.fleet?.ships[id]).filter((s): s is CapitalShip => !!s && !s.lost).reduce((t, s) => t + (GREAT_FUEL_PER_LANE[s.cls] ?? 3), 0);
+  return g.hulls.cruiser * FUEL_PER_LANE.cruiser + g.hulls.destroyer * FUEL_PER_LANE.destroyer + g.hulls.gunship * FUEL_PER_LANE.gunship + g.hulls.fighter * FUEL_PER_LANE.fighter + great;
 }
 
 export function commanderOfGroup(w: World, g: WGroup): { name: string; skill: number; id?: string } {
@@ -360,8 +373,11 @@ function muster(w: World, t: TheatreState, war: War, h: string, rng: Rng): void 
   const soldiers = ground.reduce((n, x) => n + x.n, 0);
   const ships = fleets.reduce((n, f) => n + freeOf(w, t, f), 0);
   const great = fleets.length ? Object.values(w.fleet?.ships ?? {}).filter((s) => s.houseId === h && !s.lost && !s.ready && !s.watch && !s.crucible && (s.duty === 'harbour' || s.duty === 'patrol')).map((s) => s.id) : [];
-  const take = (share: number): Source[] => ground.map((x) => ({ formationId: x.f.id, n: rnd(freeOf(w, t, x.f) * share) })).filter((s) => s.n > 0);
-  const takeFleet = (share: number): Source[] => fleets.map((f) => ({ formationId: f.id, n: Math.max(0, rnd(freeOf(w, t, f) * share)) })).filter((s) => s.n > 0);
+  // A principal brings everything it can spare; an ally sends half.
+  const principal = h === war.attacker || h === war.defender;
+  const cut = principal ? 1 : 0.5;
+  const take = (share: number): Source[] => ground.map((x) => ({ formationId: x.f.id, n: rnd(freeOf(w, t, x.f) * share * cut) })).filter((s) => s.n > 0);
+  const takeFleet = (share: number): Source[] => fleets.map((f) => ({ formationId: f.id, n: Math.max(0, rnd(freeOf(w, t, f) * share * cut)) })).filter((s) => s.n > 0);
   const sum = (s: Source[]) => s.reduce((n, x) => n + x.n, 0);
   const mk = (dm: Domain, src: Source[], at: string, role: Role, extra: Partial<WGroup> = {}) => {
     const n = sum(src);
@@ -379,7 +395,7 @@ function muster(w: World, t: TheatreState, war: War, h: string, rng: Rng): void 
   }
   t.plans[h] ??= aiPlan(w, h, side);
   // Hosts of about 45,000, at most four; the rest of the army stays in its garrisons.
-  const hosts = clamp(Math.ceil(soldiers / 45000), 1, 4);
+  const hosts = clamp(Math.ceil(soldiers * cut / 45000), 1, 4);
   const attacking = side === 'attackers';
   const roles: Role[] = attacking
     ? (d.style === 'assault' ? ['spearhead', 'siege', 'spearhead', 'reserve'] : d.style === 'raid' ? ['spearhead', 'raider', 'reserve', 'raider'] : d.style === 'knights' ? ['lance', 'spearhead', 'reserve', 'siege'] : ['spearhead', 'siege', 'reserve', 'anvil'])
@@ -853,6 +869,11 @@ function judge(w: World, war: War, t: TheatreState, node: WNode, A: WGroup[], D:
     if (kn && plan.knights === 'lead') add('Knights at the front', s, Math.min(1.15, 1 + 0.03 * kn));
     if (kn && plan.knights === 'hunt' && foe.some((f) => f.knights.length)) add('Knights hunting knights', s, 1.06);
     if (has(t, h, 'whispers')) add('They read our plan badly', other(s), 0.97);
+    // What the house is short of shows in the fight.
+    const st = w.economy?.houses[h]?.stock;
+    if (st && st.components <= 0) add('Arms wearing out: no components', s, 0.93);
+    if (st && st.provisions <= 0) add('Hungry', s, 0.9);
+    if (domain === 'void' && gs.some((g) => g.dry)) add('Short of fuel', s, 0.85);
   }
   const Ms = { attackers: 1, defenders: 1 } as Record<WSide, number>;
   for (const m of mults) if (!m.base) Ms[m.side] *= m.x;
@@ -1124,6 +1145,23 @@ function settle(w: World, war: War, t: TheatreState, node: WNode, domain: Domain
       if (domain === 'ground') knightsAtRisk(w, g, s === winner, t, rng, title, !!huntHouse(s));
     }
   }
+  // Every fight wears arms and ships: components for the wear, a little navisium for the shard arms, and a lane's
+  // fuel from every ship in it.
+  const byHouse = new Map<string, { soldiers: number; hulls: number; fuel: number }>();
+  for (const g of [...groups.attackers, ...groups.defenders]) {
+    if (g.id.startsWith('garrison:')) continue;
+    const b = byHouse.get(g.house) ?? { soldiers: 0, hulls: 0, fuel: 0 };
+    if (g.domain === 'ground') b.soldiers += g.n; else { b.hulls += g.n + g.great.length; b.fuel += legFuel(w, g); }
+    byHouse.set(g.house, b);
+  }
+  for (const [h, b] of byHouse) {
+    const bill = {
+      components: Math.round((b.soldiers / FIGHT_WEAR.soldiersPerComponent + b.hulls * FIGHT_WEAR.componentsPerHull) * 10) / 10,
+      navisium: Math.round((b.soldiers / FIGHT_WEAR.soldiersPerNavisium + b.hulls / FIGHT_WEAR.hullsPerNavisium) * 10) / 10,
+      fuel: Math.round(b.fuel * 10) / 10,
+    };
+    spend(w, h, bill, title, 'war');
+  }
   // The beaten go back, or are taken.
   const encircled = j.encircle[winner] && !escapeFor(t, groups[loser].filter((g) => !g.id.startsWith('garrison:')), node);
   const out = escapeFor(t, groups[loser].filter((g) => !g.id.startsWith('garrison:')), node);
@@ -1203,6 +1241,16 @@ function move(w: World, war: War, t: TheatreState): void {
     if (g.arrive > now) { g.fatigue = clamp(g.fatigue + 0.015 * (1 + planOf(t, g.house).tempo * 0.25), 0, 1); continue; }
     const next = g.path[0]!;
     if (cannotEnter(w, war, t, g, next)) { g.path = []; g.to = undefined; g.arrive = undefined; continue; }
+    // The crossing burns fuel from the house's stores; a house that has none (and cannot buy it) is held where it is.
+    const fuel = Math.round(legFuel(w, g) * edgeCycles(t, g.at, next) / 2 * 10) / 10;
+    if (fuel > 0) {
+      const met = spend(w, g.house, { fuel }, `${g.name}: to ${t.nodes[next]!.name}`, 'war');
+      if (met < 0.99) {
+        if (!g.dry) say(t, w, `${g.name} of House ${houseName(w, g.house)} cannot move: no fuel.`, g.house === w.playerHouseId, g.side);
+        g.dry = true; g.arrive = now + 2; continue;
+      }
+    }
+    g.dry = false;
     // Landings come down in waves: one host every two turns onto a world that is not theirs.
     const land = t.nodes[next]!;
     if (land.kind === 'ground' && land.owner !== g.side) {
@@ -1218,9 +1266,11 @@ function move(w: World, war: War, t: TheatreState): void {
 }
 
 /** Supplied while there is a way home through places no enemy holds; raiders and blockades cut it. */
-function supply(_w: World, war: War, t: TheatreState): void {
+function supply(w: World, war: War, t: TheatreState): void {
   for (const side of ['attackers', 'defenders'] as const) {
-    const homes = Object.values(t.nodes).filter((n) => n.owner === side && n.kind === 'ground' && n.holder === side).map((n) => n.id);
+    // Depots: our worlds, the stations we hold, and wherever our great ships are (their holds carry stores).
+    const homes = Object.values(t.nodes).filter((n) => n.holder === side && (n.kind === 'station' || (n.owner === side && n.kind === 'ground'))).map((n) => n.id)
+      .concat(groupsOf(t, side).filter((g) => g.great.length).map((g) => g.at));
     const ok = new Set(homes);
     let frontier = [...homes];
     while (frontier.length) {
@@ -1237,8 +1287,9 @@ function supply(_w: World, war: War, t: TheatreState): void {
     const plan = planOf(t, lead);
     // Raiders on our roads.
     const raided = groupsOf(t, other(side)).filter((g) => (g.role === 'raider' || g.role === 'laneRaider') && t.nodes[g.at]?.owner === side).length * (has(t, groupsOf(t, other(side))[0]?.house ?? '', 'supply') ? 2 : 1);
+    const hungry = (w.economy?.houses[lead]?.stock.provisions ?? 1) <= 0;
     for (const g of groupsOf(t, side)) {
-      const linked = ok.has(g.at);
+      const linked = ok.has(g.at) && !(hungry && w.economy?.houses[g.house]);
       const deep = (g.role === 'raider' || g.role === 'infiltrator') && has(t, g.house, 'deepRaid');
       const favour = plan.supply === 'balanced' ? 1 : (plan.supply === 'void') === (g.domain === 'void') ? 1.3 : 0.75;
       const isolate = groupsOf(t, other(side)).some((x) => planOf(t, x.house).against[g.id] === 'isolate') ? 1.5 : 1;

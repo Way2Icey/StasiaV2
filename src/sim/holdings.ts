@@ -5,6 +5,8 @@ import { tally } from './careers';
 import { Rng } from './rng';
 import { displayName, shortName } from './names';
 import { econ, record } from './economy';
+import { cannotPay, spend } from './bills';
+import { MODULE_GOODS_PER_LEVEL, type Flow } from '../data/economy';
 import { findSector, seatHolder } from './query';
 import { learn } from './knowledge';
 import { shiftRelation, relation } from './relations';
@@ -367,6 +369,11 @@ export function buildCost(kind: ModuleKind, toLevel: number): number {
   return BUILD_COST[kind][toLevel - 1] ?? 0;
 }
 
+/** The whole bill for raising a module to a level: othes, and metals and components for the work. */
+export function buildBill(kind: ModuleKind, toLevel: number): Flow {
+  return { othes: buildCost(kind, toLevel), metals: MODULE_GOODS_PER_LEVEL.metals * toLevel, components: MODULE_GOODS_PER_LEVEL.components * toLevel };
+}
+
 /** Why a module can't be built here, or null. */
 export function cannotBuild(world: World, kind: ModuleKind, sectorId: string): string | null {
   const s = findSector(world, sectorId);
@@ -374,8 +381,7 @@ export function cannotBuild(world: World, kind: ModuleKind, sectorId: string): s
   if (modulesAt(world, sectorId).some((m) => m.kind === kind && m.houseId === world.playerHouseId)) return 'Already one here';
   if (kind === 'shipyard' && s.sector.port !== 'spaceport' && s.sector.port !== 'starport') return 'Needs a spaceport or starport';
   if (kind === 'hangar') return 'Hangars go on ships';
-  if (econ(world, world.playerHouseId).stock.othes < buildCost(kind, 1)) return 'Not enough othes';
-  return null;
+  return cannotPay(world, world.playerHouseId, buildBill(kind, 1));
 }
 
 export function buildModule(input: World, kind: ModuleKind, sectorId: string): World {
@@ -383,8 +389,7 @@ export function buildModule(input: World, kind: ModuleKind, sectorId: string): W
     const why = cannotBuild(w, kind, sectorId);
     if (why) throw new Error(why);
     const P = w.playerHouseId;
-    const cost = buildCost(kind, 1);
-    record(w, P, { resource: 'othes', amount: -cost, label: `${MODULE_LABEL[kind]} built at ${findSector(w, sectorId)?.sector.name}`, kind: 'develop', sectorId });
+    spend(w, P, buildBill(kind, 1), `${MODULE_LABEL[kind]} built at ${findSector(w, sectorId)?.sector.name}`, 'develop');
     const m = newModule(w, P, kind, sectorId, 0);
     m.works = { to: 1, done: addCycles(w.date, CYCLES_PER_PHASE) };
   });
@@ -399,8 +404,7 @@ export function cannotFit(world: World, kind: ModuleKind, shipId: string): strin
   if (fitted.some((m) => m.kind === kind)) return 'Already fitted';
   const slots = ({ flagship: 4, carrier: 3, cruiser: 2, destroyer: 1 } as Record<string, number>)[s.cls] ?? 2;
   if (fitted.length >= slots) return 'No slots left';
-  if (econ(world, world.playerHouseId).stock.othes < buildCost(kind, 1)) return 'Not enough othes';
-  return null;
+  return cannotPay(world, world.playerHouseId, buildBill(kind, 1));
 }
 
 export function fitModule(input: World, kind: ModuleKind, shipId: string): World {
@@ -408,8 +412,7 @@ export function fitModule(input: World, kind: ModuleKind, shipId: string): World
     const why = cannotFit(w, kind, shipId);
     if (why) throw new Error(why);
     const P = w.playerHouseId;
-    const cost = buildCost(kind, 1);
-    record(w, P, { resource: 'othes', amount: -cost, label: `${MODULE_LABEL[kind]} fitted to the ${w.fleet.ships[shipId]!.name}`, kind: 'develop' });
+    spend(w, P, buildBill(kind, 1), `${MODULE_LABEL[kind]} fitted to the ${w.fleet.ships[shipId]!.name}`, 'develop');
     const id = `mod${w.nextId++}`;
     w.holdings.modules[id] = { id, kind, houseId: P, shipId, level: 0, overseerId: null, built: w.date, works: { to: 1, done: addCycles(w.date, CYCLES_PER_PHASE) }, ...(kind === 'vault' ? { drives: 0, keepers: [] } : {}) };
   });
@@ -419,9 +422,10 @@ export function upgradeModule(input: World, id: string): World {
   return act(input, (w) => {
     const m = w.holdings.modules[id];
     if (!m || m.houseId !== w.playerHouseId || m.works || m.level >= 3) throw new Error('Cannot improve that.');
-    const cost = buildCost(m.kind, m.level + 1);
-    if (econ(w, m.houseId).stock.othes < cost) throw new Error('Not enough othes.');
-    record(w, m.houseId, { resource: 'othes', amount: -cost, label: `${MODULE_LABEL[m.kind]} at ${placeOf(w, m)} to level ${m.level + 1}`, kind: 'develop', sectorId: m.sectorId });
+    const bill = buildBill(m.kind, m.level + 1);
+    const why = cannotPay(w, m.houseId, bill);
+    if (why) throw new Error(`${why}.`);
+    spend(w, m.houseId, bill, `${MODULE_LABEL[m.kind]} at ${placeOf(w, m)} to level ${m.level + 1}`, 'develop');
     m.works = { to: m.level + 1, done: addCycles(w.date, CYCLES_PER_PHASE * (m.level + 1)) };
   });
 }

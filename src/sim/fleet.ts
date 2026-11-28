@@ -1,4 +1,6 @@
 // Great ships: each house's capital ships, their captains and crews, where they are and what they are doing.
+import { cannotPay, spend } from './bills';
+import { GREAT_SHIP_METALS_PER_COMPONENT, type Flow } from '../data/economy';
 import { tally } from './careers';
 import { Rng } from './rng';
 import { displayName } from './names';
@@ -329,8 +331,13 @@ export function cannotCommission(world: World, cls: CapitalClass, yardId: string
     if (Object.values(world.fleet?.ships ?? {}).some((x) => x.houseId === world.playerHouseId && x.cls === 'flagship' && !x.lost)) return 'The house already has its flagship';
   }
   if (e.stock.othes < d.cost) return `Needs ${fmt(d.cost)} othes`;
-  if (e.stock.components < d.components) return `Needs ${d.components} components`;
-  return null;
+  return cannotPay(world, world.playerHouseId, greatShipBill(cls));
+}
+
+/** A great ship's whole bill: othes, components, and eight metals for every component. */
+export function greatShipBill(cls: CapitalClass): Flow {
+  const d = CAPITAL_CLASSES[cls];
+  return { othes: d.cost, components: d.components, metals: d.components * GREAT_SHIP_METALS_PER_COMPONENT };
 }
 
 export function commission(input: World, cls: CapitalClass, yardId: string): World {
@@ -340,8 +347,7 @@ export function commission(input: World, cls: CapitalClass, yardId: string): Wor
     const yard = w.holdings.modules[yardId]!;
     const P = w.playerHouseId;
     const d = CAPITAL_CLASSES[cls];
-    record(w, P, { resource: 'othes', amount: -d.cost, label: `Laid down a ${d.label.toLowerCase()}`, kind: 'develop', sectorId: yard.sectorId });
-    record(w, P, { resource: 'components', amount: -d.components, label: `Laid down a ${d.label.toLowerCase()}`, kind: 'develop', sectorId: yard.sectorId });
+    spend(w, P, greatShipBill(cls), `Laid down a ${d.label.toLowerCase()}`, 'develop');
     const id = `cs${w.nextId++}`;
     const orbits = buildOrbits(yard) * (cls === 'flagship' ? 4 : 1);
     w.fleet.ships[id] = {

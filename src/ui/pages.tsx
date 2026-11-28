@@ -1,3 +1,4 @@
+import { StoresStrip } from './stores';
 import { MarksList } from './account';
 import { HouseDossier, HouseList, useDossierNav } from './dossier';
 import { answerAlliance } from '../sim/houses';
@@ -110,6 +111,7 @@ export function ThroneRoom() {
       <Title title="The Hall" sub="The house at a glance: its numbers, what needs you, what is in motion and what is coming. Press / to find anything." />
       <RaidPanel />
       <DeckTiles />
+      <StoresStrip />
       <div className="grid">
         <div className="span-7 stack">
           <Desk />

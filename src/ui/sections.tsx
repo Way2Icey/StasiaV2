@@ -1,5 +1,6 @@
 // The rail's sections and their hub pages: a strip of tabs under each section, and the pages that
 // gather features which used to live wherever they were first attached.
+import { billText } from '../sim/bills';
 import { DUTY_LABEL } from '../sim/fleet';
 import { whereabouts } from './seats';
 import { canLend, quoteFor } from '../sim/loans';
@@ -27,7 +28,7 @@ import { activeMissions } from '../sim/missions';
 import { currentRound } from '../sim/crucible';
 import { isAway } from '../sim/court';
 import { heldSectors } from '../sim/economy';
-import { buildCost, buildModule, cannotBuild, MODULE_LABEL, MODULE_NOTE, modulesOf, placeOf, reservesOf, SECTOR_KINDS, type ModuleKind } from '../sim/holdings';
+import { buildBill, buildModule, cannotBuild, MODULE_LABEL, MODULE_NOTE, modulesOf, placeOf, reservesOf, SECTOR_KINDS, type ModuleKind } from '../sim/holdings';
 import { ageOf } from '../sim/characters';
 import { renownOf, renownTier } from '../sim/renown';
 import { moodOf } from '../sim/mood';
@@ -371,7 +372,7 @@ export function BuildPage({ what }: { what?: string }) {
         ))}
       </div>
       <div className="grid">
-        <Panel title={<Term k="holdings">{MODULE_LABEL[kind]}</Term>} aside={`${fmt(buildCost(kind, 1))} othes for the first level`} className="span-7">
+        <Panel title={<Term k="holdings">{MODULE_LABEL[kind]}</Term>} aside={`${billText(buildBill(kind, 1))} for the first level`} className="span-7">
           <p className="body muted" style={{ margin: 0, fontSize: 12 }}>{MODULE_NOTE[kind]}</p>
           {err ? <p className="body error" style={{ margin: 0 }}>{err}</p> : null}
           {ok.length === 0 ? <p className="body muted" style={{ margin: 0 }}>Nowhere to build one now.</p> : null}

@@ -9,6 +9,8 @@
 // Whoever of ours goes out takes a ship. A ship carrying someone is not free for duties until they are
 // home; if nothing of ours is free they take passage on a merchant hull.
 import { Rng } from './rng';
+import { spend } from './bills';
+import { FUEL_PER_LANE, GREAT_FUEL_PER_LANE } from '../data/economy';
 import { CULTURES } from '../data/cultures';
 import { buildWord } from './names';
 import { formationsOf } from './war';
@@ -16,8 +18,8 @@ import { CAPITAL_CLASSES, shipLog, shipsOf, type CapitalClass, type CapitalShip 
 import { absoluteCycle, type GameDate } from './time';
 import type { Character, World } from './types';
 
-export type HullType = 'cruiser' | 'destroyer' | 'gunship' | 'fighter';
-export const HULL_TYPES: HullType[] = ['cruiser', 'destroyer', 'gunship', 'fighter'];
+export { HULL_TYPES, mixFor, type HullType } from '../data/hulls';
+import { HULL_TYPES, mixFor, type HullType } from '../data/hulls';
 export const HULL_LABEL: Record<HullType, string> = { cruiser: 'Cruiser', destroyer: 'Destroyer', gunship: 'Gunship', fighter: 'Fighter' };
 export const HULL_NOTE: Record<HullType, string> = {
   cruiser: 'A house cruiser kept for envoys and the Spymaster\'s people: staterooms, a quiet signals deck, and guns enough to be left alone.',
@@ -25,18 +27,6 @@ export const HULL_NOTE: Record<HullType, string> = {
   gunship: 'Small and quick: fire support, boarding, hit-and-run. Carries a knight and a few companions wherever the house sends them.',
   fighter: 'A single craft of the wing: a pilot and sometimes a gunner. Scouts, screens and strikes; carries no one.',
 };
-/** The fleet's mix, as shares of its hulls; the fighter wing takes the rest. */
-const SHARE: Record<Exclude<HullType, 'fighter'>, number> = { cruiser: 0.06, destroyer: 0.08, gunship: 0.3 };
-
-/** How many of each kind a fleet of n hulls should hold: at least two cruisers and two destroyers once it is big enough. */
-export function mixFor(n: number): Record<HullType, number> {
-  const big = n >= 12;
-  const cruiser = Math.min(n, Math.max(big ? 2 : 0, Math.round(n * SHARE.cruiser)));
-  const destroyer = Math.min(n - cruiser, Math.max(big ? 2 : 0, Math.round(n * SHARE.destroyer)));
-  const gunship = Math.min(n - cruiser - destroyer, Math.round(n * SHARE.gunship));
-  return { cruiser, destroyer, gunship, fighter: n - cruiser - destroyer - gunship };
-}
-
 export interface Hull {
   id: string;
   type: HullType;
@@ -312,9 +302,24 @@ function reconcilePassages(w: World): void {
   for (const [key, party] of live) {
     if (reg.passages[key]) continue;
     const lead = w.characters[party.ids[0]!]!;
-    const ship = pickShip(w, wantFor(lead, party));
+    let ship = pickShip(w, wantFor(lead, party));
+    // Our own ship burns our fuel, there and back (about four lanes); if the stores cannot give it, they go by
+    // merchant hull, paying their fare.
+    if (ship !== 'merchant') {
+      const met = spend(w, w.playerHouseId, { fuel: passageFuel(w, ship), provisions: 1 }, `Passage: ${party.why}`, 'mission');
+      if (met < 0.99) ship = 'merchant';
+    }
+    if (ship === 'merchant') spend(w, w.playerHouseId, { othes: 60 * party.ids.length }, `A merchant's fare: ${party.why}`, 'mission');
     reg.passages[key] = { key, ids: party.ids, why: party.why, since: { ...w.date }, ship };
   }
+}
+
+/** Fuel for a passage there and back: about four lanes, by the ship's kind. */
+export function passageFuel(w: World, ship: string): number {
+  const g = w.fleet?.ships[ship];
+  if (g) return 4 * (GREAT_FUEL_PER_LANE[g.cls] ?? 3);
+  const h = w.register?.hulls[ship];
+  return h ? 4 * FUEL_PER_LANE[h.type] : 0;
 }
 
 function voyageDone(w: World, p: Passage, _verb: string, tail: string): void {

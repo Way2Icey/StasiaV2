@@ -91,10 +91,46 @@ export const QUARTER_ECONOMY: Record<string, QuarterEconomy> = {
  * mines. What one lacks another has, so they trade, and what they ship can be taken.
  */
 export const ESTATES: Record<string, Flow> = {
-  torvann: { othes: 1900, metals: 240, provisions: 220, fuel: 0, navisium: -20, components: -8 },
-  serath: { othes: 1400, provisions: 60, fuel: -60, components: 8, navisium: -15, metals: -40 },
+  // Alerion (canon): one or two worlds, six to eight research stations. Its stations make components and sell
+  // learning; its second world's farms nearly feed it, and what it lacks it buys with what it makes.
+  alerion: { othes: 220, components: 22, provisions: 210 },
+  // Torvann: the largest legions in the Archon, fed from their own terraces and paid from the mines.
+  torvann: { othes: 3000, metals: 240, provisions: 1000, fuel: 25, navisium: -20, components: -8 },
+  // Serath: fast ships, always short of fuel.
+  serath: { othes: 1400, provisions: 230, fuel: -20, components: 8, navisium: -15, metals: -40 },
   shaaliin: { othes: 900, provisions: 420, components: 12, metals: -60, fuel: -15, navisium: -10 },
 };
+
+// ---------------------------------------------------------------- rates (9.26)
+// Every system draws on the same six pools. These are the unit costs everything else is built from.
+
+/** Soldiers per unit of provisions a Phase: at home, and in the field (where food travels and spoils). */
+export const SOLDIERS_PER_PROVISION = { home: 400, field: 200 } as const;
+/** Crew per unit of provisions a Phase, aboard ships. */
+export const CREW_PER_PROVISION = 300;
+/** Fuel to cross one lane, by kind of hull. */
+export const FUEL_PER_LANE = { fighter: 0.1, gunship: 0.25, destroyer: 0.75, cruiser: 1.5 } as const;
+export const GREAT_FUEL_PER_LANE: Record<string, number> = { flagship: 5, carrier: 3, cruiser: 1.5, destroyer: 0.75 };
+/** Troopships: fuel per lane per 1,000 soldiers carried (a host of 40,000 burns 10 a lane). */
+export const TROOP_FUEL_PER_LANE = 0.25;
+/** Ships on station burn this share of a lane's fuel each Phase. */
+export const STATION_FUEL_SHARE = 0.25;
+/** A fight wears arms and ships: components per soldier and per hull in it; a little navisium for the shard arms. */
+export const FIGHT_WEAR = { soldiersPerComponent: 2000, componentsPerHull: 0.3, soldiersPerNavisium: 10000, hullsPerNavisium: 20 } as const;
+/** Shard arms in the field are re-alloyed: soldiers per unit of navisium a Phase. */
+export const REALLOY_SOLDIERS_PER_NAVISIUM = 5000;
+/** A Caige kept in a vault: navisium a Phase to keep it stable. */
+export const CAIGE_NAVISIUM = 2;
+/** Raising (or replacing) forces: per 1,000 soldiers, per hull, per sworn blade. */
+export const RAISE_BILL = {
+  legion: { othes: 300, metals: 40, components: 5 },
+  fleet: { othes: 1200, metals: 30, components: 6 },
+  company: { othes: 3, metals: 0.2, components: 0 },
+} as const;
+/** Building: per level of a module, on top of its othes. */
+export const MODULE_GOODS_PER_LEVEL = { metals: 80, components: 10 } as const;
+/** A great ship takes this many metals per component of its build. */
+export const GREAT_SHIP_METALS_PER_COMPONENT = 8;
 
 /** Othes per person per Phase at the normal tax rate. */
 export const TAX_PER_PERSON = 0.002;
@@ -120,8 +156,9 @@ export const DEVELOP_COST: Flow = { othes: 300, metals: 40 };
 export const QUOTA_BASE = { great: 300, minor: 120 } as const;
 
 export const STARTING_STOCK: Record<string, Record<Resource, number>> = {
-  alerion: { othes: 5000, navisium: 150, metals: 400, provisions: 900, fuel: 120, components: 20 },
-  torvann: { othes: 6000, navisium: 300, metals: 600, provisions: 700, fuel: 200, components: 40 },
+  alerion: { othes: 5000, navisium: 150, metals: 400, provisions: 900, fuel: 300, components: 60 },
+  // Torvann keeps war stores: the largest legions in the Archon do not march on an empty granary.
+  torvann: { othes: 9000, navisium: 300, metals: 600, provisions: 2400, fuel: 700, components: 120 },
   serath: { othes: 4500, navisium: 120, metals: 150, provisions: 500, fuel: 150, components: 10 },
   shaaliin: { othes: 5500, navisium: 120, metals: 100, provisions: 450, fuel: 80, components: 10 },
 };

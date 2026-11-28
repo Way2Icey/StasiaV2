@@ -1,6 +1,7 @@
 // The Treasury on one screen: the Exchange ticker, the flow of othes through the coffers with its two banks
 // set out as plain lists, the goods as cards with their price trend and the Steward's standing order, and the
 // rest (vaults, loans, great works, taxes and pay, orders, other resources) as drawers.
+import { StoresPanel } from './stores';
 import { useState } from 'react';
 import { useGame, useWorld } from './context';
 import { Go, Panel } from './links';
@@ -117,6 +118,7 @@ export function ExchequerPage({ drawer: initial }: { drawer?: Drawer }) {
               );
             })}
           </div>
+          <StoresPanel />
           <Lately />
         </div>
         <aside className="xq-side">
