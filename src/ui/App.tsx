@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'rea
 import { Term } from './tip';
 import { GlossaryPage } from './glossary';
 import { createWorld } from '../sim/world';
-import { ClockControl, useClock } from './clock';
+import { ClockControl, ClockCtx, useClock } from './clock';
 import { MomentWindow } from './moments';
 import { BattleWindow } from './battle';
 import { SceneWindow } from './scene';
@@ -124,6 +124,8 @@ export function App() {
     back: () => setHistory((h) => ({ ...h, index: Math.max(0, h.index - 1) })),
     forward: () => setHistory((h) => ({ ...h, index: Math.min(h.stack.length - 1, h.index + 1) })),
   }), [current, history]);
+  const navRef = useRef(nav);
+  navRef.current = nav;
 
   const hover: Hover = useMemo(() => ({
     show: (id, el) => {
@@ -150,7 +152,7 @@ export function App() {
   const [moments, setMoments] = useState<{ ids: string[]; reason: string; resume: boolean; battle?: string } | null>(null);
   const [battle, setBattle] = useState<string | null>(null);
   const [scene, setScene] = useState<string | null>(null);
-  const onFreeze = useCallback((ids: string[], reason: string, battleId?: string, sceneId?: string) => { if (sceneId && !ids.length && !battleId) { setScene(sceneId); return; } setMoments((m) => ({ ids: [...(m?.ids ?? []), ...ids.filter((x) => !m?.ids.includes(x))], reason, resume: true, battle: battleId ?? m?.battle })); }, []);
+  const onFreeze = useCallback((ids: string[], reason: string, battleId?: string, sceneId?: string, warId?: string) => { if (warId && !ids.length && !battleId) { navRef.current?.to({ kind: 'warroom', id: warId }); done(reason); return; } if (sceneId && !ids.length && !battleId) { setScene(sceneId); return; } setMoments((m) => ({ ids: [...(m?.ids ?? []), ...ids.filter((x) => !m?.ids.includes(x))], reason, resume: true, battle: battleId ?? m?.battle })); }, []);
   const onNotice = useCallback((msg: string) => done(msg), [done]);
   // A battle waiting for our word survives a reload, and can be called up again from the War screen.
   useEffect(() => {
@@ -196,6 +198,7 @@ export function App() {
 
   return (
     <WorldContext.Provider value={world}>
+      <ClockCtx.Provider value={clock}>
       <NavContext.Provider value={nav}>
         <HoverContext.Provider value={hover}>
         <PersonMenuContext.Provider value={personMenu}>
@@ -272,6 +275,7 @@ export function App() {
         </PersonMenuContext.Provider>
         </HoverContext.Provider>
       </NavContext.Provider>
+      </ClockCtx.Provider>
     </WorldContext.Provider>
   );
 }

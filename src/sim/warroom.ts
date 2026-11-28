@@ -134,6 +134,8 @@ export interface WGroup {
   falling?: boolean;
   /** Held where it is for want of fuel. */
   dry?: boolean;
+  /** Waits where it is until this cycle before it moves (a timed order). */
+  hold?: number;
 }
 
 export interface Plan extends Instructions { doctrines: DoctrineId[]; familiarity: number; against: Record<string, Opp> }
@@ -184,6 +186,10 @@ export interface TheatreState {
   /** Probes the Spymaster has out: node id → until cycle. */
   probes: Record<string, number>;
   next: number;
+  /** A forecast copy: nothing outside the war is touched, no battles open, no one dies. */
+  sim?: boolean;
+  /** Our plan for the Phase: committed for which Phase, asked about which, and whether it plays out on its own. */
+  phase?: { committed?: number; asked?: number; handsOff?: boolean; last?: Record<string, GroupOrder> };
 }
 
 // ---------------------------------------------------------------- reading
@@ -212,6 +218,21 @@ export function weightOf(w: World, g: WGroup): number {
 }
 
 export { fieldSoldiers } from './economy';
+
+/** Pay a war bill: for real, or, in a forecast, from the copied stores without trading. */
+function payWar(w: World, t: TheatreState, h: string, bill: Partial<Record<'fuel' | 'components' | 'navisium' | 'provisions', number>>, label: string): number {
+  if (!t.sim) return spend(w, h, bill, label, 'war');
+  const e = w.economy?.houses[h];
+  if (!e) return 1;
+  let met = 1;
+  for (const [g, v] of Object.entries(bill) as ['fuel' | 'components' | 'navisium' | 'provisions', number][]) {
+    if (!v) continue;
+    const paid = Math.max(0, Math.min(v, e.stock[g]));
+    e.stock[g] -= v;
+    met = Math.min(met, paid / v);
+  }
+  return met;
+}
 
 /** Fuel for this group to cross one lane: its hulls and great ships, or the troopships that carry it. */
 export function legFuel(w: World, g: WGroup): number {
@@ -506,7 +527,7 @@ function sendTo(w: World, war: War, t: TheatreState, g: WGroup, to: string, stri
   if (!path) return false;
   g.to = to;
   g.path = path;
-  g.arrive = path.length ? absoluteCycle(w.date) + stepCycles(t, g, g.at, path[0]!) : undefined;
+  g.arrive = path.length ? Math.max(absoluteCycle(w.date), g.hold ?? 0) + stepCycles(t, g, g.at, path[0]!) : undefined;
   return true;
 }
 
@@ -527,7 +548,11 @@ function ourGroup(w: World, warId: string, gid: string): { war: War; t: TheatreS
   return { war, t, g };
 }
 
-export interface GroupOrder { to?: string | null; role?: Role; duty?: Duty; leash?: Leash; fallback?: number; commanderId?: string | null; name?: string }
+export interface GroupOrder {
+  to?: string | null; role?: Role; duty?: Duty; leash?: Leash; fallback?: number; commanderId?: string | null; name?: string;
+  /** Leave this many cycles from now (0 = at once). */
+  leave?: number;
+}
 
 export function cannotOrder(w: World, warId: string, gid: string, o: GroupOrder): string | null {
   try {
@@ -544,6 +569,13 @@ export function orderGroup(input: World, warId: string, gid: string, o: GroupOrd
   if (why) throw new Error(why);
   const w = structuredClone(input);
   const { war, t, g } = ourGroup(w, warId, gid);
+  applyOrder(w, war, t, g, o);
+  return w;
+}
+
+/** Give an order to a group in place (used by orders and by the forecast's what-ifs). */
+export function applyOrder(w: World, war: War, t: TheatreState, g: WGroup, o: GroupOrder): void {
+  if (o.leave !== undefined) g.hold = o.leave > 0 ? absoluteCycle(w.date) + o.leave : undefined;
   if (o.to !== undefined) { if (o.to === null) { g.to = undefined; g.path = []; g.arrive = undefined; } else sendTo(w, war, t, g, o.to); g.falling = false; }
   if (o.role) { g.role = o.role; g.duty = o.duty ?? ROLE_DEF[o.role].duty; }
   if (o.duty) g.duty = o.duty;
@@ -556,6 +588,32 @@ export function orderGroup(input: World, warId: string, gid: string, o: GroupOrd
     g.knights = g.knights.filter((k) => k !== o.commanderId);
   }
   g.ordered = true;
+}
+
+/** Several orders at once (a response from the brief). */
+export function orderMany(input: World, warId: string, orders: Record<string, GroupOrder>): World {
+  const w = structuredClone(input);
+  const war = warFor(w, warId);
+  const t = theatreOf(war)!;
+  for (const [gid, o] of Object.entries(orders)) {
+    const g = t.groups[gid];
+    if (!g || g.house !== w.playerHouseId || g.engaged) continue;
+    if (o.to && (cannotEnter(w, war, t, g, o.to) || !routeFor(w, war, t, g, o.to))) continue;
+    applyOrder(w, war, t, g, o);
+  }
+  return w;
+}
+
+/** The Phase in which the clock now stands. */
+export const phaseIndex = (w: World) => Math.floor(absoluteCycle(w.date) / 16);
+
+/** Commit our plan for this Phase. Hands off: it plays out on its own, big fights settled by the staff, not opened. */
+export function commitPhase(input: World, warId: string, handsOff: boolean): World {
+  const w = structuredClone(input);
+  const war = warFor(w, warId);
+  const t = theatreOf(war)!;
+  t.phase = { ...(t.phase ?? {}), committed: phaseIndex(w), handsOff };
+  say(t, w, `The plan for this Phase is given${handsOff ? ': the staff will see it through' : ''}.`, true);
   return w;
 }
 
@@ -955,7 +1013,8 @@ function bleedGroup(w: World, war: War, g: WGroup, share: number, rng: Rng, why:
   }
   g.n = Math.max(0, g.n - lost);
   war.losses[g.house] = (war.losses[g.house] ?? 0) + (g.domain === 'void' ? lost * 300 : lost);
-  // Great ships take harm when the fleet does.
+  // Great ships take harm when the fleet does (not in a forecast: the ships are the real ones).
+  if (war.theatre?.sim) return lost;
   for (const id of g.great.slice()) {
     const sh = w.fleet?.ships[id];
     if (!sh || sh.lost) continue;
@@ -1053,7 +1112,7 @@ function fight(w: World, war: War, t: TheatreState, node: WNode, domain: Domain,
   }
   // The first clash of an engagement is fought in the battle engine; the rounds after it are settled here.
   const fresh = node.fought === undefined || now - node.fought > 24;
-  if (big && !live && ourSide && fresh) {
+  if (big && !live && ourSide && fresh && !t.sim && !t.phase?.handsOff) {
     node.fought = now;
     const id = openBattle(w, war, t, node, domain, groups, j, ourSide, rng);
     for (const g of [...a, ...d]) if (!g.id.startsWith('garrison:')) g.engaged = id;
@@ -1142,7 +1201,7 @@ function settle(w: World, war: War, t: TheatreState, node: WNode, domain: Domain
       g.fatigue = clamp(g.fatigue + 0.12, 0, 1);
       g.engaged = undefined;
       g.joined = false;
-      if (domain === 'ground') knightsAtRisk(w, g, s === winner, t, rng, title, !!huntHouse(s));
+      if (domain === 'ground' && !t.sim) knightsAtRisk(w, g, s === winner, t, rng, title, !!huntHouse(s));
     }
   }
   // Every fight wears arms and ships: components for the wear, a little navisium for the shard arms, and a lane's
@@ -1160,7 +1219,7 @@ function settle(w: World, war: War, t: TheatreState, node: WNode, domain: Domain
       navisium: Math.round((b.soldiers / FIGHT_WEAR.soldiersPerNavisium + b.hulls / FIGHT_WEAR.hullsPerNavisium) * 10) / 10,
       fuel: Math.round(b.fuel * 10) / 10,
     };
-    spend(w, h, bill, title, 'war');
+    payWar(w, t, h, bill, title);
   }
   // The beaten go back, or are taken.
   const encircled = j.encircle[winner] && !escapeFor(t, groups[loser].filter((g) => !g.id.startsWith('garrison:')), node);
@@ -1193,8 +1252,8 @@ function settle(w: World, war: War, t: TheatreState, node: WNode, domain: Domain
   const weight = clamp((losses.attackers + losses.defenders) / (domain === 'ground' ? 6000 : 6), 0.5, 3) * home;
   war.score = clamp(war.score + (winner === 'attackers' ? 1 : -1) * (2.5 + 3 * weight), -100, 100);
   const quarter = planOf(t, groups[winner][0]?.house ?? '').quarter;
-  if (quarter === 'none' && groups[winner][0]) { const h = groups[winner][0]!.house; if (w.houses[h]) w.houses[h]!.standing.honour = clamp(w.houses[h]!.standing.honour - 1, 0, 100); shiftRegard(w, groups[loser][0]?.house ?? '', h, -3); }
-  if (quarter === 'ransom' && w.houses[groups[winner][0]?.house ?? ''] && domain === 'ground') econ(w, groups[winner][0]!.house).stock.othes += rnd(losses[loser] * 0.4);
+  if (!t.sim && quarter === 'none' && groups[winner][0]) { const h = groups[winner][0]!.house; if (w.houses[h]) w.houses[h]!.standing.honour = clamp(w.houses[h]!.standing.honour - 1, 0, 100); shiftRegard(w, groups[loser][0]?.house ?? '', h, -3); }
+  if (!t.sim && quarter === 'ransom' && w.houses[groups[winner][0]?.house ?? ''] && domain === 'ground') econ(w, groups[winner][0]!.house).stock.othes += rnd(losses[loser] * 0.4);
   const names = (s: WSide) => groups[s].map((g) => g.name);
   const why = j.mults.filter((m) => m.side === winner ? m.x > 1.04 : m.x < 0.96).sort((p, q) => Math.abs(Math.log(q.x)) - Math.abs(Math.log(p.x))).slice(0, 4).map((m) => `${m.side === winner ? '' : 'their '}${m.label.toLowerCase()} ×${m.x}`);
   const wh = groups[winner][0]?.house ?? '', lh = groups[loser][0]?.house ?? '';
@@ -1237,14 +1296,14 @@ function move(w: World, war: War, t: TheatreState): void {
   for (const g of Object.values(t.groups)) {
     if (g.engaged) continue;
     if (g.pinned && g.pinned > now && groupsAt(t, g.at, other(g.side)).length) continue;
-    if (!g.path.length || g.arrive === undefined) { g.fatigue = clamp(g.fatigue - 0.04, 0, 1); continue; }
+    if (!g.path.length || g.arrive === undefined || (g.hold && g.hold > now)) { g.fatigue = clamp(g.fatigue - 0.04, 0, 1); continue; }
     if (g.arrive > now) { g.fatigue = clamp(g.fatigue + 0.015 * (1 + planOf(t, g.house).tempo * 0.25), 0, 1); continue; }
     const next = g.path[0]!;
     if (cannotEnter(w, war, t, g, next)) { g.path = []; g.to = undefined; g.arrive = undefined; continue; }
     // The crossing burns fuel from the house's stores; a house that has none (and cannot buy it) is held where it is.
     const fuel = Math.round(legFuel(w, g) * edgeCycles(t, g.at, next) / 2 * 10) / 10;
     if (fuel > 0) {
-      const met = spend(w, g.house, { fuel }, `${g.name}: to ${t.nodes[next]!.name}`, 'war');
+      const met = payWar(w, t, g.house, { fuel }, `${g.name}: to ${t.nodes[next]!.name}`);
       if (met < 0.99) {
         if (!g.dry) say(t, w, `${g.name} of House ${houseName(w, g.house)} cannot move: no fuel.`, g.house === w.playerHouseId, g.side);
         g.dry = true; g.arrive = now + 2; continue;
@@ -1320,7 +1379,7 @@ function hold(w: World, war: War, t: TheatreState): void {
       n.holder = foe;
       war.score = clamp(war.score + (foe === 'attackers' ? 1 : -1) * (n.target ? 45 : n.capital ? 30 : 15), -100, 100);
       say(t, w, `${n.name} falls to House ${houseName(w, foe === 'attackers' ? war.attacker : war.defender)}.`, true, foe);
-      logRecord(w, { kind: 'world', type: 'fight', severity: sideOfHouse(war, w.playerHouseId) ? 3 : 1, text: `${n.name} falls in ${war.name}.`, source: 'the Numarade' });
+      if (!t.sim) logRecord(w, { kind: 'world', type: 'fight', severity: sideOfHouse(war, w.playerHouseId) ? 3 : 1, text: `${n.name} falls in ${war.name}.`, source: 'the Numarade' });
     }
     if (mine && !theirs && n.holder !== n.owner) n.holder = n.owner;
     // Walls are rebuilt slowly, garrisons refilled, while it holds.

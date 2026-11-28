@@ -69,7 +69,7 @@ import { advanceGrowth } from './growth';
 import { advancePolitics } from './politics';
 import { advanceHousehold } from './household';
 import {
-  absoluteCycle,
+  absoluteCycle, CYCLES_PER_PHASE,
   addCycles,
   boundariesCrossed,
 
@@ -214,7 +214,7 @@ export function advanceUntil(input: World, turns: number, stops: boolean | Parti
 }
 
 /** What one tick of the running clock produced: a moment that freezes it, or news that doesn't. */
-export interface ClockStep { world: World; freeze?: { reason: string; events: string[]; battle?: string; scene?: string }; notice?: string }
+export interface ClockStep { world: World; freeze?: { reason: string; events: string[]; battle?: string; scene?: string; war?: string }; notice?: string }
 
 /**
  * One tick of the real-time clock. Battles, scenes and urgent decisions always freeze it (as events do
@@ -232,6 +232,9 @@ export function stepClock(input: World, stops: boolean | Partial<StopPrefs> = tr
   const battle = (w.battles?.list ?? []).find((b) => b.status === 'ready' && !b.prompted);
   if (battle) battle.prompted = true;
   if (battle) return { world: w, freeze: { reason: `Battle: ${battle.title}.`, events: [], battle: battle.id } };
+  // A war of ours: at the start of each Phase the clock stops for the plan (once; carrying on keeps the last plan).
+  const plan = warToPlan(w);
+  if (plan) return { world: w, freeze: { reason: `${plan.name.charAt(0).toUpperCase()}${plan.name.slice(1)}: plan the next Phase.`, events: [], war: plan.id } };
   const fresh = (w.events?.pending ?? []).filter((p) => !had.has(p.id));
   const urgent = fresh.filter((p) => p.urgent);
   if (urgent.length) return { world: w, freeze: { reason: 'Something needs you now.', events: urgent.map((p) => p.id) } };
@@ -251,6 +254,20 @@ export function stepClock(input: World, stops: boolean | Partial<StopPrefs> = tr
   const all = Object.fromEntries(Object.keys(DEFAULT_STOPS).map((k) => [k, true])) as StopPrefs;
   const hit = needsAttention(w, before, all);
   return hit ? { world: w, notice: hit.reason } : { world: w };
+}
+
+/** The war of ours whose Phase has not yet been planned or asked about, marking it asked. */
+function warToPlan(w: World): { id: string; name: string } | null {
+  const P = w.playerHouseId;
+  const ph = Math.floor(absoluteCycle(w.date) / CYCLES_PER_PHASE);
+  for (const war of w.war?.wars ?? []) {
+    if (war.status !== 'active' || !war.theatre || ![war.attacker, ...war.attackers, war.defender, ...war.defenders].includes(P)) continue;
+    const st = war.theatre.phase ??= {};
+    if (st.committed === ph || st.asked === ph) continue;
+    st.asked = ph;
+    return { id: war.id, name: war.name };
+  }
+  return null;
 }
 
 interface Attention { battles: number; petitions: number; leads: number; demands: number; held: number; done: number; last: World['feed'][number] | undefined; oath: string | null; decisions: number; alerts: number; asks: number }

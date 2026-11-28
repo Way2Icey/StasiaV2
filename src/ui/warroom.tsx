@@ -3,6 +3,7 @@
 // ground, FM's tactics screen), the Map (the theatre as places and lanes), and the Order of Battle (every
 // group in one table, every order one dropdown away). The inspector, the plan and the reports sit beside
 // whichever is open.
+import { PhasePage, type Edition } from './phase';
 import { useMemo, useState } from 'react';
 import { useGame, useNav, useWorld } from './context';
 import { Panel } from './links';
@@ -29,7 +30,7 @@ import type { World } from '../sim/types';
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const COLS = ['Our worlds', 'Our approaches', 'The border', 'Their approaches', 'Their worlds'];
-type View = 'board' | 'map' | 'table';
+type View = 'phase' | 'board' | 'map' | 'table';
 type Sel = { kind: 'group'; id: string } | { kind: 'node'; id: string } | null;
 
 function usePlay() {
@@ -63,7 +64,9 @@ export function WarRoomPage({ id, view: v }: { id: string; view?: View }) {
   const { run, err } = usePlay();
   const war = world.war?.wars.find((x) => x.id === id);
   const [sel, setSel] = useState<Sel>(null);
-  const view: View = v ?? 'board';
+  const view: View = v ?? 'phase';
+  const [edition, setEditionS] = useState<Edition>(() => { try { const e = localStorage.getItem('stasia.phase.edition'); return e === 'timeline' || e === 'map' || e === 'council' ? e : 'timeline'; } catch { return 'timeline'; } });
+  const setEdition = (e: Edition) => { setEditionS(e); try { localStorage.setItem('stasia.phase.edition', e); } catch { /* none */ } };
   if (!war) return <p className="muted">No such war.</p>;
   const pic = picture(world, war);
   if (!pic) return <p className="muted">We are not in this war.</p>;
@@ -88,10 +91,11 @@ export function WarRoomPage({ id, view: v }: { id: string; view?: View }) {
           <span className="chip"><span className="k">fog</span> {unseen ? `${unseen} of theirs unseen` : 'all seen'}</span>
         </div>
         <div className="wr-views" role="tablist" aria-label="View">
-          {(['board', 'map', 'table'] as View[]).map((x) => <button key={x} type="button" role="tab" aria-selected={view === x} className={`wr-view${view === x ? ' on' : ''}`} onClick={() => setView(x)}>{x === 'board' ? 'Plan board' : x === 'map' ? 'Map' : 'Order of battle'}</button>)}
+          {(['phase', 'board', 'map', 'table'] as View[]).map((x) => <button key={x} type="button" role="tab" aria-selected={view === x} className={`wr-view${view === x ? ' on' : ''}`} onClick={() => setView(x)}>{x === 'phase' ? 'The Phase' : x === 'board' ? 'Plan board' : x === 'map' ? 'Map' : 'Order of battle'}</button>)}
         </div>
       </div>
       {err ? <p className="error">{err}</p> : null}
+      {view === 'phase' ? <PhasePage war={war} edition={edition} setEdition={setEdition} /> : (<>
       <div className="wr-main">
         <div className="wr-centre">
           {view === 'board' ? <Board war={war} t={t} side={side} sel={sel} setSel={setSel} /> : view === 'map' ? <TheatreMap war={war} t={t} side={side} sel={sel} setSel={setSel} run={run} /> : <OrderOfBattle war={war} t={t} side={side} sel={sel} setSel={setSel} run={run} />}
@@ -108,6 +112,7 @@ export function WarRoomPage({ id, view: v }: { id: string; view?: View }) {
         <Reports t={t} side={side} />
         <Feed t={t} side={side} />
       </div>
+      </>)}
     </div>
   );
 }

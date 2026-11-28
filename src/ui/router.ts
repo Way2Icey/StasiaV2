@@ -58,7 +58,7 @@ export type Route =
   | { kind: 'frontier' }
   | { kind: 'newgame' }
   | { kind: 'war' }
-  | { kind: 'warroom'; id: string; view?: 'board' | 'map' | 'table' }
+  | { kind: 'warroom'; id: string; view?: 'phase' | 'board' | 'map' | 'table' }
   | { kind: 'ship'; id: string }
   | { kind: 'log'; person?: string; place?: string; house?: string; open?: string };
 

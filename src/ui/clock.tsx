@@ -1,6 +1,6 @@
 // The clock: time runs on its own at three speeds and stops when a moment needs the Highroy. Space pauses.
 // The ▾ menu still skips ahead in one go, stopping at the first thing that needs you.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState , createContext } from 'react';
 import { advanceUntil, DEFAULT_STOPS, STOP_LABEL, stepClock, type StopKind, type StopPrefs } from '../sim/tick';
 import { CYCLES_PER_ORBIT, CYCLES_PER_PHASE, CYCLES_PER_TURN, dateParts, formatDate } from '../sim/time';
 import type { World } from '../sim/types';
@@ -19,6 +19,9 @@ const SPANS: Span[] = [
   { id: 'orbit', label: 'To the next Orbit', turns: (w) => Math.ceil((CYCLES_PER_ORBIT - dateParts(w.date).cycleOfOrbit + 1) / CYCLES_PER_TURN), note: '' },
 ];
 
+/** The clock, for pages that start and stop it (the War Room's watch). */
+export const ClockCtx = createContext<ClockApi | null>(null);
+
 export interface ClockApi {
   running: boolean;
   setRunning: (v: boolean) => void;
@@ -32,7 +35,7 @@ function loadStops(): StopPrefs {
   try { return { ...DEFAULT_STOPS, ...(JSON.parse(storage.get('stasia.stops') ?? '{}') as Partial<StopPrefs>) }; } catch { return DEFAULT_STOPS; }
 }
 
-export function useClock(world: World, setWorld: (fn: (w: World) => World) => void, onFreeze: (events: string[], reason: string, battle?: string, scene?: string) => void, onNotice: (msg: string) => void, blocked: boolean): ClockApi {
+export function useClock(world: World, setWorld: (fn: (w: World) => World) => void, onFreeze: (events: string[], reason: string, battle?: string, scene?: string, war?: string) => void, onNotice: (msg: string) => void, blocked: boolean): ClockApi {
   const [running, setRunningState] = useState(false);
   const [speed, setSpeedState] = useState<Speed>(() => { const v = Number(storage.get('stasia.speed')); return (v === 2 || v === 3 ? v : 1) as Speed; });
   const [stops, setStops] = useState<StopPrefs>(loadStops);
@@ -50,7 +53,7 @@ export function useClock(world: World, setWorld: (fn: (w: World) => World) => vo
       const r = stepClock(latest.current, stops);
       latest.current = r.world;
       setWorld(() => r.world);
-      if (r.freeze) { setRunningState(false); onFreeze(r.freeze.events, r.freeze.reason, r.freeze.battle, r.freeze.scene); return; }
+      if (r.freeze) { setRunningState(false); onFreeze(r.freeze.events, r.freeze.reason, r.freeze.battle, r.freeze.scene, r.freeze.war); return; }
       if (r.notice) onNotice(r.notice);
       timer.current = window.setTimeout(tick, TICK[speed]);
     };
@@ -74,7 +77,7 @@ export function useClock(world: World, setWorld: (fn: (w: World) => World) => vo
   return { running, setRunning, speed, setSpeed, stops, setStop };
 }
 
-export function ClockControl({ world, setWorld, clock, onFreeze }: { world: World; setWorld: (fn: (w: World) => World) => void; clock: ClockApi; onFreeze: (events: string[], reason: string, battle?: string, scene?: string) => void }) {
+export function ClockControl({ world, setWorld, clock, onFreeze }: { world: World; setWorld: (fn: (w: World) => World) => void; clock: ClockApi; onFreeze: (events: string[], reason: string, battle?: string, scene?: string, war?: string) => void }) {
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => { if (!notice) return; const t = window.setTimeout(() => setNotice(null), 9000); return () => window.clearTimeout(t); }, [notice]);
@@ -117,13 +120,13 @@ export function ClockControl({ world, setWorld, clock, onFreeze }: { world: Worl
             <button key={s} type="button" className="btn primary speed" aria-pressed={clock.speed === s} onClick={() => clock.setSpeed(s)} title={`Speed ${s} of 3 (+/−)`} aria-label={`Speed ${s}`}>{'›'.repeat(s)}</button>
           ))}
         </span>
-        <button type="button" className="btn primary step" title="One step: two Cycles, then stop" onClick={() => { clock.setRunning(false); const r = stepClock(latest.current, clock.stops); setWorld(() => r.world); if (r.freeze) onFreeze(r.freeze.events, r.freeze.reason, r.freeze.battle, r.freeze.scene); }}>Step</button>
+        <button type="button" className="btn primary step" title="One step: two Cycles, then stop" onClick={() => { clock.setRunning(false); const r = stepClock(latest.current, clock.stops); setWorld(() => r.world); if (r.freeze) onFreeze(r.freeze.events, r.freeze.reason, r.freeze.battle, r.freeze.scene, r.freeze.war); }}>Step</button>
         <button type="button" className="btn primary caret" aria-haspopup="menu" aria-expanded={open} aria-label="Skip ahead" onClick={() => setOpen((o) => !o)}>▾</button>
       </div>
       <span className={`act act-${act}`} title={`The storyteller: ${ACT_LABEL[act]} (tension ${Math.round(world.story?.tension ?? 0)})`}><Term k="storyteller">{ACT_LABEL[act]}</Term></span>
       {open ? (
         <div className="continue-menu" role="menu">
-          <button type="button" role="menuitem" onClick={() => { setOpen(false); const r = stepClock(latest.current, clock.stops); setWorld(() => r.world); if (r.freeze) onFreeze(r.freeze.events, r.freeze.reason, r.freeze.battle, r.freeze.scene); }}>
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); const r = stepClock(latest.current, clock.stops); setWorld(() => r.world); if (r.freeze) onFreeze(r.freeze.events, r.freeze.reason, r.freeze.battle, r.freeze.scene, r.freeze.war); }}>
             <span>Step</span><span className="muted">two Cycles</span>
           </button>
           {SPANS.map((s) => (
