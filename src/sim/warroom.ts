@@ -19,6 +19,7 @@ import { houseName, personName, shiftRegard, type ArchonHouse } from './archon';
 import { createBattle, battleOf, commandOf, fighterPower, runOut, applyFates, type FighterSpec, type Theatre as BattleTheatre } from './battle';
 import { buildWord, shortName } from './names';
 import { buyPrice, econ, PANIC_PRICE, stewardBuys } from './economy';
+import { insideSight } from './networks';
 import { spend } from './bills';
 import { BASE_PRICE, FUEL_PER_LANE, GREAT_FUEL_PER_LANE, TROOP_FUEL_PER_LANE, FIGHT_WEAR } from '../data/economy';
 import { garrisonTotal } from './garrisons';
@@ -796,6 +797,8 @@ export function updateSight(w: World, war: War, t: TheatreState): void {
     for (const g of groupsOf(t, other(side))) {
       let lv = (eyes[g.at] ?? (eye >= 14 && t.nodes[g.at]?.owner === g.side ? 1 : 0)) - hiding(t, g) + whisper;
       if (eyes[g.at] === 4) lv = 3;
+      // Our people inside their house: they know where it sends its forces, however well hidden.
+      lv = Math.max(lv, insideSight(w, g.house, sideOfHouse(war, w.playerHouseId) === side ? w.playerHouseId : lead));
       lv = clamp(lv, 0, 3);
       const n = g.role === 'decoy' ? g.n * 3 : g.n;
       if (lv > 0) sight[g.id] = { level: lv as Sight['level'], at: g.at, n, cycle: now, role: lv >= 3 ? g.role : sight[g.id]?.role };

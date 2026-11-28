@@ -5,21 +5,24 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { useGame, useWorld } from './context';
 import { Panel } from './links';
 import { ClockCtx } from './clock';
+import { cannotPlant, plantNetwork } from '../sim/networks';
 import { houseName } from '../sim/archon';
 import { absoluteCycle } from '../sim/time';
 import { econ } from '../sim/economy';
 import { RESOURCE_LABEL, type Good } from '../data/economy';
 import { ROLE_DEF } from '../data/doctrine';
 import {
-  bestPlan, briefOf, forecastWar, forecastWith, whatIf, FORECAST_GOODS, HORIZON, type BriefItem, type Forecast, type Track,
+  briefOf, staffPlans, type StaffPlan, forecastWar, forecastWith, whatIf, FORECAST_GOODS, HORIZON, type BriefItem, type Forecast, type Track,
 } from '../sim/forecast';
 import {
-  cannotOrder, commitPhase, commanderOfGroup, legFuel, orderGroup, orderMany, phaseIndex, theatreOf, type TheatreState, type WGroup, type WNode, type WSide,
+  cannotOrder, cannotProbe, commitPhase, probe, type GroupOrder, commanderOfGroup, legFuel, orderGroup, orderMany, phaseIndex, theatreOf, type TheatreState, type WGroup, type WNode, type WSide,
 } from '../sim/warroom';
 import type { War } from '../sim/war';
 import type { World } from '../sim/types';
 
 const pct = (p: number) => `${Math.round(p * 100)}%`;
+/** The odds as the staff would say them: a handful of forecasts cannot see a one-in-twenty loss, so never certain. */
+const oddsText = (p: number) => (p > 0.97 ? '>97%' : p < 0.03 ? '<3%' : pct(p));
 const sc = (s: number) => `${s >= 0 ? '+' : '−'}${Math.abs(s).toFixed(1)}`;
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -75,21 +78,33 @@ function Plan({ war, t, edition, setEdition }: { war: War; t: TheatreState; edit
   const [cycle, setCycle] = useState(Math.min(HORIZON, Math.max(1, f?.contacts[0]?.cycle ?? 8)));
   const [handsOff, setHandsOff] = useState(t.phase?.handsOff ?? true);
   const [busy, setBusy] = useState(false);
-  const [bestNote, setBestNote] = useState<string | null>(null);
+  const [plans, setPlans] = useState<{ list: StaffPlan[]; snap: World; adopted?: number } | null>(null);
   if (!f) return <p className="muted">The staff cannot read this war.</p>;
   const commit = (watch: boolean) => { run((w) => commitPhase(w, war.id, handsOff)); if (watch) clock?.setRunning(true); };
-  const findBest = () => {
+  const findPlans = () => {
     setBusy(true);
-    setTimeout(() => {
-      const b = bestPlan(world, war.id, 4);
-      setBusy(false);
-      if (!b || !Object.keys(b.orders).length) { setBestNote('The staff cannot better the plan as it stands.'); return; }
-      const t2 = theatreOf(world.war!.wars.find((y) => y.id === war.id)!)!;
-      setBestNote(Object.entries(b.orders).map(([gid, o]) => `${t2.groups[gid]?.name ?? gid}: ${'to' in o ? (o.to ? `→ ${short(t2.nodes[o.to])}` : 'hold') : ''}${o.leave ? ` at c${o.leave}` : ''}${o.duty ? ` · ${o.duty}` : ''}`.replace(': ·', ':')).join(' · '));
-      run((w) => orderMany(w, war.id, b.orders));
-    }, 30);
+    setTimeout(() => { const list = staffPlans(world, war.id, 4); setBusy(false); setPlans({ list, snap: world }); }, 30);
   };
-  const odds = <Odds f={f} prev={prev} handsOff={handsOff} setHandsOff={setHandsOff} commit={commit} edition={edition} setEdition={setEdition} best={{ busy, note: bestNote, go: findBest }} />;
+  // Adopting a whole plan: our groups' orders go back to what they were when the staff drew the plans, then the
+  // plan is given, so switching between plans never leaves half of another one behind.
+  const adopt = (i: number) => {
+    if (!plans) return;
+    const p = plans.list[i]!;
+    run((w) => {
+      const x = structuredClone(w);
+      const t0 = theatreOf(plans.snap.war!.wars.find((y) => y.id === war.id)!)!;
+      const t1 = theatreOf(x.war!.wars.find((y) => y.id === war.id)!)!;
+      for (const g of Object.values(t1.groups)) {
+        const o = t0.groups[g.id];
+        if (g.house !== x.playerHouseId || !o || g.engaged) continue;
+        g.to = o.to; g.path = [...o.path]; g.arrive = o.arrive; g.hold = o.hold; g.duty = o.duty; g.falling = o.falling;
+      }
+      return orderMany(x, war.id, p.orders);
+    });
+    setPlans({ ...plans, adopted: i });
+  };
+  const planList = plans ? <PlanCards war={war} plans={plans.list} adopted={plans.adopted} adopt={adopt} close={() => setPlans(null)} /> : null;
+  const odds = <Odds f={f} prev={prev} handsOff={handsOff} setHandsOff={setHandsOff} commit={commit} edition={edition} setEdition={setEdition} best={{ busy, go: findPlans }} />;
   const briefEl = <Brief war={war} items={brief} run={run} compact={edition !== 'council'} />;
   const editor = <Editor war={war} t={t} sel={sel} setSel={setSel} f={f} run={run} />;
   const timeline = <Timeline war={war} t={t} f={f} side={side} cycle={cycle} setCycle={setCycle} sel={sel} setSel={setSel} />;
@@ -97,6 +112,7 @@ function Plan({ war, t, edition, setEdition }: { war: War; t: TheatreState; edit
   return (
     <div className={`ph ph-${edition}`}>
       {odds}
+      {planList}
       {err ? <p className="error">{err}</p> : null}
       {edition === 'council' ? (
         <>
@@ -124,14 +140,14 @@ function Plan({ war, t, edition, setEdition }: { war: War; t: TheatreState; edit
 
 // ---------------------------------------------------------------- the odds, and committing
 
-function Odds({ f, prev, handsOff, setHandsOff, commit, edition, setEdition, best }: { f: Forecast; prev: number | null; handsOff: boolean; setHandsOff: (v: boolean) => void; commit: (watch: boolean) => void; edition: Edition; setEdition: (e: Edition) => void; best: { busy: boolean; note: string | null; go: () => void } }) {
+function Odds({ f, prev, handsOff, setHandsOff, commit, edition, setEdition, best }: { f: Forecast; prev: number | null; handsOff: boolean; setHandsOff: (v: boolean) => void; commit: (watch: boolean) => void; edition: Edition; setEdition: (e: Edition) => void; best: { busy: boolean; go: () => void } }) {
   const d = prev === null ? 0 : f.pWin - prev;
   const tone = f.pWin >= 0.6 ? 'up' : f.pWin <= 0.4 ? 'down' : '';
   return (
     <section className="ph-odds">
       <div className="ph-dial" aria-label={`Chance the Phase goes our way: ${pct(f.pWin)}`}>
         <span className="eyebrow">This Phase goes our way</span>
-        <b className={`ph-big ${tone}`}>{pct(f.pWin)}</b>
+        <b className={`ph-big ${tone}`}>{oddsText(f.pWin)}</b>
         <span className="ph-meter" aria-hidden="true"><i style={{ width: pct(f.pWin) }} /></span>
         {Math.abs(d) >= 0.01 ? <span className={d > 0 ? 'up' : 'down'}>{d > 0 ? '▲' : '▼'} {Math.round(Math.abs(d) * 100)} points with that change</span> : <span className="muted">from {f.runs} staff forecasts of the next {HORIZON} cycles</span>}
       </div>
@@ -147,14 +163,38 @@ function Odds({ f, prev, handsOff, setHandsOff, commit, edition, setEdition, bes
       </div>
       <div className="ph-commit">
         <label className="ph-check"><input type="checkbox" checked={handsOff} onChange={(e) => setHandsOff(e.target.checked)} /> Hands off: the staff fight the big battles too</label>
-        <button type="button" className="btn ph-best" disabled={best.busy} onClick={best.go}>{best.busy ? 'The staff are working it out…' : '✦ The staff’s best plan'}</button>
-        {best.note ? <span className="muted" style={{ fontSize: 11 }}>{best.note}</span> : null}
+        <button type="button" className="btn ph-best" disabled={best.busy} onClick={best.go}>{best.busy ? 'The staff are drawing up plans…' : '✦ The staff’s plans'}</button>
         <div className="ph-btns">
           <button type="button" className="btn primary" onClick={() => commit(true)}>Deploy &amp; watch ▸</button>
           <button type="button" className="btn" onClick={() => commit(false)}>Deploy</button>
         </div>
         <span className="ph-ed muted">Layout: {(['timeline', 'council', 'map'] as Edition[]).map((e) => <button key={e} type="button" className={`linklike${edition === e ? ' gold' : ''}`} aria-pressed={edition === e} onClick={() => setEdition(e)}>{EDITION_LABEL[e]}</button>)}</span>
       </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------- the staff's whole plans
+
+function PlanCards({ war, plans, adopted, adopt, close }: { war: War; plans: StaffPlan[]; adopted?: number; adopt: (i: number) => void; close: () => void }) {
+  const world = useWorld();
+  const t = theatreOf(war)!;
+  const line = (gid: string, o: GroupOrder) => `${t.groups[gid]?.name ?? gid}${'to' in o ? (o.to ? ` → ${short(t.nodes[o.to])}` : ' holds') : ''}${o.leave ? ` at c${o.leave}` : ''}${o.duty ? `, ${o.duty}s` : ''}`;
+  void world;
+  if (!plans.length) return <p className="muted">The staff have no plan to offer.</p>;
+  return (
+    <section className="ph-plans" aria-label="The staff's plans">
+      {plans.map((p, i) => (
+        <div key={i} className={`ph-plan${adopted === i ? ' on' : ''}`}>
+          <div className="ph-card-h"><span className="eyebrow">Plan {'ABC'[i]}</span><b className={p.pWin >= 0.6 ? 'up' : p.pWin <= 0.4 ? 'down' : ''}>{oddsText(p.pWin)}</b></div>
+          <b className="ph-card-t">{p.name}</b>
+          <span className="muted" style={{ fontSize: 11 }}>{p.note}</span>
+          <span className="ph-plan-o">{Object.entries(p.orders).map(([gid, o]) => line(gid, o)).join(' · ') || 'no new orders'}</span>
+          <span className="mono muted" style={{ fontSize: 11 }}>score {sc(p.score)} · our dead {fmt(p.ourLoss)} · theirs {fmt(p.theirLoss)}</span>
+          <button type="button" className={`btn${adopted === i ? '' : ' primary'}`} disabled={adopted === i} onClick={() => adopt(i)}>{adopted === i ? 'Adopted' : 'Adopt this plan'}</button>
+        </div>
+      ))}
+      <button type="button" className="linklike muted ph-plans-x" onClick={close}>Close</button>
     </section>
   );
 }
@@ -175,10 +215,20 @@ function Brief({ war, items, run, compact }: { war: War; items: BriefItem[]; run
           <div className="ph-opts">
             {it.options.map((o, j) => {
               const p = odds[i]?.[j];
+              if (o.spy) {
+                const spy = o.spy;
+                const why = spy.kind === 'network' ? cannotPlant(world, spy.house) : cannotProbe(world, war.id, spy.node);
+                return (
+                  <button key={j} type="button" className="ph-opt spy" disabled={!!why} title={why ?? o.note} onClick={() => run((w) => (spy.kind === 'network' ? plantNetwork(w, spy.house) : probe(w, war.id, spy.node)))}>
+                    <span>{o.label}<span className="muted ph-note">{why ?? o.note}</span></span>
+                    <b>{spy.kind === 'network' ? `${pct(spy.odds)} · ` : ''}<span className="muted">{fmt(spy.cost)} othes</span></b>
+                  </button>
+                );
+              }
               return (
                 <button key={j} type="button" className="ph-opt" disabled={!Object.keys(o.orders).length} onClick={() => run((w) => orderMany(w, war.id, o.orders))} title={o.note}>
                   <span>{o.label}</span>
-                  {later.stale && !p ? <span className="muted">…</span> : p ? <b className={p.p >= 0.6 ? 'up' : p.p <= 0.4 ? 'down' : ''}>{pct(p.p)} <span className="muted">{sc(p.s)}</span></b> : <span className="muted">as now</span>}
+                  {later.stale && !p ? <span className="muted">…</span> : p ? <b className={p.p >= 0.6 ? 'up' : p.p <= 0.4 ? 'down' : ''}>{oddsText(p.p)} <span className="muted">{sc(p.s)}</span></b> : <span className="muted">as now</span>}
                 </button>
               );
             })}
@@ -225,7 +275,7 @@ function Editor({ war, t, sel, setSel, f, run }: { war: War; t: TheatreState; se
               <button key={String(o.order.to)} type="button" className={`ph-w${cur ? ' cur' : ''}`} onClick={() => run((w) => orderGroup(w, war.id, g.id, { to: o.order.to ?? null }))}>
                 <span>{o.order.to ? short(t.nodes[o.order.to]) : 'Hold where it is'}</span>
                 <span className="ph-bar"><i style={{ width: pct(o.pWin) }} /></span>
-                <b className={o.pWin >= 0.6 ? 'up' : o.pWin <= 0.4 ? 'down' : ''}>{pct(o.pWin)}</b>
+                <b className={o.pWin >= 0.6 ? 'up' : o.pWin <= 0.4 ? 'down' : ''}>{oddsText(o.pWin)}</b>
                 <span className="muted mono">{sc(o.score)}</span>
               </button>
             );
@@ -234,11 +284,11 @@ function Editor({ war, t, sel, setSel, f, run }: { war: War; t: TheatreState; se
         {opts.leaves.length ? (
           <>
             <span className="eyebrow">When it leaves</span>
-            <div className="ph-seg">{opts.leaves.map((o) => <button key={o.order.leave} type="button" className={holdUntil === o.order.leave || (!holdUntil && o.order.leave === 0) ? 'on' : ''} onClick={() => run((w) => orderGroup(w, war.id, g.id, { to: g.to, leave: o.order.leave }))}>{o.order.leave ? `c${o.order.leave}` : 'now'}<b>{pct(o.pWin)}</b></button>)}</div>
+            <div className="ph-seg">{opts.leaves.map((o) => <button key={o.order.leave} type="button" className={holdUntil === o.order.leave || (!holdUntil && o.order.leave === 0) ? 'on' : ''} onClick={() => run((w) => orderGroup(w, war.id, g.id, { to: g.to, leave: o.order.leave }))}>{o.order.leave ? `c${o.order.leave}` : 'now'}<b>{oddsText(o.pWin)}</b></button>)}</div>
           </>
         ) : null}
         <span className="eyebrow">How it fights</span>
-        <div className="ph-seg">{opts.duties.map((o) => <button key={o.order.duty} type="button" className={g.duty === o.order.duty ? 'on' : ''} onClick={() => run((w) => orderGroup(w, war.id, g.id, { duty: o.order.duty }))}>{cap(o.order.duty!)}<b>{pct(o.pWin)}</b></button>)}</div>
+        <div className="ph-seg">{opts.duties.map((o) => <button key={o.order.duty} type="button" className={g.duty === o.order.duty ? 'on' : ''} onClick={() => run((w) => orderGroup(w, war.id, g.id, { duty: o.order.duty }))}>{cap(o.order.duty!)}<b>{oddsText(o.pWin)}</b></button>)}</div>
         {best && (best.order.to ?? null) !== (g.to ?? null) && best.pWin > f.pWin + 0.05 ? <span className="up" style={{ fontSize: 12 }}>The staff's best guess for {g.name}: {best.order.to ? short(t.nodes[best.order.to]) : 'hold'} ({pct(best.pWin)}).</span> : null}
       </div>
     </Panel>

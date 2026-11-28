@@ -10,7 +10,9 @@
 // which fights are coming. The calculator asks it the same question for each alternative order.
 import { Rng } from './rng';
 import { absoluteCycle, addCycles, CYCLES_PER_PHASE } from './time';
-import { applyOrder, cannotOrder, groupsOf, theatreOf, theatreTurn, type GroupOrder, type TheatreState, type WGroup, type WNode, type WSide } from './warroom';
+import { cannotPlant, networkIn, networksOf, plantTerms } from './networks';
+import { houseName } from './archon';
+import { applyOrder, cannotOrder, PROBE_COST, groupsOf, theatreOf, theatreTurn, type GroupOrder, type TheatreState, type WGroup, type WNode, type WSide } from './warroom';
 import { HULL_TYPES, mixFor } from '../data/hulls';
 import type { Good } from '../data/economy';
 import type { War } from './war';
@@ -238,12 +240,12 @@ export function whatIf(w: World, warId: string, gid: string, options: GroupOrder
 
 /** The staff's best plan, one pass over our groups: first where each goes (with the others' best so far), then
  *  when each that is going leaves, then how each fights. Returns the orders and the odds with them. */
-export function bestPlan(w: World, warId: string, runs = 4): { orders: Record<string, GroupOrder>; pWin: number; score: number } | null {
+export function bestPlan(w: World, warId: string, runs = 4, start: Record<string, GroupOrder> = {}): { orders: Record<string, GroupOrder>; pWin: number; score: number } | null {
   const war = w.war?.wars.find((x) => x.id === warId && x.status === 'active');
   const t = war ? theatreOf(war) : null;
   if (!war || !t) return null;
-  const orders: Record<string, GroupOrder> = {};
-  let best = forecastWith(w, warId, {}, runs);
+  const orders: Record<string, GroupOrder> = structuredClone(start);
+  let best = forecastWith(w, warId, orders, runs);
   if (!best) return null;
   const better = (f: Forecast | null): f is Forecast => !!f && (f.pWin > best!.pWin + 0.005 || (Math.abs(f.pWin - best!.pWin) <= 0.005 && f.score > best!.score + 0.5));
   const tryOrder = (gid: string, o: GroupOrder) => {
@@ -269,9 +271,72 @@ export function bestPlan(w: World, warId: string, runs = 4): { orders: Record<st
   return { orders, pWin: best.pWin, score: best.score };
 }
 
+/** A whole plan: an order for every group of ours, judged together. */
+export interface StaffPlan { name: string; note: string; orders: Record<string, GroupOrder>; pWin: number; score: number; ourLoss: number; theirLoss: number }
+
+/** The staff's plans: whole plans for every group at once (stand fast, everything at one place, the fleet over a
+ *  world with the troops on it), each judged as one thing, and the best of them refined group by group. The top
+ *  three different plans, best first. */
+export function staffPlans(w: World, warId: string, runs = 4): StaffPlan[] {
+  const war = w.war?.wars.find((x) => x.id === warId && x.status === 'active');
+  const t = war ? theatreOf(war) : null;
+  const side = war ? sideOf(war, w.playerHouseId) : null;
+  if (!war || !t || !side) return [];
+  const ours = Object.values(t.groups).filter((g) => g.house === w.playerHouseId && !g.engaged);
+  if (!ours.length) return [];
+  const can = (g: WGroup, to: string) => to === g.at || !cannotOrder(w, warId, g.id, { to });
+  const short = (id: string) => (t.nodes[id]?.name ?? id).replace(/^the /, '');
+  const candidates: { name: string; note: string; orders: Record<string, GroupOrder> }[] = [];
+  candidates.push({ name: 'As ordered', note: 'every group keeps the orders it has', orders: {} });
+  candidates.push({ name: 'Stand fast', note: 'every group holds where it is', orders: Object.fromEntries(ours.map((g) => [g.id, { to: null }])) });
+  // Places worth the whole force: theirs to take, ours to save.
+  const worth = Object.values(t.nodes).filter((n) => n.kind !== 'lane' && (n.holder !== side || n.owner === side));
+  for (const n of worth) {
+    // Everything that can get there, goes.
+    const all: Record<string, GroupOrder> = {};
+    for (const g of ours) if (g.at !== n.id && can(g, n.id)) all[g.id] = { to: n.id };
+    if (Object.keys(all).length) candidates.push({ name: `Everything to ${short(n.id)}`, note: `${Object.keys(all).length} of ${ours.length} groups converge`, orders: all });
+    // A world: the fleet takes the space over it, the troops land.
+    if (n.kind === 'ground' && n.world) {
+      const orbit = Object.values(t.nodes).find((x) => x.kind === 'orbit' && x.world === n.world);
+      if (!orbit) continue;
+      const o: Record<string, GroupOrder> = {};
+      for (const g of ours) {
+        if (g.domain === 'void' && can(g, orbit.id) && g.at !== orbit.id) o[g.id] = { to: orbit.id, duty: 'support' };
+        // Troops wait two cycles for the fleet to clear the space first.
+        if (g.domain === 'ground' && can(g, n.id) && g.at !== n.id) o[g.id] = { to: n.id, leave: 2 };
+      }
+      const troops = Object.values(o).some((x) => x.leave);
+      if (Object.keys(o).length) candidates.push({ name: troops ? `Fleet over ${short(n.id)}, troops onto it` : `The fleet over ${short(n.id)}`, note: troops ? 'the fleet clears the space; the troops follow two cycles behind' : 'the fleet takes the space over it; the troops stay', orders: o });
+    }
+  }
+  const judged = candidates.map((c) => { const f = forecastWith(w, warId, c.orders, runs); return f ? { ...c, pWin: f.pWin, score: f.score, ourLoss: f.ourLoss, theirLoss: f.theirLoss } : null; }).filter((x): x is StaffPlan => !!x);
+  judged.sort((a, b) => b.pWin - a.pWin || b.score - a.score);
+  // The best whole plan, then refined group by group from there.
+  const top = judged[0];
+  if (top) {
+    const refined = bestPlan(w, warId, runs, top.orders);
+    if (refined && refined.pWin > top.pWin + 0.01) {
+      const f = forecastWith(w, warId, refined.orders, runs)!;
+      judged.unshift({ name: `${top.name}, refined`, note: 'the best whole plan, then each group bettered in turn', orders: refined.orders, pWin: f.pWin, score: f.score, ourLoss: f.ourLoss, theirLoss: f.theirLoss });
+    }
+  }
+  // The finalists judged again on the same dice as the odds at the top of the page, so a plan reads the same
+  // before it is adopted and after.
+  const sig = (o: Record<string, GroupOrder>) => JSON.stringify(Object.entries(o).sort());
+  const finalists: StaffPlan[] = [];
+  for (const p of judged) { if (finalists.some((x) => sig(x.orders) === sig(p.orders))) continue; finalists.push(p); if (finalists.length >= 5) break; }
+  const rejudged = finalists.map((p) => { const f = forecastWith(w, warId, p.orders, 8); return f ? { ...p, pWin: f.pWin, score: f.score, ourLoss: f.ourLoss, theirLoss: f.theirLoss } : p; });
+  return rejudged.sort((a, b) => b.pWin - a.pWin || b.score - a.score).slice(0, 3);
+}
+
 // ---------------------------------------------------------------- the brief: what needs an answer this Phase
 
-export interface BriefOption { label: string; note: string; orders: Record<string, GroupOrder> }
+export interface BriefOption {
+  label: string; note: string; orders: Record<string, GroupOrder>;
+  /** Not an order to our forces but a job for the Spymaster: a network in a house, or people sent to look at a place. */
+  spy?: { kind: 'network'; house: string; cost: number; odds: number } | { kind: 'probe'; node: string; cost: number };
+}
 export interface BriefItem { kind: 'threat' | 'opportunity' | 'unknown'; title: string; when: string; node?: string; options: BriefOption[] }
 
 /** From the forecast of doing nothing new: what is coming at us, what we could hit, and what we cannot see. */
@@ -319,9 +384,25 @@ export function briefOf(w: World, warId: string, f: Forecast): BriefItem[] {
       { label: 'Let them come', note: 'keep the fleet home', orders: {} },
     ] });
   }
-  // Unknown: enemy groups we have lost.
-  const lostSight = Object.values(t.sight[side]).filter((s) => s.level === 0).length;
-  if (lostSight) items.push({ kind: 'unknown', title: `${lostSight} of their groups unseen`, when: '?', options: [{ label: 'Leave it', note: 'risk it', orders: {} }] });
+  // Unknown: enemy groups we have never seen or have lost. The answer is the Spymaster's.
+  const blind = Object.values(t.groups).filter((g) => g.side !== side && (t.sight[side][g.id]?.level ?? 0) === 0);
+  if (blind.length) {
+    const options: BriefOption[] = [];
+    for (const h of [...new Set(blind.map((g) => g.house))]) {
+      if (networkIn(w, h)) continue;
+      const why = cannotPlant(w, h);
+      const terms = plantTerms(w, h);
+      options.push({ label: `Plant a network in House ${houseName(w, h)}`, note: why ?? `${terms.war ? 'harder in a war: ' : ''}reports from next Phase`, orders: {}, spy: { kind: 'network', house: h, cost: terms.cost, odds: terms.odds } });
+    }
+    // Where the forecast most often puts what we cannot see, mid-Phase.
+    const count = new Map<string, number>();
+    for (const tr of f.tracks) if (!tr.ours && tr.seen <= 0) { const at = tr.at[Math.floor(HORIZON / 2)] ?? tr.at[0]; if (at && !(t.probes[at] && t.probes[at]! > absoluteCycle(w.date))) count.set(at, (count.get(at) ?? 0) + 1); }
+    const look = [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (look) options.push({ label: `Send people to look at ${name(look)}`, note: 'sees there for a Phase', orders: {}, spy: { kind: 'probe', node: look, cost: PROBE_COST } });
+    options.push({ label: 'Leave it', note: 'risk it', orders: {} });
+    const pending = networksOf(w).filter((n) => blind.some((g) => g.house === n.house) && n.ready > absoluteCycle(w.date)).map((n) => houseName(w, n.house));
+    items.push({ kind: 'unknown', title: `${blind.length} of their groups unseen${pending.length ? ` (our people in ${pending.join(', ')} report from next Phase)` : ''}`, when: '?', options });
+  }
   return items;
 }
 

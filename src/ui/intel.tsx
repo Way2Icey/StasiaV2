@@ -12,6 +12,9 @@ import {
 import { shipsFree } from '../sim/arcs_places';
 import { formatDate } from '../sim/time';
 import type { World } from '../sim/types';
+import { atWarWith, cannotPlant, networksOf, NETWORK_LIMIT, plantNetwork, plantTerms, recallNetwork } from '../sim/networks';
+import { absoluteCycle } from '../sim/time';
+import { houseName } from '../sim/archon';
 
 const bar = (n: number) => `[${'█'.repeat(Math.round(n / 10))}${'░'.repeat(10 - Math.round(n / 10))}]`;
 const pct = (n: number) => `${Math.round(n * 100)}%`;
@@ -41,6 +44,7 @@ export function IntelPage({ bare }: { bare?: boolean } = {}) {
       <div className="grid">
         <Cells run={run} />
         <IntelList run={run} />
+        <Networks run={run} />
         <Agents run={run} />
         <Wrongs />
       </div>
@@ -141,6 +145,43 @@ function IntelList({ run }: { run: (fn: (w: World) => World) => void }) {
           </div>
         );
       })}
+    </Panel>
+  );
+}
+
+const DEPTH = ['', 'rumours of where their forces are', 'where they are and how strong', 'their orders too'];
+
+/** Networks: planted in peacetime, they are the house's eyes in a war. */
+function Networks({ run }: { run: (fn: (w: World) => World) => void }) {
+  const world = useWorld();
+  const P = world.playerHouseId;
+  const now = absoluteCycle(world.date);
+  const nets = networksOf(world);
+  const houses = Object.keys(world.economy.houses).filter((h) => h !== P && !nets.some((n) => n.house === h));
+  const [pick, setPick] = useState(houses[0] ?? '');
+  const h = houses.includes(pick) ? pick : houses[0] ?? '';
+  const terms = h ? plantTerms(world, h) : null;
+  const why = h ? cannotPlant(world, h) : 'No house to plant in.';
+  return (
+    <Panel title="Spy networks" aside={`${nets.length} of ${NETWORK_LIMIT}`} className="span-6">
+      <p className="body muted" style={{ margin: 0, fontSize: 12 }}>A network reports where a house's armies and fleets are, each Phase, and sees more the longer it has been there. Plant before the war: once a house is at war with us, it watches its own people closely, and networks are dearer to plant and quicker to be rolled up.</p>
+      {nets.map((n) => (
+        <div key={n.house} className="row petition">
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <ArchonHouseLink id={n.house} /> <span className="muted" style={{ fontSize: 12 }}>· {n.ready > now ? 'taking root: reports from next Phase' : `${DEPTH[Math.min(3, n.depth)]}`} · {n.phases} Phase{n.phases === 1 ? '' : 's'}{atWarWith(world, P, n.house) ? ' · at war: at risk' : ''}</span>
+          </span>
+          <button type="button" className="btn small" onClick={() => run((w) => recallNetwork(w, n.house))}>Call them home</button>
+        </div>
+      ))}
+      {houses.length ? (
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <select className="select" aria-label="House to plant a network in" value={h} onChange={(e) => setPick(e.target.value)}>
+            {houses.map((x) => <option key={x} value={x}>House {houseName(world, x)}{atWarWith(world, P, x) ? ' (at war)' : ''}</option>)}
+          </select>
+          {terms ? <span className="muted" style={{ fontSize: 12 }}>{Math.round(terms.odds * 100)}% to take · {terms.cost.toLocaleString('en-US')} othes{terms.war ? ' · at war: hard' : ''}</span> : null}
+          <button type="button" className="btn small primary" disabled={!!why} title={why ?? 'If it fails they may see who sent them.'} onClick={() => run((w) => plantNetwork(w, h))}>Plant a network</button>
+        </div>
+      ) : null}
     </Panel>
   );
 }

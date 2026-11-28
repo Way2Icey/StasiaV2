@@ -1137,3 +1137,11 @@ span.ph-tl-name { cursor: default; } .ph-tl-name b { font-weight: 600; overflow:
 
 .ph-ed-body.stale .ph-what, .ph-ed-body.stale .ph-seg { opacity: .55; transition: opacity .2s; }
 .ph-working { font-size: 12px; padding: 8px 0; }
+.ph-opt.spy { border-style: dashed; }
+.ph-note { display: block; font-size: 10px; }
+.ph-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; position: relative; }
+.ph-plan { border: 1px solid var(--line); padding: 10px 12px; display: grid; gap: 6px; background: var(--panel); align-content: start; }
+.ph-plan.on { border-color: var(--gold); box-shadow: inset 3px 0 0 var(--gold); }
+.ph-plan .ph-card-h b { font: 600 22px var(--mono); }
+.ph-plan-o { font-size: 11px; color: var(--fg-2); }
+.ph-plans-x { position: absolute; right: 0; top: -18px; font-size: 11px; }

@@ -25,6 +25,7 @@ import { assaultPower, shipsFree } from './arcs_places';
 import { siteDefence } from './places';
 import { equipPower } from './standing';
 import { shipLog } from './fleet';
+import { advanceNetworks } from './networks';
 import type { Captive, Character, World } from './types';
 
 export type Method = 'talk' | 'press' | 'break';
@@ -59,7 +60,7 @@ export interface Intel {
 
 export interface DoubleAgent { personId: string; for: string; since: GameDate; reports: number; burned?: boolean; /** Whether they are really ours. Hidden from the player. */ ours: boolean; asked?: number }
 export interface Wrong { by: string; against: string; text: string; year: number }
-export interface IntelState { items: Intel[]; agents: DoubleAgent[]; wrongs: Wrong[] }
+export interface IntelState { items: Intel[]; agents: DoubleAgent[]; wrongs: Wrong[]; /** Spy networks (networks.ts). */ networks?: import('./networks').Network[] }
 
 export function ensureIntel(w: World): IntelState {
   w.intel ??= { items: [], agents: [], wrongs: [] };
@@ -271,11 +272,14 @@ export function advanceIntel(w: World, rng: Rng, phaseTurned: boolean): void {
   if (!phaseTurned || !w.intel) return;
   const s = w.intel;
   const now = absoluteCycle(w.date);
+  advanceNetworks(w, rng);
   for (const a of s.agents) {
     const c = w.characters[a.personId];
     if (a.burned || !c?.alive) continue;
     const theirSpy = seatHolder(w, c.houseId!, 'spymaster');
-    const risk = 0.025 + (theirSpy ? theirSpy.stats.intrigue / 400 : 0) + (a.asked ?? 0) * 0.06 + (a.ours ? 0 : 0.02);
+    // A house at war with the one the agent reports to watches its own people far more closely.
+    const war = (w.war?.wars ?? []).some((x) => x.status === 'active' && [x.attacker, ...x.attackers, x.defender, ...x.defenders].includes(a.for) && [x.attacker, ...x.attackers, x.defender, ...x.defenders].includes(c.houseId!) && ([x.attacker, ...x.attackers].includes(a.for) !== [x.attacker, ...x.attackers].includes(c.houseId!)));
+    const risk = 0.025 + (theirSpy ? theirSpy.stats.intrigue / 400 : 0) + (a.asked ?? 0) * 0.06 + (a.ours ? 0 : 0.02) + (war ? 0.05 : 0);
     if (rng.chance(risk)) {
       a.burned = true;
       const dead = rng.chance(0.5);

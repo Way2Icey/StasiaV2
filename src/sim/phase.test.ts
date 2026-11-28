@@ -4,7 +4,7 @@ import { stepClock, advanceTurns } from './tick';
 import { startWar } from './war';
 import { Rng } from './rng';
 import { absoluteCycle } from './time';
-import { bestPlan, briefOf, forecastWar, forecastWith, whatIf } from './forecast';
+import { bestPlan, briefOf, forecastWar, forecastWith, staffPlans, whatIf } from './forecast';
 import { cannotOrder, commitPhase, orderGroup, phaseIndex, theatreOf } from './warroom';
 
 function atWar() {
@@ -114,4 +114,52 @@ describe('the fixes of 9.27.1', () => {
     const f = forecastWar(w, war.id, 2)!;
     for (const g of unseen) expect(f.tracks.some((tr) => tr.id === g.id && tr.seen === -1)).toBe(true);
   });
+});
+
+describe('spies and whole plans', () => {
+  it('a network is harder and dearer to plant in a house at war with us', async () => {
+    const { plantTerms } = await import('./networks');
+    const w = createWorld();
+    const peace = plantTerms(w, 'torvann');
+    startWar(w, new Rng(w.rng), { attacker: 'torvann', defender: w.playerHouseId, goal: 'tribute', rung: 'war' });
+    const war = plantTerms(w, 'torvann');
+    expect(war.war).toBe(true);
+    expect(war.odds).toBeLessThan(peace.odds);
+    expect(war.cost).toBeGreaterThan(peace.cost);
+  });
+
+  it("a network inside their house shows their forces in the theatre", async () => {
+    const { insideSight } = await import('./networks');
+    const { ensureIntel } = await import('./turning');
+    let w = atWar();
+    const war = w.war!.wars[0]!;
+    ensureIntel(w).networks = [{ house: 'torvann', for: w.playerHouseId, since: w.date, ready: 0, depth: 2, phases: 3 }];
+    expect(insideSight(w, 'torvann', w.playerHouseId)).toBe(2);
+    w = advanceTurns(w, 1);
+    const t = theatreOf(w.war!.wars.find((x) => x.id === war.id)!)!;
+    const side = war.attacker === w.playerHouseId ? 'attackers' : 'defenders';
+    const theirs = Object.values(t.groups).filter((g) => g.house === 'torvann');
+    expect(theirs.length).toBeGreaterThan(0);
+    for (const g of theirs) expect(t.sight[side][g.id]?.level ?? 0).toBeGreaterThanOrEqual(2);
+  }, 30000);
+
+  it('planting pays, and either takes or is lost', async () => {
+    const { plantNetwork, networkIn } = await import('./networks');
+    let w = createWorld();
+    const P = w.playerHouseId;
+    w.economy.houses[P]!.stock.othes = 20000;
+    w = plantNetwork(w, 'serath');
+    expect(w.economy.houses[P]!.stock.othes).toBe(20000 - 1500);
+    expect(networkIn(w, 'serath') === undefined || networkIn(w, 'serath')!.depth === 1).toBe(true);
+  });
+
+  it('the staff offer whole plans, best first, no two alike', () => {
+    const w = atWar();
+    const war = w.war!.wars[0]!;
+    const plans = staffPlans(w, war.id, 2);
+    expect(plans.length).toBeGreaterThan(0);
+    expect(plans.length).toBeLessThanOrEqual(3);
+    for (let i = 1; i < plans.length; i++) expect(plans[i - 1]!.pWin).toBeGreaterThanOrEqual(plans[i]!.pWin - 1e-9);
+    expect(new Set(plans.map((p) => JSON.stringify(p.orders))).size).toBe(plans.length);
+  }, 60000);
 });
